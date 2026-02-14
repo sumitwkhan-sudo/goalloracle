@@ -1,2 +1,1 @@
-# goalloracle
-goal oracle website for world cup prediction game for friends and family using stable coins
+# GoalOracle - World Cup 2026 Predictions
