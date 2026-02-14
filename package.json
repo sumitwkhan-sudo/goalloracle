@@ -12,7 +12,7 @@
     "react-dom": "^18.3.1",
     "@privy-io/react-auth": "^1.80.0",
     "firebase": "^10.8.0",
-    "lucide-react": "^0.344.0"
+    "lucide-react": "^0.460.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
