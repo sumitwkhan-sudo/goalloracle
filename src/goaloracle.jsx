@@ -41,8 +41,9 @@ const GoalOracle = () => {
 
   const handleSave = async () => { if (!uData?.id || !selLeague?.id) return; setSaving(true); try { await saveBatchPredictions(uData.id, selLeague.id, preds); notify('Predictions saved!'); } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); } };
 
-  const stages = ['Group A','Group B','Group C','Group D','Group E','Group F','Group G','Group H','Group I','Group J','Group K','Group L','Round of 32','Round of 16','Quarter-Final','Semi-Final','3rd Place','Final'];
+  const stages = ['Group A','Group B','Group C','Group D','Group E','Group F','Group G','Group H','Group I','Group J','Group K','Group L','Round of 32','Round of 16','Quarterfinal','Semifinal','3rd Place','Final'];
 
+  // Compact Prediction Row — fits 4-5 per screen
   const PredictionCard = ({ match }) => {
     const p = preds[match.id] || { result: null, score: { home: '', away: '' }, extraTime: false, penalties: false };
     const status = getMatchStatus(match.date, match.time);
@@ -51,41 +52,61 @@ const GoalOracle = () => {
     const pts = res?.completed ? calculatePoints(p, res, selLeague?.pointsSystem || {}) : null;
     const upd = (f, v) => { if (locked) return; const u = { ...p }; if (f === 'result') u.result = v; else if (f === 'hs') u.score = { ...u.score, home: v }; else if (f === 'as') u.score = { ...u.score, away: v }; else if (f === 'et') u.extraTime = v; else if (f === 'pen') u.penalties = v; setPreds(pr => ({ ...pr, [match.id]: u })); };
     const clamp = e => String(Math.max(0, Math.min(15, parseInt(e.target.value) || 0)));
+    const dateStr = new Date(match.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
     return (
-      <div className={`prediction-card ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''}`}>
-        <div className="match-header">
-          <span className="match-stage">{match.stage}</span>
-          <div className="match-header-right">
-            {locked && <span className="lock-badge"><Lock size={12} /> Locked</span>}
-            {pts !== null && <span className="points-badge">+{pts} pts</span>}
-            <span className="match-date">{new Date(match.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • {match.time}</span>
-          </div>
+      <div className={`pred-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''}`}>
+        {/* Top bar: date, venue, status */}
+        <div className="pred-meta">
+          <span className="pred-stage-badge">{match.stage}</span>
+          <span className="pred-venue">{match.city}</span>
+          <span className="pred-date">{dateStr} • {match.time}</span>
+          {locked && <span className="lock-badge"><Lock size={10} /></span>}
+          {pts !== null && <span className="points-badge">+{pts}</span>}
         </div>
-        <div className="match-venue">{match.venue}, {match.city}</div>
-        <div className="match-teams">
-          <div className="team"><span className="flag">{match.homeFlag}</span><span className="team-name">{match.home}</span></div>
-          {res?.completed ? <div className="final-score"><span className="score-num">{res.homeScore}</span><span className="score-sep">-</span><span className="score-num">{res.awayScore}</span>{res.extraTime && <span className="score-extra">AET</span>}{res.penalties && <span className="score-extra">Pen</span>}</div> : <span className="vs">VS</span>}
-          <div className="team"><span className="team-name">{match.away}</span><span className="flag">{match.awayFlag}</span></div>
+
+        {/* Main row: teams + score inputs + result buttons */}
+        <div className="pred-main">
+          <div className="pred-teams">
+            <div className="pred-team">
+              <span className="flag">{match.homeFlag}</span>
+              <span className="pred-team-name">{match.home}</span>
+            </div>
+            <div className="pred-team">
+              <span className="flag">{match.awayFlag}</span>
+              <span className="pred-team-name">{match.away}</span>
+            </div>
+          </div>
+
+          {res?.completed ? (
+            <div className="pred-final-score">
+              <span className="fs-num">{res.homeScore}</span>
+              <span className="fs-sep">-</span>
+              <span className="fs-num">{res.awayScore}</span>
+              {res.extraTime && <span className="fs-tag">AET</span>}
+              {res.penalties && <span className="fs-tag">PEN</span>}
+            </div>
+          ) : !locked ? (<>
+            <div className="pred-scores">
+              <input type="number" min="0" max="15" placeholder="–" className="pred-score-input" value={p.score.home} onChange={e => upd('hs', clamp(e))} />
+              <span className="pred-score-sep">:</span>
+              <input type="number" min="0" max="15" placeholder="–" className="pred-score-input" value={p.score.away} onChange={e => upd('as', clamp(e))} />
+            </div>
+            <div className="pred-picks">
+              <button className={`pred-pick ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>1</button>
+              <button className={`pred-pick ${p.result === 'draw' ? 'active draw-pick' : ''}`} onClick={() => upd('result', 'draw')}>X</button>
+              <button className={`pred-pick ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>2</button>
+            </div>
+            {match.isKnockout && <div className="pred-ko-opts">
+              <label className="pred-ko-label"><input type="checkbox" checked={p.extraTime || false} onChange={e => upd('et', e.target.checked)} /><span>ET</span></label>
+              <label className="pred-ko-label"><input type="checkbox" checked={p.penalties || false} onChange={e => upd('pen', e.target.checked)} /><span>Pen</span></label>
+            </div>}
+          </>) : (
+            <div className="pred-locked-pick">
+              {p.result ? <span className="locked-result">{p.result === 'home' ? '1' : p.result === 'away' ? '2' : 'X'}{p.score.home !== '' && ` (${p.score.home}-${p.score.away})`}</span> : <span className="no-pick">—</span>}
+            </div>
+          )}
         </div>
-        {!locked && <>
-          <div className="prediction-options">
-            <button className={`prediction-btn ${p.result === 'home' ? 'active' : ''}`} onClick={() => upd('result', 'home')}>{match.home}</button>
-            <button className={`prediction-btn draw ${p.result === 'draw' ? 'active' : ''}`} onClick={() => upd('result', 'draw')}>Draw</button>
-            <button className={`prediction-btn ${p.result === 'away' ? 'active' : ''}`} onClick={() => upd('result', 'away')}>{match.away}</button>
-          </div>
-          <div className="score-prediction">
-            <label>Score:</label>
-            <input type="number" min="0" max="15" placeholder="0" className="score-input" value={p.score.home} onChange={e => upd('hs', clamp(e))} />
-            <span className="score-dash">-</span>
-            <input type="number" min="0" max="15" placeholder="0" className="score-input" value={p.score.away} onChange={e => upd('as', clamp(e))} />
-          </div>
-          {match.isKnockout && <div className="knockout-options">
-            <label className="checkbox-label"><input type="checkbox" checked={p.extraTime || false} onChange={e => upd('et', e.target.checked)} /><span>Extra Time</span></label>
-            <label className="checkbox-label"><input type="checkbox" checked={p.penalties || false} onChange={e => upd('pen', e.target.checked)} /><span>Penalties</span></label>
-          </div>}
-        </>}
-        {locked && p.result && <div className="locked-prediction">Your pick: <strong>{p.result === 'home' ? match.home : p.result === 'away' ? match.away : 'Draw'}</strong>{p.score.home !== '' && ` (${p.score.home} - ${p.score.away})`}</div>}
       </div>
     );
   };

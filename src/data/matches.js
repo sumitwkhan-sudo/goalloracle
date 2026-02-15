@@ -1,140 +1,178 @@
 // FIFA World Cup 2026 — All 104 Matches
-// 48 teams, 12 groups of 4, USA/Canada/Mexico
+// 48 teams, 12 groups of 4, hosted in USA/Canada/Mexico
+// Source: Official FIFA schedule (December 2025 draw + January 2026 schedule)
+// Note: Some playoff spots TBD until March 2026
 
 const WORLD_CUP_MATCHES = [
-  // === GROUP STAGE — MATCHDAY 1 ===
-  // Group A
-  { id: 'wc001', stage: 'Group A', home: 'Mexico', away: 'South Africa', homeFlag: '🇲🇽', awayFlag: '🇿🇦', date: '2026-06-11', time: '18:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
-  { id: 'wc002', stage: 'Group A', home: 'Indonesia', away: 'Colombia', homeFlag: '🇮🇩', awayFlag: '🇨🇴', date: '2026-06-11', time: '21:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
-  // Group B
-  { id: 'wc003', stage: 'Group B', home: 'Portugal', away: 'Bahrain', homeFlag: '🇵🇹', awayFlag: '🇧🇭', date: '2026-06-12', time: '13:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc004', stage: 'Group B', home: 'Bolivia', away: 'Ecuador', homeFlag: '🇧🇴', awayFlag: '🇪🇨', date: '2026-06-12', time: '16:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
-  // Group C
-  { id: 'wc005', stage: 'Group C', home: 'Belgium', away: 'Qatar', homeFlag: '🇧🇪', awayFlag: '🇶🇦', date: '2026-06-12', time: '19:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc006', stage: 'Group C', home: 'Iran', away: 'Honduras', homeFlag: '🇮🇷', awayFlag: '🇭🇳', date: '2026-06-12', time: '22:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: false },
-  // Group D
-  { id: 'wc007', stage: 'Group D', home: 'USA', away: 'Paraguay', homeFlag: '🇺🇸', awayFlag: '🇵🇾', date: '2026-06-13', time: '17:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc008', stage: 'Group D', home: 'Australia', away: 'TBD (Playoff)', homeFlag: '🇦🇺', awayFlag: '🏳️', date: '2026-06-13', time: '20:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
-  // Group E
-  { id: 'wc009', stage: 'Group E', home: 'Brazil', away: 'New Zealand', homeFlag: '🇧🇷', awayFlag: '🇳🇿', date: '2026-06-13', time: '14:00', venue: 'Rose Bowl', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc010', stage: 'Group E', home: 'Turkey', away: 'Costa Rica', homeFlag: '🇹🇷', awayFlag: '🇨🇷', date: '2026-06-13', time: '22:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
-  // Group F
-  { id: 'wc011', stage: 'Group F', home: 'Argentina', away: 'Peru', homeFlag: '🇦🇷', awayFlag: '🇵🇪', date: '2026-06-14', time: '17:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc012', stage: 'Group F', home: 'Canada', away: 'Cameroon', homeFlag: '🇨🇦', awayFlag: '🇨🇲', date: '2026-06-14', time: '20:00', venue: 'BMO Field', city: 'Toronto', isKnockout: false },
-  // Group G
-  { id: 'wc013', stage: 'Group G', home: 'Germany', away: 'Uruguay', homeFlag: '🇩🇪', awayFlag: '🇺🇾', date: '2026-06-14', time: '14:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
-  { id: 'wc014', stage: 'Group G', home: 'Japan', away: 'TBD (Playoff)', homeFlag: '🇯🇵', awayFlag: '🏳️', date: '2026-06-14', time: '22:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: false },
-  // Group H
-  { id: 'wc015', stage: 'Group H', home: 'Spain', away: 'Panama', homeFlag: '🇪🇸', awayFlag: '🇵🇦', date: '2026-06-15', time: '14:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc016', stage: 'Group H', home: 'South Korea', away: 'Serbia', homeFlag: '🇰🇷', awayFlag: '🇷🇸', date: '2026-06-15', time: '17:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
-  // Group I
-  { id: 'wc017', stage: 'Group I', home: 'France', away: 'Senegal', homeFlag: '🇫🇷', awayFlag: '🇸🇳', date: '2026-06-15', time: '20:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc018', stage: 'Group I', home: 'Norway', away: 'TBD (Playoff)', homeFlag: '🇳🇴', awayFlag: '🏳️', date: '2026-06-15', time: '22:00', venue: 'BC Place', city: 'Vancouver', isKnockout: false },
-  // Group J
-  { id: 'wc019', stage: 'Group J', home: 'Netherlands', away: 'Saudi Arabia', homeFlag: '🇳🇱', awayFlag: '🇸🇦', date: '2026-06-16', time: '14:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
-  { id: 'wc020', stage: 'Group J', home: 'Ivory Coast', away: 'Chile', homeFlag: '🇨🇮', awayFlag: '🇨🇱', date: '2026-06-16', time: '17:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
-  // Group K
-  { id: 'wc021', stage: 'Group K', home: 'Italy', away: 'Albania', homeFlag: '🇮🇹', awayFlag: '🇦🇱', date: '2026-06-16', time: '20:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc022', stage: 'Group K', home: 'Morocco', away: 'Guatemala', homeFlag: '🇲🇦', awayFlag: '🇬🇹', date: '2026-06-16', time: '22:00', venue: 'Estadio BBVA', city: 'Monterrey', isKnockout: false },
-  // Group L
-  { id: 'wc023', stage: 'Group L', home: 'England', away: 'Croatia', homeFlag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', awayFlag: '🇭🇷', date: '2026-06-17', time: '17:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc024', stage: 'Group L', home: 'Ghana', away: 'Wales', homeFlag: '🇬🇭', awayFlag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', date: '2026-06-17', time: '20:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
+  // =============================================
+  // GROUP STAGE — MATCHDAY 1 (June 11-17)
+  // =============================================
 
-  // === GROUP STAGE — MATCHDAY 2 ===
-  { id: 'wc025', stage: 'Group A', home: 'Mexico', away: 'Indonesia', homeFlag: '🇲🇽', awayFlag: '🇮🇩', date: '2026-06-17', time: '14:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
-  { id: 'wc026', stage: 'Group A', home: 'South Africa', away: 'Colombia', homeFlag: '🇿🇦', awayFlag: '🇨🇴', date: '2026-06-17', time: '22:00', venue: 'Estadio Akron', city: 'Guadalajara', isKnockout: false },
-  { id: 'wc027', stage: 'Group B', home: 'Portugal', away: 'Bolivia', homeFlag: '🇵🇹', awayFlag: '🇧🇴', date: '2026-06-18', time: '14:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc028', stage: 'Group B', home: 'Bahrain', away: 'Ecuador', homeFlag: '🇧🇭', awayFlag: '🇪🇨', date: '2026-06-18', time: '17:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
-  { id: 'wc029', stage: 'Group C', home: 'Belgium', away: 'Iran', homeFlag: '🇧🇪', awayFlag: '🇮🇷', date: '2026-06-18', time: '20:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc030', stage: 'Group C', home: 'Qatar', away: 'Honduras', homeFlag: '🇶🇦', awayFlag: '🇭🇳', date: '2026-06-18', time: '22:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: false },
-  { id: 'wc031', stage: 'Group D', home: 'USA', away: 'Australia', homeFlag: '🇺🇸', awayFlag: '🇦🇺', date: '2026-06-19', time: '17:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc032', stage: 'Group D', home: 'Paraguay', away: 'TBD (Playoff)', homeFlag: '🇵🇾', awayFlag: '🏳️', date: '2026-06-19', time: '20:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
-  { id: 'wc033', stage: 'Group E', home: 'Brazil', away: 'Turkey', homeFlag: '🇧🇷', awayFlag: '🇹🇷', date: '2026-06-19', time: '14:00', venue: 'Rose Bowl', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc034', stage: 'Group E', home: 'New Zealand', away: 'Costa Rica', homeFlag: '🇳🇿', awayFlag: '🇨🇷', date: '2026-06-19', time: '22:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
-  { id: 'wc035', stage: 'Group F', home: 'Argentina', away: 'Canada', homeFlag: '🇦🇷', awayFlag: '🇨🇦', date: '2026-06-20', time: '17:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc036', stage: 'Group F', home: 'Peru', away: 'Cameroon', homeFlag: '🇵🇪', awayFlag: '🇨🇲', date: '2026-06-20', time: '20:00', venue: 'BMO Field', city: 'Toronto', isKnockout: false },
-  { id: 'wc037', stage: 'Group G', home: 'Germany', away: 'Japan', homeFlag: '🇩🇪', awayFlag: '🇯🇵', date: '2026-06-20', time: '14:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
-  { id: 'wc038', stage: 'Group G', home: 'Uruguay', away: 'TBD (Playoff)', homeFlag: '🇺🇾', awayFlag: '🏳️', date: '2026-06-20', time: '22:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: false },
-  { id: 'wc039', stage: 'Group H', home: 'Spain', away: 'South Korea', homeFlag: '🇪🇸', awayFlag: '🇰🇷', date: '2026-06-21', time: '14:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc040', stage: 'Group H', home: 'Panama', away: 'Serbia', homeFlag: '🇵🇦', awayFlag: '🇷🇸', date: '2026-06-21', time: '17:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
-  { id: 'wc041', stage: 'Group I', home: 'France', away: 'Norway', homeFlag: '🇫🇷', awayFlag: '🇳🇴', date: '2026-06-21', time: '20:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc042', stage: 'Group I', home: 'Senegal', away: 'TBD (Playoff)', homeFlag: '🇸🇳', awayFlag: '🏳️', date: '2026-06-21', time: '22:00', venue: 'BC Place', city: 'Vancouver', isKnockout: false },
-  { id: 'wc043', stage: 'Group J', home: 'Netherlands', away: 'Ivory Coast', homeFlag: '🇳🇱', awayFlag: '🇨🇮', date: '2026-06-22', time: '14:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
-  { id: 'wc044', stage: 'Group J', home: 'Saudi Arabia', away: 'Chile', homeFlag: '🇸🇦', awayFlag: '🇨🇱', date: '2026-06-22', time: '17:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
-  { id: 'wc045', stage: 'Group K', home: 'Italy', away: 'Morocco', homeFlag: '🇮🇹', awayFlag: '🇲🇦', date: '2026-06-22', time: '20:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc046', stage: 'Group K', home: 'Albania', away: 'Guatemala', homeFlag: '🇦🇱', awayFlag: '🇬🇹', date: '2026-06-22', time: '22:00', venue: 'Estadio BBVA', city: 'Monterrey', isKnockout: false },
-  { id: 'wc047', stage: 'Group L', home: 'England', away: 'Ghana', homeFlag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', awayFlag: '🇬🇭', date: '2026-06-23', time: '17:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc048', stage: 'Group L', home: 'Croatia', away: 'Wales', homeFlag: '🇭🇷', awayFlag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', date: '2026-06-23', time: '20:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
+  // --- June 11 ---
+  { id: 'gs01', stage: 'Group A', home: 'Mexico', away: 'South Africa', homeFlag: '🇲🇽', awayFlag: '🇿🇦', date: '2026-06-11', time: '15:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
+  { id: 'gs02', stage: 'Group A', home: 'South Korea', away: 'UEFA Playoff D', homeFlag: '🇰🇷', awayFlag: '🏳️', date: '2026-06-11', time: '22:00', venue: 'Estadio Akron', city: 'Guadalajara', isKnockout: false },
 
-  // === GROUP STAGE — MATCHDAY 3 ===
-  { id: 'wc049', stage: 'Group A', home: 'Colombia', away: 'Mexico', homeFlag: '🇨🇴', awayFlag: '🇲🇽', date: '2026-06-25', time: '18:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
-  { id: 'wc050', stage: 'Group A', home: 'South Africa', away: 'Indonesia', homeFlag: '🇿🇦', awayFlag: '🇮🇩', date: '2026-06-25', time: '18:00', venue: 'Estadio Akron', city: 'Guadalajara', isKnockout: false },
-  { id: 'wc051', stage: 'Group B', home: 'Ecuador', away: 'Portugal', homeFlag: '🇪🇨', awayFlag: '🇵🇹', date: '2026-06-25', time: '21:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc052', stage: 'Group B', home: 'Bahrain', away: 'Bolivia', homeFlag: '🇧🇭', awayFlag: '🇧🇴', date: '2026-06-25', time: '21:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
-  { id: 'wc053', stage: 'Group C', home: 'Honduras', away: 'Belgium', homeFlag: '🇭🇳', awayFlag: '🇧🇪', date: '2026-06-26', time: '18:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc054', stage: 'Group C', home: 'Qatar', away: 'Iran', homeFlag: '🇶🇦', awayFlag: '🇮🇷', date: '2026-06-26', time: '18:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: false },
-  { id: 'wc055', stage: 'Group D', home: 'TBD (Playoff)', away: 'USA', homeFlag: '🏳️', awayFlag: '🇺🇸', date: '2026-06-26', time: '21:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc056', stage: 'Group D', home: 'Australia', away: 'Paraguay', homeFlag: '🇦🇺', awayFlag: '🇵🇾', date: '2026-06-26', time: '21:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
-  { id: 'wc057', stage: 'Group E', home: 'Costa Rica', away: 'Brazil', homeFlag: '🇨🇷', awayFlag: '🇧🇷', date: '2026-06-27', time: '18:00', venue: 'Rose Bowl', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc058', stage: 'Group E', home: 'New Zealand', away: 'Turkey', homeFlag: '🇳🇿', awayFlag: '🇹🇷', date: '2026-06-27', time: '18:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
-  { id: 'wc059', stage: 'Group F', home: 'Cameroon', away: 'Argentina', homeFlag: '🇨🇲', awayFlag: '🇦🇷', date: '2026-06-27', time: '21:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc060', stage: 'Group F', home: 'Peru', away: 'Canada', homeFlag: '🇵🇪', awayFlag: '🇨🇦', date: '2026-06-27', time: '21:00', venue: 'BMO Field', city: 'Toronto', isKnockout: false },
-  { id: 'wc061', stage: 'Group G', home: 'TBD (Playoff)', away: 'Germany', homeFlag: '🏳️', awayFlag: '🇩🇪', date: '2026-06-28', time: '18:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
-  { id: 'wc062', stage: 'Group G', home: 'Uruguay', away: 'Japan', homeFlag: '🇺🇾', awayFlag: '🇯🇵', date: '2026-06-28', time: '18:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: false },
-  { id: 'wc063', stage: 'Group H', home: 'Serbia', away: 'Spain', homeFlag: '🇷🇸', awayFlag: '🇪🇸', date: '2026-06-28', time: '21:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
-  { id: 'wc064', stage: 'Group H', home: 'Panama', away: 'South Korea', homeFlag: '🇵🇦', awayFlag: '🇰🇷', date: '2026-06-28', time: '21:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
-  { id: 'wc065', stage: 'Group I', home: 'TBD (Playoff)', away: 'France', homeFlag: '🏳️', awayFlag: '🇫🇷', date: '2026-06-29', time: '18:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc066', stage: 'Group I', home: 'Senegal', away: 'Norway', homeFlag: '🇸🇳', awayFlag: '🇳🇴', date: '2026-06-29', time: '18:00', venue: 'BC Place', city: 'Vancouver', isKnockout: false },
-  { id: 'wc067', stage: 'Group J', home: 'Chile', away: 'Netherlands', homeFlag: '🇨🇱', awayFlag: '🇳🇱', date: '2026-06-29', time: '21:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
-  { id: 'wc068', stage: 'Group J', home: 'Saudi Arabia', away: 'Ivory Coast', homeFlag: '🇸🇦', awayFlag: '🇨🇮', date: '2026-06-29', time: '21:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
-  { id: 'wc069', stage: 'Group K', home: 'Guatemala', away: 'Italy', homeFlag: '🇬🇹', awayFlag: '🇮🇹', date: '2026-06-30', time: '18:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
-  { id: 'wc070', stage: 'Group K', home: 'Albania', away: 'Morocco', homeFlag: '🇦🇱', awayFlag: '🇲🇦', date: '2026-06-30', time: '18:00', venue: 'Estadio BBVA', city: 'Monterrey', isKnockout: false },
-  { id: 'wc071', stage: 'Group L', home: 'Wales', away: 'England', homeFlag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', awayFlag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', date: '2026-06-30', time: '21:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
-  { id: 'wc072', stage: 'Group L', home: 'Ghana', away: 'Croatia', homeFlag: '🇬🇭', awayFlag: '🇭🇷', date: '2026-06-30', time: '21:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
+  // --- June 12 ---
+  { id: 'gs03', stage: 'Group D', home: 'USA', away: 'Paraguay', homeFlag: '🇺🇸', awayFlag: '🇵🇾', date: '2026-06-12', time: '21:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
+  { id: 'gs04', stage: 'Group D', home: 'Australia', away: 'UEFA Playoff C', homeFlag: '🇦🇺', awayFlag: '🏳️', date: '2026-06-12', time: '00:00', venue: 'BC Place', city: 'Vancouver', isKnockout: false },
+  { id: 'gs05', stage: 'Group B', home: 'Canada', away: 'Qatar', homeFlag: '🇨🇦', awayFlag: '🇶🇦', date: '2026-06-12', time: '17:00', venue: 'BMO Field', city: 'Toronto', isKnockout: false },
 
-  // === ROUND OF 32 (16 matches) ===
-  { id: 'wc073', stage: 'Round of 32', home: '1A', away: '2B', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-01', time: '14:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc074', stage: 'Round of 32', home: '1B', away: '2A', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-01', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc075', stage: 'Round of 32', home: '1C', away: '2D', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-01', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc076', stage: 'Round of 32', home: '1D', away: '2C', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-01', time: '22:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc077', stage: 'Round of 32', home: '1E', away: '2F', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-02', time: '14:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc078', stage: 'Round of 32', home: '1F', away: '2E', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-02', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc079', stage: 'Round of 32', home: '1G', away: '2H', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-02', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc080', stage: 'Round of 32', home: '1H', away: '2G', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-02', time: '22:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc081', stage: 'Round of 32', home: '1I', away: '2J', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-03', time: '14:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc082', stage: 'Round of 32', home: '1J', away: '2I', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-03', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc083', stage: 'Round of 32', home: '1K', away: '2L', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-03', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc084', stage: 'Round of 32', home: '1L', away: '2K', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-03', time: '22:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc085', stage: 'Round of 32', home: '3rd Place TBD', away: '3rd Place TBD', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-04', time: '14:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc086', stage: 'Round of 32', home: '3rd Place TBD', away: '3rd Place TBD', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-04', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc087', stage: 'Round of 32', home: '3rd Place TBD', away: '3rd Place TBD', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-04', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc088', stage: 'Round of 32', home: '3rd Place TBD', away: '3rd Place TBD', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-04', time: '22:00', venue: 'TBD', city: 'TBD', isKnockout: true },
+  // --- June 13 ---
+  { id: 'gs06', stage: 'Group C', home: 'Haiti', away: 'Scotland', homeFlag: '🇭🇹', awayFlag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', date: '2026-06-13', time: '12:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
+  { id: 'gs07', stage: 'Group C', home: 'Brazil', away: 'Morocco', homeFlag: '🇧🇷', awayFlag: '🇲🇦', date: '2026-06-13', time: '18:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
 
-  // === ROUND OF 16 (8 matches) ===
-  { id: 'wc089', stage: 'Round of 16', home: 'W73', away: 'W74', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-06', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc090', stage: 'Round of 16', home: 'W75', away: 'W76', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-06', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc091', stage: 'Round of 16', home: 'W77', away: 'W78', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-07', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc092', stage: 'Round of 16', home: 'W79', away: 'W80', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-07', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc093', stage: 'Round of 16', home: 'W81', away: 'W82', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-08', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc094', stage: 'Round of 16', home: 'W83', away: 'W84', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-08', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc095', stage: 'Round of 16', home: 'W85', away: 'W86', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-09', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc096', stage: 'Round of 16', home: 'W87', away: 'W88', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-09', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
+  // --- June 14 ---
+  { id: 'gs08', stage: 'Group E', home: 'Germany', away: 'Curaçao', homeFlag: '🇩🇪', awayFlag: '🇨🇼', date: '2026-06-14', time: '15:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
+  { id: 'gs09', stage: 'Group F', home: 'Netherlands', away: 'Japan', homeFlag: '🇳🇱', awayFlag: '🇯🇵', date: '2026-06-14', time: '18:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
+  { id: 'gs10', stage: 'Group F', home: 'UEFA Playoff B', away: 'Tunisia', homeFlag: '🏳️', awayFlag: '🇹🇳', date: '2026-06-14', time: '12:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: false },
 
-  // === QUARTER-FINALS (4 matches) ===
-  { id: 'wc097', stage: 'Quarter-Final', home: 'W89', away: 'W90', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-11', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc098', stage: 'Quarter-Final', home: 'W91', away: 'W92', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-11', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc099', stage: 'Quarter-Final', home: 'W93', away: 'W94', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-12', time: '17:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc100', stage: 'Quarter-Final', home: 'W95', away: 'W96', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-12', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
+  // --- June 15 ---
+  { id: 'gs11', stage: 'Group G', home: 'Belgium', away: 'Iran', homeFlag: '🇧🇪', awayFlag: '🇮🇷', date: '2026-06-15', time: '15:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
+  { id: 'gs12', stage: 'Group G', home: 'New Zealand', away: 'Ecuador', homeFlag: '🇳🇿', awayFlag: '🇪🇨', date: '2026-06-15', time: '18:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
+  { id: 'gs13', stage: 'Group H', home: 'Spain', away: 'Cape Verde', homeFlag: '🇪🇸', awayFlag: '🇨🇻', date: '2026-06-15', time: '12:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
+  { id: 'gs14', stage: 'Group H', home: 'Saudi Arabia', away: 'Uruguay', homeFlag: '🇸🇦', awayFlag: '🇺🇾', date: '2026-06-15', time: '21:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: false },
 
-  // === SEMI-FINALS (2 matches) ===
-  { id: 'wc101', stage: 'Semi-Final', home: 'W97', away: 'W98', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-15', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
-  { id: 'wc102', stage: 'Semi-Final', home: 'W99', away: 'W100', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-16', time: '20:00', venue: 'TBD', city: 'TBD', isKnockout: true },
+  // --- June 16 ---
+  { id: 'gs15', stage: 'Group I', home: 'France', away: 'Senegal', homeFlag: '🇫🇷', awayFlag: '🇸🇳', date: '2026-06-16', time: '15:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
+  { id: 'gs16', stage: 'Group I', home: 'Intercon. Playoff 2', away: 'Norway', homeFlag: '🏳️', awayFlag: '🇳🇴', date: '2026-06-16', time: '18:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
+  { id: 'gs17', stage: 'Group J', home: 'Argentina', away: 'Algeria', homeFlag: '🇦🇷', awayFlag: '🇩🇿', date: '2026-06-16', time: '21:00', venue: 'GEHA Field', city: 'Kansas City', isKnockout: false },
+  { id: 'gs18', stage: 'Group J', home: 'Austria', away: 'Jordan', homeFlag: '🇦🇹', awayFlag: '🇯🇴', date: '2026-06-16', time: '00:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
 
-  // === 3RD PLACE PLAYOFF ===
-  { id: 'wc103', stage: '3rd Place', home: 'L101', away: 'L102', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-18', time: '18:00', venue: 'TBD', city: 'TBD', isKnockout: true },
+  // --- June 17 ---
+  { id: 'gs19', stage: 'Group K', home: 'Portugal', away: 'Intercon. Playoff 1', homeFlag: '🇵🇹', awayFlag: '🏳️', date: '2026-06-17', time: '13:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: false },
+  { id: 'gs20', stage: 'Group K', home: 'Uzbekistan', away: 'Colombia', homeFlag: '🇺🇿', awayFlag: '🇨🇴', date: '2026-06-17', time: '22:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
+  { id: 'gs21', stage: 'Group L', home: 'England', away: 'Croatia', homeFlag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', awayFlag: '🇭🇷', date: '2026-06-17', time: '16:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
+  { id: 'gs22', stage: 'Group L', home: 'Ghana', away: 'Panama', homeFlag: '🇬🇭', awayFlag: '🇵🇦', date: '2026-06-17', time: '19:00', venue: 'BMO Field', city: 'Toronto', isKnockout: false },
+  { id: 'gs23', stage: 'Group E', home: 'Ecuador', away: 'Curaçao', homeFlag: '🇪🇨', awayFlag: '🇨🇼', date: '2026-06-17', time: '12:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: false },
 
-  // === FINAL ===
-  { id: 'wc104', stage: 'Final', home: 'W101', away: 'W102', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-19', time: '20:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: true },
+  // =============================================
+  // GROUP STAGE — MATCHDAY 2 (June 18-22)
+  // =============================================
+
+  // --- June 18 ---
+  { id: 'gs24', stage: 'Group A', home: 'UEFA Playoff D', away: 'South Africa', homeFlag: '🏳️', awayFlag: '🇿🇦', date: '2026-06-18', time: '12:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
+  { id: 'gs25', stage: 'Group A', home: 'Mexico', away: 'South Korea', homeFlag: '🇲🇽', awayFlag: '🇰🇷', date: '2026-06-18', time: '21:00', venue: 'Estadio Akron', city: 'Guadalajara', isKnockout: false },
+  { id: 'gs26', stage: 'Group B', home: 'Switzerland', away: 'UEFA Playoff A', homeFlag: '🇨🇭', awayFlag: '🏳️', date: '2026-06-18', time: '15:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
+  { id: 'gs27', stage: 'Group B', home: 'Canada', away: 'Qatar', homeFlag: '🇨🇦', awayFlag: '🇶🇦', date: '2026-06-18', time: '18:00', venue: 'BC Place', city: 'Vancouver', isKnockout: false },
+
+  // --- June 19 ---
+  { id: 'gs28', stage: 'Group D', home: 'UEFA Playoff C', away: 'Paraguay', homeFlag: '🏳️', awayFlag: '🇵🇾', date: '2026-06-19', time: '00:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
+  { id: 'gs29', stage: 'Group D', home: 'USA', away: 'Australia', homeFlag: '🇺🇸', awayFlag: '🇦🇺', date: '2026-06-19', time: '15:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: false },
+  { id: 'gs30', stage: 'Group C', home: 'Scotland', away: 'Morocco', homeFlag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', awayFlag: '🇲🇦', date: '2026-06-19', time: '18:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
+
+  // --- June 20 ---
+  { id: 'gs31', stage: 'Group C', home: 'Brazil', away: 'Haiti', homeFlag: '🇧🇷', awayFlag: '🇭🇹', date: '2026-06-20', time: '15:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
+  { id: 'gs32', stage: 'Group E', home: 'Germany', away: 'Belgium', homeFlag: '🇩🇪', awayFlag: '🇧🇪', date: '2026-06-20', time: '18:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
+  { id: 'gs33', stage: 'Group F', home: 'Tunisia', away: 'Japan', homeFlag: '🇹🇳', awayFlag: '🇯🇵', date: '2026-06-20', time: '12:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: false },
+  { id: 'gs34', stage: 'Group E', home: 'Ecuador', away: 'Iran', homeFlag: '🇪🇨', awayFlag: '🇮🇷', date: '2026-06-20', time: '21:00', venue: 'GEHA Field', city: 'Kansas City', isKnockout: false },
+
+  // --- June 21 ---
+  { id: 'gs35', stage: 'Group G', home: 'New Zealand', away: 'Iran', homeFlag: '🇳🇿', awayFlag: '🇮🇷', date: '2026-06-21', time: '15:00', venue: 'BC Place', city: 'Vancouver', isKnockout: false },
+  { id: 'gs36', stage: 'Group H', home: 'Spain', away: 'Saudi Arabia', homeFlag: '🇪🇸', awayFlag: '🇸🇦', date: '2026-06-21', time: '15:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
+  { id: 'gs37', stage: 'Group H', home: 'Uruguay', away: 'Cape Verde', homeFlag: '🇺🇾', awayFlag: '🇨🇻', date: '2026-06-21', time: '18:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: false },
+  { id: 'gs38', stage: 'Group G', home: 'Belgium', away: 'Ecuador', homeFlag: '🇧🇪', awayFlag: '🇪🇨', date: '2026-06-21', time: '21:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
+
+  // --- June 22 ---
+  { id: 'gs39', stage: 'Group I', home: 'France', away: 'Norway', homeFlag: '🇫🇷', awayFlag: '🇳🇴', date: '2026-06-22', time: '18:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
+  { id: 'gs40', stage: 'Group I', home: 'Senegal', away: 'Intercon. Playoff 2', homeFlag: '🇸🇳', awayFlag: '🏳️', date: '2026-06-22', time: '15:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
+  { id: 'gs41', stage: 'Group J', home: 'Argentina', away: 'Austria', homeFlag: '🇦🇷', awayFlag: '🇦🇹', date: '2026-06-22', time: '21:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: false },
+  { id: 'gs42', stage: 'Group J', home: 'Jordan', away: 'Algeria', homeFlag: '🇯🇴', awayFlag: '🇩🇿', date: '2026-06-22', time: '12:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
+
+  // --- June 23 ---
+  { id: 'gs43', stage: 'Group K', home: 'Colombia', away: 'Intercon. Playoff 1', homeFlag: '🇨🇴', awayFlag: '🏳️', date: '2026-06-23', time: '15:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: false },
+  { id: 'gs44', stage: 'Group L', home: 'England', away: 'Ghana', homeFlag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', awayFlag: '🇬🇭', date: '2026-06-23', time: '18:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
+  { id: 'gs45', stage: 'Group L', home: 'Croatia', away: 'Panama', homeFlag: '🇭🇷', awayFlag: '🇵🇦', date: '2026-06-23', time: '12:00', venue: 'BMO Field', city: 'Toronto', isKnockout: false },
+  { id: 'gs46', stage: 'Group K', home: 'Portugal', away: 'Uzbekistan', homeFlag: '🇵🇹', awayFlag: '🇺🇿', date: '2026-06-23', time: '21:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
+  { id: 'gs47', stage: 'Group F', home: 'Netherlands', away: 'UEFA Playoff B', homeFlag: '🇳🇱', awayFlag: '🏳️', date: '2026-06-23', time: '15:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
+
+  // =============================================
+  // GROUP STAGE — MATCHDAY 3 (June 24-27)
+  // =============================================
+
+  // --- June 24 ---
+  { id: 'gs48', stage: 'Group A', home: 'UEFA Playoff D', away: 'Mexico', homeFlag: '🏳️', awayFlag: '🇲🇽', date: '2026-06-24', time: '21:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
+  { id: 'gs49', stage: 'Group A', home: 'South Africa', away: 'South Korea', homeFlag: '🇿🇦', awayFlag: '🇰🇷', date: '2026-06-24', time: '21:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: false },
+  { id: 'gs50', stage: 'Group C', home: 'Scotland', away: 'Brazil', homeFlag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', awayFlag: '🇧🇷', date: '2026-06-24', time: '18:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: false },
+  { id: 'gs51', stage: 'Group C', home: 'Morocco', away: 'Haiti', homeFlag: '🇲🇦', awayFlag: '🇭🇹', date: '2026-06-24', time: '18:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: false },
+
+  // --- June 25 ---
+  { id: 'gs52', stage: 'Group B', home: 'UEFA Playoff A', away: 'Canada', homeFlag: '🏳️', awayFlag: '🇨🇦', date: '2026-06-25', time: '18:00', venue: 'BC Place', city: 'Vancouver', isKnockout: false },
+  { id: 'gs53', stage: 'Group B', home: 'Qatar', away: 'Switzerland', homeFlag: '🇶🇦', awayFlag: '🇨🇭', date: '2026-06-25', time: '18:00', venue: 'BMO Field', city: 'Toronto', isKnockout: false },
+  { id: 'gs54', stage: 'Group D', home: 'UEFA Playoff C', away: 'USA', homeFlag: '🏳️', awayFlag: '🇺🇸', date: '2026-06-25', time: '22:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
+  { id: 'gs55', stage: 'Group D', home: 'Paraguay', away: 'Australia', homeFlag: '🇵🇾', awayFlag: '🇦🇺', date: '2026-06-25', time: '22:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: false },
+  { id: 'gs56', stage: 'Group F', home: 'Japan', away: 'UEFA Playoff B', homeFlag: '🇯🇵', awayFlag: '🏳️', date: '2026-06-25', time: '15:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
+  { id: 'gs57', stage: 'Group F', home: 'Tunisia', away: 'Netherlands', homeFlag: '🇹🇳', awayFlag: '🇳🇱', date: '2026-06-25', time: '15:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: false },
+
+  // --- June 26 ---
+  { id: 'gs58', stage: 'Group E', home: 'Curaçao', away: 'Belgium', homeFlag: '🇨🇼', awayFlag: '🇧🇪', date: '2026-06-26', time: '18:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: false },
+  { id: 'gs59', stage: 'Group E', home: 'Iran', away: 'Germany', homeFlag: '🇮🇷', awayFlag: '🇩🇪', date: '2026-06-26', time: '18:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: false },
+  { id: 'gs60', stage: 'Group G', home: 'Ecuador', away: 'New Zealand', homeFlag: '🇪🇨', awayFlag: '🇳🇿', date: '2026-06-26', time: '22:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
+  { id: 'gs61', stage: 'Group H', home: 'Uruguay', away: 'Spain', homeFlag: '🇺🇾', awayFlag: '🇪🇸', date: '2026-06-26', time: '15:00', venue: 'Estadio Akron', city: 'Guadalajara', isKnockout: false },
+  { id: 'gs62', stage: 'Group H', home: 'Cape Verde', away: 'Saudi Arabia', homeFlag: '🇨🇻', awayFlag: '🇸🇦', date: '2026-06-26', time: '15:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: false },
+
+  // --- June 27 ---
+  { id: 'gs63', stage: 'Group I', home: 'Norway', away: 'France', homeFlag: '🇳🇴', awayFlag: '🇫🇷', date: '2026-06-27', time: '18:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: false },
+  { id: 'gs64', stage: 'Group I', home: 'Intercon. Playoff 2', away: 'Senegal', homeFlag: '🏳️', awayFlag: '🇸🇳', date: '2026-06-27', time: '18:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: false },
+  { id: 'gs65', stage: 'Group J', home: 'Jordan', away: 'Argentina', homeFlag: '🇯🇴', awayFlag: '🇦🇷', date: '2026-06-27', time: '22:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: false },
+  { id: 'gs66', stage: 'Group J', home: 'Algeria', away: 'Austria', homeFlag: '🇩🇿', awayFlag: '🇦🇹', date: '2026-06-27', time: '22:00', venue: "Levi's Stadium", city: 'San Francisco', isKnockout: false },
+  { id: 'gs67', stage: 'Group K', home: 'Intercon. Playoff 1', away: 'Uzbekistan', homeFlag: '🏳️', awayFlag: '🇺🇿', date: '2026-06-27', time: '15:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: false },
+  { id: 'gs68', stage: 'Group K', home: 'Colombia', away: 'Portugal', homeFlag: '🇨🇴', awayFlag: '🇵🇹', date: '2026-06-27', time: '15:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: false },
+  { id: 'gs69', stage: 'Group L', home: 'Panama', away: 'England', homeFlag: '🇵🇦', awayFlag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', date: '2026-06-27', time: '21:00', venue: 'BMO Field', city: 'Toronto', isKnockout: false },
+  { id: 'gs70', stage: 'Group L', home: 'Ghana', away: 'Croatia', homeFlag: '🇬🇭', awayFlag: '🇭🇷', date: '2026-06-27', time: '21:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: false },
+  { id: 'gs71', stage: 'Group G', home: 'Iran', away: 'Belgium', homeFlag: '🇮🇷', awayFlag: '🇧🇪', date: '2026-06-26', time: '22:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: false },
+  { id: 'gs72', stage: 'Group E', home: 'Germany', away: 'Ecuador', homeFlag: '🇩🇪', awayFlag: '🇪🇨', date: '2026-06-26', time: '18:00', venue: 'GEHA Field', city: 'Kansas City', isKnockout: false },
+
+  // =============================================
+  // ROUND OF 32 (June 28 - July 3)
+  // =============================================
+  { id: 'r32-01', stage: 'Round of 32', home: '2nd Group A', away: '2nd Group B', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-06-28', time: '15:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: true },
+  { id: 'r32-02', stage: 'Round of 32', home: '1st Group C', away: '2nd Group F', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-06-29', time: '13:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: true },
+  { id: 'r32-03', stage: 'Round of 32', home: '1st Group E', away: '3rd ABCDF', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-06-29', time: '16:30', venue: 'Gillette Stadium', city: 'Boston', isKnockout: true },
+  { id: 'r32-04', stage: 'Round of 32', home: '1st Group F', away: '2nd Group C', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-06-29', time: '21:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: true },
+  { id: 'r32-05', stage: 'Round of 32', home: '2nd Group E', away: '2nd Group I', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-06-30', time: '13:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: true },
+  { id: 'r32-06', stage: 'Round of 32', home: '1st Group I', away: '3rd CDFGH', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-06-30', time: '17:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: true },
+  { id: 'r32-07', stage: 'Round of 32', home: '1st Group A', away: '3rd CEFHI', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-06-30', time: '21:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: true },
+  { id: 'r32-08', stage: 'Round of 32', home: '1st Group L', away: '3rd EHIJK', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-01', time: '12:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: true },
+  { id: 'r32-09', stage: 'Round of 32', home: '1st Group B', away: '3rd AEGIJ', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-01', time: '15:00', venue: 'BC Place', city: 'Vancouver', isKnockout: true },
+  { id: 'r32-10', stage: 'Round of 32', home: '1st Group G', away: '3rd AEHIJ', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-01', time: '16:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: true },
+  { id: 'r32-11', stage: 'Round of 32', home: '2nd Group D', away: '2nd Group G', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-02', time: '13:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: true },
+  { id: 'r32-12', stage: 'Round of 32', home: '1st Group H', away: '2nd Group J', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-02', time: '16:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: true },
+  { id: 'r32-13', stage: 'Round of 32', home: '1st Group J', away: '2nd Group H', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-03', time: '15:00', venue: 'BBVA Stadium', city: 'Monterrey', isKnockout: true },
+  { id: 'r32-14', stage: 'Round of 32', home: '1st Group D', away: '2nd Group L', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-03', time: '18:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: true },
+  { id: 'r32-15', stage: 'Round of 32', home: '2nd Group K', away: '2nd Group L', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-03', time: '13:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: true },
+  { id: 'r32-16', stage: 'Round of 32', home: '1st Group K', away: '3rd DEIJL', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-03', time: '21:00', venue: 'GEHA Field', city: 'Kansas City', isKnockout: true },
+
+  // =============================================
+  // ROUND OF 16 (July 4-7)
+  // =============================================
+  { id: 'r16-01', stage: 'Round of 16', home: 'W R32-01', away: 'W R32-02', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-04', time: '13:00', venue: 'NRG Stadium', city: 'Houston', isKnockout: true },
+  { id: 'r16-02', stage: 'Round of 16', home: 'W R32-03', away: 'W R32-04', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-04', time: '17:00', venue: 'Lincoln Financial Field', city: 'Philadelphia', isKnockout: true },
+  { id: 'r16-03', stage: 'Round of 16', home: 'W R32-05', away: 'W R32-06', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-05', time: '16:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: true },
+  { id: 'r16-04', stage: 'Round of 16', home: 'W R32-07', away: 'W R32-08', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-05', time: '20:00', venue: 'Estadio Azteca', city: 'Mexico City', isKnockout: true },
+  { id: 'r16-05', stage: 'Round of 16', home: 'W R32-09', away: 'W R32-10', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-06', time: '15:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: true },
+  { id: 'r16-06', stage: 'Round of 16', home: 'W R32-11', away: 'W R32-12', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-06', time: '17:00', venue: 'Lumen Field', city: 'Seattle', isKnockout: true },
+  { id: 'r16-07', stage: 'Round of 16', home: 'W R32-13', away: 'W R32-14', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-07', time: '12:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: true },
+  { id: 'r16-08', stage: 'Round of 16', home: 'W R32-15', away: 'W R32-16', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-07', time: '16:00', venue: 'BC Place', city: 'Vancouver', isKnockout: true },
+
+  // =============================================
+  // QUARTERFINALS (July 9-11)
+  // =============================================
+  { id: 'qf-01', stage: 'Quarterfinal', home: 'W R16-01', away: 'W R16-02', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-09', time: '16:00', venue: 'Gillette Stadium', city: 'Boston', isKnockout: true },
+  { id: 'qf-02', stage: 'Quarterfinal', home: 'W R16-03', away: 'W R16-04', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-10', time: '15:00', venue: 'SoFi Stadium', city: 'Los Angeles', isKnockout: true },
+  { id: 'qf-03', stage: 'Quarterfinal', home: 'W R16-05', away: 'W R16-06', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-11', time: '17:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: true },
+  { id: 'qf-04', stage: 'Quarterfinal', home: 'W R16-07', away: 'W R16-08', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-11', time: '21:00', venue: 'GEHA Field', city: 'Kansas City', isKnockout: true },
+
+  // =============================================
+  // SEMIFINALS (July 14-15)
+  // =============================================
+  { id: 'sf-01', stage: 'Semifinal', home: 'W QF-01', away: 'W QF-02', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-14', time: '15:00', venue: 'AT&T Stadium', city: 'Dallas', isKnockout: true },
+  { id: 'sf-02', stage: 'Semifinal', home: 'W QF-03', away: 'W QF-04', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-15', time: '15:00', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', isKnockout: true },
+
+  // =============================================
+  // THIRD PLACE & FINAL (July 18-19)
+  // =============================================
+  { id: '3rd', stage: '3rd Place', home: 'L SF-01', away: 'L SF-02', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-18', time: '16:00', venue: 'Hard Rock Stadium', city: 'Miami', isKnockout: true },
+  { id: 'final', stage: 'Final', home: 'W SF-01', away: 'W SF-02', homeFlag: '🏳️', awayFlag: '🏳️', date: '2026-07-19', time: '15:00', venue: 'MetLife Stadium', city: 'New York/NJ', isKnockout: true },
 ];
 
 export default WORLD_CUP_MATCHES;

@@ -213,42 +213,45 @@ body {
 .tab:hover { color: var(--text); }
 
 /* ---- PREDICTIONS ---- */
-.predictions-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; gap: 1rem; flex-wrap: wrap; }
-.matches-list { display: flex; flex-direction: column; gap: 1.5rem; }
-.prediction-card { padding: 2rem; background: var(--surface); border: 2px solid var(--border); border-radius: 16px; transition: all 0.3s; }
-.prediction-card:hover { box-shadow: 0 8px 30px var(--shadow); }
-.prediction-card.locked { opacity: 0.85; border-color: var(--border); }
-.prediction-card.completed { border-left: 4px solid var(--success); }
-.match-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem; flex-wrap: wrap; gap: 0.5rem; }
-.match-header-right { display: flex; align-items: center; gap: 0.75rem; }
-.match-stage { font-weight: 600; color: var(--primary); }
-.match-date { color: var(--text-secondary); }
-.match-venue { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem; }
-.lock-badge { display: inline-flex; align-items: center; gap: 0.25rem; background: var(--text-secondary); color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
-.points-badge { background: var(--success); color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
-.match-teams { display: flex; align-items: center; justify-content: center; gap: 3rem; margin-bottom: 2rem; }
-.team { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
-.flag { font-size: 3rem; }
-.team-name { font-weight: 700; font-size: 1.125rem; }
-.vs { font-weight: 800; color: var(--text-secondary); font-size: 0.875rem; }
-.final-score { display: flex; align-items: center; gap: 0.5rem; }
-.score-num { font-size: 2.5rem; font-weight: 900; font-family: 'Space Mono', monospace; }
-.score-sep { font-size: 1.5rem; color: var(--text-secondary); }
-.score-extra { font-size: 0.7rem; background: var(--accent); color: var(--secondary); padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700; }
-.prediction-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-.prediction-btn { padding: 1rem; border: 2px solid var(--border); border-radius: 8px; background: var(--background); cursor: pointer; font-weight: 600; transition: all 0.3s; font-family: 'Outfit', sans-serif; font-size: 0.9rem; }
-.prediction-btn:hover { border-color: var(--primary); }
-.prediction-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
-.prediction-btn.draw.active { background: var(--secondary); color: white; border-color: var(--secondary); }
-.score-prediction { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem; }
-.score-prediction label { font-weight: 600; color: var(--text-secondary); }
-.score-input { width: 60px; height: 60px; border: 2px solid var(--border); border-radius: 8px; font-size: 1.5rem; font-weight: 700; text-align: center; font-family: 'Space Mono', monospace; }
-.score-input:focus { outline: none; border-color: var(--primary); }
-.score-dash { font-weight: 700; font-size: 1.5rem; color: var(--text-secondary); }
-.knockout-options { display: flex; gap: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
-.checkbox-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500; }
-.checkbox-label input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary); }
-.locked-prediction { text-align: center; padding: 1rem; background: var(--background); border-radius: 8px; color: var(--text-secondary); }
+.predictions-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap; }
+.matches-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* ---- COMPACT PREDICTION ROWS ---- */
+.pred-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.9rem; transition: all 0.2s; }
+.pred-row:hover { box-shadow: 0 2px 12px var(--shadow); border-color: #ccc; }
+.pred-row.locked { opacity: 0.8; }
+.pred-row.completed { border-left: 3px solid var(--success); }
+.pred-meta { display: flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 0.4rem; flex-wrap: wrap; }
+.pred-stage-badge { font-weight: 700; color: var(--primary); background: rgba(255,59,48,0.06); padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.pred-venue { font-weight: 500; }
+.pred-date { margin-left: auto; font-family: 'Space Mono', monospace; font-size: 0.65rem; }
+.lock-badge { display: inline-flex; align-items: center; background: var(--text-secondary); color: white; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.6rem; font-weight: 700; }
+.points-badge { background: var(--success); color: white; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.65rem; font-weight: 700; }
+.pred-main { display: flex; align-items: center; gap: 0.75rem; }
+.pred-teams { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.pred-team { display: flex; align-items: center; gap: 0.4rem; }
+.pred-team .flag { font-size: 1.15rem; line-height: 1; }
+.pred-team-name { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pred-scores { display: flex; align-items: center; gap: 0.25rem; }
+.pred-score-input { width: 34px; height: 34px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; font-weight: 700; text-align: center; font-family: 'Space Mono', monospace; background: var(--background); color: var(--text); }
+.pred-score-input:focus { outline: none; border-color: var(--primary); }
+.pred-score-sep { font-weight: 700; color: var(--text-secondary); font-size: 0.85rem; }
+.pred-picks { display: flex; gap: 0.25rem; }
+.pred-pick { width: 34px; height: 34px; border: 2px solid var(--border); border-radius: 6px; background: var(--background); cursor: pointer; font-weight: 800; font-size: 0.8rem; font-family: 'Outfit', sans-serif; transition: all 0.15s; color: var(--text-secondary); }
+.pred-pick:hover { border-color: var(--primary); color: var(--primary); }
+.pred-pick.active.home-pick { background: var(--primary); color: white; border-color: var(--primary); }
+.pred-pick.active.draw-pick { background: var(--secondary); color: white; border-color: var(--secondary); }
+.pred-pick.active.away-pick { background: #2563EB; color: white; border-color: #2563EB; }
+.pred-ko-opts { display: flex; gap: 0.5rem; }
+.pred-ko-label { display: flex; align-items: center; gap: 0.2rem; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.pred-ko-label input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--primary); }
+.pred-final-score { display: flex; align-items: center; gap: 0.3rem; }
+.fs-num { font-size: 1.5rem; font-weight: 900; font-family: 'Space Mono', monospace; }
+.fs-sep { font-size: 1rem; color: var(--text-secondary); }
+.fs-tag { font-size: 0.55rem; background: var(--accent); color: var(--secondary); padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 700; text-transform: uppercase; }
+.pred-locked-pick { min-width: 60px; text-align: center; }
+.locked-result { font-weight: 700; font-size: 0.85rem; background: var(--background); padding: 0.25rem 0.5rem; border-radius: 4px; }
+.no-pick { color: var(--text-secondary); }
 
 /* ---- STICKY SAVE ---- */
 .sticky-save { position: sticky; bottom: 20px; display: flex; justify-content: center; margin-top: 2rem; z-index: 100; }
@@ -334,8 +337,10 @@ body {
   .dashboard-actions .btn { flex: 1; justify-content: center; }
   .leagues-grid { grid-template-columns: 1fr; }
   .predictions-toolbar { flex-direction: column; }
-  .match-teams { gap: 1.5rem; }
-  .flag { font-size: 2.5rem; }
+  .pred-main { flex-wrap: wrap; }
+  .pred-teams { flex: 1 1 100%; }
+  .pred-score-input { width: 30px; height: 30px; font-size: 0.9rem; }
+  .pred-pick { width: 30px; height: 30px; font-size: 0.75rem; }
 }
 
 /* ---- ACCOUNT DROPDOWN ---- */
@@ -362,3 +367,45 @@ body {
 .dropdown-item-sub { font-size: 0.75rem; color: var(--text-secondary); }
 .logout-item { color: var(--primary); }
 .logout-item:hover { background: rgba(255,59,48,0.05); }
+
+/* ---- CHAIN SELECTOR ---- */
+.chain-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.chain-selector { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 1.25rem 0.75rem; }
+.chain-option { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.65rem; border: 1.5px solid var(--border); border-radius: 20px; background: var(--background); cursor: pointer; font-size: 0.8rem; font-weight: 500; font-family: 'Outfit', sans-serif; transition: all 0.2s; color: var(--text); }
+.chain-option:hover { border-color: var(--text-secondary); }
+.chain-option.active { border-color: var(--primary); background: rgba(255,59,48,0.05); font-weight: 600; }
+
+/* ---- ADD FUNDS MODAL ---- */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; animation: fadeIn 0.2s; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.fund-modal { background: var(--surface); border-radius: 16px; width: 100%; max-width: 440px; padding: 1.75rem; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: slideUp 0.2s ease-out; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.fund-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.fund-modal-header h3 { display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem; margin: 0; }
+.modal-close { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 0.25rem; border-radius: 6px; }
+.modal-close:hover { background: var(--background); color: var(--text); }
+.fund-desc { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.5; }
+.fund-section { margin-bottom: 1rem; }
+.fund-section label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.fund-row { display: flex; gap: 0.5rem; }
+.fund-select { flex: 1; padding: 0.6rem 0.75rem; border: 2px solid var(--border); border-radius: 8px; font-size: 0.9rem; font-family: 'Outfit', sans-serif; background: var(--background); color: var(--text); cursor: pointer; }
+.fund-select:focus { border-color: var(--primary); outline: none; }
+.fund-arrow { display: flex; justify-content: center; color: var(--text-secondary); margin: 0.5rem 0; }
+.fund-dest { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; background: var(--background); border-radius: 8px; font-size: 0.9rem; }
+.fund-input { width: 100%; padding: 0.6rem 0.75rem; border: 2px solid var(--border); border-radius: 8px; font-size: 1rem; font-family: 'Outfit', sans-serif; background: var(--background); color: var(--text); }
+.fund-input:focus { border-color: var(--primary); outline: none; }
+.fund-error { display: flex; align-items: center; gap: 0.4rem; color: var(--primary); font-size: 0.85rem; margin-bottom: 0.75rem; }
+.fund-btn { width: 100%; padding: 0.75rem; font-size: 1rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+.fund-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.fund-success { display: flex; align-items: center; gap: 0.5rem; color: #34C759; font-weight: 600; margin-bottom: 1rem; padding: 0.75rem; background: rgba(52,199,89,0.1); border-radius: 8px; }
+.deposit-addr-box { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: var(--background); border: 2px solid var(--border); border-radius: 8px; }
+.deposit-addr-box code { flex: 1; font-size: 0.75rem; word-break: break-all; font-family: 'Space Mono', monospace; }
+.fund-note { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; margin: 1rem 0; }
+.fund-actions { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.bridge-status { font-size: 0.8rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 4px; text-transform: capitalize; }
+.bridge-status.pending { color: #FF9500; background: rgba(255,149,0,0.1); }
+.bridge-status.success, .bridge-status.completed { color: #34C759; background: rgba(52,199,89,0.1); }
+.bridge-status.error, .bridge-status.failed { color: var(--primary); background: rgba(255,59,48,0.1); }
+.fund-new { margin-top: 0.5rem; color: var(--text-secondary); }
