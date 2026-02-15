@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
 import { createOrUpdateUser, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
@@ -281,11 +281,164 @@ const GoalOracle = () => {
   };
 
   // ================================
-  // ACCOUNT DROPDOWN
+  // ACCOUNT DROPDOWN + ADD FUNDS MODAL
   // ================================
+  const CHAINS = [
+    { id: 137, name: 'Polygon', color: '#8247E5' },
+    { id: 8453, name: 'Base', color: '#0052FF' },
+    { id: 42161, name: 'Arbitrum', color: '#28A0F0' },
+    { id: 10, name: 'Optimism', color: '#FF0420' },
+    { id: 1, name: 'Ethereum', color: '#627EEA' },
+  ];
+  const TOKENS = ['ETH', 'USDC', 'USDT', 'MATIC'];
+
+  const [fundModal, setFundModal] = useState(false);
+
+  const AddFundsModal = () => {
+    const [srcChain, setSrcChain] = useState(CHAINS[4]); // Ethereum
+    const [srcToken, setSrcToken] = useState('ETH');
+    const [amount, setAmount] = useState('');
+    const [depositAddr, setDepositAddr] = useState(null);
+    const [reqId, setReqId] = useState(null);
+    const [bridgeStatus, setBridgeStatus] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [err, setErr] = useState('');
+    const [copied2, setCopied2] = useState(false);
+    const walletAddr = typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
+
+    const getDecimals = () => {
+      if (srcToken === 'ETH' || srcToken === 'MATIC') return 18;
+      return 6; // USDC, USDT
+    };
+
+    const toSmallestUnit = (val) => {
+      const dec = getDecimals();
+      const parts = val.split('.');
+      const whole = parts[0] || '0';
+      let frac = (parts[1] || '').padEnd(dec, '0').slice(0, dec);
+      return BigInt(whole) * BigInt(10 ** dec) + BigInt(frac);
+    };
+
+    const requestDeposit = async () => {
+      setErr(''); setLoading(true); setDepositAddr(null);
+      if (!amount || parseFloat(amount) <= 0) { setErr('Enter a valid amount'); setLoading(false); return; }
+      if (!walletAddr) { setErr('No wallet connected'); setLoading(false); return; }
+      try {
+        const res = await fetch('/api/bridge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await getAccessToken()}` },
+          body: JSON.stringify({
+            recipientAddress: walletAddr,
+            originChainId: srcChain.id,
+            originToken: srcToken,
+            destinationChainId: 137,
+            amount: toSmallestUnit(amount).toString(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setDepositAddr(data.depositAddress);
+        setReqId(data.requestId);
+      } catch (e) {
+        setErr(e.message);
+      } finally { setLoading(false); }
+    };
+
+    const checkStatus = async () => {
+      if (!reqId) return;
+      try {
+        const res = await fetch(`/api/bridge?requestId=${reqId}`, {
+          headers: { 'Authorization': `Bearer ${await getAccessToken()}` },
+        });
+        const data = await res.json();
+        setBridgeStatus(data.status || data.state || 'pending');
+      } catch (e) { setBridgeStatus('error'); }
+    };
+
+    const copyDeposit = () => {
+      if (!depositAddr) return;
+      navigator.clipboard.writeText(depositAddr).then(() => {
+        setCopied2(true);
+        setTimeout(() => setCopied2(false), 2000);
+      });
+    };
+
+    return (
+      <div className="modal-overlay" onClick={() => setFundModal(false)}>
+        <div className="fund-modal" onClick={e => e.stopPropagation()}>
+          <div className="fund-modal-header">
+            <h3><Wallet size={20} /> Add Funds</h3>
+            <button className="modal-close" onClick={() => setFundModal(false)}><X size={20} /></button>
+          </div>
+          <p className="fund-desc">Send any supported token from any chain — it auto-converts to USDC on Polygon for your prize pool.</p>
+
+          {!depositAddr ? (<>
+            <div className="fund-section">
+              <label>Send from</label>
+              <div className="fund-row">
+                <select className="fund-select" value={srcChain.id} onChange={e => setSrcChain(CHAINS.find(c => c.id === parseInt(e.target.value)))}>
+                  {CHAINS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select className="fund-select" value={srcToken} onChange={e => setSrcToken(e.target.value)}>
+                  {TOKENS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="fund-arrow"><ArrowRightLeft size={20} /></div>
+
+            <div className="fund-section">
+              <label>Receive as</label>
+              <div className="fund-dest">
+                <span className="chain-dot" style={{ background: '#8247E5' }}></span>
+                <strong>USDC</strong> on <strong>Polygon</strong>
+              </div>
+            </div>
+
+            <div className="fund-section">
+              <label>Amount</label>
+              <input type="number" className="fund-input" placeholder={`0.00 ${srcToken}`} value={amount} onChange={e => setAmount(e.target.value)} min="0" step="any" />
+            </div>
+
+            {err && <div className="fund-error"><AlertTriangle size={14} /> {err}</div>}
+
+            <button className="btn btn-primary fund-btn" onClick={requestDeposit} disabled={loading}>
+              {loading ? <><Loader size={16} className="spin" /> Getting deposit address...</> : 'Get Deposit Address'}
+            </button>
+          </>) : (<>
+            <div className="fund-success">
+              <CheckCircle size={20} />
+              <span>Deposit address ready!</span>
+            </div>
+            <div className="fund-section">
+              <label>Send {amount} {srcToken} on {srcChain.name} to:</label>
+              <div className="deposit-addr-box">
+                <code>{depositAddr}</code>
+                <button className="copy-btn" onClick={copyDeposit}>{copied2 ? <CheckCircle size={14} /> : <Copy size={14} />}</button>
+              </div>
+            </div>
+            <p className="fund-note">After sending, Relay will automatically bridge and swap your {srcToken} to USDC on Polygon and deliver it to your wallet.</p>
+
+            <div className="fund-actions">
+              <button className="btn btn-secondary btn-sm" onClick={checkStatus}>
+                <RefreshCw size={14} /> Check Status
+              </button>
+              {bridgeStatus && <span className={`bridge-status ${bridgeStatus}`}>{bridgeStatus}</span>}
+            </div>
+
+            <button className="btn btn-sm fund-new" onClick={() => { setDepositAddr(null); setReqId(null); setBridgeStatus(null); setAmount(''); }}>
+              New Deposit
+            </button>
+          </>)}
+        </div>
+      </div>
+    );
+  };
+
   const AccountDropdown = () => {
     const [open, setOpen] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [activeChain, setActiveChain] = useState(CHAINS[0]);
     const walletAddr = typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
 
     const copyAddress = () => {
@@ -299,7 +452,7 @@ const GoalOracle = () => {
     return (
       <div className="account-dropdown-wrap">
         <button className="account-btn" onClick={() => setOpen(!open)}>
-          <User size={16} />
+          <span className="chain-dot" style={{ background: activeChain.color }}></span>
           <span>Account</span>
           <ChevronDown size={14} className={open ? 'flip' : ''} />
         </button>
@@ -309,6 +462,16 @@ const GoalOracle = () => {
             <div className="dropdown-header">
               <div className="dropdown-name">{uData?.displayName || 'User'}</div>
               {uData?.email && <div className="dropdown-email">{uData.email}</div>}
+            </div>
+            <div className="dropdown-divider"></div>
+            <div className="dropdown-section-label">Network</div>
+            <div className="chain-selector">
+              {CHAINS.map(c => (
+                <button key={c.id} className={`chain-option ${activeChain.id === c.id ? 'active' : ''}`} onClick={() => setActiveChain(c)}>
+                  <span className="chain-dot" style={{ background: c.color }}></span>
+                  <span>{c.name}</span>
+                </button>
+              ))}
             </div>
             <div className="dropdown-divider"></div>
             <div className="dropdown-section-label">Wallet</div>
@@ -322,11 +485,18 @@ const GoalOracle = () => {
             ) : (
               <div className="dropdown-wallet"><span className="no-wallet">No wallet connected</span></div>
             )}
-            <button className="dropdown-item" onClick={() => { copyAddress(); notify(walletAddr ? 'Wallet address copied! Send funds to this address.' : 'No wallet address available', walletAddr ? 'success' : 'error'); }}>
-              <Wallet size={16} />
+            <button className="dropdown-item" onClick={() => { setOpen(false); setFundModal(true); }}>
+              <ArrowRightLeft size={16} />
               <div>
                 <div className="dropdown-item-title">Add Funds</div>
-                <div className="dropdown-item-sub">Copy wallet address to receive funds</div>
+                <div className="dropdown-item-sub">Bridge any token to USDC on Polygon</div>
+              </div>
+            </button>
+            <button className="dropdown-item" onClick={() => { copyAddress(); notify(walletAddr ? 'Wallet address copied!' : 'No wallet', walletAddr ? 'success' : 'error'); }}>
+              <Copy size={16} />
+              <div>
+                <div className="dropdown-item-title">Copy Address</div>
+                <div className="dropdown-item-sub">Direct transfer on {activeChain.name}</div>
               </div>
             </button>
             <div className="dropdown-divider"></div>
@@ -361,6 +531,7 @@ const GoalOracle = () => {
       {view === 'create' && <Create />}
       {view === 'detail' && <Detail />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} notify={notify} />}
+      {fundModal && <AddFundsModal />}
     </div>
   );
 };

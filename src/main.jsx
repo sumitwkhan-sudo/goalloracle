@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { PrivyProvider } from '@privy-io/react-auth';
+import { polygon, base, arbitrum, optimism, mainnet } from 'viem/chains';
 import GoalOracle from './goaloracle';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -14,6 +15,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           accentColor: '#FF3B30',
         },
         loginMethods: ['email', 'wallet', 'google', 'twitter'],
+        defaultChain: polygon,
+        supportedChains: [polygon, base, arbitrum, optimism, mainnet],
         embeddedWallets: {
           ethereum: {
             createOnLogin: 'users-without-wallets',
