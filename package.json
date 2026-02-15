@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@privy-io/react-auth": "^1.88.4",
+    "@privy-io/react-auth": "^3.13.1",
     "firebase": "^10.14.1",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",

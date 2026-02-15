@@ -7,15 +7,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <PrivyProvider
       appId={import.meta.env.VITE_PRIVY_APP_ID}
+      clientId={import.meta.env.VITE_PRIVY_CLIENT_ID}
       config={{
-        loginMethods: ['email', 'google', 'twitter', 'wallet'],
         appearance: {
           theme: 'light',
           accentColor: '#FF3B30',
-          showWalletLoginFirst: false,
         },
+        loginMethods: ['email', 'wallet', 'google', 'twitter'],
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
+          ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
         },
       }}
     >
