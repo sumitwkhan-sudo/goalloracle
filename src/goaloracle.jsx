@@ -3,7 +3,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
-import { createOrUpdateUser, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard } from './utils/db';
+import { createOrUpdateUser, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
 
@@ -14,7 +14,7 @@ const AnimatedCounter = ({ value, prefix = '', suffix = '', decimals = 0 }) => {
 };
 
 const GoalOracle = () => {
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const [view, setView] = useState('landing');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selLeague, setSelLeague] = useState(null);
@@ -33,7 +33,7 @@ const GoalOracle = () => {
 
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
-  useEffect(() => { if (!authenticated || !user) { setUData(null); setRole('user'); return; } (async () => { try { const u = await createOrUpdateUser(user); if (u) { setUData(u); setRole(await getUserRole(u.id)); } else { console.error('createOrUpdateUser returned null for user:', JSON.stringify(user)); notify('Account setup failed. Please try logging out and back in.', 'error'); } } catch(e) { console.error('User setup error:', e); notify('Account setup error: ' + e.message, 'error'); } })(); }, [authenticated, user]);
+  useEffect(() => { if (!authenticated || !user) { setUData(null); setRole('user'); setAuthToken(null); return; } (async () => { try { const token = await getAccessToken(); setAuthToken(token); const u = await createOrUpdateUser(user); if (u) { setUData(u); setRole(u.role || 'user'); } else { console.error('createOrUpdateUser returned null'); notify('Account setup failed. Please try logging out and back in.', 'error'); } } catch(e) { console.error('User setup error:', e); notify('Account setup error: ' + e.message, 'error'); } })(); }, [authenticated, user]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
   useEffect(() => { if (!uData?.id || !selLeague?.id) return; return subscribeToUserPredictions(uData.id, selLeague.id, setPreds); }, [uData?.id, selLeague?.id]);
