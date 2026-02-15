@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
@@ -6,6 +6,17 @@ import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus 
 import { createOrUpdateUser, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
+
+// Scroll reveal hook
+const useScrollReveal = () => {
+  useEffect(() => {
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale').forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+};
 
 const AnimatedCounter = ({ value, prefix = '', suffix = '', decimals = 0 }) => {
   const [d, setD] = useState(0);
@@ -111,47 +122,102 @@ const GoalOracle = () => {
     );
   };
 
-  const Landing = () => (
-    <div className="landing-page">
-      <section className="hero"><div className="hero-grid"></div>
-        <div className="hero-content">
-          <div className="hero-badge"><Zap size={16} /><span>World Cup 2026</span></div>
-          <h1 className="hero-title">Predict. Compete. <span className="highlight">Dominate.</span></h1>
-          <p className="hero-subtitle">Join fans predicting all 104 FIFA World Cup 2026 matches. Play for glory or crypto prizes.</p>
-          <div className="hero-cta">
-            <button className="btn btn-primary" onClick={() => authenticated ? nav('dashboard') : login()}><Globe size={20} /> Start Predicting</button>
-            <button className="btn btn-secondary" onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>Learn More <ChevronRight size={18} /></button>
+  const Landing = () => {
+    useScrollReveal();
+    const featured = WORLD_CUP_MATCHES.filter(m => !m.isKnockout).slice(0, 6);
+
+    return (
+      <div className="landing-page">
+        <section className="hero">
+          <div className="hero-particles">
+            <div className="hero-particle"></div><div className="hero-particle"></div>
+            <div className="hero-particle"></div><div className="hero-particle"></div>
+            <div className="hero-particle"></div><div className="hero-particle"></div>
           </div>
-          <div className="hero-stats">
-            <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPlayers} suffix="+" /></div><div className="stat-label">Players</div></div>
-            <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPrizePools} prefix="$" /></div><div className="stat-label">Prize Pools</div></div>
-            <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.activeLeagues} /></div><div className="stat-label">Leagues</div></div>
+          <div className="hero-glow"></div>
+          <div className="hero-content">
+            <div className="hero-badge"><Zap size={14} /><span>FIFA World Cup 2026</span></div>
+            <h1 className="hero-title">Predict. Compete.<br/><span className="highlight">Win Big.</span></h1>
+            <p className="hero-subtitle">Predict all 104 World Cup matches across USA, Mexico & Canada. Compete in free or crypto-staked leagues.</p>
+            <div className="hero-cta">
+              <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}><Globe size={20} /> Start Predicting</button>
+              <button className="btn btn-secondary btn-lg" onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works <ChevronRight size={18} /></button>
+            </div>
+            <div className="hero-stats">
+              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPlayers || 0} suffix="+" /></div><div className="stat-label">Players</div></div>
+              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPrizePools || 0} prefix="$" /></div><div className="stat-label">Prize Pools</div></div>
+              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.activeLeagues || 0} /></div><div className="stat-label">Leagues</div></div>
+            </div>
           </div>
-        </div>
-      </section>
-      <section className="features"><div className="container">
-        <div className="section-header"><h2>How It Works</h2><p>Three simple steps to start winning</p></div>
-        <div className="features-grid">
-          <div className="feature-card"><div className="feature-icon"><Trophy /></div><h3>Make Predictions</h3><p>Predict winners, draws, and exact scores for all 104 World Cup matches including knockout rounds</p></div>
-          <div className="feature-card"><div className="feature-icon"><Users /></div><h3>Join Leagues</h3><p>Compete globally or create private leagues. Free or crypto-staked competitions</p></div>
-          <div className="feature-card"><div className="feature-icon"><Award /></div><h3>Win Rewards</h3><p>Earn points for correct predictions. Top players win crypto prizes via smart contracts</p></div>
-        </div>
-      </div></section>
-      <section className="crypto-section"><div className="container"><div className="crypto-content">
-        <div className="crypto-text">
-          <h2>Non-Custodial. Transparent. Fair.</h2>
-          <p>Funds go directly to smart contracts — never to us. Prizes distributed automatically.</p>
-          <ul className="crypto-features">
-            <li><CheckCircle size={20} /> Secure wallet integration via Privy</li>
-            <li><CheckCircle size={20} /> Non-custodial smart contract payouts</li>
-            <li><CheckCircle size={20} /> Customizable prize structures</li>
-            <li><CheckCircle size={20} /> Verifiable on-chain transactions</li>
-          </ul>
-        </div>
-        <div className="crypto-visual"><div className="wallet-card"><Coins size={48} /><div className="wallet-info"><div className="wallet-label">Entry Fee</div><div className="wallet-amount">50 USDC</div></div><div className="wallet-info"><div className="wallet-label">Prize Pool</div><div className="wallet-amount">5,000 USDC</div></div></div></div>
-      </div></div></section>
-    </div>
-  );
+        </section>
+
+        <section className="features"><div className="container">
+          <div className="section-header reveal">
+            <h2>How It Works</h2>
+            <p>Three steps to start winning</p>
+          </div>
+          <div className="features-grid">
+            <div className="feature-card reveal stagger-1"><div className="feature-icon"><Target size={28} /></div><h3>Make Predictions</h3><p>Call the winner, predict exact scores, and bonus points for extra time & penalties in knockout rounds.</p></div>
+            <div className="feature-card reveal stagger-2"><div className="feature-icon"><Users size={28} /></div><h3>Join Leagues</h3><p>Compete in the global free league or create private ones. Stake USDC for crypto prize pools.</p></div>
+            <div className="feature-card reveal stagger-3"><div className="feature-icon"><Award size={28} /></div><h3>Win Rewards</h3><p>Smart contracts distribute prizes automatically. Top predictors win — no middleman, fully transparent.</p></div>
+          </div>
+        </div></section>
+
+        <section className="matches-showcase"><div className="container">
+          <div className="section-header reveal">
+            <h2>Featured Matches</h2>
+            <p>Some of the biggest group stage clashes</p>
+          </div>
+          <div className="showcase-grid">
+            {featured.map((m, i) => (
+              <div key={m.id} className={`showcase-match reveal stagger-${(i % 3) + 1}`}>
+                <div className="showcase-group">{m.stage}</div>
+                <div className="showcase-teams">
+                  <span className="showcase-flag">{m.homeFlag}</span>
+                  <span>{m.home}</span>
+                  <span className="showcase-vs">vs</span>
+                  <span>{m.away}</span>
+                  <span className="showcase-flag">{m.awayFlag}</span>
+                </div>
+                <div className="showcase-date">{m.city} · {new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+              </div>
+            ))}
+          </div>
+        </div></section>
+
+        <section className="crypto-section"><div className="container"><div className="crypto-content">
+          <div className="crypto-text reveal-left">
+            <h2>Non-Custodial. Transparent. Fair.</h2>
+            <p>Entry fees go directly to smart contracts on Polygon — never to us. Prizes are distributed automatically when results are verified by two independent oracles.</p>
+            <ul className="crypto-features">
+              <li><CheckCircle size={20} /> Embedded wallet via Privy — no extensions needed</li>
+              <li><CheckCircle size={20} /> USDC escrow on Polygon smart contracts</li>
+              <li><CheckCircle size={20} /> Multi-source oracle verification before payout</li>
+              <li><CheckCircle size={20} /> Bridge any token from any chain</li>
+            </ul>
+          </div>
+          <div className="crypto-visual reveal-right">
+            <div className="wallet-card">
+              <Coins size={48} />
+              <div className="wallet-info"><div className="wallet-label">Entry Fee</div><div className="wallet-amount">50 USDC</div></div>
+              <div className="wallet-info"><div className="wallet-label">Prize Pool</div><div className="wallet-amount">5,000 USDC</div></div>
+            </div>
+          </div>
+        </div></div></section>
+
+        <footer className="site-footer">
+          <div className="footer-content">
+            <div className="footer-brand">GoalOracle</div>
+            <div className="footer-links">
+              <a onClick={() => authenticated ? nav('dashboard') : login()}>Play Now</a>
+              <a onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works</a>
+            </div>
+            <div className="footer-copy">© 2026 GoalOracle. Built on Polygon. Powered by smart contracts.</div>
+          </div>
+        </footer>
+      </div>
+    );
+  };
 
   const Dash = () => {
     const ml = leagues.length > 0 ? leagues : [{ id: 'global', name: 'Global League', type: 'free', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } }];
