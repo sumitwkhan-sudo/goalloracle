@@ -168,7 +168,7 @@ const GoalOracle = () => {
           return (<div key={l.id} className="league-card">
             <div className="league-header"><div className="league-title"><Trophy size={24} /><h3>{l.name}</h3></div>{l.type === 'paid' ? <span className="badge badge-premium"><Coins size={14} /> {l.entryFee} {l.currency}</span> : <span className="badge badge-free">Free</span>}</div>
             <div className="league-stats"><div className="league-stat"><Users size={18} /><span>{l.memberCount || 0} players</span></div></div>
-            <div className="league-footer">{mem ? <button className="btn btn-secondary btn-sm" onClick={() => nav('detail', l)}><Eye size={16} /> View</button> : <button className="btn btn-primary btn-sm" onClick={async () => { try { await joinLeague(l.id, uData.id); notify(`Joined ${l.name}!`); } catch(e) { notify(e.message, 'error'); } }}><UserPlus size={16} /> Join</button>}</div>
+            <div className="league-footer">{mem ? <button className="btn btn-secondary btn-sm" onClick={() => nav('detail', l)}><Eye size={16} /> View</button> : <button className="btn btn-primary btn-sm" onClick={async () => { if (!uData?.id) return; try { await joinLeague(l.id, uData.id); notify(`Joined ${l.name}!`); } catch(e) { notify(e.message, 'error'); } }}><UserPlus size={16} /> Join</button>}</div>
           </div>);
         })}{f.length === 0 && <div className="empty-state"><p>No leagues found.</p><button className="btn btn-primary" onClick={() => nav('create')}><Plus size={18} /> Create</button></div>}</div>
       </div>
@@ -186,6 +186,7 @@ const GoalOracle = () => {
     const [err, setErr] = useState('');
     const tot = di.first + di.second + di.third;
     const go = async () => {
+      if (!uData?.id) { setErr('Still loading your account. Please wait a moment and try again.'); return; }
       if (!nm.trim()) { setErr('Name required'); return; }
       if (tp === 'paid' && (!fe || parseFloat(fe) <= 0)) { setErr('Fee required'); return; }
       if (tp === 'paid' && tot !== 100) { setErr('Must total 100%'); return; }

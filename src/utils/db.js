@@ -8,18 +8,28 @@ import {
 // ---- USERS ----
 export async function createOrUpdateUser(privyUser) {
   if (!privyUser) return null;
-  const userId = privyUser.id || privyUser.wallet?.address;
+  
+  // Privy v3: user.id is the primary identifier
+  // email can be at user.email?.address or user.email (string)
+  // wallet can be at user.wallet?.address or user.wallet (string)
+  const userId = privyUser.id || privyUser.wallet?.address || privyUser.wallet;
   if (!userId) return null;
+
+  // Handle different Privy versions' user shapes
+  const emailAddr = typeof privyUser.email === 'string' ? privyUser.email 
+    : privyUser.email?.address || null;
+  const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet 
+    : privyUser.wallet?.address || null;
 
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
 
   const userData = {
     id: userId,
-    email: privyUser.email?.address || null,
-    walletAddress: privyUser.wallet?.address || null,
-    displayName: privyUser.email?.address?.split('@')[0] ||
-      privyUser.wallet?.address?.slice(0, 8) || 'Anonymous',
+    email: emailAddr,
+    walletAddress: walletAddr,
+    displayName: emailAddr?.split('@')[0] ||
+      (walletAddr ? walletAddr.slice(0, 8) : null) || 'Anonymous',
     updatedAt: serverTimestamp(),
   };
 
