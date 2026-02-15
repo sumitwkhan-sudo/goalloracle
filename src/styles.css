@@ -337,3 +337,28 @@ body {
   .match-teams { gap: 1.5rem; }
   .flag { font-size: 2.5rem; }
 }
+
+/* ---- ACCOUNT DROPDOWN ---- */
+.account-dropdown-wrap { position: relative; }
+.account-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--secondary); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 0.875rem; cursor: pointer; font-family: 'Outfit', sans-serif; transition: all 0.2s; }
+.account-btn:hover { background: #333; }
+.account-btn .flip { transform: rotate(180deg); }
+.dropdown-overlay { position: fixed; inset: 0; z-index: 998; }
+.account-dropdown { position: absolute; top: calc(100% + 8px); right: 0; width: 300px; background: var(--surface); border: 2px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.15); z-index: 999; overflow: hidden; animation: dropdownIn 0.15s ease-out; }
+@keyframes dropdownIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.dropdown-header { padding: 1rem 1.25rem; }
+.dropdown-name { font-weight: 700; font-size: 1rem; }
+.dropdown-email { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem; }
+.dropdown-divider { height: 1px; background: var(--border); }
+.dropdown-section-label { padding: 0.75rem 1.25rem 0.25rem; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+.dropdown-wallet { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 1.25rem 0.75rem; }
+.wallet-addr { font-family: 'Space Mono', monospace; font-size: 0.8rem; color: var(--text-secondary); background: var(--background); padding: 0.25rem 0.5rem; border-radius: 4px; }
+.copy-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 0.25rem; border-radius: 4px; transition: all 0.2s; }
+.copy-btn:hover { color: var(--primary); background: rgba(255,59,48,0.1); }
+.no-wallet { font-size: 0.8rem; color: var(--text-secondary); }
+.dropdown-item { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.75rem 1.25rem; background: none; border: none; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 0.9rem; text-align: left; transition: background 0.2s; color: var(--text); }
+.dropdown-item:hover { background: var(--background); }
+.dropdown-item-title { font-weight: 600; }
+.dropdown-item-sub { font-size: 0.75rem; color: var(--text-secondary); }
+.logout-item { color: var(--primary); }
+.logout-item:hover { background: rgba(255,59,48,0.05); }

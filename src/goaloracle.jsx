@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
 import { createOrUpdateUser, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard } from './utils/db';
@@ -33,7 +33,7 @@ const GoalOracle = () => {
 
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
-  useEffect(() => { if (!authenticated || !user) { setUData(null); setRole('user'); return; } (async () => { try { const u = await createOrUpdateUser(user); setUData(u); setRole(await getUserRole(u.id)); } catch(e) { console.error(e); } })(); }, [authenticated, user]);
+  useEffect(() => { if (!authenticated || !user) { setUData(null); setRole('user'); return; } (async () => { try { const u = await createOrUpdateUser(user); if (u) { setUData(u); setRole(await getUserRole(u.id)); } else { console.error('createOrUpdateUser returned null for user:', JSON.stringify(user)); notify('Account setup failed. Please try logging out and back in.', 'error'); } } catch(e) { console.error('User setup error:', e); notify('Account setup error: ' + e.message, 'error'); } })(); }, [authenticated, user]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
   useEffect(() => { if (!uData?.id || !selLeague?.id) return; return subscribeToUserPredictions(uData.id, selLeague.id, setPreds); }, [uData?.id, selLeague?.id]);
@@ -280,13 +280,72 @@ const GoalOracle = () => {
     );
   };
 
+  // ================================
+  // ACCOUNT DROPDOWN
+  // ================================
+  const AccountDropdown = () => {
+    const [open, setOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const walletAddr = typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
+
+    const copyAddress = () => {
+      if (!walletAddr) return;
+      navigator.clipboard.writeText(walletAddr).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    };
+
+    return (
+      <div className="account-dropdown-wrap">
+        <button className="account-btn" onClick={() => setOpen(!open)}>
+          <User size={16} />
+          <span>Account</span>
+          <ChevronDown size={14} className={open ? 'flip' : ''} />
+        </button>
+        {open && <>
+          <div className="dropdown-overlay" onClick={() => setOpen(false)}></div>
+          <div className="account-dropdown">
+            <div className="dropdown-header">
+              <div className="dropdown-name">{uData?.displayName || 'User'}</div>
+              {uData?.email && <div className="dropdown-email">{uData.email}</div>}
+            </div>
+            <div className="dropdown-divider"></div>
+            <div className="dropdown-section-label">Wallet</div>
+            {walletAddr ? (
+              <div className="dropdown-wallet">
+                <code className="wallet-addr">{walletAddr.slice(0, 10)}...{walletAddr.slice(-8)}</code>
+                <button className="copy-btn" onClick={copyAddress} title="Copy address">
+                  {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+            ) : (
+              <div className="dropdown-wallet"><span className="no-wallet">No wallet connected</span></div>
+            )}
+            <button className="dropdown-item" onClick={() => { copyAddress(); notify(walletAddr ? 'Wallet address copied! Send funds to this address.' : 'No wallet address available', walletAddr ? 'success' : 'error'); }}>
+              <Wallet size={16} />
+              <div>
+                <div className="dropdown-item-title">Add Funds</div>
+                <div className="dropdown-item-sub">Copy wallet address to receive funds</div>
+              </div>
+            </button>
+            <div className="dropdown-divider"></div>
+            <button className="dropdown-item logout-item" onClick={() => { setOpen(false); logout(); nav('landing'); }}>
+              <LogOut size={16} />
+              <span>Log Out</span>
+            </button>
+          </div>
+        </>}
+      </div>
+    );
+  };
+
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
       <div className="nav-brand" onClick={() => nav(authenticated ? 'dashboard' : 'landing')}><Trophy size={28} /><span>GoalOracle</span></div>
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`}>
         {authenticated && <><a onClick={() => nav('dashboard')}>Dashboard</a><a onClick={() => nav('browse')}>Leagues</a>{(role === 'superadmin' || role === 'admin') && <a onClick={() => nav('admin')}>Admin</a>}</>}
-        {authenticated ? <div className="nav-user"><div className="wallet-badge">{user?.wallet?.address ? `${user.wallet.address.slice(0,6)}...${user.wallet.address.slice(-4)}` : uData?.displayName || 'Connected'}</div><button className="btn btn-sm" onClick={() => { logout(); nav('landing'); }}><LogOut size={16} /></button></div>
-          : <button className="btn btn-primary btn-sm" onClick={login}>Connect</button>}
+        {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Connect</button>}
       </div>
       <button className="mobile-toggle" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
     </div></nav>
