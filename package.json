@@ -1,5 +1,6 @@
 {
   "name": "goaloracle",
+  "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -8,14 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@privy-io/react-auth": "^1.88.4",
+    "firebase": "^10.14.1",
+    "lucide-react": "^0.460.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@privy-io/react-auth": "^1.80.0",
-    "firebase": "^10.8.0",
-    "lucide-react": "^0.460.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.1.4"
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
   }
 }
