@@ -311,7 +311,7 @@ const GoalOracle = () => {
     { id: 10, name: 'Optimism', color: '#FF0420' },
     { id: 1, name: 'Ethereum', color: '#627EEA' },
   ];
-  const TOKENS = ['ETH', 'USDC', 'USDT', 'MATIC'];
+  const TOKENS = ['ETH', 'USDC', 'USDT', 'POL'];
 
   const [fundModal, setFundModal] = useState(false);
 
@@ -328,7 +328,7 @@ const GoalOracle = () => {
     const walletAddr = typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
 
     const getDecimals = () => {
-      if (srcToken === 'ETH' || srcToken === 'MATIC') return 18;
+      if (srcToken === 'ETH' || srcToken === 'POL') return 18;
       return 6; // USDC, USDT
     };
 

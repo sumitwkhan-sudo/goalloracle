@@ -23,7 +23,7 @@ const SUPPORTED_ORIGIN_TOKENS = {
     8453: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
     decimals: 6,
   },
-  MATIC: { address: NATIVE_TOKEN, chains: [137], decimals: 18 },
+  POL: { address: NATIVE_TOKEN, chains: [137], decimals: 18 },
 };
 
 export default async function handler(req, res) {
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
   const {
     recipientAddress,
     originChainId,
-    originToken,       // 'ETH', 'USDC', 'USDT', 'MATIC', or a raw address
+    originToken,       // 'ETH', 'USDC', 'USDT', 'POL', or a raw address
     destinationChainId, // defaults to 137 (Polygon)
     amount,            // in smallest unit (wei/micro-units)
   } = req.body;
@@ -70,7 +70,7 @@ export default async function handler(req, res) {
 
   // Resolve origin token address
   let originCurrency;
-  if (originToken === 'ETH' || originToken === 'MATIC') {
+  if (originToken === 'ETH' || originToken === 'POL') {
     originCurrency = NATIVE_TOKEN;
   } else if (originToken === 'USDC') {
     originCurrency = USDC_ADDRESSES[srcChain];
