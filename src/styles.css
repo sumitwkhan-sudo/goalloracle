@@ -709,6 +709,48 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .tiebreaker-item { display: flex; align-items: center; gap: 0.75rem; font-size: 0.88rem; color: var(--text-sec); }
 .tb-num { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; background: var(--bg-elev); border-radius: 50%; font-family: var(--mono); font-size: 0.7rem; font-weight: 700; color: var(--cyan); }
 
+/* ---- USERNAME PROMPT MODAL ---- */
+.username-modal {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px;
+  width: 100%; max-width: 420px; padding: 2.5rem 2rem; text-align: center;
+  box-shadow: 0 20px 80px rgba(0,0,0,0.6);
+  animation: usernameIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes usernameIn { from { opacity: 0; transform: translateY(20px) scale(0.96); } to { opacity: 1; transform: none; } }
+.username-modal-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.username-modal-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+.username-modal-desc { font-size: 0.88rem; color: var(--text-sec); line-height: 1.6; margin-bottom: 1.75rem; }
+.username-input-wrap {
+  position: relative; display: flex; align-items: center; margin-bottom: 0.35rem;
+}
+.username-input-icon { position: absolute; left: 0.85rem; color: var(--text-dim); pointer-events: none; }
+.username-input {
+  width: 100%; padding: 0.85rem 0.85rem 0.85rem 2.5rem;
+  border: 1.5px solid var(--border); border-radius: 10px;
+  background: var(--bg-elev); color: var(--text);
+  font-family: var(--font); font-size: 1rem; font-weight: 600;
+  transition: all 0.2s;
+}
+.username-input:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
+.username-input::placeholder { font-weight: 400; color: var(--text-dim); }
+.username-rules { font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); margin-bottom: 1rem; letter-spacing: 0.03em; }
+.username-error {
+  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+  color: var(--danger); font-size: 0.82rem; font-weight: 500;
+  margin-bottom: 0.75rem; padding: 0.5rem; background: rgba(255,59,92,0.06);
+  border-radius: 8px; border: 1px solid rgba(255,59,92,0.12);
+}
+.username-submit { width: 100%; justify-content: center; }
+.username-divider {
+  display: flex; align-items: center; gap: 0.75rem; margin: 1.25rem 0;
+  color: var(--text-dim); font-size: 0.75rem;
+}
+.username-divider::before, .username-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.username-email-btn { width: 100%; justify-content: center; font-size: 0.85rem; }
+.username-email-btn strong { color: var(--cyan); margin: 0 0.2rem; }
+
 /* ---- FOOTER ---- */
 .site-footer { padding: 3rem 2rem 1.5rem; border-top: 1px solid var(--border); position: relative; z-index: 2; }
 .footer-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }

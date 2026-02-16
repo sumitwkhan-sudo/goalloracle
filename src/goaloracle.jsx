@@ -6,6 +6,7 @@ import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
 import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
+import { validateUsername } from './utils/profanity';
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
 
@@ -88,13 +89,35 @@ const GoalOracle = () => {
   const [saving, setSaving] = useState(false);
   const [notif, setNotif] = useState(null);
   const [stats, setStats] = useState({ totalPlayers: 0, totalPrizePools: 0, activeLeagues: 0 });
+  const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const nav = useCallback((v, l) => { if (l) setSelLeague(l); setView(prev => prev === v && !l ? prev : v); setMenuOpen(false); window.scrollTo(0, 0); }, []);
 
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
-  useEffect(() => { if (!authenticated || !user) { setUData(null); setRole('user'); setAuthToken(null); return; } (async () => { try { const token = await getAccessToken(); setAuthToken(token); const u = await createOrUpdateUser(user); if (u) { setUData(u); setRole(u.role || 'user'); } else { console.error('createOrUpdateUser returned null'); notify('Account setup failed. Please try logging out and back in.', 'error'); } } catch(e) { console.error('User setup error:', e); notify('Account setup error: ' + e.message, 'error'); } })(); }, [authenticated, user]);
+  useEffect(() => {
+    if (!authenticated || !user) { setUData(null); setRole('user'); setAuthToken(null); return; }
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        setAuthToken(token);
+        const u = await createOrUpdateUser(user);
+        if (u) {
+          setUData(u);
+          setRole(u.role || 'user');
+          // Show username prompt if user hasn't set one yet
+          if (!u.usernameSet) setShowUsernamePrompt(true);
+        } else {
+          console.error('createOrUpdateUser returned null');
+          notify('Account setup failed. Please try logging out and back in.', 'error');
+        }
+      } catch(e) {
+        console.error('User setup error:', e);
+        notify('Account setup error: ' + e.message, 'error');
+      }
+    })();
+  }, [authenticated, user]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
   useEffect(() => { if (!uData?.id || !selLeague?.id) return; return subscribeToUserPredictions(uData.id, selLeague.id, setPreds); }, [uData?.id, selLeague?.id]);
@@ -833,8 +856,10 @@ const GoalOracle = () => {
 
     const saveName = async () => {
       if (!newName.trim()) return;
+      const validErr = validateUsername(newName.trim());
+      if (validErr) { notify(validErr, 'error'); return; }
       try {
-        const updated = await updateUserProfile({ displayName: newName.trim() });
+        const updated = await updateUserProfile({ displayName: newName.trim(), usernameSet: true });
         if (updated) setUData(updated);
         setEditingName(false);
         notify('Display name updated!');
@@ -906,6 +931,77 @@ const GoalOracle = () => {
     );
   };
 
+  // ================================
+  // USERNAME PROMPT (shown on first login / existing users without username)
+  // ================================
+  const UsernamePrompt = () => {
+    const [username, setUsername] = useState('');
+    const [err, setErr] = useState('');
+    const [busy, setBusy] = useState(false);
+    const email = uData?.email || '';
+    const emailPrefix = email?.split('@')[0] || '';
+
+    const handleSubmit = async (chosenName) => {
+      const trimmed = chosenName.trim();
+      const validErr = validateUsername(trimmed);
+      if (validErr) { setErr(validErr); return; }
+      setBusy(true); setErr('');
+      try {
+        const updated = await updateUserProfile({ displayName: trimmed, usernameSet: true });
+        if (updated) setUData(updated);
+        setShowUsernamePrompt(false);
+        notify(`Welcome, ${trimmed}!`);
+      } catch(e) { setErr(e.message); } finally { setBusy(false); }
+    };
+
+    const handleUseEmail = async () => {
+      if (!emailPrefix) return;
+      setBusy(true); setErr('');
+      try {
+        const updated = await updateUserProfile({ displayName: emailPrefix, usernameSet: true });
+        if (updated) setUData(updated);
+        setShowUsernamePrompt(false);
+        notify(`Welcome, ${emailPrefix}!`);
+      } catch(e) { setErr(e.message); } finally { setBusy(false); }
+    };
+
+    return (
+      <div className="modal-overlay" style={{zIndex: 2000}}>
+        <div className="username-modal">
+          <div className="username-modal-icon">👋</div>
+          <h2 className="username-modal-title">Choose Your Username</h2>
+          <p className="username-modal-desc">This is how you'll appear on leaderboards and to other players. Pick something memorable!</p>
+
+          <div className="username-input-wrap">
+            <User size={16} className="username-input-icon" />
+            <input
+              type="text" value={username}
+              onChange={e => { setUsername(e.target.value); setErr(''); }}
+              onKeyDown={e => e.key === 'Enter' && username.trim() && handleSubmit(username)}
+              className="username-input" placeholder="e.g., GoalKing99"
+              maxLength={20} autoFocus
+            />
+          </div>
+          <div className="username-rules">3–20 characters · Letters, numbers, _ . - only</div>
+          {err && <div className="username-error"><AlertTriangle size={14} /> {err}</div>}
+
+          <button type="button" className="btn btn-primary btn-lg username-submit" onClick={() => handleSubmit(username)} disabled={busy || !username.trim()}>
+            {busy ? <><RefreshCw size={16} className="spin" /> Setting up...</> : <>Set Username <ChevronRight size={16} /></>}
+          </button>
+
+          {emailPrefix && (
+            <div className="username-divider"><span>or</span></div>
+          )}
+          {emailPrefix && (
+            <button type="button" className="btn btn-secondary username-email-btn" onClick={handleUseEmail} disabled={busy}>
+              Use <strong>{emailPrefix}</strong> as my username
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
       <div className="nav-brand" onClick={() => nav(authenticated ? 'dashboard' : 'landing')}><Trophy size={24} /><span className="gt">GoalOracle</span></div>
@@ -931,6 +1027,7 @@ const GoalOracle = () => {
       {view === 'detail' && <Detail />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} notify={notify} />}
       {fundModal && <AddFundsModal />}
+      {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
     </div>
   );
 };
