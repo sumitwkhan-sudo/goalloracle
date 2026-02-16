@@ -1402,7 +1402,7 @@ const GoalOracle = () => {
       {view === 'create' && <Create />}
       {view === 'detail' && <Detail />}
       {view === 'faq' && <FAQ />}
-      {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} notify={notify} />}
+      {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
       {fundModal && <AddFundsModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
     </div>
