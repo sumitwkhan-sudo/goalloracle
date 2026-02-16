@@ -1125,6 +1125,31 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .admin-oracle-status { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
 .admin-oracle-key { font-family: var(--mono); font-size: 0.62rem; color: var(--text); font-weight: 600; display: block; }
 .admin-env-hint { font-size: 0.58rem; color: var(--text-dim); display: block; margin-top: 0.2rem; }
+
+/* Live health status */
+.admin-oracle-card.oracle-ok { border-color: rgba(0,230,118,0.15); }
+.admin-oracle-card.oracle-err { border-color: rgba(255,59,92,0.12); }
+.admin-oracle-status-live { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0; }
+.admin-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.admin-status-dot.green { background: var(--success); box-shadow: 0 0 6px rgba(0,230,118,0.4); }
+.admin-status-dot.amber { background: var(--amber); box-shadow: 0 0 6px rgba(255,184,0,0.4); }
+.admin-status-dot.red { background: var(--danger); box-shadow: 0 0 6px rgba(255,59,92,0.4); }
+.admin-status-label { font-size: 0.75rem; font-weight: 600; }
+.admin-oracle-detail { font-size: 0.65rem; color: var(--text-sec); font-family: var(--mono); margin: 0.15rem 0; }
+.admin-oracle-detail strong { color: var(--text); }
+.admin-oracle-err-msg {
+  display: flex; align-items: center; gap: 0.3rem; font-size: 0.65rem;
+  color: var(--danger); margin: 0.4rem 0; padding: 0.35rem 0.6rem;
+  background: rgba(255,59,92,0.04); border-radius: 6px;
+}
+.admin-env-status {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-family: var(--mono); font-size: 0.65rem; font-weight: 600;
+}
+.admin-env-status.set { color: var(--success); }
+.admin-env-status.missing { color: var(--amber); }
 .admin-oracle-info {
   display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.75rem 1rem;
   background: rgba(255,184,0,0.04); border: 1px solid rgba(255,184,0,0.08); border-radius: 8px;

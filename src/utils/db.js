@@ -133,3 +133,7 @@ export async function getAllUsers() {
 export async function setUserRole(userId, role, adminId) {
   await apiCall('admin', 'POST', { action: 'setRole', targetUserId: userId, newRole: role });
 }
+
+export async function checkOracleHealth() {
+  return await apiCall('health');
+}

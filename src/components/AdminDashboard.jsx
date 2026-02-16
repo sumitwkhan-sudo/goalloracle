@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff } from 'lucide-react';
+import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, deleteLeague } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, deleteLeague, checkOracleHealth } from '../utils/db';
 
 const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify }) => {
   const [tab, setTab] = useState('results');
@@ -12,9 +12,26 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [userSearch, setUserSearch] = useState('');
   const [matchFilter, setMatchFilter] = useState('pending'); // pending | verified | all
   const [deleting, setDeleting] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState(null);
+
+  const runHealthCheck = async () => {
+    setHealthLoading(true);
+    setHealthError(null);
+    try {
+      const data = await checkOracleHealth();
+      setHealth(data);
+      notify('Health check complete');
+    } catch (e) {
+      setHealthError(e.message || 'Health check failed');
+      notify('Health check failed: ' + e.message, 'error');
+    } finally { setHealthLoading(false); }
+  };
 
   useEffect(() => {
     if (tab === 'users') getAllUsers().then(setUsers).catch(e => { console.error(e); notify('Failed to load users', 'error'); });
+    if (tab === 'oracle' && !health && !healthLoading) runHealthCheck();
   }, [tab]);
 
   const handleSaveResult = async () => {
@@ -298,35 +315,137 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           <div className="admin-panel-head">
             <div>
               <h2>Oracle Status</h2>
-              <p className="admin-panel-desc">Dual-source oracle health and configuration</p>
+              <p className="admin-panel-desc">Live connectivity test for both data sources</p>
             </div>
+            <button type="button" className="btn btn-primary btn-sm" onClick={runHealthCheck} disabled={healthLoading}>
+              {healthLoading ? <><RefreshCw size={13} className="spin" /> Testing...</> : <><Zap size={13} /> Run Health Check</>}
+            </button>
           </div>
 
-          <div className="admin-oracle-grid">
-            <div className="admin-oracle-card">
-              <h3><span style={{color:'var(--cyan)'}}>●</span> Oracle 1 — Football-Data.org</h3>
-              <p className="admin-oracle-desc">Free community-trusted API for live scores, fixtures, and standings.</p>
-              <a href="https://www.football-data.org" target="_blank" rel="noopener noreferrer" className="admin-oracle-link"><ExternalLink size={11} /> football-data.org</a>
-              <div className="admin-oracle-status">
-                <span className="admin-oracle-key">FOOTBALL_DATA_API_KEY</span>
-                <span className="admin-env-hint">Set in Vercel → Settings → Environment Variables</span>
-              </div>
+          {healthError && !health && (
+            <div className="admin-oracle-info" style={{borderColor:'rgba(255,59,92,0.15)', background:'rgba(255,59,92,0.04)', color:'var(--danger)'}}>
+              <AlertTriangle size={14} />
+              <span>{healthError}</span>
             </div>
-            <div className="admin-oracle-card">
-              <h3><span style={{color:'var(--amber)'}}>●</span> Oracle 2 — API-Sports</h3>
-              <p className="admin-oracle-desc">Comprehensive sports data with 900+ leagues and real-time scores.</p>
-              <a href="https://www.api-football.com" target="_blank" rel="noopener noreferrer" className="admin-oracle-link"><ExternalLink size={11} /> api-football.com</a>
-              <div className="admin-oracle-status">
-                <span className="admin-oracle-key">APISPORTS_API_KEY</span>
-                <span className="admin-env-hint">Set in Vercel → Settings → Environment Variables</span>
-              </div>
-            </div>
-          </div>
+          )}
 
-          <div className="admin-oracle-info">
-            <AlertTriangle size={14} />
-            <span>Both oracles must return matching scores for a result to be auto-verified. If they disagree, the result enters dispute state for manual review.</span>
-          </div>
+          {!health && !healthLoading && !healthError && (
+            <div className="admin-empty">Click "Run Health Check" to test oracle connections.</div>
+          )}
+
+          {healthLoading && !health && (
+            <div className="admin-empty"><RefreshCw size={18} className="spin" style={{display:'inline-block', marginRight:'0.5rem'}} /> Pinging oracle APIs...</div>
+          )}
+
+          {health && (
+            <>
+              {/* Timestamp */}
+              <div style={{fontSize:'0.62rem', color:'var(--text-dim)', fontFamily:'var(--mono)', marginBottom:'1rem', display:'flex', alignItems:'center', gap:'0.3rem'}}>
+                <Clock size={11} /> Checked: {new Date(health.timestamp).toLocaleString()}
+              </div>
+
+              <div className="admin-oracle-grid">
+                {/* Oracle 1 */}
+                <div className={`admin-oracle-card ${health.oracle1.status === 'connected' ? 'oracle-ok' : 'oracle-err'}`}>
+                  <h3>
+                    {health.oracle1.status === 'connected' ? <Wifi size={14} style={{color:'var(--success)'}} /> : <WifiOff size={14} style={{color:'var(--danger)'}} />}
+                    Oracle 1 — Football-Data.org
+                  </h3>
+
+                  <div className="admin-oracle-status-live">
+                    <span className={`admin-status-dot ${health.oracle1.status === 'connected' ? 'green' : health.oracle1.status === 'rate_limited' ? 'amber' : 'red'}`}></span>
+                    <span className="admin-status-label">
+                      {health.oracle1.status === 'connected' && 'Connected'}
+                      {health.oracle1.status === 'no_key' && 'API Key Missing'}
+                      {health.oracle1.status === 'rate_limited' && 'Rate Limited'}
+                      {health.oracle1.status === 'error' && 'Connection Failed'}
+                      {health.oracle1.status === 'unknown' && 'Unknown'}
+                    </span>
+                  </div>
+
+                  {health.oracle1.latency != null && (
+                    <div className="admin-oracle-detail">Latency: <strong>{health.oracle1.latency}ms</strong></div>
+                  )}
+                  {health.oracle1.competition && (
+                    <div className="admin-oracle-detail">Competition: <strong>{health.oracle1.competition}</strong></div>
+                  )}
+                  {health.oracle1.error && (
+                    <div className="admin-oracle-err-msg"><AlertTriangle size={11} /> {health.oracle1.error}</div>
+                  )}
+
+                  <a href="https://www.football-data.org" target="_blank" rel="noopener noreferrer" className="admin-oracle-link"><ExternalLink size={11} /> football-data.org</a>
+                </div>
+
+                {/* Oracle 2 */}
+                <div className={`admin-oracle-card ${health.oracle2.status === 'connected' ? 'oracle-ok' : 'oracle-err'}`}>
+                  <h3>
+                    {health.oracle2.status === 'connected' ? <Wifi size={14} style={{color:'var(--success)'}} /> : <WifiOff size={14} style={{color:'var(--danger)'}} />}
+                    Oracle 2 — API-Sports.io
+                  </h3>
+
+                  <div className="admin-oracle-status-live">
+                    <span className={`admin-status-dot ${health.oracle2.status === 'connected' ? 'green' : 'red'}`}></span>
+                    <span className="admin-status-label">
+                      {health.oracle2.status === 'connected' && 'Connected'}
+                      {health.oracle2.status === 'no_key' && 'API Key Missing'}
+                      {health.oracle2.status === 'error' && 'Connection Failed'}
+                      {health.oracle2.status === 'unknown' && 'Unknown'}
+                    </span>
+                  </div>
+
+                  {health.oracle2.latency != null && (
+                    <div className="admin-oracle-detail">Latency: <strong>{health.oracle2.latency}ms</strong></div>
+                  )}
+                  {health.oracle2.status === 'connected' && (
+                    <>
+                      <div className="admin-oracle-detail">Plan: <strong>{health.oracle2.plan}</strong></div>
+                      <div className="admin-oracle-detail">Requests today: <strong>{health.oracle2.requestsToday} / {health.oracle2.requestsLimit}</strong></div>
+                    </>
+                  )}
+                  {health.oracle2.error && (
+                    <div className="admin-oracle-err-msg"><AlertTriangle size={11} /> {health.oracle2.error}</div>
+                  )}
+
+                  <a href="https://www.api-football.com" target="_blank" rel="noopener noreferrer" className="admin-oracle-link"><ExternalLink size={11} /> api-football.com</a>
+                </div>
+              </div>
+
+              {/* Env vars status */}
+              <h3 className="admin-section-title">Environment Variables</h3>
+              <div className="admin-contract-card">
+                {Object.entries(health.envVars).map(([key, isSet]) => (
+                  <div key={key} className="admin-contract-row">
+                    <span className="admin-contract-lbl">{key}</span>
+                    <span className={`admin-env-status ${isSet ? 'set' : 'missing'}`}>
+                      {isSet ? <><CheckCircle size={12} /> Set</> : <><AlertTriangle size={12} /> Missing</>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Contract status */}
+              <h3 className="admin-section-title">Smart Contract</h3>
+              <div className="admin-contract-card">
+                <div className="admin-contract-row">
+                  <span className="admin-contract-lbl">Contract Address</span>
+                  <span className={`admin-contract-val ${health.contract.deployed ? '' : 'pending'}`}>
+                    {health.contract.address || 'Not deployed'}
+                  </span>
+                </div>
+                <div className="admin-contract-row">
+                  <span className="admin-contract-lbl">Polygon RPC</span>
+                  <span className={`admin-env-status ${health.contract.rpc ? 'set' : 'missing'}`}>
+                    {health.contract.rpc ? <><CheckCircle size={12} /> Configured</> : <><AlertTriangle size={12} /> Not set</>}
+                  </span>
+                </div>
+              </div>
+
+              <div className="admin-oracle-info" style={{marginTop:'1rem'}}>
+                <AlertTriangle size={14} />
+                <span>Both oracles must return matching scores for auto-verification. If they disagree, the result enters dispute state for manual admin review.</span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -336,14 +455,17 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           <div className="admin-panel-head">
             <div>
               <h2>Smart Contract</h2>
-              <p className="admin-panel-desc">GoalOracleVerifier.sol deployment status on Polygon</p>
+              <p className="admin-panel-desc">GoalOracleVerifier.sol — Polygon PoS (Chain 137)</p>
             </div>
           </div>
 
           <div className="admin-contract-card">
             <div className="admin-contract-row"><span className="admin-contract-lbl">Contract</span><span className="admin-contract-val">GoalOracleVerifier.sol</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">Network</span><span className="admin-contract-val">Polygon PoS (Chain 137)</span></div>
-            <div className="admin-contract-row"><span className="admin-contract-lbl">Address</span><span className="admin-contract-val pending">Not deployed</span></div>
+            <div className="admin-contract-row">
+              <span className="admin-contract-lbl">Address</span>
+              <span className="admin-contract-val pending">{health?.contract?.address || 'Not deployed'}</span>
+            </div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">Required Confirmations</span><span className="admin-contract-val">2 / 2 oracles</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">Dispute Window</span><span className="admin-contract-val">1 hour</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">Oracle 1 Wallet</span><span className="admin-contract-val pending">Not registered</span></div>
@@ -352,6 +474,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
 
           <div className="admin-contract-actions">
             <a href="https://github.com/nicholascpark/goaloracle/blob/main/contracts/GoalOracleVerifier.sol" target="_blank" rel="noopener noreferrer" className="btn"><ExternalLink size={13} /> View Source on GitHub</a>
+            <a href="https://polygonscan.com" target="_blank" rel="noopener noreferrer" className="btn"><ExternalLink size={13} /> Polygonscan</a>
           </div>
         </div>
       )}
