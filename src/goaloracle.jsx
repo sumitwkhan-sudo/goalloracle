@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
@@ -362,6 +362,7 @@ const GoalOracle = () => {
             <div className="footer-links">
               <a onClick={() => authenticated ? nav('dashboard') : login()}>Play Now</a>
               <a onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works</a>
+              <a onClick={() => nav('faq')}>FAQ</a>
             </div>
             <div className="footer-copy">Built on Polygon · Smart Contract Verified · 22 Tournaments of Legacy</div>
             <div className="photo-credit">Stadium photos via Unsplash (free commercial license)</div>
@@ -948,6 +949,211 @@ const GoalOracle = () => {
   };
 
   // ================================
+  // FAQ PAGE
+  // ================================
+  const FAQ = () => {
+    const [openQ, setOpenQ] = useState(null);
+    const toggle = (i) => setOpenQ(openQ === i ? null : i);
+
+    const sections = [
+      {
+        title: 'How GoalOracle Works',
+        icon: '⚽',
+        questions: [
+          {
+            q: 'What is GoalOracle?',
+            a: 'GoalOracle is a prediction game for the FIFA World Cup 2026. You predict the outcomes of all 104 matches — from the group stage through to the final — and compete against friends and the global community on leaderboards. You can play for free or stake crypto for real prizes.'
+          },
+          {
+            q: 'How do I make predictions?',
+            a: 'After signing up and joining a league, go to the Predictions tab. For each match you can predict the winner (home/draw/away) for 3 points, and optionally predict the exact score for 5 bonus points. For knockout matches you can also predict extra time (+1 pt) and penalty shootout outcomes (+2 pts).'
+          },
+          {
+            q: 'When do predictions lock?',
+            a: 'Predictions lock 5 minutes before each match kicks off. You can update your predictions as many times as you want before the lock — they auto-save as you go. Once a match locks, your prediction for that match is final.'
+          },
+          {
+            q: 'How is the leaderboard calculated?',
+            a: 'Points are awarded per match: Correct result (home/draw/away) = 3 pts, Exact score = 5 pts, Extra time prediction = 1 pt, Penalty prediction = 2 pts. League creators can customize these values. Tiebreakers are: total points → exact scores → knockout bonuses → earliest submission time.'
+          },
+          {
+            q: 'Can I join multiple leagues?',
+            a: 'Yes. You can join as many leagues as you want — the Global League, public leagues, and private leagues. Your predictions are per-league, so you can use different strategies in different leagues.'
+          },
+        ]
+      },
+      {
+        title: 'Leagues & Privacy',
+        icon: '🏆',
+        questions: [
+          {
+            q: 'What is the difference between public and private leagues?',
+            a: 'Public leagues appear in the Browse page and anyone can join. Private leagues are invite-only — the creator gets a unique passcode (like "GOAL2K") that they share with friends. You need the passcode to join a private league.'
+          },
+          {
+            q: 'How do I invite friends to a private league?',
+            a: 'After creating a private league, go to the league detail page and click "Invite." This shows your league passcode and a "Copy Invite" button that copies a ready-made message with the code and signup link. Share it via text, email, or group chat.'
+          },
+          {
+            q: 'Can the league creator change settings after creation?',
+            a: 'Currently, league settings (points system, entry fee, prize distribution) are fixed at creation. Admins can delete leagues if needed. We may add editable settings in a future update.'
+          },
+        ]
+      },
+      {
+        title: 'Transparency & Score Verification',
+        icon: '🔮',
+        questions: [
+          {
+            q: 'How are match results verified?',
+            a: 'GoalOracle uses a dual-source oracle system. When a match finishes, results are fetched from two independent football data providers. Both sources must agree on the final score before the result is accepted. This prevents errors from any single data source.'
+          },
+          {
+            q: 'Which APIs provide the match scores?',
+            a: (<>
+              We use two independent, widely-trusted football data APIs:
+              <br/><br/>
+              <strong>Source 1: Football-Data.org</strong> — A free, community-trusted API that provides live scores, fixtures, and standings for major football competitions including the FIFA World Cup. Used by thousands of developers worldwide.
+              <br/><a href="https://www.football-data.org" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> football-data.org</a>
+              <br/><br/>
+              <strong>Source 2: API-Sports (API-Football)</strong> — A comprehensive sports data provider covering 900+ football leagues with real-time scores, events, and statistics. Trusted by major sports platforms globally.
+              <br/><a href="https://www.api-football.com" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> api-football.com</a>
+              <br/><br/>
+              Both sources must return the same score for a result to be marked as verified. If they disagree, an admin review is triggered before any points are awarded.
+            </>)
+          },
+          {
+            q: 'What happens if the two data sources disagree?',
+            a: 'If the two APIs return different scores — which is rare but possible during extra time or penalty scenarios — the result enters a "dispute" state. An admin manually verifies using official FIFA sources before confirming. No points or prizes are distributed until the result is verified.'
+          },
+          {
+            q: 'Can I verify the results myself?',
+            a: 'Yes. All verified match results are visible on the platform and you can cross-check them against the official FIFA World Cup website (fifa.com), or the two data sources we use (football-data.org and api-football.com). Full transparency is a core principle.'
+          },
+        ]
+      },
+      {
+        title: 'Crypto, Wallets & Smart Contracts',
+        icon: '💰',
+        questions: [
+          {
+            q: 'Do I need crypto to play?',
+            a: 'No. Free leagues require no wallet or crypto at all — just sign up and predict. Crypto is only needed if you want to join paid leagues with real prize pools.'
+          },
+          {
+            q: 'How do wallets work on GoalOracle?',
+            a: 'When you sign up, an embedded wallet is automatically created for you via Privy — no browser extension or MetaMask needed. This wallet lives on the Polygon network and can hold USDC for paid league entry fees. You can also bridge tokens from Ethereum, Base, Arbitrum, and Optimism.'
+          },
+          {
+            q: 'How are prize pools managed?',
+            a: (<>
+              For paid leagues, entry fees are held in a smart contract on the Polygon blockchain — not by GoalOracle. The contract automatically distributes prizes to the top 3 finishers based on the prize split set at league creation (default: 50% / 30% / 20%). This is fully non-custodial — we never hold your funds.
+              <br/><br/>
+              <strong>Smart Contract:</strong> GoalOracleVerifier.sol
+              <br/>
+              <span className="faq-contract-label">Contract Address (Polygon):</span>
+              <br/>
+              <code className="faq-contract-addr">Coming soon — deployment pending</code>
+              <br/><br/>
+              Once deployed, you'll be able to verify the contract source code on:
+              <br/>
+              <a href="https://polygonscan.com" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> Polygonscan</a>
+              <br/><br/>
+              The contract source code is open and auditable in our repository:
+              <br/>
+              <a href="https://github.com/nicholascpark/goaloracle/blob/main/contracts/GoalOracleVerifier.sol" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> View GoalOracleVerifier.sol on GitHub</a>
+            </>)
+          },
+          {
+            q: 'What blockchain does GoalOracle use?',
+            a: 'GoalOracle uses Polygon PoS for all on-chain transactions. Polygon offers fast transactions (2-second finality) and very low gas fees (typically under $0.01), making it ideal for a prediction game with many participants. Entry fees and prizes are in USDC, a dollar-pegged stablecoin.'
+          },
+          {
+            q: 'How does the on-chain oracle verification work?',
+            a: (<>
+              The GoalOracleVerifier smart contract uses a multi-oracle pattern:
+              <br/><br/>
+              1. Two independent oracle wallets are registered on the contract<br/>
+              2. Each oracle submits match results independently (score, extra time, penalties)<br/>
+              3. Results are hashed and compared — when 2 out of 2 oracles agree, the result is marked as VERIFIED<br/>
+              4. Only verified results can trigger prize distribution<br/>
+              5. An admin can flag disputes if oracles conflict, freezing payouts until resolved
+              <br/><br/>
+              This dual-oracle design ensures no single point of failure can produce incorrect results or trigger wrongful payouts.
+            </>)
+          },
+          {
+            q: 'Are there fees beyond the entry fee?',
+            a: 'GoalOracle does not take a platform fee from prize pools. The only additional cost is the small Polygon gas fee (under $0.01) when the smart contract distributes prizes. What goes into the pool is what gets paid out.'
+          },
+        ]
+      },
+      {
+        title: 'Account & Support',
+        icon: '👤',
+        questions: [
+          {
+            q: 'How do I change my username?',
+            a: 'Click your account name in the top navigation bar to open the dropdown, then click the pencil icon next to your display name. Usernames must be 3–20 characters, letters/numbers/underscores only, and cannot contain inappropriate language.'
+          },
+          {
+            q: 'What login methods are supported?',
+            a: 'You can sign up with email, Google, Twitter/X, or directly with a crypto wallet (MetaMask, Coinbase Wallet, etc.). All methods create the same account with an embedded Polygon wallet.'
+          },
+          {
+            q: 'Who can I contact for support?',
+            a: 'For bugs, questions, or feedback, reach out to us at support@goaloracle.com or open an issue on our GitHub repository.'
+          },
+        ]
+      },
+    ];
+
+    return (
+      <div className="faq-page">
+        <div className="page-header">
+          {authenticated && <button className="btn-back" onClick={() => nav('dashboard')}>← Back</button>}
+          <div>
+            <h1>Frequently Asked Questions</h1>
+            <p className="faq-page-sub">Everything you need to know about GoalOracle — how it works, how scores are verified, and how your funds are protected.</p>
+          </div>
+        </div>
+
+        {sections.map((sec, si) => (
+          <div key={si} className="faq-section">
+            <div className="faq-section-header">
+              <span className="faq-section-icon">{sec.icon}</span>
+              <h2>{sec.title}</h2>
+            </div>
+            {sec.questions.map((item, qi) => {
+              const idx = `${si}-${qi}`;
+              const isOpen = openQ === idx;
+              return (
+                <div key={qi} className={`faq-item ${isOpen ? 'open' : ''}`}>
+                  <button type="button" className="faq-question" onClick={() => toggle(idx)}>
+                    <span>{item.q}</span>
+                    <ChevronRight size={18} className={`faq-chevron ${isOpen ? 'rotated' : ''}`} />
+                  </button>
+                  {isOpen && <div className="faq-answer">{item.a}</div>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+
+        <div className="faq-footer-cta">
+          <div className="faq-footer-card">
+            <h3>Ready to play?</h3>
+            <p>Join the world's most transparent World Cup prediction game.</p>
+            <button className="btn btn-primary" onClick={() => authenticated ? nav('dashboard') : login()}>
+              {authenticated ? 'Go to Dashboard' : 'Sign Up or Login'} <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ================================
   // USERNAME PROMPT (shown on first login / existing users without username)
   // ================================
   const UsernamePrompt = () => {
@@ -1023,7 +1229,12 @@ const GoalOracle = () => {
       <div className="nav-brand" onClick={() => nav(authenticated ? 'dashboard' : 'landing')}><Trophy size={24} /><span className="gt">GoalOracle</span></div>
       <button type="button" className="mobile-toggle" onClick={e => { e.stopPropagation(); setMenuOpen(!menuOpen); }}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`} onClick={e => e.stopPropagation()}>
-        {authenticated && <><a onClick={() => nav('dashboard')}>Dashboard</a><a onClick={() => nav('browse')}>Leagues</a>{(role === 'superadmin' || role === 'admin') && <a onClick={() => nav('admin')}>Admin</a>}</>}
+        {authenticated && <>
+          <a onClick={() => nav('dashboard')}><Home size={15} /> Home</a>
+          <a onClick={() => nav('browse')}>Leagues</a>
+          {(role === 'superadmin' || role === 'admin') && <a onClick={() => nav('admin')}>Admin</a>}
+        </>}
+        <a onClick={() => nav('faq')}><HelpCircle size={15} /> FAQ</a>
         <div className="nav-actions" onClick={e => e.stopPropagation()}>
           {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
           <button type="button" className="theme-toggle-btn" onClick={e => { e.stopPropagation(); toggleTheme(); }}>{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}<span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
@@ -1041,6 +1252,7 @@ const GoalOracle = () => {
       {view === 'browse' && <Browse />}
       {view === 'create' && <Create />}
       {view === 'detail' && <Detail />}
+      {view === 'faq' && <FAQ />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} notify={notify} />}
       {fundModal && <AddFundsModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}

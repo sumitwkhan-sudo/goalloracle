@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   if (!claims) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    const { email, walletAddress, displayName } = req.body;
+    const { email, walletAddress, displayName, usernameSet } = req.body;
     const userId = claims.userId;
 
     const userRef = db.collection('users').doc(userId);
@@ -20,16 +20,26 @@ export default async function handler(req, res) {
 
     const userData = {
       id: userId,
-      email: email || null,
-      walletAddress: walletAddress || null,
-      displayName: displayName || email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous'),
       updatedAt: FieldValue.serverTimestamp(),
     };
 
+    // Always update email and wallet if provided (these come from Privy)
+    if (email) userData.email = email;
+    if (walletAddress) userData.walletAddress = walletAddress;
+
     if (!userSnap.exists) {
+      // New user — set defaults
       userData.createdAt = FieldValue.serverTimestamp();
       userData.role = 'user';
       userData.leagues = ['global'];
+      userData.email = email || null;
+      userData.walletAddress = walletAddress || null;
+      userData.displayName = email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous');
+      userData.usernameSet = false;
+    } else {
+      // Existing user — only update displayName if explicitly provided (from profile edit or username prompt)
+      if (displayName) userData.displayName = displayName;
+      if (usernameSet === true) userData.usernameSet = true;
     }
 
     await userRef.set(userData, { merge: true });

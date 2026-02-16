@@ -709,6 +709,58 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .tiebreaker-item { display: flex; align-items: center; gap: 0.75rem; font-size: 0.88rem; color: var(--text-sec); }
 .tb-num { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; background: var(--bg-elev); border-radius: 50%; font-family: var(--mono); font-size: 0.7rem; font-weight: 700; color: var(--cyan); }
 
+/* ---- FAQ PAGE ---- */
+.faq-page { max-width: 800px; margin: 0 auto; padding: 2rem; position: relative; z-index: 2; }
+.faq-page-sub { color: var(--text-sec); font-size: 0.9rem; margin-top: 0.35rem; line-height: 1.6; }
+.faq-section { margin-bottom: 2rem; }
+.faq-section-header {
+  display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+}
+.faq-section-icon { font-size: 1.3rem; }
+.faq-section-header h2 { font-size: 1.1rem; font-weight: 700; }
+.faq-item {
+  border: 1px solid var(--border); border-radius: 10px;
+  margin-bottom: 0.5rem; overflow: hidden; transition: all 0.2s;
+  background: var(--bg-card);
+}
+.faq-item.open { border-color: rgba(0,212,255,0.15); }
+.faq-question {
+  width: 100%; display: flex; justify-content: space-between; align-items: center;
+  padding: 1rem 1.25rem; background: transparent; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 0.9rem; font-weight: 600; color: var(--text);
+  text-align: left; gap: 1rem; transition: color 0.2s;
+}
+.faq-question:hover { color: var(--cyan); }
+.faq-chevron { transition: transform 0.25s; flex-shrink: 0; color: var(--text-dim); }
+.faq-chevron.rotated { transform: rotate(90deg); color: var(--cyan); }
+.faq-answer {
+  padding: 0 1.25rem 1.25rem; font-size: 0.85rem; color: var(--text-sec);
+  line-height: 1.75; animation: faqIn 0.25s ease;
+}
+@keyframes faqIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.faq-answer strong { color: var(--text); font-weight: 600; }
+.faq-answer code { font-family: var(--mono); font-size: 0.8rem; }
+.faq-link {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  color: var(--cyan); font-family: var(--mono); font-size: 0.75rem;
+  text-decoration: none; transition: opacity 0.2s; margin-top: 0.25rem;
+}
+.faq-link:hover { opacity: 0.8; text-decoration: underline; }
+.faq-contract-label { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase; margin-top: 0.5rem; display: block; }
+.faq-contract-addr {
+  display: inline-block; font-family: var(--mono); font-size: 0.8rem; font-weight: 600;
+  color: var(--amber); background: rgba(255,184,0,0.06); padding: 0.3rem 0.75rem;
+  border-radius: 6px; border: 1px solid rgba(255,184,0,0.12); margin-top: 0.25rem;
+}
+.faq-footer-cta { margin-top: 2.5rem; }
+.faq-footer-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
+  padding: 2rem; text-align: center;
+}
+.faq-footer-card h3 { font-size: 1.2rem; margin-bottom: 0.35rem; }
+.faq-footer-card p { color: var(--text-sec); font-size: 0.88rem; margin-bottom: 1.25rem; }
+
 /* ---- USERNAME PROMPT MODAL ---- */
 .username-modal {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px;

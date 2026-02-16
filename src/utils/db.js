@@ -29,7 +29,8 @@ export async function createOrUpdateUser(privyUser) {
   const data = await apiCall('user', 'POST', {
     email: emailAddr,
     walletAddress: walletAddr,
-    displayName: emailAddr?.split('@')[0] || (walletAddr ? walletAddr.slice(0, 8) : 'Anonymous'),
+    // Don't send displayName — backend should only set default on first creation
+    // and never overwrite a user-chosen username
   });
   return data.user;
 }
