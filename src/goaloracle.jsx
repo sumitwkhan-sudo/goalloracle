@@ -165,53 +165,62 @@ const GoalOracle = () => {
 
   const stages = ['Group A','Group B','Group C','Group D','Group E','Group F','Group G','Group H','Group I','Group J','Group K','Group L','Round of 32','Round of 16','Quarterfinal','Semifinal','3rd Place','Final'];
 
-  // Score Drum Picker — iOS-style scroll wheel for 0-15
+  // Score Drum Picker — iOS-style wheel showing prev/current/next with animated scroll
   const ScoreDrum = ({ value, onChange, locked }) => {
-    const nums = Array.from({length: 16}, (_, i) => i);
     const val = parseInt(value) || 0;
-    const containerRef = useRef(null);
+    const [animDir, setAnimDir] = useState(0); // -1 up, 1 down, 0 none
     const isDragging = useRef(false);
     const startY = useRef(0);
-    const startVal = useRef(0);
+    const accum = useRef(0);
 
-    const setVal = (n) => {
-      const clamped = Math.max(0, Math.min(15, n));
-      onChange(String(clamped));
+    const prev = val > 0 ? val - 1 : '';
+    const next = val < 15 ? val + 1 : '';
+
+    const spin = (dir) => {
+      if (locked) return;
+      const n = Math.max(0, Math.min(15, val + dir));
+      if (n === val) return;
+      setAnimDir(dir);
+      onChange(String(n));
+      setTimeout(() => setAnimDir(0), 180);
     };
 
     const onWheel = (e) => {
       if (locked) return;
       e.preventDefault();
-      const dir = e.deltaY > 0 ? 1 : -1;
-      setVal(val + dir);
+      spin(e.deltaY > 0 ? 1 : -1);
     };
 
     const onPointerDown = (e) => {
       if (locked) return;
       isDragging.current = true;
       startY.current = e.clientY;
-      startVal.current = val;
+      accum.current = 0;
       e.target.setPointerCapture?.(e.pointerId);
     };
     const onPointerMove = (e) => {
       if (!isDragging.current || locked) return;
-      const diff = startY.current - e.clientY;
-      const steps = Math.round(diff / 20);
-      if (steps !== 0) {
-        setVal(startVal.current + steps);
-        startVal.current = startVal.current + steps;
-        startY.current = e.clientY;
+      accum.current += startY.current - e.clientY;
+      startY.current = e.clientY;
+      if (Math.abs(accum.current) >= 18) {
+        spin(accum.current > 0 ? 1 : -1);
+        accum.current = 0;
       }
     };
-    const onPointerUp = () => { isDragging.current = false; };
+    const onPointerUp = () => { isDragging.current = false; accum.current = 0; };
 
     return (
-      <div className="score-drum" ref={containerRef} onWheel={onWheel} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
-        <button type="button" className="drum-arrow drum-up" onClick={() => !locked && setVal(val + 1)} disabled={locked || val >= 15}><ChevronRight size={10} className="drum-chevron-up" /></button>
-        <div className="drum-display">
-          <span className="drum-num">{val}</span>
+      <div className={`score-drum ${locked ? 'drum-locked' : ''}`} onWheel={onWheel} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
+        <div className="drum-track">
+          <div className={`drum-slot drum-prev ${animDir === -1 ? 'drum-slide-down' : animDir === 1 ? 'drum-slide-up' : ''}`}
+               onClick={() => spin(-1)}>{prev !== '' ? prev : ''}</div>
+          <div className={`drum-slot drum-current ${animDir === -1 ? 'drum-slide-down' : animDir === 1 ? 'drum-slide-up' : ''}`}>{val}</div>
+          <div className={`drum-slot drum-next ${animDir === -1 ? 'drum-slide-down' : animDir === 1 ? 'drum-slide-up' : ''}`}
+               onClick={() => spin(1)}>{next !== '' ? next : ''}</div>
         </div>
-        <button type="button" className="drum-arrow drum-down" onClick={() => !locked && setVal(val - 1)} disabled={locked || val <= 0}><ChevronRight size={10} className="drum-chevron-down" /></button>
+        <div className="drum-highlight"></div>
+        <div className="drum-fade-top"></div>
+        <div className="drum-fade-bottom"></div>
       </div>
     );
   };

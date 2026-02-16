@@ -402,40 +402,64 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .flag { font-size: 1.15rem; }
 .pred-team-name { font-weight: 700; font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pred-pedigree { font-family: var(--mono); font-size: 0.5rem; color: var(--text-dim); }
-.pred-scores { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+.pred-scores { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
 
-/* Score Drum Picker */
+/* Score Drum — iOS Wheel Picker */
 .score-drum {
-  display: flex; flex-direction: column; align-items: center; width: 36px;
-  user-select: none; touch-action: none;
+  position: relative; width: 38px; height: 80px; overflow: hidden;
+  user-select: none; touch-action: none; cursor: ns-resize;
+  border-radius: 10px; border: 1.5px solid var(--border);
+  background: var(--bg-elev);
+  transition: border-color 0.2s;
 }
-.drum-arrow {
-  display: flex; align-items: center; justify-content: center;
-  width: 24px; height: 16px; background: transparent; border: none;
-  color: var(--text-dim); cursor: pointer; transition: color 0.15s; padding: 0;
+.score-drum:hover { border-color: rgba(0,212,255,0.3); }
+.drum-locked { opacity: 0.5; cursor: default; }
+.drum-track {
+  display: flex; flex-direction: column; align-items: center;
+  height: 100%; justify-content: center;
 }
-.drum-arrow:hover:not(:disabled) { color: var(--cyan); }
-.drum-arrow:disabled { opacity: 0.2; cursor: default; }
-.drum-chevron-up { transform: rotate(-90deg); }
-.drum-chevron-down { transform: rotate(90deg); }
-.drum-display {
-  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
-  border: 1.5px solid var(--border); border-radius: 8px;
-  background: var(--bg-elev); cursor: ns-resize; transition: border-color 0.2s;
-  position: relative; overflow: hidden;
+.drum-slot {
+  width: 100%; height: 26px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-weight: 700; line-height: 1;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
 }
-.drum-display:hover { border-color: var(--cyan); }
-.drum-display::before, .drum-display::after {
-  content: ''; position: absolute; left: 2px; right: 2px; height: 6px;
-  pointer-events: none; z-index: 1;
+.drum-prev, .drum-next {
+  font-size: 0.72rem; color: var(--text-dim); opacity: 0.45; cursor: pointer;
 }
-.drum-display::before { top: 0; background: linear-gradient(to bottom, var(--bg-elev), transparent); }
-.drum-display::after { bottom: 0; background: linear-gradient(to top, var(--bg-elev), transparent); }
-.drum-num {
-  font-family: var(--mono); font-size: 1.05rem; font-weight: 700;
-  color: var(--text); line-height: 1;
+.drum-prev:hover, .drum-next:hover { opacity: 0.7; }
+.drum-current {
+  font-size: 1.15rem; color: var(--text); opacity: 1;
 }
-.pred-score-sep { color: var(--text-dim); font-weight: 700; font-size: 0.9rem; margin: 0 0.1rem; }
+/* Slide animation */
+.drum-slide-up { animation: drumSlideUp 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
+.drum-slide-down { animation: drumSlideDown 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes drumSlideUp { from { transform: translateY(8px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
+@keyframes drumSlideDown { from { transform: translateY(-8px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
+
+/* Center highlight band */
+.drum-highlight {
+  position: absolute; left: 3px; right: 3px; top: 50%; transform: translateY(-50%);
+  height: 28px; border-radius: 6px;
+  background: rgba(0,212,255,0.05);
+  border-top: 1px solid rgba(0,212,255,0.12);
+  border-bottom: 1px solid rgba(0,212,255,0.12);
+  pointer-events: none;
+}
+/* Top/bottom fades */
+.drum-fade-top, .drum-fade-bottom {
+  position: absolute; left: 0; right: 0; height: 22px; pointer-events: none; z-index: 2;
+}
+.drum-fade-top { top: 0; background: linear-gradient(to bottom, var(--bg-elev) 20%, transparent); border-radius: 10px 10px 0 0; }
+.drum-fade-bottom { bottom: 0; background: linear-gradient(to top, var(--bg-elev) 20%, transparent); border-radius: 0 0 10px 10px; }
+
+/* FIFA theme drum overrides */
+[data-theme="fifa2026"] .drum-highlight {
+  background: rgba(2,185,6,0.06);
+  border-color: rgba(2,185,6,0.15);
+}
+[data-theme="fifa2026"] .score-drum:hover { border-color: rgba(2,185,6,0.3); }
+
+.pred-score-sep { color: var(--text-dim); font-weight: 700; font-size: 1rem; margin: 0 0.15rem; }
 
 /* Mismatch Warning */
 .pred-mismatch {
@@ -968,8 +992,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .matches-list { grid-template-columns: 1fr; }
   .legacy-grid { grid-template-columns: 1fr; }
   .pred-main { flex-wrap: wrap; }
-  .score-drum .drum-display { width: 28px; height: 30px; }
-  .drum-num { font-size: 0.9rem; }
+  .score-drum { width: 32px; height: 70px; }
+  .drum-current { font-size: 1rem; }
+  .drum-prev, .drum-next { font-size: 0.65rem; }
   .hero-title { font-size: 3rem; }
   .hero-text-panel { padding: 1.25rem 1.5rem 1rem; margin-left: 0.25rem; margin-right: 0.25rem; }
   .type-selector { grid-template-columns: 1fr; }
