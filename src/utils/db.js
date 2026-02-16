@@ -34,6 +34,11 @@ export async function createOrUpdateUser(privyUser) {
   return data.user;
 }
 
+export async function updateUserProfile(updates) {
+  const data = await apiCall('user', 'POST', updates);
+  return data.user;
+}
+
 export async function getUserRole(userId) {
   return 'user'; // Role comes from createOrUpdateUser response
 }

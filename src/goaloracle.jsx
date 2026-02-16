@@ -4,7 +4,7 @@ import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, Trendi
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
-import { createOrUpdateUser, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
 
@@ -73,6 +73,21 @@ const GoalOracle = () => {
   useEffect(() => { if (authenticated && view === 'landing') setView('dashboard'); }, [authenticated]);
 
   const handleSave = async () => { if (!uData?.id || !selLeague?.id) return; setSaving(true); try { await saveBatchPredictions(uData.id, selLeague.id, preds); notify('Predictions saved!'); } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); } };
+
+  // Auto-save: debounce 2s after any prediction change
+  const autoSaveTimer = useRef(null);
+  const predsRef = useRef(preds);
+  predsRef.current = preds;
+  useEffect(() => {
+    if (!uData?.id || !selLeague?.id) return;
+    const hasAny = Object.values(preds).some(p => p.result);
+    if (!hasAny) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      try { await saveBatchPredictions(uData.id, selLeague.id, predsRef.current); } catch(e) { console.error('Auto-save failed:', e); }
+    }, 2000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [preds, uData?.id, selLeague?.id]);
 
   const stages = ['Group A','Group B','Group C','Group D','Group E','Group F','Group G','Group H','Group I','Group J','Group K','Group L','Round of 32','Round of 16','Quarterfinal','Semifinal','3rd Place','Final'];
 
@@ -168,7 +183,7 @@ const GoalOracle = () => {
             <h1 className="hero-title">Predict. Compete.<br/><span className="highlight">Win Big.</span></h1>
             <p className="hero-subtitle">Predict all 104 World Cup matches across USA, Mexico & Canada. Compete in free or crypto-staked leagues.</p>
             <div className="hero-cta">
-              <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}><Globe size={20} /> Start Predicting</button>
+              <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}><Globe size={20} /> {authenticated ? 'Start Predicting' : 'Sign Up or Login'}</button>
               <button className="btn btn-secondary btn-lg" onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works <ChevronRight size={18} /></button>
             </div>
             <div className="hero-stats">
@@ -335,19 +350,41 @@ const GoalOracle = () => {
 
   const Detail = () => {
     const [tab, setTab] = useState('predictions');
-    const [sf, setSf] = useState('all');
+    const [sf, setSf] = useState('week1');
     const [lb, setLb] = useState([]);
     const [lbl, setLbl] = useState(false);
 
     useEffect(() => { if (tab !== 'leaderboard' || !selLeague?.id) return; (async () => { setLbl(true); try { const bu = await getLeagueLeaderboard(selLeague.id); const p = selLeague.pointsSystem || {}; const e = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, displayName: uid.slice(0, 8), ...calculateTotalPoints(pr, results, p) })); setLb(sortLeaderboard(e)); } catch(e){console.error(e);} finally{setLbl(false);} })(); }, [tab, selLeague?.id, results]);
 
-    const fm = sf === 'all' ? WORLD_CUP_MATCHES : WORLD_CUP_MATCHES.filter(m => m.stage === sf);
+    // Group matches by week for easier navigation
+    const matchWeeks = useMemo(() => {
+      const weeks = [
+        { id: 'week1', label: 'Week 1', sub: 'Jun 11–17', filter: m => m.date >= '2026-06-11' && m.date <= '2026-06-17' && !m.isKnockout },
+        { id: 'week2', label: 'Week 2', sub: 'Jun 18–22', filter: m => m.date >= '2026-06-18' && m.date <= '2026-06-22' && !m.isKnockout },
+        { id: 'week3', label: 'Week 3', sub: 'Jun 23–27', filter: m => m.date >= '2026-06-23' && m.date <= '2026-06-27' && !m.isKnockout },
+        { id: 'r32', label: 'Rd of 32', sub: 'Jun 28–Jul 3', filter: m => m.stage === 'Round of 32' },
+        { id: 'r16', label: 'Rd of 16', sub: 'Jul 4–7', filter: m => m.stage === 'Round of 16' },
+        { id: 'qf', label: 'Quarters', sub: 'Jul 9–11', filter: m => m.stage === 'Quarterfinal' },
+        { id: 'sf', label: 'Semis', sub: 'Jul 14–15', filter: m => m.stage === 'Semifinal' },
+        { id: 'finals', label: 'Finals', sub: 'Jul 18–19', filter: m => m.stage === '3rd Place' || m.stage === 'Final' },
+      ];
+      return weeks.map(w => ({ ...w, matches: WORLD_CUP_MATCHES.filter(w.filter), count: WORLD_CUP_MATCHES.filter(w.filter).length }));
+    }, []);
+
+    const activeWeek = matchWeeks.find(w => w.id === sf);
+    const fm = sf === 'all' ? WORLD_CUP_MATCHES : (activeWeek?.matches || []);
+    // Also support stage filter on top of week filter
+    const [stageFilter, setStageFilter] = useState('all');
+    const filteredMatches = stageFilter === 'all' ? fm : fm.filter(m => m.stage === stageFilter);
+    const stagesInView = [...new Set(fm.map(m => m.stage))];
+
     const hasU = Object.values(preds).some(p => p.result);
+    const filledCount = Object.values(preds).filter(p => p.result).length;
 
     return (
       <div className="league-detail">
         <div className="page-header"><button className="btn-back" onClick={() => nav('dashboard')}>← Back to Leagues</button>
-          <div className="league-info"><h1>{selLeague?.name}</h1><div className="league-meta"><span><Users size={16} /> {(selLeague?.memberCount || selLeague?.members?.length || 0).toLocaleString()} players</span>{selLeague?.type === 'paid' && <span><Coins size={16} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}</div></div>
+          <div className="league-info"><h1>{selLeague?.name}</h1><div className="league-meta"><span><Users size={16} /> {(selLeague?.memberCount || selLeague?.members?.length || 0).toLocaleString()} players</span>{selLeague?.type === 'paid' && <span><Coins size={16} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}<span><Target size={16} /> {filledCount}/104 predicted</span></div></div>
         </div>
         <div className="tabs">
           <button className={`tab ${tab === 'predictions' ? 'active' : ''}`} onClick={() => setTab('predictions')}><Target size={16} /> Predictions</button>
@@ -356,12 +393,28 @@ const GoalOracle = () => {
         </div>
 
         {tab === 'predictions' && <div className="predictions-view">
-          <div className="predictions-toolbar">
-            <select value={sf} onChange={e => setSf(e.target.value)} className="select-field"><option value="all">All Stages ({WORLD_CUP_MATCHES.length})</option>{stages.map(s => { const c = WORLD_CUP_MATCHES.filter(m => m.stage === s).length; return c > 0 ? <option key={s} value={s}>{s} ({c})</option> : null; })}</select>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving || !hasU}>{saving ? <><RefreshCw size={16} className="spin" /> Saving...</> : <><Save size={16} /> Save</>}</button>
+          {/* Week tabs */}
+          <div className="week-tabs">
+            <button className={`week-tab ${sf === 'all' ? 'active' : ''}`} onClick={() => { setSf('all'); setStageFilter('all'); }}>All ({WORLD_CUP_MATCHES.length})</button>
+            {matchWeeks.map(w => (
+              <button key={w.id} className={`week-tab ${sf === w.id ? 'active' : ''}`} onClick={() => { setSf(w.id); setStageFilter('all'); }}>
+                <span className="week-tab-label">{w.label}</span>
+                <span className="week-tab-sub">{w.sub}</span>
+              </button>
+            ))}
           </div>
-          <div className="matches-list">{fm.map(m => <PredictionCard key={m.id} match={m} />)}</div>
-          {hasU && <div className="sticky-save"><button className="btn btn-primary btn-lg" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save All Predictions'}</button></div>}
+
+          {/* Stage sub-filter if multiple groups in view */}
+          {stagesInView.length > 1 && (
+            <div className="stage-pills">
+              <button className={`stage-pill ${stageFilter === 'all' ? 'active' : ''}`} onClick={() => setStageFilter('all')}>All ({fm.length})</button>
+              {stagesInView.map(s => <button key={s} className={`stage-pill ${stageFilter === s ? 'active' : ''}`} onClick={() => setStageFilter(s)}>{s}</button>)}
+            </div>
+          )}
+
+          <div className="autosave-hint">{saving ? <><RefreshCw size={12} className="spin" /> Saving...</> : <><CheckCircle size={12} /> Auto-saves as you go</>}</div>
+
+          <div className="matches-list">{filteredMatches.map(m => <PredictionCard key={m.id} match={m} />)}</div>
         </div>}
 
         {tab === 'leaderboard' && <div className="leaderboard"><div className="leaderboard-header"><h3>Rankings</h3></div>
@@ -554,29 +607,51 @@ const GoalOracle = () => {
     const [open, setOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const [activeChain, setActiveChain] = useState(CHAINS[0]);
+    const [editingName, setEditingName] = useState(false);
+    const [newName, setNewName] = useState('');
     const walletAddr = typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
+    const displayEmail = uData?.email || '';
+    const displayName = uData?.displayName || displayEmail?.split('@')[0] || 'Player';
 
     const copyAddress = () => {
       if (!walletAddr) return;
-      navigator.clipboard.writeText(walletAddr).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      });
+      navigator.clipboard.writeText(walletAddr).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    };
+
+    const saveName = async () => {
+      if (!newName.trim()) return;
+      try {
+        const updated = await updateUserProfile({ displayName: newName.trim() });
+        if (updated) setUData(updated);
+        setEditingName(false);
+        notify('Display name updated!');
+      } catch(e) { notify('Failed to update name', 'error'); }
     };
 
     return (
       <div className="account-dropdown-wrap">
         <button className="account-btn" onClick={() => setOpen(!open)}>
-          <span className="chain-dot" style={{ background: activeChain.color }}></span>
-          <span>Account</span>
+          <User size={14} />
+          <span className="account-btn-name">{displayName}</span>
           <ChevronDown size={14} className={open ? 'flip' : ''} />
         </button>
         {open && <>
           <div className="dropdown-overlay" onClick={() => setOpen(false)}></div>
           <div className="account-dropdown">
             <div className="dropdown-header">
-              <div className="dropdown-name">{uData?.displayName || 'User'}</div>
-              {uData?.email && <div className="dropdown-email">{uData.email}</div>}
+              {!editingName ? (
+                <div className="dropdown-name-row">
+                  <div className="dropdown-name">{displayName}</div>
+                  <button className="edit-name-btn" onClick={() => { setNewName(displayName); setEditingName(true); }} title="Edit display name">✏️</button>
+                </div>
+              ) : (
+                <div className="edit-name-row">
+                  <input type="text" value={newName} onChange={e => setNewName(e.target.value)} className="edit-name-input" maxLength={24} placeholder="Display name" onKeyDown={e => e.key === 'Enter' && saveName()} autoFocus />
+                  <button className="btn btn-primary btn-sm" onClick={saveName} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>Save</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setEditingName(false)} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>✕</button>
+                </div>
+              )}
+              {displayEmail && <div className="dropdown-email">{displayEmail}</div>}
             </div>
             <div className="dropdown-divider"></div>
             <div className="dropdown-section-label">Network</div>
@@ -607,13 +682,6 @@ const GoalOracle = () => {
                 <div className="dropdown-item-sub">Bridge any token to USDC on Polygon</div>
               </div>
             </button>
-            <button className="dropdown-item" onClick={() => { copyAddress(); notify(walletAddr ? 'Wallet address copied!' : 'No wallet', walletAddr ? 'success' : 'error'); }}>
-              <Copy size={16} />
-              <div>
-                <div className="dropdown-item-title">Copy Address</div>
-                <div className="dropdown-item-sub">Direct transfer on {activeChain.name}</div>
-              </div>
-            </button>
             <div className="dropdown-divider"></div>
             <button className="dropdown-item logout-item" onClick={() => { setOpen(false); logout(); nav('landing'); }}>
               <LogOut size={16} />
@@ -628,12 +696,14 @@ const GoalOracle = () => {
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
       <div className="nav-brand" onClick={() => nav(authenticated ? 'dashboard' : 'landing')}><Trophy size={28} /><span>GoalOracle</span></div>
+      <button className="mobile-toggle" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`}>
         {authenticated && <><a onClick={() => nav('dashboard')}>Dashboard</a><a onClick={() => nav('browse')}>Leagues</a>{(role === 'superadmin' || role === 'admin') && <a onClick={() => nav('admin')}>Admin</a>}</>}
-        {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Connect</button>}
-        <button className="theme-toggle-btn" onClick={toggleTheme}>{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}<span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
+        <div className="nav-actions">
+          {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
+          <button className="theme-toggle-btn" onClick={toggleTheme}>{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}<span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
+        </div>
       </div>
-      <button className="mobile-toggle" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
     </div></nav>
   );
 
