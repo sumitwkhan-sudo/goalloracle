@@ -9,20 +9,52 @@ import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinL
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
 
-// Scroll reveal hook with stadium + code wall parallax
+// Scroll reveal hook with stadium + code wall parallax + section depth
 const useScrollReveal = () => {
   useEffect(() => {
     const obs = new IntersectionObserver((entries) => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
     }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
-    document.querySelectorAll('.reveal, .reveal-left, .reveal-right').forEach(el => obs.observe(el));
+    document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale, .reveal-float, .section-zoom').forEach(el => obs.observe(el));
 
     const onScroll = () => {
       const y = window.scrollY;
+      const vh = window.innerHeight;
+      // Stadium hero parallax + subtle zoom
       const bg = document.querySelector('.hero-stadium-bg');
-      if (bg) bg.style.transform = `scale(1.05) translateY(${y * 0.25}px)`;
+      if (bg) bg.style.transform = `scale(${1.05 + y * 0.0002}) translateY(${y * 0.3}px)`;
+      // Hero content counter-parallax (moves up slightly slower)
+      const hc = document.querySelector('.hero-content');
+      if (hc) hc.style.transform = `translateY(${y * 0.08}px)`;
+      // Hero overlay opacity shift
+      const ho = document.querySelector('.hero-stadium-overlay');
+      if (ho) ho.style.opacity = Math.min(1, 0.85 + y * 0.0005);
+      // Code wall columns — different speeds per column
       document.querySelectorAll('.code-col').forEach((col, i) => {
-        col.style.transform = `translateY(${y * (i % 2 === 0 ? 0.06 : -0.04)}px)`;
+        const speeds = [0.07, -0.05, 0.09, -0.06, 0.08, -0.04];
+        col.style.transform = `translateY(${y * speeds[i]}px)`;
+      });
+      // Atmosphere section bg parallax
+      const abg = document.querySelector('.atmosphere-bg');
+      if (abg) {
+        const rect = abg.parentElement.getBoundingClientRect();
+        const offset = (rect.top - vh) * -0.15;
+        abg.style.transform = `translateY(${offset}px) scale(1.1)`;
+      }
+      // Floating depth on feature cards
+      document.querySelectorAll('.feature-card').forEach((card, i) => {
+        const rect = card.getBoundingClientRect();
+        const center = rect.top + rect.height / 2;
+        const dist = (center - vh / 2) / vh;
+        card.style.transform = `translateY(${dist * -8}px) scale(${1 - Math.abs(dist) * 0.015})`;
+      });
+      // Legacy cards subtle float
+      document.querySelectorAll('.legacy-card').forEach((card, i) => {
+        const rect = card.getBoundingClientRect();
+        if (rect.top < vh && rect.bottom > 0) {
+          const progress = 1 - rect.top / vh;
+          card.style.transform = `translateY(${(1 - progress) * 12}px)`;
+        }
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -235,9 +267,9 @@ const GoalOracle = () => {
         <section className="features"><div className="container">
           <div className="section-header reveal"><h2>How It Works</h2><p>From spectator to oracle in three steps</p></div>
           <div className="features-grid">
-            <div className="feature-card reveal stagger-1"><div className="feature-icon">// 01</div><h3>Predict Every Match</h3><p>Call the winner across all 104 fixtures. Predict exact scores for bonus points. Knockout rounds unlock extra time & penalty predictions.</p></div>
-            <div className="feature-card reveal stagger-2"><div className="feature-icon">// 02</div><h3>Compete in Leagues</h3><p>Join the global free league or create private ones. Stake USDC on Polygon for crypto prize pools — fully non-custodial.</p></div>
-            <div className="feature-card reveal stagger-3"><div className="feature-icon">// 03</div><h3>Collect Rewards</h3><p>Smart contracts distribute prizes automatically when dual-oracle verification confirms results. Transparent, trustless, instant.</p></div>
+            <div className="feature-card reveal-float stagger-1 glow-hover"><div className="feature-icon">// 01</div><h3>Predict Every Match</h3><p>Call the winner across all 104 fixtures. Predict exact scores for bonus points. Knockout rounds unlock extra time & penalty predictions.</p></div>
+            <div className="feature-card reveal-float stagger-2 glow-hover"><div className="feature-icon">// 02</div><h3>Compete in Leagues</h3><p>Join the global free league or create private ones. Stake USDC on Polygon for crypto prize pools — fully non-custodial.</p></div>
+            <div className="feature-card reveal-float stagger-3 glow-hover"><div className="feature-icon">// 03</div><h3>Collect Rewards</h3><p>Smart contracts distribute prizes automatically when dual-oracle verification confirms results. Transparent, trustless, instant.</p></div>
           </div>
         </div></section>
 
@@ -246,7 +278,7 @@ const GoalOracle = () => {
           <div className="section-header reveal"><h2>Featured Matches</h2><p>Some of the biggest group stage clashes</p></div>
           <div className="showcase-grid">
             {featured.map((m, i) => (
-              <div key={m.id} className={`showcase-match reveal stagger-${(i % 3) + 1}`}>
+              <div key={m.id} className={`showcase-match reveal-scale stagger-${(i % 3) + 1} glow-hover`}>
                 <div className="showcase-group">{m.stage}</div>
                 <div className="showcase-teams">
                   <span className="showcase-flag">{m.homeFlag}</span>
@@ -262,7 +294,7 @@ const GoalOracle = () => {
         </div></section>
 
         {/* Crypto Section */}
-        <section className="crypto-section"><div className="container"><div className="crypto-content">
+        <section className="crypto-section section-zoom"><div className="container"><div className="crypto-content">
           <div className="crypto-text reveal-left">
             <h2>Non-Custodial. Transparent. Fair.</h2>
             <p>Entry fees go directly to smart contracts on Polygon — never to us. Prizes are distributed automatically when results are verified by two independent oracles.</p>
