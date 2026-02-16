@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
@@ -74,10 +74,16 @@ const GoalOracle = () => {
   const [view, setView] = useState('landing');
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState('dark');
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
+  const [confetti, setConfetti] = useState(false);
+  const cycleTheme = () => {
+    const order = ['dark', 'light', 'fifa2026'];
+    const next = order[(order.indexOf(theme) + 1) % 3];
     setTheme(next);
     document.documentElement.setAttribute('data-theme', next);
+    if (next === 'fifa2026') {
+      setConfetti(true);
+      setTimeout(() => setConfetti(false), 3000);
+    }
   };
   const [selLeague, setSelLeague] = useState(null);
   const [role, setRole] = useState('user');
@@ -1237,7 +1243,10 @@ const GoalOracle = () => {
         <a onClick={() => nav('faq')}><HelpCircle size={15} /> FAQ</a>
         <div className="nav-actions" onClick={e => e.stopPropagation()}>
           {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
-          <button type="button" className="theme-toggle-btn" onClick={e => { e.stopPropagation(); toggleTheme(); }}>{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}<span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
+          <button type="button" className="theme-toggle-btn" onClick={e => { e.stopPropagation(); cycleTheme(); }}>
+            {theme === 'dark' ? <Sun size={14} /> : theme === 'light' ? <Sparkles size={14} /> : <Moon size={14} />}
+            <span>{theme === 'dark' ? 'Light' : theme === 'light' ? '⚽ 2026' : 'Dark'}</span>
+          </button>
         </div>
       </div>
     </div></nav>
@@ -1246,6 +1255,17 @@ const GoalOracle = () => {
   return (
     <div className="app">
       {notif && <div className={`notification ${notif.type}`}>{notif.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}<span>{notif.msg}</span></div>}
+      {confetti && <div className="confetti-container">{Array.from({length: 60}).map((_, i) => (
+        <div key={i} className="confetti-piece" style={{
+          left: `${Math.random() * 100}%`,
+          animationDelay: `${Math.random() * 0.8}s`,
+          animationDuration: `${1.5 + Math.random() * 2}s`,
+          backgroundColor: ['#02B906','#FFDB00','#00D4FF','#FF2D87','#fff','#7B61FF','#FFB800'][i % 7],
+          transform: `rotate(${Math.random() * 360}deg)`,
+          width: `${6 + Math.random() * 8}px`,
+          height: `${4 + Math.random() * 6}px`,
+        }} />
+      ))}</div>}
       <Nav />
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && <Dash />}
