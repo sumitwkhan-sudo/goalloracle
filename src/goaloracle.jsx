@@ -165,15 +165,145 @@ const GoalOracle = () => {
 
   const stages = ['Group A','Group B','Group C','Group D','Group E','Group F','Group G','Group H','Group I','Group J','Group K','Group L','Round of 32','Round of 16','Quarterfinal','Semifinal','3rd Place','Final'];
 
+  // Score Drum Picker — iOS-style scroll wheel for 0-15
+  const ScoreDrum = ({ value, onChange, locked }) => {
+    const nums = Array.from({length: 16}, (_, i) => i);
+    const val = parseInt(value) || 0;
+    const containerRef = useRef(null);
+    const isDragging = useRef(false);
+    const startY = useRef(0);
+    const startVal = useRef(0);
+
+    const setVal = (n) => {
+      const clamped = Math.max(0, Math.min(15, n));
+      onChange(String(clamped));
+    };
+
+    const onWheel = (e) => {
+      if (locked) return;
+      e.preventDefault();
+      const dir = e.deltaY > 0 ? 1 : -1;
+      setVal(val + dir);
+    };
+
+    const onPointerDown = (e) => {
+      if (locked) return;
+      isDragging.current = true;
+      startY.current = e.clientY;
+      startVal.current = val;
+      e.target.setPointerCapture?.(e.pointerId);
+    };
+    const onPointerMove = (e) => {
+      if (!isDragging.current || locked) return;
+      const diff = startY.current - e.clientY;
+      const steps = Math.round(diff / 20);
+      if (steps !== 0) {
+        setVal(startVal.current + steps);
+        startVal.current = startVal.current + steps;
+        startY.current = e.clientY;
+      }
+    };
+    const onPointerUp = () => { isDragging.current = false; };
+
+    return (
+      <div className="score-drum" ref={containerRef} onWheel={onWheel} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
+        <button type="button" className="drum-arrow drum-up" onClick={() => !locked && setVal(val + 1)} disabled={locked || val >= 15}><ChevronRight size={10} className="drum-chevron-up" /></button>
+        <div className="drum-display">
+          <span className="drum-num">{val}</span>
+        </div>
+        <button type="button" className="drum-arrow drum-down" onClick={() => !locked && setVal(val - 1)} disabled={locked || val <= 0}><ChevronRight size={10} className="drum-chevron-down" /></button>
+      </div>
+    );
+  };
+
   // Compact Prediction Row — fits 4-5 per screen
   const PredictionCard = ({ match }) => {
-    const p = preds[match.id] || { result: null, score: { home: '', away: '' }, extraTime: false, penalties: false };
+    const p = preds[match.id] || { result: null, score: { home: '0', away: '0' }, extraTime: false, penalties: false };
     const status = getMatchStatus(match.date, match.time);
     const locked = status !== 'open';
     const res = results[match.id];
     const pts = res?.completed ? calculatePoints(p, res, selLeague?.pointsSystem || {}) : null;
-    const upd = (f, v) => { if (locked) return; const u = { ...p }; if (f === 'result') u.result = v; else if (f === 'hs') u.score = { ...u.score, home: v }; else if (f === 'as') u.score = { ...u.score, away: v }; else if (f === 'et') u.extraTime = v; else if (f === 'pen') u.penalties = v; setPreds(pr => ({ ...pr, [match.id]: u })); };
-    const clamp = e => String(Math.max(0, Math.min(15, parseInt(e.target.value) || 0)));
+    const [mismatch, setMismatch] = useState('');
+    const mismatchTimer = useRef(null);
+
+    const showMismatch = (msg) => {
+      setMismatch(msg);
+      if (mismatchTimer.current) clearTimeout(mismatchTimer.current);
+      mismatchTimer.current = setTimeout(() => setMismatch(''), 3500);
+    };
+
+    // Check if a score is consistent with a result prediction
+    const scoreMatchesResult = (result, homeScore, awayScore) => {
+      const h = parseInt(homeScore); const a = parseInt(awayScore);
+      if (isNaN(h) || isNaN(a)) return true; // no score yet, allow
+      if (!result) return true; // no result picked yet
+      if (result === 'home' && h <= a) return false;
+      if (result === 'away' && a <= h) return false;
+      if (result === 'draw' && h !== a) return false;
+      return true;
+    };
+
+    // Infer what result a score implies
+    const inferResult = (homeScore, awayScore) => {
+      const h = parseInt(homeScore); const a = parseInt(awayScore);
+      if (isNaN(h) || isNaN(a)) return null;
+      if (h > a) return 'home';
+      if (a > h) return 'away';
+      return 'draw';
+    };
+
+    const upd = (f, v) => {
+      if (locked) return;
+      const u = { ...p, score: { ...p.score } };
+
+      if (f === 'result') {
+        u.result = v;
+        // Check if existing score contradicts new result
+        const h = parseInt(u.score.home); const a = parseInt(u.score.away);
+        if (!isNaN(h) && !isNaN(a) && (h > 0 || a > 0)) {
+          if (!scoreMatchesResult(v, u.score.home, u.score.away)) {
+            // Auto-clear score when result changes and they conflict
+            u.score = { home: '0', away: '0' };
+            showMismatch('Score reset to match your new pick');
+          }
+        }
+      } else if (f === 'hs') {
+        u.score.home = v;
+        // Check score vs result
+        if (u.result && !scoreMatchesResult(u.result, v, u.score.away)) {
+          // Auto-update result to match score
+          const implied = inferResult(v, u.score.away);
+          if (implied && !(match.isKnockout && implied === 'draw')) {
+            u.result = implied;
+            showMismatch(`Switched to ${implied === 'home' ? match.home : implied === 'away' ? match.away : 'Draw'} to match score`);
+          } else if (match.isKnockout && implied === 'draw') {
+            showMismatch("Knockout matches can't end in a draw — adjust score");
+          }
+        } else if (!u.result) {
+          // Auto-set result from score
+          const implied = inferResult(v, u.score.away);
+          if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied;
+        }
+      } else if (f === 'as') {
+        u.score.away = v;
+        if (u.result && !scoreMatchesResult(u.result, u.score.home, v)) {
+          const implied = inferResult(u.score.home, v);
+          if (implied && !(match.isKnockout && implied === 'draw')) {
+            u.result = implied;
+            showMismatch(`Switched to ${implied === 'home' ? match.home : implied === 'away' ? match.away : 'Draw'} to match score`);
+          } else if (match.isKnockout && implied === 'draw') {
+            showMismatch("Knockout matches can't end in a draw — adjust score");
+          }
+        } else if (!u.result) {
+          const implied = inferResult(u.score.home, v);
+          if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied;
+        }
+      } else if (f === 'et') { u.extraTime = v; }
+      else if (f === 'pen') { u.penalties = v; }
+
+      setPreds(pr => ({ ...pr, [match.id]: u }));
+    };
+
     const dateStr = new Date(match.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
     return (
@@ -185,6 +315,9 @@ const GoalOracle = () => {
           {locked && <span className="lock-badge"><Lock size={10} /></span>}
           {pts !== null && <span className="points-badge">+{pts}</span>}
         </div>
+
+        {/* Mismatch warning */}
+        {mismatch && <div className="pred-mismatch"><AlertTriangle size={12} /><span>{mismatch}</span></div>}
 
         {/* Main row: Team Flag+Name | Score : Score | Flag+Name Team */}
         <div className="pred-main">
@@ -203,9 +336,9 @@ const GoalOracle = () => {
             </div>
           ) : !locked ? (
             <div className="pred-scores">
-              <input type="number" min="0" max="15" placeholder="–" className="pred-score-input" value={p.score.home} onChange={e => upd('hs', clamp(e))} />
+              <ScoreDrum value={p.score.home} onChange={v => upd('hs', v)} locked={locked} />
               <span className="pred-score-sep">:</span>
-              <input type="number" min="0" max="15" placeholder="–" className="pred-score-input" value={p.score.away} onChange={e => upd('as', clamp(e))} />
+              <ScoreDrum value={p.score.away} onChange={v => upd('as', v)} locked={locked} />
             </div>
           ) : (
             <div className="pred-locked-pick">
@@ -222,9 +355,9 @@ const GoalOracle = () => {
         {/* Pick buttons with country codes */}
         {!locked && !res?.completed && (
           <div className="pred-picks">
-            <button className={`pred-pick ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
-            <button className={`pred-pick ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
-            <button className={`pred-pick ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
+            <button type="button" className={`pred-pick ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
+            <button type="button" className={`pred-pick ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
+            <button type="button" className={`pred-pick ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
           </div>
         )}
 

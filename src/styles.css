@@ -402,15 +402,50 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .flag { font-size: 1.15rem; }
 .pred-team-name { font-weight: 700; font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pred-pedigree { font-family: var(--mono); font-size: 0.5rem; color: var(--text-dim); }
-.pred-scores { display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0; }
-.pred-score-input {
-  width: 30px; height: 34px; border: 1px solid var(--border); border-radius: 6px;
-  background: transparent; text-align: center; font-family: var(--mono);
-  font-size: 1rem; font-weight: 700; color: var(--text); outline: none; transition: all 0.2s;
-  -moz-appearance: textfield;
+.pred-scores { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+
+/* Score Drum Picker */
+.score-drum {
+  display: flex; flex-direction: column; align-items: center; width: 36px;
+  user-select: none; touch-action: none;
 }
-.pred-score-input::-webkit-inner-spin-button, .pred-score-input::-webkit-outer-spin-button { -webkit-appearance: none; }
-.pred-score-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(0,212,255,0.15); }
+.drum-arrow {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 16px; background: transparent; border: none;
+  color: var(--text-dim); cursor: pointer; transition: color 0.15s; padding: 0;
+}
+.drum-arrow:hover:not(:disabled) { color: var(--cyan); }
+.drum-arrow:disabled { opacity: 0.2; cursor: default; }
+.drum-chevron-up { transform: rotate(-90deg); }
+.drum-chevron-down { transform: rotate(90deg); }
+.drum-display {
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--bg-elev); cursor: ns-resize; transition: border-color 0.2s;
+  position: relative; overflow: hidden;
+}
+.drum-display:hover { border-color: var(--cyan); }
+.drum-display::before, .drum-display::after {
+  content: ''; position: absolute; left: 2px; right: 2px; height: 6px;
+  pointer-events: none; z-index: 1;
+}
+.drum-display::before { top: 0; background: linear-gradient(to bottom, var(--bg-elev), transparent); }
+.drum-display::after { bottom: 0; background: linear-gradient(to top, var(--bg-elev), transparent); }
+.drum-num {
+  font-family: var(--mono); font-size: 1.05rem; font-weight: 700;
+  color: var(--text); line-height: 1;
+}
+.pred-score-sep { color: var(--text-dim); font-weight: 700; font-size: 0.9rem; margin: 0 0.1rem; }
+
+/* Mismatch Warning */
+.pred-mismatch {
+  display: flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.6rem;
+  background: rgba(255,184,0,0.08); border: 1px solid rgba(255,184,0,0.15);
+  border-radius: 6px; font-size: 0.68rem; color: var(--amber);
+  animation: mismatchIn 0.3s ease; margin-bottom: 0.25rem;
+}
+@keyframes mismatchIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.pred-mismatch svg { flex-shrink: 0; }
 .pred-sep { color: var(--text-dim); font-weight: 700; font-size: 0.8rem; }
 .pred-picks { display: flex; gap: 0.2rem; margin-top: 0.5rem; }
 .pred-pick {
@@ -933,7 +968,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .matches-list { grid-template-columns: 1fr; }
   .legacy-grid { grid-template-columns: 1fr; }
   .pred-main { flex-wrap: wrap; }
-  .pred-score-input { width: 28px; height: 30px; font-size: 0.9rem; }
+  .score-drum .drum-display { width: 28px; height: 30px; }
+  .drum-num { font-size: 0.9rem; }
   .hero-title { font-size: 3rem; }
   .hero-text-panel { padding: 1.25rem 1.5rem 1rem; margin-left: 0.25rem; margin-right: 0.25rem; }
   .type-selector { grid-template-columns: 1fr; }
