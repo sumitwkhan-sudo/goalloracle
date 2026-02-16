@@ -402,64 +402,65 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .flag { font-size: 1.15rem; }
 .pred-team-name { font-weight: 700; font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pred-pedigree { font-family: var(--mono); font-size: 0.5rem; color: var(--text-dim); }
-.pred-scores { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.pred-scores { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
 
-/* Score Drum — iOS Wheel Picker */
+/* ---- Score Drum Picker ---- */
 .score-drum {
-  position: relative; width: 38px; height: 80px; overflow: hidden;
-  user-select: none; touch-action: none; cursor: ns-resize;
-  border-radius: 10px; border: 1.5px solid var(--border);
-  background: var(--bg-elev);
-  transition: border-color 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  user-select: none;
 }
-.score-drum:hover { border-color: rgba(0,212,255,0.3); }
-.drum-locked { opacity: 0.5; cursor: default; }
-.drum-track {
-  display: flex; flex-direction: column; align-items: center;
-  height: 100%; justify-content: center;
-}
-.drum-slot {
-  width: 100%; height: 26px; display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono); font-weight: 700; line-height: 1;
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
-}
-.drum-prev, .drum-next {
-  font-size: 0.72rem; color: var(--text-dim); opacity: 0.45; cursor: pointer;
-}
-.drum-prev:hover, .drum-next:hover { opacity: 0.7; }
-.drum-current {
-  font-size: 1.15rem; color: var(--text); opacity: 1;
-}
-/* Slide animation */
-.drum-slide-up { animation: drumSlideUp 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
-.drum-slide-down { animation: drumSlideDown 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
-@keyframes drumSlideUp { from { transform: translateY(8px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
-@keyframes drumSlideDown { from { transform: translateY(-8px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
+.drum-locked { opacity: 0.4; pointer-events: none; }
 
-/* Center highlight band */
-.drum-highlight {
-  position: absolute; left: 3px; right: 3px; top: 50%; transform: translateY(-50%);
-  height: 28px; border-radius: 6px;
-  background: rgba(0,212,255,0.05);
-  border-top: 1px solid rgba(0,212,255,0.12);
-  border-bottom: 1px solid rgba(0,212,255,0.12);
-  pointer-events: none;
+/* Arrow buttons — always visible */
+.drum-arrow-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 18px; border: none; border-radius: 5px;
+  background: rgba(0,212,255,0.08); color: var(--cyan);
+  cursor: pointer; transition: all 0.15s; padding: 0;
 }
-/* Top/bottom fades */
-.drum-fade-top, .drum-fade-bottom {
-  position: absolute; left: 0; right: 0; height: 22px; pointer-events: none; z-index: 2;
-}
-.drum-fade-top { top: 0; background: linear-gradient(to bottom, var(--bg-elev) 20%, transparent); border-radius: 10px 10px 0 0; }
-.drum-fade-bottom { bottom: 0; background: linear-gradient(to top, var(--bg-elev) 20%, transparent); border-radius: 0 0 10px 10px; }
+.drum-arrow-btn:hover:not(:disabled) { background: rgba(0,212,255,0.18); color: #fff; }
+.drum-arrow-btn:active:not(:disabled) { transform: scale(0.92); }
+.drum-arrow-btn:disabled { opacity: 0.15; cursor: default; }
+[data-theme="light"] .drum-arrow-btn { background: rgba(0,120,180,0.08); color: #0090C0; }
+[data-theme="light"] .drum-arrow-btn:hover:not(:disabled) { background: rgba(0,120,180,0.18); }
+[data-theme="fifa2026"] .drum-arrow-btn { background: rgba(2,185,6,0.1); color: #02B906; }
+[data-theme="fifa2026"] .drum-arrow-btn:hover:not(:disabled) { background: rgba(2,185,6,0.2); }
 
-/* FIFA theme drum overrides */
-[data-theme="fifa2026"] .drum-highlight {
-  background: rgba(2,185,6,0.06);
-  border-color: rgba(2,185,6,0.15);
+/* Number wheel — white bg, black text (all themes) */
+.drum-wheel {
+  position: relative; width: 38px; height: 72px; overflow: hidden;
+  border-radius: 10px; border: 1.5px solid rgba(0,0,0,0.12);
+  background: #FFFFFF; cursor: ns-resize; touch-action: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.08);
 }
-[data-theme="fifa2026"] .score-drum:hover { border-color: rgba(2,185,6,0.3); }
+/* Ghost numbers (prev/next) */
+.drum-ghost {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 500;
+  color: #AAAAAA; height: 20px; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+/* Main number */
+.drum-val {
+  font-family: var(--mono); font-size: 1.3rem; font-weight: 800;
+  color: #000000; height: 30px; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.16s ease;
+}
+/* Slide animations */
+.drum-enter-up { animation: drumUp 0.16s ease; }
+.drum-enter-down { animation: drumDown 0.16s ease; }
+@keyframes drumUp { from { transform: translateY(6px); opacity: 0.5; } to { transform: translateY(0); opacity: 1; } }
+@keyframes drumDown { from { transform: translateY(-6px); opacity: 0.5; } to { transform: translateY(0); opacity: 1; } }
 
-.pred-score-sep { color: var(--text-dim); font-weight: 700; font-size: 1rem; margin: 0 0.15rem; }
+/* Center highlight line */
+.drum-wheel::before {
+  content: ''; position: absolute; left: 4px; right: 4px; top: 50%; transform: translateY(-50%);
+  height: 28px; border-radius: 5px;
+  border-top: 1px solid rgba(0,0,0,0.08); border-bottom: 1px solid rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.02); pointer-events: none;
+}
+
+.pred-score-sep { color: var(--text-sec); font-weight: 800; font-size: 1.1rem; margin: 0 0.1rem; }
 
 /* Mismatch Warning */
 .pred-mismatch {
@@ -992,9 +993,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .matches-list { grid-template-columns: 1fr; }
   .legacy-grid { grid-template-columns: 1fr; }
   .pred-main { flex-wrap: wrap; }
-  .score-drum { width: 32px; height: 70px; }
-  .drum-current { font-size: 1rem; }
-  .drum-prev, .drum-next { font-size: 0.65rem; }
+  .drum-wheel { width: 32px; height: 64px; }
+  .drum-val { font-size: 1.1rem; }
+  .drum-ghost { font-size: 0.65rem; }
   .hero-title { font-size: 3rem; }
   .hero-text-panel { padding: 1.25rem 1.5rem 1rem; margin-left: 0.25rem; margin-right: 0.25rem; }
   .type-selector { grid-template-columns: 1fr; }
