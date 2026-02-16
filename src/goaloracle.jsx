@@ -368,7 +368,8 @@ const GoalOracle = () => {
 
   const Landing = () => {
     useScrollReveal();
-    const featured = WORLD_CUP_MATCHES.filter(m => !m.isKnockout).slice(0, 6);
+    const featuredIds = ['gs07', 'gs09', 'gs15', 'gs17', 'gs21', 'gs32', 'gs61', 'gs68'];
+    const featured = featuredIds.map(id => WORLD_CUP_MATCHES.find(m => m.id === id)).filter(Boolean).slice(0, 6);
     // Code wall data
     const codeData = [
       'URU 4-2 ARG 1930 Montevideo\nITA 2-1 CZE 1934 Rome\nITA 4-2 HUN 1938 Paris\nURU 2-1 BRA 1950 Rio\nGER 3-2 HUN 1954 Bern\nBRA 5-2 SWE 1958 Stockholm\nBRA 3-1 CZE 1962 Santiago\nENG 4-2 GER 1966 London\nBRA 4-1 ITA 1970 Mexico City\nGER 2-1 NED 1974 Munich\nARG 3-1 NED 1978 Buenos Aires\nITA 3-1 GER 1982 Madrid\nARG 3-2 GER 1986 Mexico City\nGER 1-0 ARG 1990 Rome\nBRA 0-0(P) ITA 1994 LA\nFRA 3-0 BRA 1998 Paris\nBRA 2-0 GER 2002 Yokohama\nITA 1-1(P) FRA 2006 Berlin\nESP 1-0 NED 2010 Joburg\nGER 1-0 ARG 2014 Rio\nFRA 4-2 CRO 2018 Moscow\nARG 3-3(P) FRA 2022 Doha',
