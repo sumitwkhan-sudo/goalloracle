@@ -3,30 +3,26 @@ import { usePrivy } from '@privy-io/react-auth';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
+import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
 import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
 
-// Scroll reveal hook with depth parallax
+// Scroll reveal hook with stadium + code wall parallax
 const useScrollReveal = () => {
   useEffect(() => {
     const obs = new IntersectionObserver((entries) => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
     }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
-    document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale').forEach(el => obs.observe(el));
+    document.querySelectorAll('.reveal, .reveal-left, .reveal-right').forEach(el => obs.observe(el));
 
-    // Parallax depth on hero grid
     const onScroll = () => {
-      const grid = document.querySelector('.hero-grid');
-      if (grid) {
-        const y = window.scrollY * 0.3;
-        grid.style.transform = `translateY(${y}px) scale(${1 + window.scrollY * 0.0002})`;
-      }
-      // Orb parallax
-      document.querySelectorAll('.hero-orb').forEach((orb, i) => {
-        const speed = i === 0 ? 0.15 : -0.1;
-        orb.style.transform = `translateY(${window.scrollY * speed}px)`;
+      const y = window.scrollY;
+      const bg = document.querySelector('.hero-stadium-bg');
+      if (bg) bg.style.transform = `scale(1.05) translateY(${y * 0.25}px)`;
+      document.querySelectorAll('.code-col').forEach((col, i) => {
+        col.style.transform = `translateY(${y * (i % 2 === 0 ? 0.06 : -0.04)}px)`;
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -116,7 +112,7 @@ const GoalOracle = () => {
         <div className="pred-main">
           <div className="pred-team">
             <span className="flag">{match.homeFlag}</span>
-            <span className="pred-team-name">{match.home}</span>
+            <div><span className="pred-team-name">{match.home}</span>{getPedigree(match.home) && <div className="pred-pedigree">{getPedigree(match.home)}</div>}</div>
           </div>
 
           {res?.completed ? (
@@ -140,8 +136,8 @@ const GoalOracle = () => {
           )}
 
           <div className="pred-team away">
+            <div><span className="pred-team-name">{match.away}</span>{getPedigree(match.away) && <div className="pred-pedigree">{getPedigree(match.away)}</div>}</div>
             <span className="flag">{match.awayFlag}</span>
-            <span className="pred-team-name">{match.away}</span>
           </div>
         </div>
 
@@ -168,49 +164,86 @@ const GoalOracle = () => {
   const Landing = () => {
     useScrollReveal();
     const featured = WORLD_CUP_MATCHES.filter(m => !m.isKnockout).slice(0, 6);
+    // Code wall data
+    const codeData = [
+      'URU 4-2 ARG 1930 Montevideo\nITA 2-1 CZE 1934 Rome\nITA 4-2 HUN 1938 Paris\nURU 2-1 BRA 1950 Rio\nGER 3-2 HUN 1954 Bern\nBRA 5-2 SWE 1958 Stockholm\nBRA 3-1 CZE 1962 Santiago\nENG 4-2 GER 1966 London\nBRA 4-1 ITA 1970 Mexico City\nGER 2-1 NED 1974 Munich\nARG 3-1 NED 1978 Buenos Aires\nITA 3-1 GER 1982 Madrid\nARG 3-2 GER 1986 Mexico City\nGER 1-0 ARG 1990 Rome\nBRA 0-0(P) ITA 1994 LA\nFRA 3-0 BRA 1998 Paris\nBRA 2-0 GER 2002 Yokohama\nITA 1-1(P) FRA 2006 Berlin\nESP 1-0 NED 2010 Joburg\nGER 1-0 ARG 2014 Rio\nFRA 4-2 CRO 2018 Moscow\nARG 3-3(P) FRA 2022 Doha',
+      'BRA x5 GER x4 ITA x4 ARG x3\nFRA x2 URU x2 ENG x1 ESP x1\nKLOSE 16G RONALDO 15G\nMULLER 14G FONTAINE 13G\nPELE 12G MBAPPE 12G\n900+ MATCHES PLAYED\n2720 GOALS SCORED\n48 TEAMS 2026\n104 MATCHES AHEAD\n3 HOST NATIONS USA MEX CAN',
+      'gs01 MEX v RSA Jun11\ngs03 USA v PAR Jun12\ngs07 BRA v MAR Jun13\ngs08 GER v CUW Jun14\ngs09 NED v JPN Jun14\ngs11 BEL v IRN Jun15\ngs13 ESP v CPV Jun15\ngs15 FRA v SEN Jun16\ngs17 ARG v ALG Jun16\ngs19 POR v TBD Jun17\ngs21 ENG v CRO Jun17',
+      'POLYGON 137 USDC\nORACLE_1 0x7f..3a\nORACLE_2 0x4b..9e\nVERIFY hash==hash\nCONFIRMATIONS >= 2\nDISPUTE_WINDOW 1h\nPAYOUT_READY true\ncorrectResult +3pts\nexactScore +5pts\npenaltyBonus +2pts\nextraTimeBonus +1pt\nNON-CUSTODIAL\nTRANSPARENT',
+      '1930 Montevideo URU\n1934 Rome ITA\n1938 Paris ITA\n1950 Rio URU\n1954 Bern GER\n1958 Stockholm BRA\n1962 Santiago BRA\n1966 London ENG\n1970 Mexico BRA\n1974 Munich GER\n1978 B.Aires ARG\n1982 Madrid ITA\n1986 Mexico ARG\n1990 Rome GER\n1994 LA BRA\n1998 Paris FRA\n2002 Yokohama BRA\n2006 Berlin ITA\n2010 Joburg ESP\n2014 Rio GER\n2018 Moscow FRA\n2022 Doha ARG\n2026 ???? ???',
+      '48 NATIONS\n12 GROUPS\n104 MATCHES\n16 HOST CITIES\nMetLife Stadium\nSoFi Stadium\nAT&T Stadium\nEstadio Azteca\nHard Rock Stadium\nNRG Houston\nMercedes-Benz ATL\nGillette Foxborough\nLincoln Financial\nLumen Seattle\nLevis Santa Clara\nBC Place Vancouver\nBMO Toronto',
+    ];
 
     return (
       <div className="landing-page">
+        {/* Code Wall Background */}
+        <div className="code-wall">
+          {codeData.map((d, i) => <div key={i} className="code-col">{d.split('\n').map((l, j) => <span key={j}>{l}<br/></span>)}{d.split('\n').map((l, j) => <span key={`r${j}`}>{l}<br/></span>)}</div>)}
+        </div>
+        <div className="grad-mesh"></div>
+
+        {/* Hero with Stadium */}
         <section className="hero">
-          <div className="hero-bg">
-            <div className="hero-grid"></div>
-            <div className="hero-orb hero-orb-1"></div>
-            <div className="hero-orb hero-orb-2"></div>
-            <div className="hero-fade"></div>
-          </div>
+          <div className="hero-stadium-bg"></div>
+          <div className="hero-stadium-overlay"></div>
           <div className="hero-content">
-            <div className="hero-badge"><Zap size={14} /><span>FIFA World Cup 2026</span></div>
-            <h1 className="hero-title">Predict. Compete.<br/><span className="highlight">Win Big.</span></h1>
-            <p className="hero-subtitle">Predict all 104 World Cup matches across USA, Mexico & Canada. Compete in free or crypto-staked leagues.</p>
+            <div className="hero-badge"><span className="live-dot"></span><span>FIFA World Cup 2026 · 23rd Edition</span></div>
+            <h1 className="hero-title">Predict the<br/><span className="highlight">Beautiful Game</span></h1>
+            <p className="hero-subtitle">104 matches. 48 nations. 96 years of history. Make your predictions count — compete for glory or stake crypto for real rewards.</p>
             <div className="hero-cta">
               <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}><Globe size={20} /> {authenticated ? 'Start Predicting' : 'Sign Up or Login'}</button>
               <button className="btn btn-secondary btn-lg" onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works <ChevronRight size={18} /></button>
             </div>
             <div className="hero-stats">
-              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPlayers || 0} suffix="+" /></div><div className="stat-label">Players</div></div>
+              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPlayers || 0} suffix="+" /></div><div className="stat-label">Predictors</div></div>
               <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPrizePools || 0} prefix="$" /></div><div className="stat-label">Prize Pools</div></div>
-              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.activeLeagues || 0} /></div><div className="stat-label">Leagues</div></div>
+              <div className="stat"><div className="stat-value">22</div><div className="stat-label">Tournaments of Legacy</div></div>
             </div>
           </div>
         </section>
 
-        <section className="features"><div className="container">
-          <div className="section-header reveal">
-            <h2>How It Works</h2>
-            <p>Three steps to start winning</p>
+        {/* Finals Marquee Strip */}
+        <div className="finals-strip"><div className="finals-track">
+          {[...FINALS, ...FINALS].map((f, i) => (
+            <span key={i} className="fi"><span className="yr">{f.yr}</span> <span className="win">{f.win}</span> <span className="sc">{f.score}</span> {f.city}</span>
+          ))}
+        </div></div>
+
+        {/* Legacy Section with Stadium Atmosphere */}
+        <section className="atmosphere">
+          <div className="atmosphere-bg"></div>
+          <div className="atmosphere-overlay"></div>
+          <div className="container">
+            <div className="section-eyebrow reveal" style={{color: 'var(--cyan)'}}>01 — Legacy</div>
+            <div className="section-title reveal">96 Years of Glory</div>
+            <div className="section-sub reveal">Every nation that has lifted the trophy</div>
+            <div className="legacy-grid">
+              {CHAMPIONS.map((c, i) => (
+                <div key={c.name} className={`legacy-card reveal stagger-${i + 1}`}>
+                  <div className="legacy-flag">{c.name === 'England' ? '🏴󠁧󠁢󠁥󠁮󠁧󠁿' : c.flag}</div>
+                  <div className="legacy-name">{c.name}</div>
+                  <div className="legacy-count">{c.count}× Champions</div>
+                  <div className="legacy-years">{c.years}</div>
+                  <div className="legacy-bar"><div className="legacy-fill" style={{width: `${(c.count / 5) * 100}%`}}></div></div>
+                </div>
+              ))}
+            </div>
           </div>
+        </section>
+
+        {/* Features */}
+        <section className="features"><div className="container">
+          <div className="section-header reveal"><h2>How It Works</h2><p>From spectator to oracle in three steps</p></div>
           <div className="features-grid">
-            <div className="feature-card reveal stagger-1"><div className="feature-icon"><Target size={28} /></div><h3>Make Predictions</h3><p>Call the winner, predict exact scores, and bonus points for extra time & penalties in knockout rounds.</p></div>
-            <div className="feature-card reveal stagger-2"><div className="feature-icon"><Users size={28} /></div><h3>Join Leagues</h3><p>Compete in the global free league or create private ones. Stake USDC for crypto prize pools.</p></div>
-            <div className="feature-card reveal stagger-3"><div className="feature-icon"><Award size={28} /></div><h3>Win Rewards</h3><p>Smart contracts distribute prizes automatically. Top predictors win — no middleman, fully transparent.</p></div>
+            <div className="feature-card reveal stagger-1"><div className="feature-icon">// 01</div><h3>Predict Every Match</h3><p>Call the winner across all 104 fixtures. Predict exact scores for bonus points. Knockout rounds unlock extra time & penalty predictions.</p></div>
+            <div className="feature-card reveal stagger-2"><div className="feature-icon">// 02</div><h3>Compete in Leagues</h3><p>Join the global free league or create private ones. Stake USDC on Polygon for crypto prize pools — fully non-custodial.</p></div>
+            <div className="feature-card reveal stagger-3"><div className="feature-icon">// 03</div><h3>Collect Rewards</h3><p>Smart contracts distribute prizes automatically when dual-oracle verification confirms results. Transparent, trustless, instant.</p></div>
           </div>
         </div></section>
 
+        {/* Featured Matches */}
         <section className="matches-showcase"><div className="container">
-          <div className="section-header reveal">
-            <h2>Featured Matches</h2>
-            <p>Some of the biggest group stage clashes</p>
-          </div>
+          <div className="section-header reveal"><h2>Featured Matches</h2><p>Some of the biggest group stage clashes</p></div>
           <div className="showcase-grid">
             {featured.map((m, i) => (
               <div key={m.id} className={`showcase-match reveal stagger-${(i % 3) + 1}`}>
@@ -228,6 +261,7 @@ const GoalOracle = () => {
           </div>
         </div></section>
 
+        {/* Crypto Section */}
         <section className="crypto-section"><div className="container"><div className="crypto-content">
           <div className="crypto-text reveal-left">
             <h2>Non-Custodial. Transparent. Fair.</h2>
@@ -250,12 +284,13 @@ const GoalOracle = () => {
 
         <footer className="site-footer">
           <div className="footer-content">
-            <div className="footer-brand">GoalOracle</div>
+            <div className="footer-brand"><span className="gt">GoalOracle</span> · 2026</div>
             <div className="footer-links">
               <a onClick={() => authenticated ? nav('dashboard') : login()}>Play Now</a>
               <a onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works</a>
             </div>
-            <div className="footer-copy">© 2026 GoalOracle. Built on Polygon. Powered by smart contracts.</div>
+            <div className="footer-copy">Built on Polygon · Smart Contract Verified · 22 Tournaments of Legacy</div>
+            <div className="photo-credit">Stadium photos via Unsplash (free commercial license)</div>
           </div>
         </footer>
       </div>
@@ -695,7 +730,7 @@ const GoalOracle = () => {
 
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
-      <div className="nav-brand" onClick={() => nav(authenticated ? 'dashboard' : 'landing')}><Trophy size={28} /><span>GoalOracle</span></div>
+      <div className="nav-brand" onClick={() => nav(authenticated ? 'dashboard' : 'landing')}><Trophy size={24} /><span className="gt">GoalOracle</span></div>
       <button className="mobile-toggle" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`}>
         {authenticated && <><a onClick={() => nav('dashboard')}>Dashboard</a><a onClick={() => nav('browse')}>Leagues</a>{(role === 'superadmin' || role === 'admin') && <a onClick={() => nav('admin')}>Admin</a>}</>}
