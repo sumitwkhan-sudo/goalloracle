@@ -1,5 +1,5 @@
 /* ============================================
-   GOALORACLE — DIRECTION B2: CODE WALL + STADIUM
+   GOALORACLE â€” DIRECTION B2: CODE WALL + STADIUM
    Fonts: Space Grotesk + JetBrains Mono
    Palette: Cyan/Magenta/Lime/Amber gradient system
    ============================================ */
@@ -246,9 +246,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 [data-theme="light"] .hero-title { color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,0.7), 0 4px 40px rgba(0,0,0,0.4), 0 0 80px rgba(0,0,0,0.2); }
 [data-theme="light"] .hero-title .highlight {
-  background: linear-gradient(135deg, #0055AA, #BB0044, #CC7700);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  filter: brightness(1.15) saturate(1.5) drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+  background: none; -webkit-background-clip: unset; background-clip: unset;
+  -webkit-text-fill-color: #FFFFFF;
+  filter: drop-shadow(0 2px 12px rgba(0,0,0,0.5));
 }
 .hero-subtitle {
   font-size: 1.1rem; color: rgba(255,255,255,0.75); margin-bottom: 2.5rem; max-width: 520px;
@@ -411,7 +411,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .drum-locked { opacity: 0.4; pointer-events: none; }
 
-/* Arrow buttons — always visible */
+/* Arrow buttons â€” always visible */
 .drum-arrow-btn {
   display: flex; align-items: center; justify-content: center;
   width: 28px; height: 18px; border: none; border-radius: 5px;
@@ -426,7 +426,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 [data-theme="fifa2026"] .drum-arrow-btn { background: rgba(2,185,6,0.1); color: #02B906; }
 [data-theme="fifa2026"] .drum-arrow-btn:hover:not(:disabled) { background: rgba(2,185,6,0.2); }
 
-/* Number wheel — white bg, black text (all themes) */
+/* Number wheel â€” white bg, black text (all themes) */
 .drum-wheel {
   position: relative; width: 38px; height: 72px; overflow: hidden;
   border-radius: 10px; border: 1.5px solid rgba(0,0,0,0.12);
@@ -771,11 +771,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .stagger-4 { transition-delay: 0.26s; } .stagger-5 { transition-delay: 0.33s; } .stagger-6 { transition-delay: 0.4s; }
 .stagger-7 { transition-delay: 0.47s; } .stagger-8 { transition-delay: 0.54s; }
 
-/* Parallax depth layers — applied via JS */
+/* Parallax depth layers â€” applied via JS */
 .parallax-slow { transition: transform 0.1s linear; }
 .parallax-fast { transition: transform 0.1s linear; }
 
-/* Section entry zoom — entire section scales in */
+/* Section entry zoom â€” entire section scales in */
 .section-zoom {
   opacity: 0; transform: scale(0.94); filter: blur(6px);
   transition: all 0.9s cubic-bezier(0.16, 1, 0.3, 1);
