@@ -49,8 +49,16 @@ export async function createLeague(leagueData, creatorId) {
   return data.leagueId;
 }
 
-export async function joinLeague(leagueId, userId) {
-  await apiCall('leagues', 'POST', { action: 'join', leagueId });
+export async function joinLeague(leagueId, userId, passcode = null) {
+  await apiCall('leagues', 'POST', { action: 'join', leagueId, passcode });
+}
+
+export async function deleteLeague(leagueId) {
+  await apiCall('leagues', 'POST', { action: 'delete', leagueId });
+}
+
+export async function leaveLeague(leagueId) {
+  await apiCall('leagues', 'POST', { action: 'leave', leagueId });
 }
 
 export function subscribeToUserLeagues(userId, callback) {

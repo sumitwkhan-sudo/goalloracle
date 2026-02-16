@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
 
@@ -343,7 +343,10 @@ const GoalOracle = () => {
         <div className="leagues-grid">{ml.map(l => (
           <div key={l.id} className="league-card" onClick={() => nav('detail', l)}>
             <div className="league-header"><div className="league-title"><Trophy size={24} /><h3>{l.name}</h3></div>
-              {l.type === 'paid' ? <span className="badge badge-premium"><Coins size={14} /> {l.entryFee} {l.currency || 'USDC'}</span> : <span className="badge badge-free">Free</span>}
+              <div style={{display:'flex', gap:'0.35rem', alignItems:'center'}}>
+                {l.visibility === 'private' && <span className="badge badge-private"><EyeOff size={12} /></span>}
+                {l.type === 'paid' ? <span className="badge badge-premium"><Coins size={14} /> {l.entryFee} {l.currency || 'USDC'}</span> : <span className="badge badge-free">Free</span>}
+              </div>
             </div>
             <div className="league-stats"><div className="league-stat"><Users size={18} /><span>{(l.memberCount || l.members?.length || 0).toLocaleString()} players</span></div></div>
             <div className="league-footer"><span className="view-league">View League</span><ChevronRight size={18} /></div>
@@ -355,19 +358,61 @@ const GoalOracle = () => {
 
   const Browse = () => {
     const [q, setQ] = useState('');
-    const f = allLeagues.filter(l => l.name?.toLowerCase().includes(q.toLowerCase()));
+    const [joiningId, setJoiningId] = useState(null);
+    const [passInput, setPassInput] = useState('');
+    const [joinErr, setJoinErr] = useState('');
+    const publicLeagues = allLeagues.filter(l => l.visibility !== 'private');
+    const f = publicLeagues.filter(l => l.name?.toLowerCase().includes(q.toLowerCase()));
+
+    const handleJoin = async (league, passcode = null) => {
+      if (!uData?.id) return;
+      try {
+        setJoinErr('');
+        await joinLeague(league.id, uData.id, passcode);
+        notify(`Joined ${league.name}!`);
+        setJoiningId(null);
+        setPassInput('');
+      } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
+    };
+
     return (
       <div className="browse-leagues">
-        <div className="page-header"><button className="btn-back" onClick={() => nav('dashboard')}>← Back</button><h1>Browse Leagues</h1></div>
-        <div className="search-bar"><Search size={20} /><input type="text" placeholder="Search..." value={q} onChange={e => setQ(e.target.value)} /></div>
+        <div className="page-header"><button className="btn-back" onClick={() => nav('dashboard')}>← Back</button><h1>Browse Leagues</h1><p style={{color:'var(--text-sec)', fontSize:'0.88rem', marginTop:'0.25rem'}}>Public leagues are shown below. Got a passcode? Enter it to join a private league.</p></div>
+
+        {/* Passcode join section */}
+        <div className="passcode-join-section">
+          <div className="passcode-join-row">
+            <Key size={16} style={{color:'var(--cyan)', flexShrink:0}} />
+            <input type="text" placeholder="Enter invite passcode (e.g., GOAL2026)" value={passInput} onChange={e => setPassInput(e.target.value.toUpperCase())} className="input-field" style={{flex:1}} maxLength={8} />
+            <button className="btn btn-primary btn-sm" disabled={!passInput.trim()} onClick={async () => {
+              if (!passInput.trim() || !uData?.id) return;
+              try {
+                setJoinErr('');
+                const match = allLeagues.find(l => l.passcode === passInput.trim());
+                if (!match) { setJoinErr('No league found with that passcode'); notify('No league found with that passcode', 'error'); return; }
+                await joinLeague(match.id, uData.id, passInput.trim());
+                notify(`Joined ${match.name}!`);
+                setPassInput('');
+              } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
+            }}><UserPlus size={14} /> Join Private</button>
+          </div>
+          {joinErr && <p className="form-error-inline"><AlertTriangle size={12} /> {joinErr}</p>}
+        </div>
+
+        <div className="search-bar"><Search size={20} /><input type="text" placeholder="Search public leagues..." value={q} onChange={e => setQ(e.target.value)} /></div>
         <div className="leagues-grid">{f.map(l => {
           const mem = l.members?.includes(uData?.id);
           return (<div key={l.id} className="league-card">
-            <div className="league-header"><div className="league-title"><Trophy size={24} /><h3>{l.name}</h3></div>{l.type === 'paid' ? <span className="badge badge-premium"><Coins size={14} /> {l.entryFee} {l.currency}</span> : <span className="badge badge-free">Free</span>}</div>
+            <div className="league-header">
+              <div className="league-title"><Trophy size={24} /><h3>{l.name}</h3></div>
+              <div style={{display:'flex', gap:'0.35rem', alignItems:'center'}}>
+                {l.type === 'paid' ? <span className="badge badge-premium"><Coins size={14} /> {l.entryFee} {l.currency}</span> : <span className="badge badge-free">Free</span>}
+              </div>
+            </div>
             <div className="league-stats"><div className="league-stat"><Users size={18} /><span>{l.memberCount || 0} players</span></div></div>
-            <div className="league-footer">{mem ? <button className="btn btn-secondary btn-sm" onClick={() => nav('detail', l)}><Eye size={16} /> View</button> : <button className="btn btn-primary btn-sm" onClick={async () => { if (!uData?.id) return; try { await joinLeague(l.id, uData.id); notify(`Joined ${l.name}!`); } catch(e) { notify(e.message, 'error'); } }}><UserPlus size={16} /> Join</button>}</div>
+            <div className="league-footer">{mem ? <button className="btn btn-secondary btn-sm" onClick={() => nav('detail', l)}><Eye size={16} /> View</button> : <button className="btn btn-primary btn-sm" onClick={() => handleJoin(l)}><UserPlus size={16} /> Join</button>}</div>
           </div>);
-        })}{f.length === 0 && <div className="empty-state"><p>No leagues found.</p><button className="btn btn-primary" onClick={() => nav('create')}><Plus size={18} /> Create</button></div>}</div>
+        })}{f.length === 0 && <div className="empty-state"><p>No public leagues found.</p><button className="btn btn-primary" onClick={() => nav('create')}><Plus size={18} /> Create</button></div>}</div>
       </div>
     );
   };
@@ -375,6 +420,8 @@ const GoalOracle = () => {
   const Create = () => {
     const [tp, setTp] = useState('free');
     const [nm, setNm] = useState('');
+    const [vis, setVis] = useState('public');
+    const [passcode, setPasscode] = useState('');
     const [fe, setFe] = useState('');
     const [cu, setCu] = useState('USDC');
     const [di, setDi] = useState({ first: 50, second: 30, third: 20 });
@@ -382,13 +429,15 @@ const GoalOracle = () => {
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState('');
     const tot = di.first + di.second + di.third;
+    const genCode = () => { const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)]; setPasscode(c); };
     const go = async () => {
       if (!uData?.id) { setErr('Still loading your account. Please wait a moment and try again.'); return; }
       if (!nm.trim()) { setErr('Name required'); return; }
+      if (vis === 'private' && !passcode.trim()) { setErr('Passcode required for private leagues'); return; }
       if (tp === 'paid' && (!fe || parseFloat(fe) <= 0)) { setErr('Fee required'); return; }
       if (tp === 'paid' && tot !== 100) { setErr('Must total 100%'); return; }
       setBusy(true); setErr('');
-      try { await createLeague({ name: nm.trim(), type: tp, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps }, uData.id); notify('League created!'); nav('dashboard'); } catch(e) { setErr(e.message); } finally { setBusy(false); }
+      try { await createLeague({ name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps }, uData.id); notify('League created!'); nav('dashboard'); } catch(e) { setErr(e.message); } finally { setBusy(false); }
     };
     return (
       <div className="create-league">
@@ -401,7 +450,22 @@ const GoalOracle = () => {
               <button className={`type-option ${tp === 'paid' ? 'active' : ''}`} onClick={() => setTp('paid')}><Lock size={24} /><div><h4>Paid League</h4><p>Stake crypto, win rewards</p></div></button>
             </div>
           </div>
+          <div className="form-section"><label>Visibility</label>
+            <div className="type-selector">
+              <button className={`type-option ${vis === 'public' ? 'active' : ''}`} onClick={() => setVis('public')}><Eye size={24} /><div><h4>Public</h4><p>Anyone can find & join</p></div></button>
+              <button className={`type-option ${vis === 'private' ? 'active' : ''}`} onClick={() => { setVis('private'); if (!passcode) genCode(); }}><EyeOff size={24} /><div><h4>Private</h4><p>Invite-only with passcode</p></div></button>
+            </div>
+          </div>
           <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={e => setNm(e.target.value)} className="input-field" /></div>
+          {vis === 'private' && (
+            <div className="form-section"><label>Invite Passcode</label>
+              <div className="passcode-row">
+                <input type="text" value={passcode} onChange={e => setPasscode(e.target.value.toUpperCase())} className="input-field passcode-input" maxLength={8} placeholder="e.g., GOAL2026" />
+                <button className="btn btn-secondary btn-sm" onClick={genCode}><RefreshCw size={14} /> Generate</button>
+              </div>
+              <p className="form-hint">Share this code with people you want to invite. They'll need it to join.</p>
+            </div>
+          )}
           {tp === 'paid' && <>
             <div className="form-section"><label>Entry Fee</label><div className="input-group"><input type="number" placeholder="50" value={fe} min="1" onChange={e => setFe(e.target.value)} className="input-field" /><select value={cu} onChange={e => setCu(e.target.value)} className="select-field"><option value="USDC">USDC</option><option value="USDG">USDG</option></select></div></div>
             <div className="form-section"><label>Prize Distribution {tot !== 100 && <span className="validation-error">(Currently {tot}%)</span>}</label>
@@ -420,8 +484,28 @@ const GoalOracle = () => {
     const [sf, setSf] = useState('week1');
     const [lb, setLb] = useState([]);
     const [lbl, setLbl] = useState(false);
+    const [showDelete, setShowDelete] = useState(false);
+    const [showInvite, setShowInvite] = useState(false);
+    const [inviteCopied, setInviteCopied] = useState(false);
+    const [joinPasscode, setJoinPasscode] = useState('');
+
+    const isAdmin = role === 'superadmin' || role === 'admin';
+    const isCreator = selLeague?.createdBy === uData?.id;
+    const isPrivate = selLeague?.visibility === 'private';
+    const isMember = selLeague?.members?.includes(uData?.id);
 
     useEffect(() => { if (tab !== 'leaderboard' || !selLeague?.id) return; (async () => { setLbl(true); try { const bu = await getLeagueLeaderboard(selLeague.id); const p = selLeague.pointsSystem || {}; const e = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, displayName: uid.slice(0, 8), ...calculateTotalPoints(pr, results, p) })); setLb(sortLeaderboard(e)); } catch(e){console.error(e);} finally{setLbl(false);} })(); }, [tab, selLeague?.id, results]);
+
+    const handleDelete = async () => {
+      try { await deleteLeague(selLeague.id); notify(`"${selLeague.name}" deleted`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
+    };
+    const handleLeave = async () => {
+      try { await leaveLeague(selLeague.id); notify(`Left "${selLeague.name}"`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
+    };
+    const copyInvite = () => {
+      const msg = `Join my GoalOracle league "${selLeague.name}"!\n\nPasscode: ${selLeague.passcode}\n\nSign up at ${window.location.origin}`;
+      navigator.clipboard.writeText(msg).then(() => { setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); });
+    };
 
     // Group matches by week for easier navigation
     const matchWeeks = useMemo(() => {
@@ -440,7 +524,6 @@ const GoalOracle = () => {
 
     const activeWeek = matchWeeks.find(w => w.id === sf);
     const fm = sf === 'all' ? WORLD_CUP_MATCHES : (activeWeek?.matches || []);
-    // Also support stage filter on top of week filter
     const [stageFilter, setStageFilter] = useState('all');
     const filteredMatches = stageFilter === 'all' ? fm : fm.filter(m => m.stage === stageFilter);
     const stagesInView = [...new Set(fm.map(m => m.stage))];
@@ -451,12 +534,56 @@ const GoalOracle = () => {
     return (
       <div className="league-detail">
         <div className="page-header"><button className="btn-back" onClick={() => nav('dashboard')}>← Back to Leagues</button>
-          <div className="league-info"><h1>{selLeague?.name}</h1><div className="league-meta"><span><Users size={16} /> {(selLeague?.memberCount || selLeague?.members?.length || 0).toLocaleString()} players</span>{selLeague?.type === 'paid' && <span><Coins size={16} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}<span><Target size={16} /> {filledCount}/104 predicted</span></div></div>
+          <div className="league-info">
+            <h1>{selLeague?.name}</h1>
+            <div className="league-meta">
+              <span><Users size={16} /> {(selLeague?.memberCount || selLeague?.members?.length || 0).toLocaleString()} players</span>
+              {selLeague?.type === 'paid' && <span><Coins size={16} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}
+              <span><Target size={16} /> {filledCount}/104 predicted</span>
+              {isPrivate && <span className="badge badge-private"><EyeOff size={12} /> Private</span>}
+              {!isPrivate && <span className="badge badge-public"><Eye size={12} /> Public</span>}
+            </div>
+          </div>
+          <div className="league-actions">
+            {isPrivate && (isCreator || isAdmin) && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowInvite(true)}><Share2 size={14} /> Invite</button>
+            )}
+            {isAdmin && selLeague?.id !== 'global' && (
+              <button className="btn btn-sm" style={{background: 'rgba(255,59,92,0.1)', color: 'var(--danger)', border: '1px solid rgba(255,59,92,0.2)'}} onClick={() => setShowDelete(true)}><Trash2 size={14} /> Delete</button>
+            )}
+          </div>
         </div>
+
+        {/* Invite Modal */}
+        {showInvite && <div className="modal-overlay" onClick={() => setShowInvite(false)}>
+          <div className="invite-modal" onClick={e => e.stopPropagation()}>
+            <div className="fund-modal-header"><h3><Key size={20} /> Invite to League</h3><button className="modal-close" onClick={() => setShowInvite(false)}><X size={18} /></button></div>
+            <p className="fund-desc">Share this passcode with people you want to invite to <strong>{selLeague?.name}</strong>.</p>
+            <div className="invite-code-box">
+              <code className="invite-code">{selLeague?.passcode}</code>
+              <button className="btn btn-primary btn-sm" onClick={copyInvite}>{inviteCopied ? <><CheckCircle size={14} /> Copied!</> : <><Copy size={14} /> Copy Invite</>}</button>
+            </div>
+            <p className="form-hint" style={{marginTop:'0.75rem'}}>They'll need this code when joining from the Browse Leagues page.</p>
+          </div>
+        </div>}
+
+        {/* Delete Confirm */}
+        {showDelete && <div className="modal-overlay" onClick={() => setShowDelete(false)}>
+          <div className="fund-modal" onClick={e => e.stopPropagation()}>
+            <div className="fund-modal-header"><h3><Trash2 size={20} /> Delete League</h3><button className="modal-close" onClick={() => setShowDelete(false)}><X size={18} /></button></div>
+            <p className="fund-desc">Are you sure you want to permanently delete <strong>{selLeague?.name}</strong>? This will remove all predictions and cannot be undone.</p>
+            <div className="form-actions">
+              <button className="btn btn-secondary" onClick={() => setShowDelete(false)}>Cancel</button>
+              <button className="btn" style={{background:'var(--danger)', color:'#fff'}} onClick={handleDelete}><Trash2 size={16} /> Delete Permanently</button>
+            </div>
+          </div>
+        </div>}
+
         <div className="tabs">
           <button className={`tab ${tab === 'predictions' ? 'active' : ''}`} onClick={() => setTab('predictions')}><Target size={16} /> Predictions</button>
           <button className={`tab ${tab === 'leaderboard' ? 'active' : ''}`} onClick={() => setTab('leaderboard')}><TrendingUp size={16} /> Leaderboard</button>
           <button className={`tab ${tab === 'rules' ? 'active' : ''}`} onClick={() => setTab('rules')}><Shield size={16} /> Rules</button>
+          <button className={`tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}><Zap size={16} /> Settings</button>
         </div>
 
         {tab === 'predictions' && <div className="predictions-view">
@@ -510,6 +637,23 @@ const GoalOracle = () => {
             <div className="tiebreaker-item"><span className="tb-num">4</span> Earliest submission</div>
           </div></div>
           <div className="rules-card"><h3>Deadline</h3><p>Predictions lock <strong>5 minutes</strong> before kickoff.</p></div>
+        </div>}
+
+        {tab === 'settings' && <div className="settings-view">
+          <div className="rules-card">
+            <h3>League Info</h3>
+            <div className="settings-row"><span className="settings-label">Type</span><span className="badge badge-free">{selLeague?.type === 'paid' ? 'Paid' : 'Free'}</span></div>
+            <div className="settings-row"><span className="settings-label">Visibility</span><span className={`badge ${isPrivate ? 'badge-private' : 'badge-public'}`}>{isPrivate ? <><EyeOff size={12} /> Private</> : <><Eye size={12} /> Public</>}</span></div>
+            {isPrivate && (isCreator || isAdmin) && <div className="settings-row"><span className="settings-label">Passcode</span><code className="settings-code">{selLeague?.passcode}</code></div>}
+            <div className="settings-row"><span className="settings-label">Created by</span><span>{selLeague?.createdBy === uData?.id ? 'You' : selLeague?.createdBy?.slice(0,8)}</span></div>
+          </div>
+          {selLeague?.id !== 'global' && isMember && !isCreator && (
+            <div className="rules-card">
+              <h3>Leave League</h3>
+              <p style={{color:'var(--text-sec)', fontSize:'0.88rem', marginBottom:'1rem'}}>You'll lose your predictions for this league. This cannot be undone.</p>
+              <button className="btn" style={{background:'rgba(255,59,92,0.1)', color:'var(--danger)', border:'1px solid rgba(255,59,92,0.2)'}} onClick={handleLeave}><LogOut size={16} /> Leave League</button>
+            </div>
+          )}
         </div>}
       </div>
     );
