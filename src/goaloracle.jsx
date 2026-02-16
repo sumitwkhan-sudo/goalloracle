@@ -90,9 +90,18 @@ const GoalOracle = () => {
   const [notif, setNotif] = useState(null);
   const [stats, setStats] = useState({ totalPlayers: 0, totalPrizePools: 0, activeLeagues: 0 });
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
+  // Lifted from Detail — survives Firestore re-renders
+  const [detailTab, setDetailTab] = useState('predictions');
+  const [detailWeek, setDetailWeek] = useState('week1');
+  const [detailStage, setDetailStage] = useState('all');
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
-  const nav = useCallback((v, l) => { if (l) setSelLeague(l); setView(prev => prev === v && !l ? prev : v); setMenuOpen(false); window.scrollTo(0, 0); }, []);
+  const nav = useCallback((v, l) => {
+    if (l) { setSelLeague(l); setDetailTab('predictions'); setDetailWeek('week1'); setDetailStage('all'); }
+    setView(prev => prev === v && !l ? prev : v);
+    setMenuOpen(false);
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
@@ -120,6 +129,14 @@ const GoalOracle = () => {
   }, [authenticated, user]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
+  // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
+  useEffect(() => {
+    if (!selLeague?.id) return;
+    const fresh = [...leagues, ...allLeagues].find(l => l.id === selLeague.id);
+    if (fresh && JSON.stringify(fresh) !== JSON.stringify(selLeague)) {
+      setSelLeague(fresh);
+    }
+  }, [leagues, allLeagues]);
   useEffect(() => { if (!uData?.id || !selLeague?.id) return; return subscribeToUserPredictions(uData.id, selLeague.id, setPreds); }, [uData?.id, selLeague?.id]);
   useEffect(() => { if (authenticated && view === 'landing') setView('dashboard'); }, [authenticated]);
 
@@ -505,14 +522,14 @@ const GoalOracle = () => {
   };
 
   const Detail = () => {
-    const [tab, setTab] = useState('predictions');
-    const [sf, setSf] = useState('week1');
+    const tab = detailTab, setTab = setDetailTab;
+    const sf = detailWeek, setSf = setDetailWeek;
+    const stageFilter = detailStage, setStageFilter = setDetailStage;
     const [lb, setLb] = useState([]);
     const [lbl, setLbl] = useState(false);
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
-    const [joinPasscode, setJoinPasscode] = useState('');
 
     const isAdmin = role === 'superadmin' || role === 'admin';
     const isCreator = selLeague?.createdBy === uData?.id;
@@ -549,7 +566,6 @@ const GoalOracle = () => {
 
     const activeWeek = matchWeeks.find(w => w.id === sf);
     const fm = sf === 'all' ? WORLD_CUP_MATCHES : (activeWeek?.matches || []);
-    const [stageFilter, setStageFilter] = useState('all');
     const filteredMatches = stageFilter === 'all' ? fm : fm.filter(m => m.stage === stageFilter);
     const stagesInView = [...new Set(fm.map(m => m.stage))];
 
