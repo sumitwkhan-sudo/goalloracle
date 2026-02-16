@@ -159,11 +159,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .nav-brand svg { color: var(--cyan); }
 .nav-menu { display: flex; align-items: center; gap: 1.5rem; }
-.nav-menu a {
+.nav-menu a, .nav-menu .nav-link {
+  display: inline-flex; align-items: center; gap: 0.35rem;
   font-size: 0.78rem; font-weight: 500; color: var(--text-sec);
   cursor: pointer; transition: color 0.2s; text-decoration: none;
 }
-.nav-menu a:hover { color: var(--cyan); }
+.nav-menu a svg, .nav-menu .nav-link svg { flex-shrink: 0; }
+.nav-menu a:hover, .nav-menu .nav-link:hover { color: var(--cyan); }
 .nav-actions { display: flex; align-items: center; gap: 0.5rem; }
 .mobile-toggle { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 0.25rem; }
 .theme-toggle-btn {

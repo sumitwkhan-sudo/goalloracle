@@ -144,7 +144,7 @@ const GoalOracle = () => {
     }
   }, [leagues, allLeagues]);
   useEffect(() => { if (!uData?.id || !selLeague?.id) return; return subscribeToUserPredictions(uData.id, selLeague.id, setPreds); }, [uData?.id, selLeague?.id]);
-  useEffect(() => { if (authenticated && view === 'landing') setView('dashboard'); }, [authenticated]);
+  // Don't auto-redirect — users can stay on landing while logged in and navigate via nav
 
   const handleSave = async () => { if (!uData?.id || !selLeague?.id) return; setSaving(true); try { await saveBatchPredictions(uData.id, selLeague.id, preds); notify('Predictions saved!'); } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); } };
 
@@ -1232,15 +1232,16 @@ const GoalOracle = () => {
 
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
-      <div className="nav-brand" onClick={() => nav(authenticated ? 'dashboard' : 'landing')}><Trophy size={24} /><span className="gt">GoalOracle</span></div>
+      <div className="nav-brand" onClick={() => nav('landing')}><Trophy size={24} /><span className="gt">GoalOracle</span></div>
       <button type="button" className="mobile-toggle" onClick={e => { e.stopPropagation(); setMenuOpen(!menuOpen); }}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`} onClick={e => e.stopPropagation()}>
+        <a className="nav-link" onClick={() => nav('landing')}><Home size={14} /><span>Home</span></a>
         {authenticated && <>
-          <a onClick={() => nav('dashboard')}><Home size={15} /> Home</a>
-          <a onClick={() => nav('browse')}>Leagues</a>
-          {(role === 'superadmin' || role === 'admin') && <a onClick={() => nav('admin')}>Admin</a>}
+          <a className="nav-link" onClick={() => nav('dashboard')}><Trophy size={14} /><span>Dashboard</span></a>
+          <a className="nav-link" onClick={() => nav('browse')}><Search size={14} /><span>Leagues</span></a>
+          {(role === 'superadmin' || role === 'admin') && <a className="nav-link" onClick={() => nav('admin')}><Shield size={14} /><span>Admin</span></a>}
         </>}
-        <a onClick={() => nav('faq')}><HelpCircle size={15} /> FAQ</a>
+        <a className="nav-link" onClick={() => nav('faq')}><HelpCircle size={14} /><span>FAQ</span></a>
         <div className="nav-actions" onClick={e => e.stopPropagation()}>
           {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
           <button type="button" className="theme-toggle-btn" onClick={e => { e.stopPropagation(); cycleTheme(); }}>
