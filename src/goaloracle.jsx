@@ -1,20 +1,36 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
+import { getCode } from './utils/countryCodes';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
 import { createOrUpdateUser, getUserRole, createLeague, joinLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
 
-// Scroll reveal hook
+// Scroll reveal hook with depth parallax
 const useScrollReveal = () => {
   useEffect(() => {
     const obs = new IntersectionObserver((entries) => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
     document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale').forEach(el => obs.observe(el));
-    return () => obs.disconnect();
+
+    // Parallax depth on hero grid
+    const onScroll = () => {
+      const grid = document.querySelector('.hero-grid');
+      if (grid) {
+        const y = window.scrollY * 0.3;
+        grid.style.transform = `translateY(${y}px) scale(${1 + window.scrollY * 0.0002})`;
+      }
+      // Orb parallax
+      document.querySelectorAll('.hero-orb').forEach((orb, i) => {
+        const speed = i === 0 ? 0.15 : -0.1;
+        orb.style.transform = `translateY(${window.scrollY * speed}px)`;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { obs.disconnect(); window.removeEventListener('scroll', onScroll); };
   }, []);
 };
 
@@ -28,6 +44,12 @@ const GoalOracle = () => {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const [view, setView] = useState('landing');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState('dark');
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+  };
   const [selLeague, setSelLeague] = useState(null);
   const [role, setRole] = useState('user');
   const [uData, setUData] = useState(null);
@@ -66,27 +88,20 @@ const GoalOracle = () => {
     const dateStr = new Date(match.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
     return (
-      <div className={`pred-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''}`}>
-        {/* Top bar: date, venue, status */}
+      <div className={`pred-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''} ${match.isKnockout ? 'knockout' : ''}`}>
+        {/* Meta */}
         <div className="pred-meta">
           <span className="pred-stage-badge">{match.stage}</span>
-          <span className="pred-venue">{match.city}</span>
-          <span className="pred-date">{dateStr} • {match.time}</span>
+          <span className="pred-date">{dateStr}</span>
           {locked && <span className="lock-badge"><Lock size={10} /></span>}
           {pts !== null && <span className="points-badge">+{pts}</span>}
         </div>
 
-        {/* Main row: teams + score inputs + result buttons */}
+        {/* Main row: Team Flag+Name | Score : Score | Flag+Name Team */}
         <div className="pred-main">
-          <div className="pred-teams">
-            <div className="pred-team">
-              <span className="flag">{match.homeFlag}</span>
-              <span className="pred-team-name">{match.home}</span>
-            </div>
-            <div className="pred-team">
-              <span className="flag">{match.awayFlag}</span>
-              <span className="pred-team-name">{match.away}</span>
-            </div>
+          <div className="pred-team">
+            <span className="flag">{match.homeFlag}</span>
+            <span className="pred-team-name">{match.home}</span>
           </div>
 
           {res?.completed ? (
@@ -97,27 +112,40 @@ const GoalOracle = () => {
               {res.extraTime && <span className="fs-tag">AET</span>}
               {res.penalties && <span className="fs-tag">PEN</span>}
             </div>
-          ) : !locked ? (<>
+          ) : !locked ? (
             <div className="pred-scores">
               <input type="number" min="0" max="15" placeholder="–" className="pred-score-input" value={p.score.home} onChange={e => upd('hs', clamp(e))} />
               <span className="pred-score-sep">:</span>
               <input type="number" min="0" max="15" placeholder="–" className="pred-score-input" value={p.score.away} onChange={e => upd('as', clamp(e))} />
             </div>
-            <div className="pred-picks">
-              <button className={`pred-pick ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>1</button>
-              <button className={`pred-pick ${p.result === 'draw' ? 'active draw-pick' : ''}`} onClick={() => upd('result', 'draw')}>X</button>
-              <button className={`pred-pick ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>2</button>
-            </div>
-            {match.isKnockout && <div className="pred-ko-opts">
-              <label className="pred-ko-label"><input type="checkbox" checked={p.extraTime || false} onChange={e => upd('et', e.target.checked)} /><span>ET</span></label>
-              <label className="pred-ko-label"><input type="checkbox" checked={p.penalties || false} onChange={e => upd('pen', e.target.checked)} /><span>Pen</span></label>
-            </div>}
-          </>) : (
+          ) : (
             <div className="pred-locked-pick">
-              {p.result ? <span className="locked-result">{p.result === 'home' ? '1' : p.result === 'away' ? '2' : 'X'}{p.score.home !== '' && ` (${p.score.home}-${p.score.away})`}</span> : <span className="no-pick">—</span>}
+              {p.result ? <span className="locked-result">{getCode(match[p.result === 'home' ? 'home' : p.result === 'away' ? 'away' : 'home'])}{p.score.home !== '' && ` ${p.score.home}-${p.score.away}`}</span> : <span className="no-pick">—</span>}
             </div>
           )}
+
+          <div className="pred-team away">
+            <span className="flag">{match.awayFlag}</span>
+            <span className="pred-team-name">{match.away}</span>
+          </div>
         </div>
+
+        {/* Pick buttons with country codes */}
+        {!locked && !res?.completed && (
+          <div className="pred-picks">
+            <button className={`pred-pick ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
+            <button className={`pred-pick ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
+            <button className={`pred-pick ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
+          </div>
+        )}
+
+        {/* Knockout extras */}
+        {!locked && !res?.completed && match.isKnockout && (
+          <div className="pred-ko-opts">
+            <label className="pred-ko-label"><input type="checkbox" checked={p.extraTime || false} onChange={e => upd('et', e.target.checked)} /><span>Extra Time</span></label>
+            <label className="pred-ko-label"><input type="checkbox" checked={p.penalties || false} onChange={e => upd('pen', e.target.checked)} /><span>Penalties</span></label>
+          </div>
+        )}
       </div>
     );
   };
@@ -129,12 +157,12 @@ const GoalOracle = () => {
     return (
       <div className="landing-page">
         <section className="hero">
-          <div className="hero-particles">
-            <div className="hero-particle"></div><div className="hero-particle"></div>
-            <div className="hero-particle"></div><div className="hero-particle"></div>
-            <div className="hero-particle"></div><div className="hero-particle"></div>
+          <div className="hero-bg">
+            <div className="hero-grid"></div>
+            <div className="hero-orb hero-orb-1"></div>
+            <div className="hero-orb hero-orb-2"></div>
+            <div className="hero-fade"></div>
           </div>
-          <div className="hero-glow"></div>
           <div className="hero-content">
             <div className="hero-badge"><Zap size={14} /><span>FIFA World Cup 2026</span></div>
             <h1 className="hero-title">Predict. Compete.<br/><span className="highlight">Win Big.</span></h1>
@@ -603,6 +631,7 @@ const GoalOracle = () => {
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`}>
         {authenticated && <><a onClick={() => nav('dashboard')}>Dashboard</a><a onClick={() => nav('browse')}>Leagues</a>{(role === 'superadmin' || role === 'admin') && <a onClick={() => nav('admin')}>Admin</a>}</>}
         {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Connect</button>}
+        <button className="theme-toggle-btn" onClick={toggleTheme}>{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}<span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
       </div>
       <button className="mobile-toggle" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
     </div></nav>

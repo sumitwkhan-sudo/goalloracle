@@ -1,27 +1,64 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.cdnfonts.com/css/general-sans');
 
-:root {
-  --primary: #00F0FF;
-  --primary-glow: rgba(0, 240, 255, 0.25);
-  --accent: #FFD700;
-  --accent-glow: rgba(255, 215, 0, 0.2);
-  --danger: #FF3B5C;
-  --success: #00E676;
-  --warning: #FFAB00;
-  --bg: #0A0E17;
-  --bg-card: #111827;
-  --bg-elevated: #1A2235;
-  --bg-glass: rgba(17, 24, 39, 0.7);
-  --surface: #1E293B;
-  --border: rgba(255, 255, 255, 0.06);
-  --border-bright: rgba(0, 240, 255, 0.15);
-  --text: #F1F5F9;
+/* ---- THEME SYSTEM ---- */
+:root, [data-theme="dark"] {
+  --primary: #00E5FF;
+  --primary-soft: rgba(0, 229, 255, 0.10);
+  --primary-glow: rgba(0, 229, 255, 0.18);
+  --accent: #FFD54F;
+  --accent-soft: rgba(255, 213, 79, 0.10);
+  --accent-glow: rgba(255, 213, 79, 0.15);
+  --danger: #FF5272;
+  --danger-soft: rgba(255, 82, 114, 0.10);
+  --success: #4ADE80;
+  --success-soft: rgba(74, 222, 128, 0.10);
+  --warning: #FFB74D;
+  --bg: #07090F;
+  --bg-card: #0D1117;
+  --bg-elevated: #151B28;
+  --bg-glass: rgba(13, 17, 23, 0.75);
+  --surface: #1C2536;
+  --border: rgba(255,255,255,0.06);
+  --border-bright: rgba(0, 229, 255, 0.25);
+  --text: #F0F4F8;
   --text-secondary: #94A3B8;
   --text-dim: #475569;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 30px var(--primary-glow);
-  --radius: 12px;
-  --radius-lg: 20px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.3);
+  --shadow-hover: 0 8px 24px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 24px var(--primary-glow);
+  --radius: 10px;
+  --radius-lg: 16px;
+  --error: var(--danger);
+  --background: var(--bg);
+}
+[data-theme="light"] {
+  --primary: #0891B2;
+  --primary-soft: rgba(8, 145, 178, 0.07);
+  --primary-glow: rgba(8, 145, 178, 0.12);
+  --accent: #D97706;
+  --accent-soft: rgba(217, 119, 6, 0.07);
+  --accent-glow: rgba(217, 119, 6, 0.12);
+  --danger: #E11D48;
+  --danger-soft: rgba(225, 29, 72, 0.07);
+  --success: #16A34A;
+  --success-soft: rgba(22, 163, 74, 0.07);
+  --warning: #EA580C;
+  --bg: #FFFFFF;
+  --bg-card: #F8FAFC;
+  --bg-elevated: #F1F5F9;
+  --bg-glass: rgba(255,255,255,0.8);
+  --surface: #E2E8F0;
+  --border: rgba(0,0,0,0.06);
+  --border-bright: rgba(8, 145, 178, 0.25);
+  --text: #0F172A;
+  --text-secondary: #64748B;
+  --text-dim: #94A3B8;
+  --shadow: 0 1px 4px rgba(0,0,0,0.05);
+  --shadow-hover: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-glow: 0 0 16px var(--primary-glow);
+  --error: var(--danger);
+  --background: var(--bg);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -32,39 +69,59 @@ body {
   color: var(--text);
   line-height: 1.6;
   overflow-x: hidden;
+  transition: background 0.35s, color 0.35s;
 }
-.app { min-height: 100vh; }
+.app { min-height: 100vh; transition: background 0.35s; }
+
+/* ---- THEME TOGGLE ---- */
+.theme-toggle-btn {
+  display: flex; align-items: center; gap: 0.3rem;
+  padding: 0.35rem 0.7rem; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg-elevated); cursor: pointer;
+  font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
+  font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+}
+.theme-toggle-btn:hover { border-color: var(--primary); color: var(--primary); }
+.theme-toggle-btn svg { width: 14px; height: 14px; }
 
 /* ============================================
    SCROLL ANIMATIONS
    ============================================ */
 .reveal {
   opacity: 0;
-  transform: translateY(40px);
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(36px) scale(0.98);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              filter 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: blur(4px);
+  will-change: opacity, transform, filter;
 }
 .reveal.visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
+  filter: blur(0);
 }
 .reveal-left {
   opacity: 0;
-  transform: translateX(-60px);
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(-50px) scale(0.97);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), filter 0.7s ease;
+  filter: blur(3px);
 }
-.reveal-left.visible { opacity: 1; transform: translateX(0); }
+.reveal-left.visible { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
 .reveal-right {
   opacity: 0;
-  transform: translateX(60px);
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(50px) scale(0.97);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), filter 0.7s ease;
+  filter: blur(3px);
 }
-.reveal-right.visible { opacity: 1; transform: translateX(0); }
+.reveal-right.visible { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
 .reveal-scale {
   opacity: 0;
-  transform: scale(0.9);
-  transition: opacity 0.6s ease, transform 0.6s ease;
+  transform: scale(0.92);
+  transition: opacity 0.6s ease, transform 0.6s ease, filter 0.6s ease;
+  filter: blur(2px);
 }
-.reveal-scale.visible { opacity: 1; transform: scale(1); }
+.reveal-scale.visible { opacity: 1; transform: scale(1); filter: blur(0); }
 .stagger-1 { transition-delay: 0.1s; }
 .stagger-2 { transition-delay: 0.2s; }
 .stagger-3 { transition-delay: 0.3s; }
@@ -103,7 +160,7 @@ body {
 }
 .nav-brand {
   display: flex; align-items: center; gap: 0.75rem;
-  font-family: 'Bebas Neue', sans-serif;
+  font-family: 'General Sans', -apple-system, sans-serif;
   font-size: 1.75rem; letter-spacing: 0.05em;
   cursor: pointer; transition: all 0.3s;
   color: var(--text);
@@ -195,7 +252,7 @@ body {
 }
 @keyframes badgeFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .hero-title {
-  font-family: 'Bebas Neue', sans-serif;
+  font-family: 'General Sans', -apple-system, sans-serif;
   font-size: 6rem; font-weight: 400; line-height: 1;
   letter-spacing: 0.04em; margin-bottom: 1.5rem;
   animation: titleReveal 1s 0.4s both;
@@ -268,7 +325,7 @@ body {
 .container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
 .section-header { text-align: center; margin-bottom: 4rem; }
 .section-header h2 {
-  font-family: 'Bebas Neue', sans-serif;
+  font-family: 'General Sans', -apple-system, sans-serif;
   font-size: 3.5rem; letter-spacing: 0.04em; line-height: 1.1;
   margin-bottom: 0.75rem;
 }
@@ -307,7 +364,7 @@ body {
 }
 .crypto-content { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
 .crypto-text h2 {
-  font-family: 'Bebas Neue', sans-serif;
+  font-family: 'General Sans', -apple-system, sans-serif;
   font-size: 3rem; letter-spacing: 0.03em; line-height: 1.1; margin-bottom: 1.5rem;
 }
 .crypto-text p { color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 2rem; line-height: 1.7; }
@@ -364,7 +421,7 @@ body {
    ============================================ */
 .dashboard { max-width: 1200px; margin: 0 auto; padding: 3rem 2rem; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem; flex-wrap: wrap; gap: 1.5rem; }
-.dashboard-header h1 { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 0.04em; }
+.dashboard-header h1 { font-family: 'General Sans', -apple-system, sans-serif; font-size: 2.5rem; letter-spacing: 0.04em; }
 .dashboard-header p { color: var(--text-secondary); }
 .dashboard-actions { display: flex; gap: 1rem; }
 .leagues-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.5rem; }
@@ -418,7 +475,7 @@ body {
    ============================================ */
 .create-league { max-width: 700px; margin: 0 auto; padding: 3rem 2rem; }
 .page-header { margin-bottom: 2rem; }
-.page-header h1 { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 0.04em; }
+.page-header h1 { font-family: 'General Sans', -apple-system, sans-serif; font-size: 2.5rem; letter-spacing: 0.04em; }
 .btn-back {
   background: none; border: none; color: var(--text-secondary); cursor: pointer;
   font-family: 'DM Sans', sans-serif; font-size: 0.9rem; margin-bottom: 0.5rem; padding: 0;
@@ -469,7 +526,7 @@ body {
    LEAGUE DETAIL / PREDICTIONS
    ============================================ */
 .league-detail { max-width: 1200px; margin: 0 auto; padding: 3rem 2rem; }
-.league-info h1 { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 0.04em; }
+.league-info h1 { font-family: 'General Sans', -apple-system, sans-serif; font-size: 2.5rem; letter-spacing: 0.04em; }
 .league-meta { display: flex; gap: 1.5rem; color: var(--text-secondary); font-size: 0.9rem; }
 .league-meta span { display: flex; align-items: center; gap: 0.4rem; }
 .league-meta svg { color: var(--text-dim); }
@@ -496,7 +553,7 @@ body {
 .predictions-toolbar .select-field {
   max-width: 280px; padding: 0.65rem 1rem; font-size: 0.9rem;
 }
-.matches-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.matches-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; }
 
 /* ---- COMPACT PREDICTION ROWS ---- */
 .pred-row {
@@ -505,8 +562,10 @@ body {
   transition: all 0.2s;
 }
 .pred-row:hover { border-color: var(--border-bright); }
-.pred-row.locked { opacity: 0.7; }
+.pred-row.locked { opacity: 0.65; }
 .pred-row.completed { border-left: 3px solid var(--success); }
+.pred-row.knockout { border-left: 3px solid var(--accent); }
+.pred-row:hover { border-color: var(--border-bright); box-shadow: var(--shadow-hover); }
 .pred-meta {
   display: flex; align-items: center; gap: 0.5rem;
   font-size: 0.7rem; color: var(--text-dim); margin-bottom: 0.4rem; flex-wrap: wrap;
@@ -551,6 +610,7 @@ body {
 .pred-pick.active.home-pick { background: var(--primary); color: var(--bg); border-color: var(--primary); box-shadow: 0 0 10px var(--primary-glow); }
 .pred-pick.active.draw-pick { background: var(--text-secondary); color: var(--bg); border-color: var(--text-secondary); }
 .pred-pick.active.away-pick { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+.pred-pick.disabled-pick { opacity: 0.2; pointer-events: none; }
 .pred-ko-opts { display: flex; gap: 0.5rem; }
 .pred-ko-label { display: flex; align-items: center; gap: 0.2rem; font-size: 0.7rem; font-weight: 600; color: var(--text-dim); cursor: pointer; }
 .pred-ko-label input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--primary); }
@@ -569,7 +629,7 @@ body {
 /* ---- LEADERBOARD ---- */
 .leaderboard { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; }
 .leaderboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
-.leaderboard-header h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 0.04em; }
+.leaderboard-header h3 { font-family: 'General Sans', -apple-system, sans-serif; font-size: 1.5rem; letter-spacing: 0.04em; }
 .leaderboard-list { display: flex; flex-direction: column; gap: 0.75rem; }
 .leaderboard-item {
   display: flex; align-items: center; gap: 1.25rem;
@@ -598,7 +658,7 @@ body {
 /* ---- RULES ---- */
 .rules-view { display: flex; flex-direction: column; gap: 1.5rem; }
 .rules-card { padding: 2rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); }
-.rules-card h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 0.04em; margin-bottom: 1.25rem; }
+.rules-card h3 { font-family: 'General Sans', -apple-system, sans-serif; font-size: 1.4rem; letter-spacing: 0.04em; margin-bottom: 1.25rem; }
 .points-breakdown { display: flex; flex-direction: column; gap: 1rem; }
 .point-rule { display: flex; align-items: center; gap: 1rem; }
 .point-rule svg { color: var(--primary); flex-shrink: 0; }
@@ -617,7 +677,7 @@ body {
    ADMIN
    ============================================ */
 .admin-dashboard { max-width: 1400px; margin: 0 auto; padding: 3rem 2rem; }
-.admin-dashboard > h1 { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 0.04em; margin-bottom: 2rem; }
+.admin-dashboard > h1 { font-family: 'General Sans', -apple-system, sans-serif; font-size: 2.5rem; letter-spacing: 0.04em; margin-bottom: 2rem; }
 .admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 3rem; }
 .stat-card {
   padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border);
@@ -650,9 +710,10 @@ body {
 /* ============================================
    RESPONSIVE
    ============================================ */
-@media (max-width: 768px) {
-  .hero-title { font-size: 3.5rem; }
-  .hero-subtitle { font-size: 1.1rem; }
+@media (max-width: 900px) {
+  .matches-list { grid-template-columns: repeat(2, 1fr); }
+  .hero-title { font-size: 2.5rem; }
+  .hero-subtitle { font-size: 1rem; }
   .hero-cta { flex-direction: column; align-items: center; }
   .hero-stats { flex-direction: column; gap: 2rem; }
   .features-grid { grid-template-columns: 1fr; }
@@ -675,6 +736,10 @@ body {
   .dashboard-actions .btn { flex: 1; justify-content: center; }
   .leagues-grid { grid-template-columns: 1fr; }
   .predictions-toolbar { flex-direction: column; }
+}
+@media (max-width: 640px) {
+  .matches-list { grid-template-columns: 1fr; }
+  .showcase-grid { grid-template-columns: 1fr; }
   .pred-main { flex-wrap: wrap; }
   .pred-teams { flex: 1 1 100%; }
   .pred-score-input { width: 30px; height: 30px; font-size: 0.9rem; }
@@ -797,7 +862,7 @@ body {
   flex-wrap: wrap; gap: 1.5rem;
 }
 .footer-brand {
-  font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem;
+  font-family: 'General Sans', -apple-system, sans-serif; font-size: 1.5rem;
   letter-spacing: 0.05em; color: var(--text-dim);
 }
 .footer-links { display: flex; gap: 2rem; }
