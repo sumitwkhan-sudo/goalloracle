@@ -90,7 +90,7 @@ const GoalOracle = () => {
   const [stats, setStats] = useState({ totalPlayers: 0, totalPrizePools: 0, activeLeagues: 0 });
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
-  const nav = useCallback((v, l) => { if (l) setSelLeague(l); setView(v); setMenuOpen(false); }, []);
+  const nav = useCallback((v, l) => { if (l) setSelLeague(l); setView(prev => prev === v && !l ? prev : v); setMenuOpen(false); window.scrollTo(0, 0); }, []);
 
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
@@ -220,8 +220,10 @@ const GoalOracle = () => {
           <div className="hero-stadium-overlay"></div>
           <div className="hero-content">
             <div className="hero-badge"><span className="live-dot"></span><span>FIFA World Cup 2026 · 23rd Edition</span></div>
-            <h1 className="hero-title">Predict the<br/><span className="highlight">Beautiful Game</span></h1>
-            <p className="hero-subtitle">104 matches. 48 nations. 96 years of history. Make your predictions count — compete for glory or stake crypto for real rewards.</p>
+            <div className="hero-text-panel">
+              <h1 className="hero-title">Predict the<br/><span className="highlight">Beautiful Game</span></h1>
+              <p className="hero-subtitle">104 matches. 48 nations. 96 years of history. Make your predictions count — compete for glory or stake crypto for real rewards.</p>
+            </div>
             <div className="hero-cta">
               <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}><Globe size={20} /> {authenticated ? 'Start Predicting' : 'Sign Up or Login'}</button>
               <button className="btn btn-secondary btn-lg" onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works <ChevronRight size={18} /></button>
@@ -446,14 +448,14 @@ const GoalOracle = () => {
           {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}
           <div className="form-section"><label>League Type</label>
             <div className="type-selector">
-              <button className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={() => setTp('free')}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and glory</p></div></button>
-              <button className={`type-option ${tp === 'paid' ? 'active' : ''}`} onClick={() => setTp('paid')}><Lock size={24} /><div><h4>Paid League</h4><p>Stake crypto, win rewards</p></div></button>
+              <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and glory</p></div></button>
+              <button type="button" className={`type-option ${tp === 'paid' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('paid'); }}><Lock size={24} /><div><h4>Paid League</h4><p>Stake crypto, win rewards</p></div></button>
             </div>
           </div>
           <div className="form-section"><label>Visibility</label>
             <div className="type-selector">
-              <button className={`type-option ${vis === 'public' ? 'active' : ''}`} onClick={() => setVis('public')}><Eye size={24} /><div><h4>Public</h4><p>Anyone can find & join</p></div></button>
-              <button className={`type-option ${vis === 'private' ? 'active' : ''}`} onClick={() => { setVis('private'); if (!passcode) genCode(); }}><EyeOff size={24} /><div><h4>Private</h4><p>Invite-only with passcode</p></div></button>
+              <button type="button" className={`type-option ${vis === 'public' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setVis('public'); }}><Eye size={24} /><div><h4>Public</h4><p>Anyone can find & join</p></div></button>
+              <button type="button" className={`type-option ${vis === 'private' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setVis('private'); if (!passcode) genCode(); }}><EyeOff size={24} /><div><h4>Private</h4><p>Invite-only with passcode</p></div></button>
             </div>
           </div>
           <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={e => setNm(e.target.value)} className="input-field" /></div>
@@ -461,7 +463,7 @@ const GoalOracle = () => {
             <div className="form-section"><label>Invite Passcode</label>
               <div className="passcode-row">
                 <input type="text" value={passcode} onChange={e => setPasscode(e.target.value.toUpperCase())} className="input-field passcode-input" maxLength={8} placeholder="e.g., GOAL2026" />
-                <button className="btn btn-secondary btn-sm" onClick={genCode}><RefreshCw size={14} /> Generate</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={e => { e.preventDefault(); genCode(); }}><RefreshCw size={14} /> Generate</button>
               </div>
               <p className="form-hint">Share this code with people you want to invite. They'll need it to join.</p>
             </div>
@@ -589,9 +591,9 @@ const GoalOracle = () => {
         {tab === 'predictions' && <div className="predictions-view">
           {/* Week tabs */}
           <div className="week-tabs">
-            <button className={`week-tab ${sf === 'all' ? 'active' : ''}`} onClick={() => { setSf('all'); setStageFilter('all'); }}>All ({WORLD_CUP_MATCHES.length})</button>
+            <button type="button" className={`week-tab ${sf === 'all' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setSf('all'); setStageFilter('all'); }}>All ({WORLD_CUP_MATCHES.length})</button>
             {matchWeeks.map(w => (
-              <button key={w.id} className={`week-tab ${sf === w.id ? 'active' : ''}`} onClick={() => { setSf(w.id); setStageFilter('all'); }}>
+              <button type="button" key={w.id} className={`week-tab ${sf === w.id ? 'active' : ''}`} onClick={e => { e.preventDefault(); setSf(w.id); setStageFilter('all'); }}>
                 <span className="week-tab-label">{w.label}</span>
                 <span className="week-tab-sub">{w.sub}</span>
               </button>
@@ -601,8 +603,8 @@ const GoalOracle = () => {
           {/* Stage sub-filter if multiple groups in view */}
           {stagesInView.length > 1 && (
             <div className="stage-pills">
-              <button className={`stage-pill ${stageFilter === 'all' ? 'active' : ''}`} onClick={() => setStageFilter('all')}>All ({fm.length})</button>
-              {stagesInView.map(s => <button key={s} className={`stage-pill ${stageFilter === s ? 'active' : ''}`} onClick={() => setStageFilter(s)}>{s}</button>)}
+              <button type="button" className={`stage-pill ${stageFilter === 'all' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setStageFilter('all'); }}>All ({fm.length})</button>
+              {stagesInView.map(s => <button type="button" key={s} className={`stage-pill ${stageFilter === s ? 'active' : ''}`} onClick={e => { e.preventDefault(); setStageFilter(s); }}>{s}</button>)}
             </div>
           )}
 
@@ -840,26 +842,26 @@ const GoalOracle = () => {
     };
 
     return (
-      <div className="account-dropdown-wrap">
-        <button className="account-btn" onClick={() => setOpen(!open)}>
+      <div className="account-dropdown-wrap" onClick={e => e.stopPropagation()}>
+        <button type="button" className="account-btn" onClick={e => { e.stopPropagation(); setOpen(!open); }}>
           <User size={14} />
           <span className="account-btn-name">{displayName}</span>
           <ChevronDown size={14} className={open ? 'flip' : ''} />
         </button>
         {open && <>
-          <div className="dropdown-overlay" onClick={() => setOpen(false)}></div>
-          <div className="account-dropdown">
+          <div className="dropdown-overlay" onClick={e => { e.stopPropagation(); setOpen(false); }}></div>
+          <div className="account-dropdown" onClick={e => e.stopPropagation()}>
             <div className="dropdown-header">
               {!editingName ? (
                 <div className="dropdown-name-row">
                   <div className="dropdown-name">{displayName}</div>
-                  <button className="edit-name-btn" onClick={() => { setNewName(displayName); setEditingName(true); }} title="Edit display name">✏️</button>
+                  <button type="button" className="edit-name-btn" onClick={() => { setNewName(displayName); setEditingName(true); }} title="Edit display name">✏️</button>
                 </div>
               ) : (
                 <div className="edit-name-row">
                   <input type="text" value={newName} onChange={e => setNewName(e.target.value)} className="edit-name-input" maxLength={24} placeholder="Display name" onKeyDown={e => e.key === 'Enter' && saveName()} autoFocus />
-                  <button className="btn btn-primary btn-sm" onClick={saveName} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>Save</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setEditingName(false)} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>✕</button>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={saveName} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>Save</button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingName(false)} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>✕</button>
                 </div>
               )}
               {displayEmail && <div className="dropdown-email">{displayEmail}</div>}
@@ -886,7 +888,7 @@ const GoalOracle = () => {
             ) : (
               <div className="dropdown-wallet"><span className="no-wallet">No wallet connected</span></div>
             )}
-            <button className="dropdown-item" onClick={() => { setOpen(false); setFundModal(true); }}>
+            <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setFundModal(true); }}>
               <ArrowRightLeft size={16} />
               <div>
                 <div className="dropdown-item-title">Add Funds</div>
@@ -894,7 +896,7 @@ const GoalOracle = () => {
               </div>
             </button>
             <div className="dropdown-divider"></div>
-            <button className="dropdown-item logout-item" onClick={() => { setOpen(false); logout(); nav('landing'); }}>
+            <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); logout(); nav('landing'); }}>
               <LogOut size={16} />
               <span>Log Out</span>
             </button>
@@ -907,12 +909,12 @@ const GoalOracle = () => {
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
       <div className="nav-brand" onClick={() => nav(authenticated ? 'dashboard' : 'landing')}><Trophy size={24} /><span className="gt">GoalOracle</span></div>
-      <button className="mobile-toggle" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
-      <div className={`nav-menu ${menuOpen ? 'active' : ''}`}>
+      <button type="button" className="mobile-toggle" onClick={e => { e.stopPropagation(); setMenuOpen(!menuOpen); }}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
+      <div className={`nav-menu ${menuOpen ? 'active' : ''}`} onClick={e => e.stopPropagation()}>
         {authenticated && <><a onClick={() => nav('dashboard')}>Dashboard</a><a onClick={() => nav('browse')}>Leagues</a>{(role === 'superadmin' || role === 'admin') && <a onClick={() => nav('admin')}>Admin</a>}</>}
-        <div className="nav-actions">
+        <div className="nav-actions" onClick={e => e.stopPropagation()}>
           {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
-          <button className="theme-toggle-btn" onClick={toggleTheme}>{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}<span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
+          <button type="button" className="theme-toggle-btn" onClick={e => { e.stopPropagation(); toggleTheme(); }}>{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}<span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
         </div>
       </div>
     </div></nav>

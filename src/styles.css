@@ -128,7 +128,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.15) 30%, rgba(245,245,248,0.7) 70%, var(--bg) 100%);
 }
 .hero-content {
-  position: relative; z-index: 5; max-width: 720px; margin: 0 auto; padding: 2rem; text-align: center;
+  position: relative; z-index: 5; max-width: 780px; margin: 0 auto; padding: 2rem; text-align: center;
+}
+.hero-text-panel {
+  display: inline-block; padding: 1.75rem 2.5rem 1.5rem; margin-bottom: 2rem;
+  background: rgba(0,0,0,0.18); backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border-radius: 20px; border: 1px solid rgba(255,255,255,0.04);
+}
+[data-theme="light"] .hero-text-panel {
+  background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.15);
 }
 .hero-badge {
   display: inline-flex; align-items: center; gap: 0.5rem;
@@ -368,7 +377,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .autosave-hint svg { color: var(--success); }
 
 /* ---- DASHBOARD / LEAGUES ---- */
-.dashboard, .browse-page, .create-page, .league-detail { max-width: 1100px; margin: 0 auto; padding: 2rem; position: relative; z-index: 2; }
+.dashboard, .browse-page, .browse-leagues, .create-page, .league-detail { max-width: 1100px; margin: 0 auto; padding: 2rem; position: relative; z-index: 2; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .dashboard-header h1 { font-size: 1.75rem; font-weight: 700; }
 .dashboard-header p { color: var(--text-sec); font-size: 0.9rem; }
@@ -678,7 +687,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .input-field-sm { width: 80px; text-align: center; font-family: var(--mono); }
 .input-group { display: flex; gap: 0.5rem; }
 .validation-error { color: var(--danger); font-size: 0.7rem; font-weight: 400; }
-.create-league-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; max-width: 600px; }
+.create-league-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; max-width: 600px; margin: 0 auto; }
+.create-league { max-width: 700px; margin: 0 auto; padding: 2rem; position: relative; z-index: 2; }
+.type-option {
+  padding: 1.25rem; border: 1.5px solid var(--border); border-radius: 10px;
+  background: var(--bg-elev); cursor: pointer; transition: all 0.2s; text-align: center;
+  color: var(--text);
+}
+.type-option:hover { border-color: rgba(0,212,255,0.3); }
+.type-option.active { border-color: var(--cyan); background: rgba(0,212,255,0.06); }
+.type-option h4 { font-size: 0.95rem; margin-bottom: 0.2rem; color: var(--text); }
+.type-option p { font-size: 0.78rem; color: var(--text-sec); }
+.type-option.active h4 { color: var(--cyan); }
+.type-option svg { color: var(--text-sec); margin-bottom: 0.4rem; }
+.type-option.active svg { color: var(--cyan); }
 .prize-distribution { display: flex; flex-direction: column; gap: 0.5rem; }
 .prize-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
 .point-item { display: flex; flex-direction: column; gap: 0.2rem; }
@@ -736,4 +758,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .pred-main { flex-wrap: wrap; }
   .pred-score-input { width: 28px; height: 30px; font-size: 0.9rem; }
   .hero-title { font-size: 3rem; }
+  .hero-text-panel { padding: 1.25rem 1.5rem 1rem; margin-left: 0.25rem; margin-right: 0.25rem; }
+  .type-selector { grid-template-columns: 1fr; }
 }
