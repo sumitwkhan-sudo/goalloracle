@@ -1,5 +1,30 @@
 import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import WORLD_CUP_MATCHES from '../src/data/matches.js';
+
+// ─── Build a lock-time lookup: matchId → UTC kickoff timestamp ───
+// Match times are stored in US Eastern Time (ET).
+// During the World Cup (June–July), ET = UTC-4 (EDT).
+// We lock predictions 5 minutes before kickoff.
+const LOCK_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+
+const matchKickoffUTC = {};
+WORLD_CUP_MATCHES.forEach(m => {
+  // m.date = '2026-06-13', m.time = '15:00' (ET)
+  // ET during summer = UTC-4, so 15:00 ET = 19:00 UTC
+  const [hh, mm] = m.time.split(':').map(Number);
+  const utcHour = hh + 4; // EDT offset: +4 hours to get UTC
+  // Handle day rollover (e.g., 22:00 ET = 02:00 UTC next day)
+  const date = new Date(`${m.date}T00:00:00Z`);
+  date.setUTCHours(utcHour, mm, 0, 0);
+  matchKickoffUTC[m.id] = date.getTime();
+});
+
+function isMatchLocked(matchId) {
+  const kickoff = matchKickoffUTC[matchId];
+  if (!kickoff) return false; // Unknown match ID — allow (shouldn't happen)
+  return Date.now() >= kickoff - LOCK_BUFFER_MS;
+}
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).json({});
@@ -71,11 +96,17 @@ export default async function handler(req, res) {
   try {
     const batch = db.batch();
     let count = 0;
+    const locked = [];
 
     for (const [matchId, pred] of Object.entries(predictions)) {
       if (!pred.result) continue;
 
-      // TODO: Add server-side lock check here using match times
+      // Server-side lock: reject predictions for matches that have kicked off (or within 5 min)
+      if (isMatchLocked(matchId)) {
+        locked.push(matchId);
+        continue; // Skip this match — don't save, don't error the whole batch
+      }
+
       const ref = db.collection('predictions').doc(`${userId}_${leagueId}_${matchId}`);
       batch.set(ref, {
         userId,
@@ -92,7 +123,7 @@ export default async function handler(req, res) {
     }
 
     await batch.commit();
-    return res.status(200).json({ saved: count });
+    return res.status(200).json({ saved: count, locked: locked.length > 0 ? locked : undefined });
   } catch (e) {
     console.error('Save predictions error:', e);
     return res.status(500).json({ error: e.message });

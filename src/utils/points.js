@@ -65,15 +65,22 @@ export function sortLeaderboard(entries) {
 }
 
 export function isPredictionLocked(matchDate, matchTime) {
-  const dt = new Date(`${matchDate}T${matchTime}:00`);
-  return new Date() >= new Date(dt.getTime() - 5 * 60 * 1000);
+  // Match times are ET. During World Cup (June–July), ET = UTC-4 (EDT).
+  // Construct UTC timestamp: e.g., 15:00 ET = 19:00 UTC
+  const [hh, mm] = matchTime.split(':').map(Number);
+  const utc = new Date(`${matchDate}T00:00:00Z`);
+  utc.setUTCHours(hh + 4, mm, 0, 0);
+  return Date.now() >= utc.getTime() - 5 * 60 * 1000;
 }
 
 export function getMatchStatus(matchDate, matchTime) {
-  const dt = new Date(`${matchDate}T${matchTime}:00`);
-  const lock = new Date(dt.getTime() - 5 * 60 * 1000);
-  const now = new Date();
+  const [hh, mm] = matchTime.split(':').map(Number);
+  const utc = new Date(`${matchDate}T00:00:00Z`);
+  utc.setUTCHours(hh + 4, mm, 0, 0);
+  const kickoff = utc.getTime();
+  const lock = kickoff - 5 * 60 * 1000;
+  const now = Date.now();
   if (now < lock) return 'open';
-  if (now < dt) return 'locked';
+  if (now < kickoff) return 'locked';
   return 'started';
 }
