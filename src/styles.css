@@ -1220,4 +1220,34 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .hero-title { font-size: 3rem; }
   .hero-text-panel { padding: 1.25rem 1.5rem 1rem; margin-left: 0.25rem; margin-right: 0.25rem; }
   .type-selector { grid-template-columns: 1fr; }
+  .type-selector.triple { grid-template-columns: 1fr; }
+  .group-selector { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* ─── Match Scope / Custom League ─── */
+.type-selector.triple { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
+.group-selector { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; margin-top: 0.5rem; }
+.group-chip {
+  padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.78rem; font-weight: 600;
+  background: var(--card); border: 1.5px solid var(--border); color: var(--text-sec);
+  cursor: pointer; transition: all 0.2s;
+}
+.group-chip:hover { border-color: var(--accent); color: var(--text); }
+.group-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.form-hint-inline { font-size: 0.75rem; color: var(--text-sec); font-weight: 400; }
+
+/* Scope badge */
+.badge-scope {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border-radius: 99px; font-size: 0.7rem; font-weight: 600;
+  background: rgba(0, 212, 255, 0.1); color: #00D4FF; border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+/* Bracket pending state for unresolved knockout matches */
+.pred-team-name.pending { opacity: 0.45; font-style: italic; font-size: 0.82em; }
+.bracket-hint {
+  display: flex; align-items: center; gap: 6px; padding: 0.65rem 1rem;
+  background: rgba(0, 212, 255, 0.06); border: 1px solid rgba(0, 212, 255, 0.12);
+  border-radius: 10px; font-size: 0.78rem; color: var(--text-sec); margin-bottom: 1rem;
+}
+.bracket-hint svg { flex-shrink: 0; color: #00D4FF; }

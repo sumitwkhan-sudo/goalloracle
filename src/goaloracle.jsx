@@ -5,6 +5,7 @@ import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
+import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
 import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import AdminDashboard from './components/AdminDashboard';
@@ -443,8 +444,8 @@ const GoalOracle = () => {
         <section className="features"><div className="container">
           <div className="section-header reveal"><h2>How It Works</h2><p>From spectator to oracle in three steps</p></div>
           <div className="features-grid">
-            <div className="feature-card reveal-float stagger-1 glow-hover"><div className="feature-icon">// 01</div><h3>Predict Every Match</h3><p>Call the winner across all 104 fixtures. Predict exact scores for bonus points. Knockout rounds unlock extra time & penalty predictions.</p></div>
-            <div className="feature-card reveal-float stagger-2 glow-hover"><div className="feature-icon">// 02</div><h3>Compete in Leagues</h3><p>Join the global free league or create private ones. Stake USDC on Polygon for crypto prize pools — fully non-custodial.</p></div>
+            <div className="feature-card reveal-float stagger-1 glow-hover"><div className="feature-icon">// 01</div><h3>Predict Every Match</h3><p>Call the winner across all 104 fixtures. Predict exact scores for bonus points. Your bracket auto-fills as you go — knockout matchups resolve from your group predictions.</p></div>
+            <div className="feature-card reveal-float stagger-2 glow-hover"><div className="feature-icon">// 02</div><h3>Custom Leagues</h3><p>Create leagues scoped to specific groups, knockout rounds, or the full tournament. Go private with passcodes, or stake USDC on Polygon for crypto prize pools.</p></div>
             <div className="feature-card reveal-float stagger-3 glow-hover"><div className="feature-icon">// 03</div><h3>Collect Rewards</h3><p>Smart contracts distribute prizes automatically when dual-oracle verification confirms results. Transparent, trustless, instant.</p></div>
           </div>
         </div></section>
@@ -586,7 +587,12 @@ const GoalOracle = () => {
                 {l.type === 'paid' ? <span className="badge badge-premium"><Coins size={14} /> {l.entryFee} {l.currency}</span> : <span className="badge badge-free">Free</span>}
               </div>
             </div>
-            <div className="league-stats"><div className="league-stat"><Users size={18} /><span>{l.memberCount || 0} players</span></div></div>
+            <div className="league-stats">
+              <div className="league-stat"><Users size={18} /><span>{l.memberCount || 0} players</span></div>
+              {l.matchScope && l.matchScope !== 'all' && (
+                <div className="league-stat"><Target size={16} /><span>{l.matchScope === 'groups' ? `Groups ${(l.selectedGroups||[]).join(',')}` : `${(l.selectedRounds||[]).length} rounds`}</span></div>
+              )}
+            </div>
             <div className="league-footer">{mem ? <button className="btn btn-secondary btn-sm" onClick={() => nav('detail', l)}><Eye size={16} /> View</button> : <button className="btn btn-primary btn-sm" onClick={() => handleJoin(l)}><UserPlus size={16} /> Join</button>}</div>
           </div>);
         })}{f.length === 0 && <div className="empty-state"><p>No public leagues found.</p><button className="btn btn-primary" onClick={() => nav('create')}><Plus size={18} /> Create</button></div>}</div>
@@ -603,18 +609,57 @@ const GoalOracle = () => {
     const [cu, setCu] = useState('USDC');
     const [di, setDi] = useState({ first: 50, second: 30, third: 20 });
     const [ps, setPs] = useState({ correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 });
+    const [matchScope, setMatchScope] = useState('all'); // all | groups | rounds
+    const [selGroups, setSelGroups] = useState([]); // selected group letters
+    const [selRounds, setSelRounds] = useState([]); // selected round ids
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState('');
     const tot = di.first + di.second + di.third;
     const genCode = () => { const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)]; setPasscode(c); };
+
+    const allGroups = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+    const allRounds = [
+      { id: 'group', label: 'Group Stage' },
+      { id: 'r32', label: 'Round of 32' },
+      { id: 'r16', label: 'Round of 16' },
+      { id: 'qf', label: 'Quarterfinals' },
+      { id: 'sf', label: 'Semifinals' },
+      { id: 'final', label: 'Final' },
+    ];
+    const toggleGroup = (g) => setSelGroups(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]);
+    const toggleRound = (r) => setSelRounds(p => p.includes(r) ? p.filter(x => x !== r) : [...p, r]);
+
+    // Compute match count for scope
+    const scopeMatchCount = useMemo(() => {
+      if (matchScope === 'all') return WORLD_CUP_MATCHES.length;
+      if (matchScope === 'groups') return WORLD_CUP_MATCHES.filter(m => !m.isKnockout && selGroups.some(g => m.stage === `Group ${g}`)).length;
+      if (matchScope === 'rounds') {
+        return WORLD_CUP_MATCHES.filter(m => {
+          if (selRounds.includes('group') && !m.isKnockout) return true;
+          if (selRounds.includes('r32') && m.stage === 'Round of 32') return true;
+          if (selRounds.includes('r16') && m.stage === 'Round of 16') return true;
+          if (selRounds.includes('qf') && m.stage === 'Quarterfinal') return true;
+          if (selRounds.includes('sf') && m.stage === 'Semifinal') return true;
+          if (selRounds.includes('final') && (m.stage === 'Final' || m.stage === '3rd Place')) return true;
+          return false;
+        }).length;
+      }
+      return 0;
+    }, [matchScope, selGroups, selRounds]);
+
     const go = async () => {
       if (!uData?.id) { setErr('Still loading your account. Please wait a moment and try again.'); return; }
       if (!nm.trim()) { setErr('Name required'); return; }
       if (vis === 'private' && !passcode.trim()) { setErr('Passcode required for private leagues'); return; }
       if (tp === 'paid' && (!fe || parseFloat(fe) <= 0)) { setErr('Fee required'); return; }
       if (tp === 'paid' && tot !== 100) { setErr('Must total 100%'); return; }
+      if (matchScope === 'groups' && selGroups.length === 0) { setErr('Select at least one group'); return; }
+      if (matchScope === 'rounds' && selRounds.length === 0) { setErr('Select at least one round'); return; }
       setBusy(true); setErr('');
-      try { await createLeague({ name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps }, uData.id); notify('League created!'); nav('dashboard'); } catch(e) { setErr(e.message); } finally { setBusy(false); }
+      const scopeData = matchScope === 'all' ? { matchScope: 'all' } :
+        matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
+        { matchScope: 'rounds', selectedRounds: selRounds };
+      try { await createLeague({ name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }, uData.id); notify('League created!'); nav('dashboard'); } catch(e) { setErr(e.message); } finally { setBusy(false); }
     };
     return (
       <div className="create-league">
@@ -649,6 +694,33 @@ const GoalOracle = () => {
               <div className="prize-distribution">{['first','second','third'].map((k,i) => <div key={k} className="prize-item"><span>{['1st','2nd','3rd'][i]} Place</span><input type="number" value={di[k]} onChange={e => setDi({...di,[k]:parseInt(e.target.value)||0})} className="input-field-sm" /><span>%</span></div>)}</div>
             </div>
           </>}
+          <div className="form-section"><label>Match Selection</label>
+            <div className="type-selector triple">
+              <button type="button" className={`type-option ${matchScope === 'all' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setMatchScope('all'); }}><Globe size={24} /><div><h4>All Matches</h4><p>Full tournament (104)</p></div></button>
+              <button type="button" className={`type-option ${matchScope === 'groups' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setMatchScope('groups'); }}><Target size={24} /><div><h4>Specific Groups</h4><p>Pick groups A–L</p></div></button>
+              <button type="button" className={`type-option ${matchScope === 'rounds' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setMatchScope('rounds'); }}><TrendingUp size={24} /><div><h4>By Round</h4><p>Group stage, knockouts, etc.</p></div></button>
+            </div>
+          </div>
+          {matchScope === 'groups' && (
+            <div className="form-section">
+              <label>Select Groups <span className="form-hint-inline">({selGroups.length} selected · {scopeMatchCount} matches)</span></label>
+              <div className="group-selector">{allGroups.map(g => (
+                <button type="button" key={g} className={`group-chip ${selGroups.includes(g) ? 'active' : ''}`} onClick={e => { e.preventDefault(); toggleGroup(g); }}>
+                  Group {g}
+                </button>
+              ))}</div>
+            </div>
+          )}
+          {matchScope === 'rounds' && (
+            <div className="form-section">
+              <label>Select Rounds <span className="form-hint-inline">({selRounds.length} selected · {scopeMatchCount} matches)</span></label>
+              <div className="group-selector">{allRounds.map(r => (
+                <button type="button" key={r.id} className={`group-chip ${selRounds.includes(r.id) ? 'active' : ''}`} onClick={e => { e.preventDefault(); toggleRound(r.id); }}>
+                  {r.label}
+                </button>
+              ))}</div>
+            </div>
+          )}
           <div className="form-section"><label>Points System</label><div className="points-grid">{Object.entries(ps).map(([k,v]) => <div className="point-item" key={k}><label>{k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())}</label><input type="number" value={v} min="0" onChange={e=>setPs({...ps,[k]:parseInt(e.target.value)||0})} className="input-field-sm" /></div>)}</div></div>
           <div className="form-actions"><button className="btn btn-secondary" onClick={() => nav('dashboard')}>Cancel</button><button className="btn btn-primary" onClick={go} disabled={busy}>{busy ? <><RefreshCw size={18} className="spin" /> Creating...</> : <>Create League <ChevronRight size={18} /></>}</button></div>
         </div>
@@ -684,6 +756,43 @@ const GoalOracle = () => {
       navigator.clipboard.writeText(msg).then(() => { setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); });
     };
 
+    // ── Bracket resolution: compute resolved team names for knockout matches ──
+    const bracketData = useMemo(() => {
+      try {
+        return resolveBracket(preds);
+      } catch (e) { console.error('Bracket resolve error:', e); return { resolved: {}, standings: {} }; }
+    }, [preds]);
+
+    // Augmented match list: overlay resolved names onto knockout matches
+    const augmentedMatches = useMemo(() => {
+      const all = WORLD_CUP_MATCHES.map(m => {
+        if (!m.isKnockout) return m;
+        const r = bracketData.resolved[m.id];
+        if (!r) return m; // not yet resolved
+        return { ...m, home: r.home, away: r.away, homeFlag: r.homeFlag, awayFlag: r.awayFlag };
+      });
+      // Apply league match scope filter
+      const scope = selLeague?.matchScope;
+      if (!scope || scope === 'all') return all;
+      if (scope === 'groups') {
+        const sg = selLeague?.selectedGroups || [];
+        return all.filter(m => !m.isKnockout && sg.some(g => m.stage === `Group ${g}`));
+      }
+      if (scope === 'rounds') {
+        const sr = selLeague?.selectedRounds || [];
+        return all.filter(m => {
+          if (sr.includes('group') && !m.isKnockout) return true;
+          if (sr.includes('r32') && m.stage === 'Round of 32') return true;
+          if (sr.includes('r16') && m.stage === 'Round of 16') return true;
+          if (sr.includes('qf') && m.stage === 'Quarterfinal') return true;
+          if (sr.includes('sf') && m.stage === 'Semifinal') return true;
+          if (sr.includes('final') && (m.stage === 'Final' || m.stage === '3rd Place')) return true;
+          return false;
+        });
+      }
+      return all;
+    }, [bracketData, selLeague?.matchScope, selLeague?.selectedGroups, selLeague?.selectedRounds]);
+
     // Group matches by week for easier navigation
     const matchWeeks = useMemo(() => {
       const weeks = [
@@ -696,11 +805,11 @@ const GoalOracle = () => {
         { id: 'sf', label: 'Semis', sub: 'Jul 14–15', filter: m => m.stage === 'Semifinal' },
         { id: 'finals', label: 'Finals', sub: 'Jul 18–19', filter: m => m.stage === '3rd Place' || m.stage === 'Final' },
       ];
-      return weeks.map(w => ({ ...w, matches: WORLD_CUP_MATCHES.filter(w.filter), count: WORLD_CUP_MATCHES.filter(w.filter).length }));
-    }, []);
+      return weeks.map(w => ({ ...w, matches: augmentedMatches.filter(w.filter), count: augmentedMatches.filter(w.filter).length }));
+    }, [augmentedMatches]);
 
     const activeWeek = matchWeeks.find(w => w.id === sf);
-    const fm = sf === 'all' ? WORLD_CUP_MATCHES : (activeWeek?.matches || []);
+    const fm = sf === 'all' ? augmentedMatches : (activeWeek?.matches || []);
     const filteredMatches = stageFilter === 'all' ? fm : fm.filter(m => m.stage === stageFilter);
     const stagesInView = [...new Set(fm.map(m => m.stage))];
 
@@ -715,9 +824,11 @@ const GoalOracle = () => {
             <div className="league-meta">
               <span><Users size={16} /> {(selLeague?.memberCount || selLeague?.members?.length || 0).toLocaleString()} players</span>
               {selLeague?.type === 'paid' && <span><Coins size={16} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}
-              <span><Target size={16} /> {filledCount}/104 predicted</span>
+              <span><Target size={16} /> {filledCount}/{augmentedMatches.length} predicted</span>
               {isPrivate && <span className="badge badge-private"><EyeOff size={12} /> Private</span>}
               {!isPrivate && <span className="badge badge-public"><Eye size={12} /> Public</span>}
+              {selLeague?.matchScope === 'groups' && <span className="badge badge-scope"><Target size={12} /> Groups {(selLeague?.selectedGroups || []).join(', ')}</span>}
+              {selLeague?.matchScope === 'rounds' && <span className="badge badge-scope"><TrendingUp size={12} /> {(selLeague?.selectedRounds || []).map(r => r === 'group' ? 'Groups' : r === 'r32' ? 'R32' : r === 'r16' ? 'R16' : r === 'qf' ? 'QF' : r === 'sf' ? 'SF' : 'Final').join(', ')}</span>}
             </div>
           </div>
           <div className="league-actions">
@@ -765,7 +876,7 @@ const GoalOracle = () => {
         {tab === 'predictions' && <div className="predictions-view">
           {/* Week tabs */}
           <div className="week-tabs">
-            <button type="button" className={`week-tab ${sf === 'all' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setSf('all'); setStageFilter('all'); }}>All ({WORLD_CUP_MATCHES.length})</button>
+            <button type="button" className={`week-tab ${sf === 'all' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setSf('all'); setStageFilter('all'); }}>All ({augmentedMatches.length})</button>
             {matchWeeks.map(w => (
               <button type="button" key={w.id} className={`week-tab ${sf === w.id ? 'active' : ''}`} onClick={e => { e.preventDefault(); setSf(w.id); setStageFilter('all'); }}>
                 <span className="week-tab-label">{w.label}</span>
@@ -783,6 +894,14 @@ const GoalOracle = () => {
           )}
 
           <div className="autosave-hint">{saving ? <><RefreshCw size={12} className="spin" /> Saving...</> : <><CheckCircle size={12} /> Auto-saves as you go</>}</div>
+
+          {/* Bracket hint for knockout tabs */}
+          {['r32','r16','qf','sf','finals'].includes(sf) && filteredMatches.some(m => m.isKnockout && (m.home.includes('Group') || m.home.includes('W '))) && (
+            <div className="bracket-hint">
+              <AlertTriangle size={16} />
+              <span>Some matchups are still pending — predict all group stage matches to auto-fill the knockout bracket.</span>
+            </div>
+          )}
 
           <div className="matches-list">{filteredMatches.map(m => <PredictionCard key={m.id} match={m} />)}</div>
         </div>}
@@ -1100,7 +1219,11 @@ const GoalOracle = () => {
           },
           {
             q: 'How do I make predictions?',
-            a: 'After signing up and joining a league, go to the Predictions tab. For each match you can predict the winner (home/draw/away) for 3 points, and optionally predict the exact score for 5 bonus points. For knockout matches you can also predict extra time (+1 pt) and penalty shootout outcomes (+2 pts).'
+            a: 'After signing up and joining a league, go to the Predictions tab. For each match you can predict the winner (home/draw/away) for 3 points, and optionally predict the exact score for 5 bonus points. For knockout matches you can also predict extra time (+1 pt) and penalty shootout outcomes (+2 pts). As you predict group matches, the knockout bracket auto-fills based on your predicted group standings — including the 8 best third-placed teams per FIFA rules.'
+          },
+          {
+            q: 'How does the knockout bracket work?',
+            a: 'Once you predict all group stage matches, GoalOracle calculates your predicted group standings (points → head-to-head → goal difference → goals scored). The top 2 from each group plus the 8 best third-placed teams fill the Round of 32. As you predict each knockout round, the next round auto-populates with the winners. The third-place bracket assignment follows the official FIFA Annex C mapping with all 495 possible combinations.'
           },
           {
             q: 'When do predictions lock?',
@@ -1125,12 +1248,16 @@ const GoalOracle = () => {
             a: 'Public leagues appear in the Browse page and anyone can join. Private leagues are invite-only — the creator gets a unique passcode (like "GOAL2K") that they share with friends. You need the passcode to join a private league.'
           },
           {
+            q: 'Can I create a league for specific groups or rounds?',
+            a: 'Yes! When creating a league, choose "Specific Groups" to select one or more groups (A–L), or "By Round" to pick from Group Stage, Round of 32, Round of 16, Quarterfinals, Semifinals, or Final. Members will only see and predict the matches in that scope. Great for office pools focused on early rounds or knockout drama.'
+          },
+          {
             q: 'How do I invite friends to a private league?',
             a: 'After creating a private league, go to the league detail page and click "Invite." This shows your league passcode and a "Copy Invite" button that copies a ready-made message with the code and signup link. Share it via text, email, or group chat.'
           },
           {
             q: 'Can the league creator change settings after creation?',
-            a: 'Currently, league settings (points system, entry fee, prize distribution) are fixed at creation. Admins can delete leagues if needed. We may add editable settings in a future update.'
+            a: 'Currently, league settings (points system, entry fee, match scope, prize distribution) are fixed at creation. Admins can delete leagues if needed. We may add editable settings in a future update.'
           },
         ]
       },
