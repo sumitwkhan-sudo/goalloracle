@@ -18,7 +18,23 @@ export default async function handler(req, res) {
           if (!byUser[data.userId]) byUser[data.userId] = {};
           byUser[data.userId][data.matchId] = data;
         });
-        return res.status(200).json({ leaderboard: byUser });
+
+        // Fetch display names for all users in the leaderboard
+        const userIds = Object.keys(byUser);
+        const userNames = {};
+        // Firestore 'in' queries max 30 per batch
+        for (let i = 0; i < userIds.length; i += 30) {
+          const batch = userIds.slice(i, i + 30);
+          const usersSnap = await db.collection('users').where('id', 'in', batch).get();
+          usersSnap.docs.forEach(d => {
+            const u = d.data();
+            userNames[d.id] = u.displayName || u.email?.split('@')[0] || d.id.slice(0, 8);
+          });
+        }
+        // Fill in any missing names
+        userIds.forEach(uid => { if (!userNames[uid]) userNames[uid] = uid.slice(0, 8); });
+
+        return res.status(200).json({ leaderboard: byUser, userNames });
 
       } else if (type === 'user' && userId && leagueId) {
         const snap = await db.collection('predictions')

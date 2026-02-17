@@ -92,7 +92,7 @@ export function subscribeToUserPredictions(userId, leagueId, callback) {
 
 export async function getLeagueLeaderboard(leagueId) {
   const data = await apiCall(`predictions?type=leaderboard&leagueId=${leagueId}`);
-  return data.leaderboard;
+  return { leaderboard: data.leaderboard, userNames: data.userNames || {} };
 }
 
 // ---- MATCH RESULTS (read-only on client) ----
