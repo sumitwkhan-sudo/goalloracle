@@ -301,6 +301,23 @@ const GoalOracle = () => {
 
     const dateStr = new Date(match.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+    // Timezone mapping for each host city
+    const cityTZ = {
+      'Atlanta': { tz: 'US Eastern', offset: 0 }, 'Boston': { tz: 'US Eastern', offset: 0 },
+      'Miami': { tz: 'US Eastern', offset: 0 }, 'New York/NJ': { tz: 'US Eastern', offset: 0 },
+      'Philadelphia': { tz: 'US Eastern', offset: 0 }, 'Toronto': { tz: 'US Eastern', offset: 0 },
+      'Dallas': { tz: 'US Central', offset: -1 }, 'Houston': { tz: 'US Central', offset: -1 },
+      'Kansas City': { tz: 'US Central', offset: -1 }, 'Monterrey': { tz: 'US Central', offset: -1 },
+      'Guadalajara': { tz: 'US Central', offset: -1 }, 'Mexico City': { tz: 'US Central', offset: -1 },
+      'Los Angeles': { tz: 'US Pacific', offset: -3 }, 'San Francisco': { tz: 'US Pacific', offset: -3 },
+      'Seattle': { tz: 'US Pacific', offset: -3 }, 'Vancouver': { tz: 'US Pacific', offset: -3 },
+    };
+    const tzInfo = cityTZ[match.city] || { tz: '', offset: 0 };
+    // match.time is stored in ET — convert to local
+    const [hh, mm] = match.time.split(':').map(Number);
+    const localH = ((hh + tzInfo.offset) % 24 + 24) % 24;
+    const localTime = `${localH > 12 ? localH - 12 : localH || 12}:${String(mm).padStart(2, '0')} ${localH >= 12 ? 'PM' : 'AM'}`;
+
     return (
       <div className={`pred-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''} ${match.isKnockout ? 'knockout' : ''}`}>
         {/* Meta */}
@@ -309,6 +326,11 @@ const GoalOracle = () => {
           <span className="pred-date">{dateStr}</span>
           {locked && <span className="lock-badge"><Lock size={10} /></span>}
           {pts !== null && <span className="points-badge">+{pts}</span>}
+        </div>
+        {/* Venue & local time */}
+        <div className="pred-venue-row">
+          <span className="pred-venue">{match.venue}, {match.city}</span>
+          <span className="pred-kickoff">{localTime} {tzInfo.tz}</span>
         </div>
 
         {/* Mismatch warning */}
@@ -369,7 +391,7 @@ const GoalOracle = () => {
 
   const Landing = () => {
     useScrollReveal();
-    const featuredIds = ['gs07', 'gs09', 'gs15', 'gs17', 'gs21', 'gs32', 'gs61', 'gs68'];
+    const featuredIds = ['gs07', 'gs11', 'gs17', 'gs23', 'gs32', 'gs64'];
     const featured = featuredIds.map(id => WORLD_CUP_MATCHES.find(m => m.id === id)).filter(Boolean).slice(0, 6);
     // Code wall data
     const codeData = [

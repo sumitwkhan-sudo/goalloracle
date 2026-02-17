@@ -390,9 +390,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .pred-row:hover { border-color: var(--border-br); }
 .pred-row.knockout::before { content: ''; position: absolute; left: 0; top: 0.5rem; bottom: 0.5rem; width: 2px; background: var(--grad); border-radius: 1px; }
 .pred-row.completed { border-left: 2px solid var(--success); }
-.pred-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.pred-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
 .pred-stage-badge { font-family: var(--mono); font-size: 0.55rem; color: var(--cyan); letter-spacing: 0.1em; text-transform: uppercase; }
 .pred-date { font-family: var(--mono); font-size: 0.55rem; color: var(--text-dim); }
+.pred-venue-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; gap: 0.5rem; }
+.pred-venue { font-size: 0.65rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+.pred-kickoff { font-family: var(--mono); font-size: 0.6rem; color: var(--gold); white-space: nowrap; }
 .lock-badge, .points-badge { font-family: var(--mono); font-size: 0.55rem; padding: 0.1rem 0.35rem; border-radius: 4px; }
 .lock-badge { color: var(--text-dim); }
 .points-badge { color: var(--lime); background: rgba(166,255,0,0.08); }
