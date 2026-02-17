@@ -390,6 +390,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .pred-row:hover { border-color: var(--border-br); }
 .pred-row.knockout::before { content: ''; position: absolute; left: 0; top: 0.5rem; bottom: 0.5rem; width: 2px; background: var(--grad); border-radius: 1px; }
 .pred-row.completed { border-left: 2px solid var(--success); }
+.pred-row.needs-prediction { border-left: 3px solid var(--gold); }
+.pred-row.needs-prediction .pred-stage-badge::after { content: ' · Predict'; color: var(--gold); font-weight: 500; }
 .pred-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
 .pred-stage-badge { font-family: var(--mono); font-size: 0.55rem; color: var(--cyan); letter-spacing: 0.1em; text-transform: uppercase; }
 .pred-date { font-family: var(--mono); font-size: 0.55rem; color: var(--text-dim); }

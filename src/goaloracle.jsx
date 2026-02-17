@@ -318,8 +318,10 @@ const GoalOracle = () => {
     const localH = ((hh + tzInfo.offset) % 24 + 24) % 24;
     const localTime = `${localH > 12 ? localH - 12 : localH || 12}:${String(mm).padStart(2, '0')} ${localH >= 12 ? 'PM' : 'AM'}`;
 
+    const needsPrediction = !locked && !res?.completed && !p.result;
+
     return (
-      <div className={`pred-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''} ${match.isKnockout ? 'knockout' : ''}`}>
+      <div className={`pred-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''} ${match.isKnockout ? 'knockout' : ''} ${needsPrediction ? 'needs-prediction' : ''}`}>
         {/* Meta */}
         <div className="pred-meta">
           <span className="pred-stage-badge">{match.stage}</span>

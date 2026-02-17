@@ -45,9 +45,9 @@ export function calcGroupStandings(predictions) {
   // Process predictions
   groupMatches.forEach(m => {
     const p = predictions[m.id];
-    if (!p || p.homeScore === undefined || p.awayScore === undefined) return;
-    const hs = parseInt(p.homeScore);
-    const as = parseInt(p.awayScore);
+    if (!p || !p.score) return;
+    const hs = parseInt(p.score.home);
+    const as = parseInt(p.score.away);
     if (isNaN(hs) || isNaN(as)) return;
 
     const home = teams[m.home];
@@ -142,7 +142,7 @@ export function groupPredictionsComplete(predictions) {
   const groupMatches = WORLD_CUP_MATCHES.filter(m => !m.isKnockout);
   return groupMatches.every(m => {
     const p = predictions[m.id];
-    return p && p.homeScore !== undefined && p.homeScore !== '' && p.awayScore !== undefined && p.awayScore !== '';
+    return p && p.score && p.score.home !== undefined && p.score.home !== '' && p.score.away !== undefined && p.score.away !== '';
   });
 }
 
@@ -151,7 +151,7 @@ export function roundComplete(predictions, prefix) {
   const matches = WORLD_CUP_MATCHES.filter(m => m.id.startsWith(prefix));
   return matches.every(m => {
     const p = predictions[m.id];
-    return p && p.homeScore !== undefined && p.homeScore !== '' && p.awayScore !== undefined && p.awayScore !== '';
+    return p && p.result;
   });
 }
 
@@ -201,95 +201,95 @@ function buildThirdPlaceMap() {
   // From the Wikipedia table rows:
   const raw = [
     // Row 1: EFGHIJKL
-    ['EFGHIJKL', {r32_07:'E', r32_09:'J', r32_03:'F', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
+    ['EFGHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'F', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
     // Row 2: DFGHIJKL
-    ['DFGHIJKL', {r32_07:'H', r32_09:'G', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['DFGHIJKL', {r32_07:'H', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 3: DEGHIJKL
-    ['DEGHIJKL', {r32_07:'E', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
+    ['DEGHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
     // Row 4: DEFHIJKL
-    ['DEFHIJKL', {r32_07:'E', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['DEFHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 5: DEFGIJKL
-    ['DEFGIJKL', {r32_07:'E', r32_09:'G', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['DEFGIJKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 6: DEFGHJKL
-    ['DEFGHJKL', {r32_07:'E', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['DEFGHJKL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 7: DEFGHIKL
-    ['DEFGHIKL', {r32_07:'E', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['DEFGHIKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 8: DEFGHIJL
-    ['DEFGHIJL', {r32_07:'E', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
+    ['DEFGHIJL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
     // Row 9: DEFGHIJK
-    ['DEFGHIJK', {r32_07:'E', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
+    ['DEFGHIJK', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
     // Row 10: CFGHIJKL
-    ['CFGHIJKL', {r32_07:'H', r32_09:'G', r32_03:'C', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CFGHIJKL', {r32_07:'H', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 11: CEGHIJKL
-    ['CEGHIJKL', {r32_07:'E', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
+    ['CEGHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
     // Row 12: CEFHIJKL
-    ['CEFHIJKL', {r32_07:'E', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CEFHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 13: CEFGIJKL
-    ['CEFGIJKL', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CEFGIJKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 14: CEFGHJKL
-    ['CEFGHJKL', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CEFGHJKL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 15: CEFGHIKL
-    ['CEFGHIKL', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CEFGHIKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 16: CEFGHIJL
-    ['CEFGHIJL', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
+    ['CEFGHIJL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
     // Row 17: CEFGHIJK
-    ['CEFGHIJK', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
+    ['CEFGHIJK', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
     // Row 18: CDGHIJKL
-    ['CDGHIJKL', {r32_07:'H', r32_09:'G', r32_03:'C', r32_10:'J', r32_06:'D', r32_16:'L', r32_08:'K'}],
+    ['CDGHIJKL', {r32_07:'H', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'J', r32_06:'D', r32_16:'L', r32_08:'K'}],
     // Row 19: CDFHIJKL
-    ['CDFHIJKL', {r32_07:'C', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDFHIJKL', {r32_07:'C', r32_14:'J', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 20: CDFGIJKL
-    ['CDFGIJKL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDFGIJKL', {r32_07:'C', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 21: CDFGHJKL
-    ['CDFGHJKL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDFGHJKL', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 22: CDFGHIKL
-    ['CDFGHIKL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDFGHIKL', {r32_07:'C', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 23: CDFGHIJL
-    ['CDFGHIJL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
+    ['CDFGHIJL', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
     // Row 24: CDFGHIJK
-    ['CDFGHIJK', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
+    ['CDFGHIJK', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
     // Row 25: CDEHIJKL
-    ['CDEHIJKL', {r32_07:'E', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
+    ['CDEHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
     // Row 26: CDEGIJKL
-    ['CDEGIJKL', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'J', r32_06:'D', r32_16:'L', r32_08:'K'}],
+    ['CDEGIJKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'J', r32_06:'D', r32_16:'L', r32_08:'K'}],
     // Row 27: CDEGHJKL
-    ['CDEGHJKL', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
+    ['CDEGHJKL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
     // Row 28: CDEGHIKL
-    ['CDEGHIKL', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
+    ['CDEGHIKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
     // Row 29: CDEGHIJL
-    ['CDEGHIJL', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'I'}],
+    ['CDEGHIJL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'I'}],
     // Row 30: CDEGHIJK
-    ['CDEGHIJK', {r32_07:'E', r32_09:'G', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'I', r32_08:'K'}],
+    ['CDEGHIJK', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'I', r32_08:'K'}],
     // Row 31: CDEFIJKL
-    ['CDEFIJKL', {r32_07:'C', r32_09:'J', r32_03:'D', r32_10:'I', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDEFIJKL', {r32_07:'C', r32_14:'J', r32_09:'E', r32_03:'D', r32_10:'I', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 32: CDEFHJKL
-    ['CDEFHJKL', {r32_07:'C', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDEFHJKL', {r32_07:'C', r32_14:'J', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 33: CDEFHIKL
-    ['CDEFHIKL', {r32_07:'C', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDEFHIKL', {r32_07:'C', r32_14:'E', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 34: CDEFHIJL
-    ['CDEFHIJL', {r32_07:'C', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
+    ['CDEFHIJL', {r32_07:'C', r32_14:'J', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
     // Row 35: CDEFHIJK
-    ['CDEFHIJK', {r32_07:'C', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
+    ['CDEFHIJK', {r32_07:'C', r32_14:'J', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
     // Row 36: CDEFGJKL
-    ['CDEFGJKL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDEFGJKL', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 37: CDEFGIKL
-    ['CDEFGIKL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'I', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDEFGIKL', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'I', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 38: CDEFGIJL
-    ['CDEFGIJL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'I'}],
+    ['CDEFGIJL', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'I'}],
     // Row 39: CDEFGIJK
-    ['CDEFGIJK', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'I', r32_08:'K'}],
+    ['CDEFGIJK', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'I', r32_08:'K'}],
     // Row 40: CDEFGHKL
-    ['CDEFGHKL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
+    ['CDEFGHKL', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
     // Row 41: CDEFGHJL
-    ['CDEFGHJL', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'J'}],
+    ['CDEFGHJL', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'E'}],
     // Row 42: CDEFGHJK
-    ['CDEFGHJK', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'J', r32_08:'K'}],
+    ['CDEFGHJK', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'E', r32_08:'K'}],
     // Row 43: CDEFGHIL
-    ['CDEFGHIL', {r32_07:'C', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
+    ['CDEFGHIL', {r32_07:'C', r32_14:'E', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'G'}],
     // Row 44: CDEFGHIK
-    ['CDEFGHIK', {r32_07:'C', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
+    ['CDEFGHIK', {r32_07:'C', r32_14:'E', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'G', r32_08:'K'}],
     // Row 45: CDEFGHIJ
-    ['CDEFGHIJ', {r32_07:'C', r32_09:'G', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'J'}],
+    ['CDEFGHIJ', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'E', r32_08:'I'}],
   ];
 
   const map = {};
@@ -335,25 +335,26 @@ export function resolveBracket(predictions, selectedThirdGroups) {
 
   // R32 fixed slots (non-third-place matches)
   const r32Fixed = {
+    // R32 fixed slots (non-third-place: group winner/runner-up vs group winner/runner-up)
     'r32-01': { home: () => getPos('A', 2), away: () => getPos('B', 2) },
     'r32-02': { home: () => getPos('C', 1), away: () => getPos('F', 2) },
     'r32-04': { home: () => getPos('F', 1), away: () => getPos('C', 2) },
     'r32-05': { home: () => getPos('E', 2), away: () => getPos('I', 2) },
     'r32-11': { home: () => getPos('D', 2), away: () => getPos('G', 2) },
     'r32-12': { home: () => getPos('H', 1), away: () => getPos('J', 2) },
-    'r32-13': { home: () => getPos('J', 1), away: () => getPos('H', 2) },
-    'r32-14': { home: () => getPos('D', 1), away: () => getPos('L', 2) },
-    'r32-15': { home: () => getPos('K', 2), away: () => getPos('L', 2) },
+    'r32-13': { home: () => getPos('K', 2), away: () => getPos('L', 2) },
+    'r32-15': { home: () => getPos('J', 1), away: () => getPos('H', 2) },
   };
 
-  // R32 third-place slots
+  // R32 third-place slots (group winner vs best 3rd-place team)
   const r32Third = {
     'r32-03': { home: () => getPos('E', 1), awayGroup: 'r32_03' },
     'r32-06': { home: () => getPos('I', 1), awayGroup: 'r32_06' },
     'r32-07': { home: () => getPos('A', 1), awayGroup: 'r32_07' },
     'r32-08': { home: () => getPos('L', 1), awayGroup: 'r32_08' },
-    'r32-09': { home: () => getPos('B', 1), awayGroup: 'r32_09' },
+    'r32-09': { home: () => getPos('D', 1), awayGroup: 'r32_09' },
     'r32-10': { home: () => getPos('G', 1), awayGroup: 'r32_10' },
+    'r32-14': { home: () => getPos('B', 1), awayGroup: 'r32_14' },
     'r32-16': { home: () => getPos('K', 1), awayGroup: 'r32_16' },
   };
 
@@ -386,40 +387,45 @@ export function resolveBracket(predictions, selectedThirdGroups) {
   const getWinner = (matchId) => {
     const p = predictions[matchId];
     const r = resolved[matchId];
-    if (!p || !r || p.homeScore === undefined || p.awayScore === undefined) return null;
-    const hs = parseInt(p.homeScore);
-    const as = parseInt(p.awayScore);
+    if (!p || !r) return null;
+    // Predictions store score as p.score.home / p.score.away
+    const hs = parseInt(p.score?.home);
+    const as = parseInt(p.score?.away);
+    // If user picked a result, use that as primary signal (especially for draws in knockouts)
+    if (p.result === 'home') return { name: r.home, flag: r.homeFlag };
+    if (p.result === 'away') return { name: r.away, flag: r.awayFlag };
+    // Fallback to score comparison
     if (isNaN(hs) || isNaN(as)) return null;
     if (hs > as) return { name: r.home, flag: r.homeFlag };
     if (as > hs) return { name: r.away, flag: r.awayFlag };
-    // Draw in knockout → need penalties. For predictions, home team wins on pens by default
-    // unless user specified penalties result
-    if (p.penalties) return { name: r.home, flag: r.homeFlag }; // simplification
-    return { name: r.home, flag: r.homeFlag }; // default to home
+    // Draw — shouldn't happen in knockouts but default to home
+    return { name: r.home, flag: r.homeFlag };
   };
 
   const getLoser = (matchId) => {
     const p = predictions[matchId];
     const r = resolved[matchId];
-    if (!p || !r || p.homeScore === undefined || p.awayScore === undefined) return null;
-    const hs = parseInt(p.homeScore);
-    const as = parseInt(p.awayScore);
+    if (!p || !r) return null;
+    const hs = parseInt(p.score?.home);
+    const as = parseInt(p.score?.away);
+    if (p.result === 'home') return { name: r.away, flag: r.awayFlag };
+    if (p.result === 'away') return { name: r.home, flag: r.homeFlag };
     if (isNaN(hs) || isNaN(as)) return null;
     if (hs > as) return { name: r.away, flag: r.awayFlag };
     if (as > hs) return { name: r.home, flag: r.homeFlag };
-    return { name: r.away, flag: r.awayFlag }; // default
+    return { name: r.away, flag: r.awayFlag };
   };
 
-  // R16
+  // R16 — must match match data: r16-XX home/away = W R32-YY / W R32-ZZ
   const r16Map = {
-    'r16-01': ['r32-01', 'r32-02'],
-    'r16-02': ['r32-03', 'r32-04'],
-    'r16-03': ['r32-05', 'r32-06'],
+    'r16-01': ['r32-03', 'r32-06'],
+    'r16-02': ['r32-01', 'r32-04'],
+    'r16-03': ['r32-02', 'r32-05'],
     'r16-04': ['r32-07', 'r32-08'],
-    'r16-05': ['r32-09', 'r32-10'],
-    'r16-06': ['r32-11', 'r32-12'],
-    'r16-07': ['r32-13', 'r32-14'],
-    'r16-08': ['r32-15', 'r32-16'],
+    'r16-05': ['r32-13', 'r32-12'],
+    'r16-06': ['r32-09', 'r32-10'],
+    'r16-07': ['r32-15', 'r32-11'],
+    'r16-08': ['r32-14', 'r32-16'],
   };
 
   Object.entries(r16Map).forEach(([id, [m1, m2]]) => {
@@ -430,11 +436,11 @@ export function resolveBracket(predictions, selectedThirdGroups) {
     }
   });
 
-  // QF
+  // QF — M97: W89 vs W90, M98: W93 vs W94, M99: W91 vs W92, M100: W95 vs W96
   const qfMap = {
     'qf-01': ['r16-01', 'r16-02'],
-    'qf-02': ['r16-03', 'r16-04'],
-    'qf-03': ['r16-05', 'r16-06'],
+    'qf-02': ['r16-05', 'r16-06'],
+    'qf-03': ['r16-03', 'r16-04'],
     'qf-04': ['r16-07', 'r16-08'],
   };
 
@@ -481,7 +487,7 @@ export function resolveBracket(predictions, selectedThirdGroups) {
 function fallbackThirdMap(qualGroups) {
   // Simple heuristic: assign in alphabetical order to slots
   const groups = qualGroups.split('');
-  const slots = ['r32_07','r32_09','r32_03','r32_10','r32_06','r32_16','r32_08'];
+  const slots = ['r32_07','r32_09','r32_03','r32_10','r32_06','r32_14','r32_16','r32_08'];
   const map = {};
   // Try to match each slot's possible groups with available thirds
   const available = [...groups];
@@ -489,7 +495,8 @@ function fallbackThirdMap(qualGroups) {
   // Slot preferences (from match data — each slot lists which groups are valid)
   const slotPrefs = {
     r32_03: 'ABCDF', r32_06: 'CDFGH', r32_07: 'CEFHI',
-    r32_08: 'EHIJK', r32_09: 'AEGIJ', r32_10: 'AEHIJ', r32_16: 'DEIJL',
+    r32_08: 'EHIJK', r32_09: 'BEFIJ', r32_10: 'AEHIJ',
+    r32_14: 'EFGIJ', r32_16: 'DEIJL',
   };
 
   slots.forEach(slot => {
