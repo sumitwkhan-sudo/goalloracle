@@ -655,6 +655,7 @@ const GoalOracle = () => {
       if (tp === 'paid' && tot !== 100) { setErr('Must total 100%'); return; }
       if (matchScope === 'groups' && selGroups.length === 0) { setErr('Select at least one group'); return; }
       if (matchScope === 'rounds' && selRounds.length === 0) { setErr('Select at least one round'); return; }
+      if (tp === 'paid' && matchScope === 'rounds') { setErr('Paid leagues must use All Matches or Specific Groups — knockout-only scope is available for free leagues only'); return; }
       setBusy(true); setErr('');
       const scopeData = matchScope === 'all' ? { matchScope: 'all' } :
         matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
@@ -669,7 +670,7 @@ const GoalOracle = () => {
           <div className="form-section"><label>League Type</label>
             <div className="type-selector">
               <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and glory</p></div></button>
-              <button type="button" className={`type-option ${tp === 'paid' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('paid'); }}><Lock size={24} /><div><h4>Paid League</h4><p>Stake crypto, win rewards</p></div></button>
+              <button type="button" className={`type-option ${tp === 'paid' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('paid'); if (matchScope === 'rounds') setMatchScope('all'); }}><Lock size={24} /><div><h4>Paid League</h4><p>Stake crypto, win rewards</p></div></button>
             </div>
           </div>
           <div className="form-section"><label>Visibility</label>
@@ -694,11 +695,11 @@ const GoalOracle = () => {
               <div className="prize-distribution">{['first','second','third'].map((k,i) => <div key={k} className="prize-item"><span>{['1st','2nd','3rd'][i]} Place</span><input type="number" value={di[k]} onChange={e => setDi({...di,[k]:parseInt(e.target.value)||0})} className="input-field-sm" /><span>%</span></div>)}</div>
             </div>
           </>}
-          <div className="form-section"><label>Match Selection</label>
+          <div className="form-section"><label>Match Selection {tp === 'paid' && <span className="form-hint-inline">(Paid leagues: All Matches or Groups only)</span>}</label>
             <div className="type-selector triple">
               <button type="button" className={`type-option ${matchScope === 'all' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setMatchScope('all'); }}><Globe size={24} /><div><h4>All Matches</h4><p>Full tournament (104)</p></div></button>
               <button type="button" className={`type-option ${matchScope === 'groups' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setMatchScope('groups'); }}><Target size={24} /><div><h4>Specific Groups</h4><p>Pick groups A–L</p></div></button>
-              <button type="button" className={`type-option ${matchScope === 'rounds' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setMatchScope('rounds'); }}><TrendingUp size={24} /><div><h4>By Round</h4><p>Group stage, knockouts, etc.</p></div></button>
+              <button type="button" className={`type-option ${matchScope === 'rounds' ? 'active' : ''} ${tp === 'paid' ? 'disabled-option' : ''}`} onClick={e => { e.preventDefault(); if (tp !== 'paid') setMatchScope('rounds'); }}><TrendingUp size={24} /><div><h4>By Round</h4><p>{tp === 'paid' ? 'Free leagues only' : 'Group stage, knockouts, etc.'}</p></div></button>
             </div>
           </div>
           {matchScope === 'groups' && (
@@ -1249,7 +1250,7 @@ const GoalOracle = () => {
           },
           {
             q: 'Can I create a league for specific groups or rounds?',
-            a: 'Yes! When creating a league, choose "Specific Groups" to select one or more groups (A–L), or "By Round" to pick from Group Stage, Round of 32, Round of 16, Quarterfinals, Semifinals, or Final. Members will only see and predict the matches in that scope. Great for office pools focused on early rounds or knockout drama.'
+            a: 'Yes! When creating a league, choose "Specific Groups" to select one or more groups (A–L), or "By Round" to pick from Group Stage, Round of 32, Round of 16, Quarterfinals, Semifinals, or Final. Members will only see and predict the matches in that scope. Note: paid leagues are restricted to "All Matches" or "Specific Groups" only — knockout-only round selection is available for free leagues. This protects staked funds since knockout matchups aren\'t known until the group stage finishes.'
           },
           {
             q: 'How do I invite friends to a private league?',

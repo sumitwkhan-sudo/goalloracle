@@ -1235,6 +1235,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .group-chip:hover { border-color: var(--accent); color: var(--text); }
 .group-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .form-hint-inline { font-size: 0.75rem; color: var(--text-sec); font-weight: 400; }
+.type-option.disabled-option { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 
 /* Scope badge */
 .badge-scope {
