@@ -1,4 +1,4 @@
-  import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
@@ -822,8 +822,8 @@ const GoalOracle = () => {
     const matchWeeks = useMemo(() => {
       const weeks = [
         { id: 'week1', label: 'Week 1', sub: 'Jun 11–17', filter: m => m.date >= '2026-06-11' && m.date <= '2026-06-17' && !m.isKnockout },
-        { id: 'week2', label: 'Week 2', sub: 'Jun 18–22', filter: m => m.date >= '2026-06-18' && m.date <= '2026-06-22' && !m.isKnockout },
-        { id: 'week3', label: 'Week 3', sub: 'Jun 23–27', filter: m => m.date >= '2026-06-23' && m.date <= '2026-06-27' && !m.isKnockout },
+        { id: 'week2', label: 'Week 2', sub: 'Jun 18–23', filter: m => m.date >= '2026-06-18' && m.date <= '2026-06-23' && !m.isKnockout },
+        { id: 'week3', label: 'Week 3', sub: 'Jun 24–27', filter: m => m.date >= '2026-06-24' && m.date <= '2026-06-27' && !m.isKnockout },
         { id: 'r32', label: 'Rd of 32', sub: 'Jun 28–Jul 3', filter: m => m.stage === 'Round of 32' },
         { id: 'r16', label: 'Rd of 16', sub: 'Jul 4–7', filter: m => m.stage === 'Round of 16' },
         { id: 'qf', label: 'Quarters', sub: 'Jul 9–11', filter: m => m.stage === 'Quarterfinal' },
