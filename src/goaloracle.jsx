@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
@@ -435,6 +435,15 @@ const GoalOracle = () => {
           </div>
         </section>
 
+        {/* Alpha Banner */}
+        <div className="alpha-banner">
+          <div className="alpha-banner-content">
+            <div className="alpha-badge"><Sparkles size={14} /> ALPHA</div>
+            <span>GoalOracle is in alpha testing — we'd love your feedback to make it better.</span>
+            <button className="alpha-link" onClick={() => nav('feedback')}><MessageSquare size={14} /> Share Feedback</button>
+          </div>
+        </div>
+
         {/* Finals Marquee Strip */}
         <div className="finals-strip"><div className="finals-track">
           {[...FINALS, ...FINALS].map((f, i) => (
@@ -474,27 +483,7 @@ const GoalOracle = () => {
           </div>
         </div></section>
 
-        {/* Featured Matches */}
-        <section className="matches-showcase"><div className="container">
-          <div className="section-header reveal"><h2>Featured Matches</h2><p>Some of the biggest group stage clashes</p></div>
-          <div className="showcase-grid">
-            {featured.map((m, i) => (
-              <div key={m.id} className={`showcase-match reveal-scale stagger-${(i % 3) + 1} glow-hover`}>
-                <div className="showcase-group">{m.stage}</div>
-                <div className="showcase-teams">
-                  <span className="showcase-flag">{m.homeFlag}</span>
-                  <span>{m.home}</span>
-                  <span className="showcase-vs">vs</span>
-                  <span>{m.away}</span>
-                  <span className="showcase-flag">{m.awayFlag}</span>
-                </div>
-                <div className="showcase-date">{m.city} · {new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-              </div>
-            ))}
-          </div>
-        </div></section>
-
-        {/* Crypto Section */}
+        {/* Crypto / Self-Custody Section — moved up after How It Works */}
         <section className="crypto-section section-zoom"><div className="container"><div className="crypto-content">
           <div className="crypto-text reveal-left">
             <h2>Non-Custodial. Transparent. Fair.</h2>
@@ -515,6 +504,26 @@ const GoalOracle = () => {
           </div>
         </div></div></section>
 
+        {/* Featured Matches */}
+        <section className="matches-showcase"><div className="container">
+          <div className="section-header reveal"><h2>Featured Matches</h2><p>Some of the biggest group stage clashes</p></div>
+          <div className="showcase-grid">
+            {featured.map((m, i) => (
+              <div key={m.id} className={`showcase-match reveal-scale stagger-${(i % 3) + 1} glow-hover`}>
+                <div className="showcase-group">{m.stage}</div>
+                <div className="showcase-teams">
+                  <span className="showcase-flag">{m.homeFlag}</span>
+                  <span>{m.home}</span>
+                  <span className="showcase-vs">vs</span>
+                  <span>{m.away}</span>
+                  <span className="showcase-flag">{m.awayFlag}</span>
+                </div>
+                <div className="showcase-date">{m.city} · {new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+              </div>
+            ))}
+          </div>
+        </div></section>
+
         <footer className="site-footer">
           <div className="footer-content">
             <div className="footer-brand"><span className="gt">GoalOracle</span> · 2026</div>
@@ -522,6 +531,7 @@ const GoalOracle = () => {
               <a onClick={() => authenticated ? nav('dashboard') : login()}>Play Now</a>
               <a onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works</a>
               <a onClick={() => nav('faq')}>FAQ</a>
+              <a onClick={() => nav('feedback')}>Feedback</a>
             </div>
             <div className="footer-copy">Built on Polygon · Smart Contract Verified · 22 Tournaments of Legacy</div>
             <div className="photo-credit">Stadium photos via Unsplash (free commercial license)</div>
@@ -1229,6 +1239,102 @@ const GoalOracle = () => {
   // ================================
   // FAQ PAGE
   // ================================
+  // ─── Feedback Form ─────────────────────────────────────────────────────
+  const Feedback = () => {
+    const [fbEmail, setFbEmail] = useState(uData?.email || (typeof user?.email === 'string' ? user.email : user?.email?.address) || '');
+    const [fbName, setFbName] = useState(uData?.displayName || '');
+    const [fbType, setFbType] = useState('general');
+    const [fbMsg, setFbMsg] = useState('');
+    const [fbSending, setFbSending] = useState(false);
+    const [fbSent, setFbSent] = useState(false);
+
+    const handleFeedbackSubmit = async () => {
+      if (!fbEmail.trim() || !fbMsg.trim()) return;
+      setFbSending(true);
+      try {
+        const res = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: fbEmail.trim(),
+            name: fbName.trim(),
+            type: fbType,
+            message: fbMsg.trim(),
+            userId: uData?.id || null,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+        if (!res.ok) throw new Error('Failed');
+        setFbSent(true);
+        notify('Thanks for your feedback!');
+      } catch (e) {
+        notify('Could not send — please email support@goaloracle.io directly', 'error');
+      } finally {
+        setFbSending(false);
+      }
+    };
+
+    if (fbSent) return (
+      <div className="page feedback-page">
+        <div className="page-header">
+          <button className="btn-back" onClick={() => nav('landing')}>← Back</button>
+          <h1>Feedback Sent</h1>
+        </div>
+        <div className="feedback-success">
+          <CheckCircle size={48} />
+          <h2>Thank you!</h2>
+          <p>We appreciate you taking the time to share your thoughts. Your feedback helps us build a better GoalOracle.</p>
+          <button className="btn btn-primary" onClick={() => nav('landing')}>Back to Home</button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="page feedback-page">
+        <div className="page-header">
+          <button className="btn-back" onClick={() => nav('landing')}>← Back</button>
+          <h1>Share Your Feedback</h1>
+          <p style={{ color: 'var(--text-sec)', fontSize: '0.88rem', marginTop: '0.25rem' }}>GoalOracle is in alpha — your input directly shapes what we build next.</p>
+        </div>
+        <div className="feedback-form-container">
+          <div className="form-section">
+            <label>Email <span className="required">*</span></label>
+            <input type="email" placeholder="your@email.com" value={fbEmail} onChange={e => setFbEmail(e.target.value)} className="input-field" />
+          </div>
+          <div className="form-section">
+            <label>Name <span className="form-hint-inline">(optional)</span></label>
+            <input type="text" placeholder="Your name" value={fbName} onChange={e => setFbName(e.target.value)} className="input-field" />
+          </div>
+          <div className="form-section">
+            <label>Feedback Type</label>
+            <div className="feedback-type-grid">
+              {[
+                { id: 'general', label: 'General', icon: <MessageSquare size={16} /> },
+                { id: 'bug', label: 'Bug Report', icon: <AlertTriangle size={16} /> },
+                { id: 'feature', label: 'Feature Request', icon: <Sparkles size={16} /> },
+                { id: 'ux', label: 'UX / Design', icon: <Eye size={16} /> },
+              ].map(t => (
+                <button key={t.id} type="button" className={`feedback-type-btn ${fbType === t.id ? 'active' : ''}`} onClick={() => setFbType(t.id)}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="form-section">
+            <label>Your Feedback <span className="required">*</span></label>
+            <textarea placeholder="What's working? What's not? What would you like to see?" value={fbMsg} onChange={e => setFbMsg(e.target.value)} className="input-field feedback-textarea" rows={6} />
+          </div>
+          <div className="form-actions">
+            <button className="btn btn-secondary" onClick={() => nav('landing')}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleFeedbackSubmit} disabled={fbSending || !fbEmail.trim() || !fbMsg.trim()}>
+              {fbSending ? <><RefreshCw size={18} className="spin" /> Sending...</> : <><Send size={18} /> Submit Feedback</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const FAQ = () => {
     const [openQ, setOpenQ] = useState(null);
     const toggle = (i) => setOpenQ(openQ === i ? null : i);
@@ -1569,6 +1675,7 @@ const GoalOracle = () => {
       {view === 'create' && <Create />}
       {view === 'detail' && <Detail />}
       {view === 'faq' && <FAQ />}
+      {view === 'feedback' && <Feedback />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
       {fundModal && <AddFundsModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
