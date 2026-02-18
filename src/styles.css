@@ -1300,6 +1300,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .feedback-type-btn:hover { border-color: var(--accent); color: var(--text); }
 .feedback-type-btn.active { background: rgba(0, 212, 255, 0.1); border-color: var(--accent); color: var(--accent); }
 .feedback-textarea { resize: vertical; min-height: 120px; font-family: inherit; }
+.feedback-signed-in {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0.65rem 1rem; border-radius: 10px; font-size: 0.82rem;
+  background: rgba(0, 200, 83, 0.08); border: 1px solid rgba(0, 200, 83, 0.2); color: var(--text-sec);
+}
+.feedback-signed-in svg { color: #00c853; flex-shrink: 0; }
+.feedback-signed-in strong { color: var(--text); }
 .required { color: #ff6b6b; }
 .feedback-success {
   text-align: center; padding: 3rem 2rem;

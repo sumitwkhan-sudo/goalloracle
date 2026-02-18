@@ -1232,32 +1232,57 @@ const GoalOracle = () => {
   // ================================
   // ─── Feedback Form ─────────────────────────────────────────────────────
   const Feedback = () => {
-    const [fbEmail, setFbEmail] = useState(uData?.email || (typeof user?.email === 'string' ? user.email : user?.email?.address) || '');
+    const privyEmail = uData?.email || (typeof user?.email === 'string' ? user.email : user?.email?.address) || '';
+    const isLoggedIn = authenticated && !!privyEmail;
+    const [fbEmail, setFbEmail] = useState(privyEmail);
     const [fbName, setFbName] = useState(uData?.displayName || '');
     const [fbType, setFbType] = useState('general');
     const [fbMsg, setFbMsg] = useState('');
     const [fbSending, setFbSending] = useState(false);
     const [fbSent, setFbSent] = useState(false);
 
+    const resolvedEmail = isLoggedIn ? privyEmail : fbEmail.trim();
+
     const handleFeedbackSubmit = async () => {
-      if (!fbEmail.trim() || !fbMsg.trim()) return;
+      if (!resolvedEmail || !fbMsg.trim()) return;
       setFbSending(true);
       try {
-        const res = await fetch('/api/feedback', {
+        // 1) Store in Firestore
+        const fsPromise = fetch('/api/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email: fbEmail.trim(),
+            email: resolvedEmail,
             name: fbName.trim(),
             type: fbType,
             message: fbMsg.trim(),
             userId: uData?.id || null,
             timestamp: new Date().toISOString(),
           }),
-        });
-        if (!res.ok) throw new Error('Failed');
-        setFbSent(true);
-        notify('Thanks for your feedback!');
+        }).catch(() => null);
+
+        // 2) Send email via Web3Forms (free, no API key setup needed — use access_key)
+        const emailPromise = fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_key: 'YOUR_WEB3FORMS_KEY',
+            subject: `[GoalOracle Feedback] ${fbType.charAt(0).toUpperCase() + fbType.slice(1)} from ${fbName.trim() || resolvedEmail}`,
+            from_name: 'GoalOracle Feedback',
+            to: 'support@goaloracle.io',
+            email: resolvedEmail,
+            name: fbName.trim() || 'Anonymous',
+            message: `Type: ${fbType}\nUser ID: ${uData?.id || 'not signed in'}\nEmail: ${resolvedEmail}\n\n${fbMsg.trim()}`,
+          }),
+        }).catch(() => null);
+
+        const [fsRes, emailRes] = await Promise.all([fsPromise, emailPromise]);
+        // Succeed if at least one worked
+        if ((fsRes && fsRes.ok) || (emailRes && emailRes.ok)) {
+          setFbSent(true);
+        } else {
+          throw new Error('Both failed');
+        }
       } catch (e) {
         notify('Could not send — please email support@goaloracle.io directly', 'error');
       } finally {
@@ -1267,10 +1292,6 @@ const GoalOracle = () => {
 
     if (fbSent) return (
       <div className="page feedback-page">
-        <div className="page-header">
-          <button className="btn-back" onClick={() => nav('landing')}>← Back</button>
-          <h1>Feedback Sent</h1>
-        </div>
         <div className="feedback-success">
           <CheckCircle size={48} />
           <h2>Thank you!</h2>
@@ -1288,10 +1309,17 @@ const GoalOracle = () => {
           <p style={{ color: 'var(--text-sec)', fontSize: '0.88rem', marginTop: '0.25rem' }}>GoalOracle is in alpha — your input directly shapes what we build next.</p>
         </div>
         <div className="feedback-form-container">
-          <div className="form-section">
-            <label>Email <span className="required">*</span></label>
-            <input type="email" placeholder="your@email.com" value={fbEmail} onChange={e => setFbEmail(e.target.value)} className="input-field" />
-          </div>
+          {!isLoggedIn && (
+            <div className="form-section">
+              <label>Email <span className="required">*</span></label>
+              <input type="email" placeholder="your@email.com" value={fbEmail} onChange={e => setFbEmail(e.target.value)} className="input-field" />
+            </div>
+          )}
+          {isLoggedIn && (
+            <div className="feedback-signed-in">
+              <CheckCircle size={16} /> Submitting as <strong>{privyEmail}</strong>
+            </div>
+          )}
           <div className="form-section">
             <label>Name <span className="form-hint-inline">(optional)</span></label>
             <input type="text" placeholder="Your name" value={fbName} onChange={e => setFbName(e.target.value)} className="input-field" />
@@ -1317,7 +1345,7 @@ const GoalOracle = () => {
           </div>
           <div className="form-actions">
             <button className="btn btn-secondary" onClick={() => nav('landing')}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleFeedbackSubmit} disabled={fbSending || !fbEmail.trim() || !fbMsg.trim()}>
+            <button className="btn btn-primary" onClick={handleFeedbackSubmit} disabled={fbSending || !resolvedEmail || !fbMsg.trim()}>
               {fbSending ? <><RefreshCw size={18} className="spin" /> Sending...</> : <><Send size={18} /> Submit Feedback</>}
             </button>
           </div>
