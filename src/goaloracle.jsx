@@ -435,15 +435,6 @@ const GoalOracle = () => {
           </div>
         </section>
 
-        {/* Alpha Banner */}
-        <div className="alpha-banner">
-          <div className="alpha-banner-content">
-            <div className="alpha-badge"><Sparkles size={14} /> ALPHA</div>
-            <span>GoalOracle is in alpha testing — we'd love your feedback to make it better.</span>
-            <button className="alpha-link" onClick={() => nav('feedback')}><MessageSquare size={14} /> Share Feedback</button>
-          </div>
-        </div>
-
         {/* Finals Marquee Strip */}
         <div className="finals-strip"><div className="finals-track">
           {[...FINALS, ...FINALS].map((f, i) => (
@@ -1669,6 +1660,14 @@ const GoalOracle = () => {
         }} />
       ))}</div>}
       <Nav />
+      {/* Alpha Testing Banner — persistent across all views */}
+      <div className="alpha-banner">
+        <div className="alpha-banner-content">
+          <div className="alpha-badge"><Sparkles size={14} /> ALPHA</div>
+          <span>GoalOracle is in alpha testing — we'd love your feedback to make it better.</span>
+          <button className="alpha-link" onClick={() => nav('feedback')}><MessageSquare size={14} /> Share Feedback</button>
+        </div>
+      </div>
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && <Dash />}
       {view === 'browse' && <Browse />}
