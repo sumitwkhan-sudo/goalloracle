@@ -70,6 +70,7 @@ const AnimatedCounter = ({ value, prefix = '', suffix = '', decimals = 0 }) => {
   return <span>{prefix}{decimals > 0 ? d.toFixed(decimals) : Math.floor(d).toLocaleString()}{suffix}</span>;
 };
 
+let heroAnimated = false;
 const GoalOracle = () => {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const [view, setView] = useState('landing');
@@ -414,10 +415,10 @@ const GoalOracle = () => {
         <div className="grad-mesh"></div>
 
         {/* Hero with Stadium */}
-        <section className="hero">
+        <section className={`hero ${heroAnimated ? 'hero-no-anim' : ''}`}>
           <div className="hero-stadium-bg"></div>
           <div className="hero-stadium-overlay"></div>
-          <div className="hero-content">
+          <div className="hero-content" ref={el => { if (el && !heroAnimated) { heroAnimated = true; } }}>
             <div className="hero-badge"><span className="live-dot"></span><span>FIFA World Cup 2026 · 23rd Edition</span></div>
             <div className="hero-text-panel">
               <h1 className="hero-title">Predict the<br/><span className="highlight">Beautiful Game</span></h1>
