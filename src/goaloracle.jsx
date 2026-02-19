@@ -1248,8 +1248,7 @@ const GoalOracle = () => {
       if (!resolvedEmail || !fbMsg.trim()) return;
       setFbSending(true);
       try {
-        // 1) Store in Firestore
-        const fsPromise = fetch('/api/feedback', {
+        const res = await fetch('/api/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1258,33 +1257,17 @@ const GoalOracle = () => {
             type: fbType,
             message: fbMsg.trim(),
             userId: uData?.id || null,
+            displayName: uData?.displayName || null,
             timestamp: new Date().toISOString(),
           }),
-        }).catch(() => null);
-
-        // 2) Send email via Web3Forms (free, no API key setup needed — use access_key)
-        const emailPromise = fetch('https://api.web3forms.com/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            access_key: 'YOUR_WEB3FORMS_KEY',
-            subject: `[GoalOracle Feedback] ${fbType.charAt(0).toUpperCase() + fbType.slice(1)} from ${fbName.trim() || resolvedEmail}`,
-            from_name: 'GoalOracle Feedback',
-            to: 'support@goaloracle.io',
-            email: resolvedEmail,
-            name: fbName.trim() || 'Anonymous',
-            message: `Type: ${fbType}\nUser ID: ${uData?.id || 'not signed in'}\nEmail: ${resolvedEmail}\n\n${fbMsg.trim()}`,
-          }),
-        }).catch(() => null);
-
-        const [fsRes, emailRes] = await Promise.all([fsPromise, emailPromise]);
-        // Succeed if at least one worked
-        if ((fsRes && fsRes.ok) || (emailRes && emailRes.ok)) {
-          setFbSent(true);
-        } else {
-          throw new Error('Both failed');
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed');
         }
+        setFbSent(true);
       } catch (e) {
+        console.error('Feedback error:', e);
         notify('Could not send — please email support@goaloracle.io directly', 'error');
       } finally {
         setFbSending(false);
