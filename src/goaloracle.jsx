@@ -1233,26 +1233,30 @@ const GoalOracle = () => {
   // ================================
   // ─── Feedback Form ─────────────────────────────────────────────────────
   const Feedback = () => {
+    // Try to get email from Privy — wallet-only users won't have one
     const privyEmail = uData?.email || (typeof user?.email === 'string' ? user.email : user?.email?.address) || '';
-    const isLoggedIn = authenticated && !!privyEmail;
+    const hasEmail = authenticated && !!privyEmail;
     const [fbEmail, setFbEmail] = useState(privyEmail);
     const [fbName, setFbName] = useState(uData?.displayName || '');
     const [fbType, setFbType] = useState('general');
     const [fbMsg, setFbMsg] = useState('');
     const [fbSending, setFbSending] = useState(false);
     const [fbSent, setFbSent] = useState(false);
+    const [fbError, setFbError] = useState('');
 
-    const resolvedEmail = isLoggedIn ? privyEmail : fbEmail.trim();
+    // If logged in with email, use it; otherwise require manual entry
+    const finalEmail = hasEmail ? privyEmail : fbEmail.trim();
 
     const handleFeedbackSubmit = async () => {
-      if (!resolvedEmail || !fbMsg.trim()) return;
+      if (!finalEmail || !fbMsg.trim()) return;
+      setFbError('');
       setFbSending(true);
       try {
         const res = await fetch('/api/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email: resolvedEmail,
+            email: finalEmail,
             name: fbName.trim(),
             type: fbType,
             message: fbMsg.trim(),
@@ -1263,12 +1267,12 @@ const GoalOracle = () => {
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'Failed');
+          throw new Error(data.error || `Server error (${res.status})`);
         }
         setFbSent(true);
       } catch (e) {
         console.error('Feedback error:', e);
-        notify('Could not send — please email support@goaloracle.io directly', 'error');
+        setFbError(e.message || 'Something went wrong');
       } finally {
         setFbSending(false);
       }
@@ -1293,13 +1297,13 @@ const GoalOracle = () => {
           <p style={{ color: 'var(--text-sec)', fontSize: '0.88rem', marginTop: '0.25rem' }}>GoalOracle is in alpha — your input directly shapes what we build next.</p>
         </div>
         <div className="feedback-form-container">
-          {!isLoggedIn && (
+          {!hasEmail && (
             <div className="form-section">
               <label>Email <span className="required">*</span></label>
               <input type="email" placeholder="your@email.com" value={fbEmail} onChange={e => setFbEmail(e.target.value)} className="input-field" />
             </div>
           )}
-          {isLoggedIn && (
+          {hasEmail && (
             <div className="feedback-signed-in">
               <CheckCircle size={16} /> Submitting as <strong>{privyEmail}</strong>
             </div>
@@ -1327,9 +1331,14 @@ const GoalOracle = () => {
             <label>Your Feedback <span className="required">*</span></label>
             <textarea placeholder="What's working? What's not? What would you like to see?" value={fbMsg} onChange={e => setFbMsg(e.target.value)} className="input-field feedback-textarea" rows={6} />
           </div>
+          {fbError && (
+            <div className="feedback-error">
+              <AlertTriangle size={16} /> {fbError} — you can also email <a href="mailto:support@goaloracle.io">support@goaloracle.io</a> directly.
+            </div>
+          )}
           <div className="form-actions">
             <button className="btn btn-secondary" onClick={() => nav('landing')}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleFeedbackSubmit} disabled={fbSending || !resolvedEmail || !fbMsg.trim()}>
+            <button className="btn btn-primary" onClick={handleFeedbackSubmit} disabled={fbSending || !finalEmail || !fbMsg.trim()}>
               {fbSending ? <><RefreshCw size={18} className="spin" /> Sending...</> : <><Send size={18} /> Submit Feedback</>}
             </button>
           </div>

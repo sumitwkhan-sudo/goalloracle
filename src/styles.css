@@ -1314,6 +1314,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .feedback-signed-in svg { color: #00c853; flex-shrink: 0; }
 .feedback-signed-in strong { color: var(--text); }
+.feedback-error {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 0.75rem 1rem; border-radius: 10px; font-size: 0.82rem;
+  background: rgba(255, 50, 50, 0.08); border: 1px solid rgba(255, 50, 50, 0.2); color: #ff6b6b;
+  line-height: 1.5;
+}
+.feedback-error svg { flex-shrink: 0; margin-top: 2px; }
+.feedback-error a { color: var(--accent); text-decoration: underline; }
 .required { color: #ff6b6b; }
 .feedback-success {
   text-align: center; padding: 3rem 2rem;
