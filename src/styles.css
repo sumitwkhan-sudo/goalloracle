@@ -1350,3 +1350,70 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .feedback-type-grid { grid-template-columns: repeat(2, 1fr); }
   .feedback-form-container { padding: 1.25rem; }
 }
+
+/* ─── Prediction Progress Bar ─── */
+.pred-progress {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.75rem 1rem; margin-bottom: 0.75rem;
+}
+.pred-progress-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;
+}
+.pred-progress-stats { display: flex; align-items: center; gap: 0.75rem; }
+.pred-progress-count { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.pred-progress-remaining { font-size: 0.78rem; color: var(--text-sec); }
+.pred-progress-done {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.78rem; font-weight: 600; color: #00c853;
+}
+.pred-progress-pct { font-size: 0.85rem; font-weight: 700; color: var(--accent); }
+.pred-progress-bar {
+  height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+}
+.pred-progress-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent), #00c853);
+  border-radius: 3px; transition: width 0.4s ease;
+}
+.pred-streak {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; color: #ffaa00;
+}
+.pred-streak svg { color: #ffaa00; }
+
+/* ─── Prediction Toolbar ─── */
+.pred-toolbar {
+  display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap;
+}
+.pred-hide-toggle {
+  display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-sec);
+  cursor: pointer; user-select: none;
+}
+.pred-hide-toggle input { accent-color: var(--accent); }
+
+/* ─── Date Group Headers ─── */
+.match-date-group { margin-bottom: 0.5rem; }
+.match-date-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.5rem 0.75rem; margin-bottom: 0.35rem;
+  font-size: 0.78rem; font-weight: 600; color: var(--text-sec);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 48px; z-index: 5;
+  background: var(--bg); backdrop-filter: blur(12px);
+}
+.match-date-label { color: var(--text); }
+.match-date-count {
+  font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;
+  background: rgba(0, 212, 255, 0.08); color: var(--accent);
+}
+
+/* ─── Week Tab Completion ─── */
+.week-tab.week-complete {
+  border-color: rgba(0, 200, 83, 0.3) !important;
+}
+.week-tab.week-complete .week-tab-sub { color: #00c853; }
+.week-check { color: #00c853; margin-left: 2px; }
+
+@media (max-width: 600px) {
+  .pred-toolbar { flex-direction: column; align-items: flex-start; }
+  .match-date-header { top: 44px; }
+}

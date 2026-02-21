@@ -765,6 +765,8 @@ const GoalOracle = () => {
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
+    const [hidePredicted, setHidePredicted] = useState(false);
+    const [weekCelebrated, setWeekCelebrated] = useState({});
 
     const isAdmin = role === 'superadmin' || role === 'admin';
     const isCreator = selLeague?.createdBy === uData?.id;
@@ -782,6 +784,38 @@ const GoalOracle = () => {
     const copyInvite = () => {
       const msg = `Join my GoalOracle league "${selLeague.name}"!\n\nPasscode: ${selLeague.passcode}\n\nSign up at ${window.location.origin}`;
       navigator.clipboard.writeText(msg).then(() => { setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); });
+    };
+
+    // Celebrate when a week is fully predicted
+    useEffect(() => {
+      if (sf === 'all') return;
+      const w = matchWeeks.find(w => w.id === sf);
+      if (w && w.complete && !weekCelebrated[sf]) {
+        setWeekCelebrated(prev => ({ ...prev, [sf]: true }));
+        setConfetti(true);
+        notify(`${w.label} complete! 🎉`);
+        setTimeout(() => setConfetti(false), 3000);
+      }
+    }, [matchWeeks, sf, weekCelebrated]);
+
+    // Quick Pick: auto-fill unpredicted matches with random (weighted) picks
+    const handleQuickPick = () => {
+      const updates = {};
+      const targets = (activeWeek?.matches || filteredMatches).filter(m => {
+        const status = getMatchStatus(m.date, m.time);
+        return status === 'open' && !results[m.id]?.completed && !preds[m.id]?.result;
+      });
+      targets.forEach(m => {
+        const options = m.isKnockout ? ['home', 'away'] : ['home', 'draw', 'away'];
+        const pick = options[Math.floor(Math.random() * options.length)];
+        const hs = pick === 'home' ? String(Math.floor(Math.random() * 3) + 1) : String(Math.floor(Math.random() * 2));
+        const as = pick === 'away' ? String(Math.floor(Math.random() * 3) + 1) : pick === 'draw' ? hs : String(Math.floor(Math.random() * 2));
+        updates[m.id] = { result: pick, score: { home: hs, away: as }, extraTime: false, penalties: false };
+      });
+      if (Object.keys(updates).length > 0) {
+        setPreds(prev => ({ ...prev, ...updates }));
+        notify(`Quick picked ${Object.keys(updates).length} matches — adjust any you disagree with!`);
+      }
     };
 
     // ── Bracket resolution: compute resolved team names for knockout matches ──
@@ -833,13 +867,56 @@ const GoalOracle = () => {
         { id: 'sf', label: 'Semis', sub: 'Jul 14–15', filter: m => m.stage === 'Semifinal' },
         { id: 'finals', label: 'Finals', sub: 'Jul 18–19', filter: m => m.stage === '3rd Place' || m.stage === 'Final' },
       ];
-      return weeks.map(w => ({ ...w, matches: augmentedMatches.filter(w.filter), count: augmentedMatches.filter(w.filter).length }));
-    }, [augmentedMatches]);
+      return weeks.map(w => {
+        const matches = augmentedMatches.filter(w.filter);
+        const predicted = matches.filter(m => preds[m.id]?.result).length;
+        return { ...w, matches, count: matches.length, predicted, complete: matches.length > 0 && predicted === matches.length };
+      });
+    }, [augmentedMatches, preds]);
 
     const activeWeek = matchWeeks.find(w => w.id === sf);
     const fm = sf === 'all' ? augmentedMatches : (activeWeek?.matches || []);
     const filteredMatches = stageFilter === 'all' ? fm : fm.filter(m => m.stage === stageFilter);
     const stagesInView = [...new Set(fm.map(m => m.stage))];
+
+    // Progress stats for current view
+    const viewPredicted = filteredMatches.filter(m => preds[m.id]?.result).length;
+    const viewTotal = filteredMatches.length;
+    const viewRemaining = viewTotal - viewPredicted;
+    const viewPct = viewTotal > 0 ? Math.round((viewPredicted / viewTotal) * 100) : 0;
+
+    // Streak: consecutive predictions made (from most recent)
+    const streak = useMemo(() => {
+      let s = 0;
+      for (const m of [...filteredMatches].reverse()) {
+        if (preds[m.id]?.result) s++;
+        else break;
+      }
+      return s;
+    }, [filteredMatches, preds]);
+
+    // Group matches by date for rendering
+    const matchesByDate = useMemo(() => {
+      const displayMatches = hidePredicted ? filteredMatches.filter(m => !preds[m.id]?.result) : filteredMatches;
+      const groups = {};
+      displayMatches.forEach(m => {
+        const key = m.date;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(m);
+      });
+      return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)).map(([date, matches]) => ({
+        date,
+        label: new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+        matches,
+        predicted: matches.filter(m => preds[m.id]?.result).length,
+      }));
+    }, [filteredMatches, preds, hidePredicted]);
+
+    // How many unpredicted remain for quick pick
+    const unpredictedCount = filteredMatches.filter(m => {
+      const status = getMatchStatus(m.date, m.time);
+      return status === 'open' && !results[m.id]?.completed && !preds[m.id]?.result;
+    }).length;
 
     const hasU = Object.values(preds).some(p => p.result);
     const filledCount = Object.values(preds).filter(p => p.result).length;
@@ -906,9 +983,10 @@ const GoalOracle = () => {
           <div className="week-tabs">
             <button type="button" className={`week-tab ${sf === 'all' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setSf('all'); setStageFilter('all'); }}>All ({augmentedMatches.length})</button>
             {matchWeeks.map(w => (
-              <button type="button" key={w.id} className={`week-tab ${sf === w.id ? 'active' : ''}`} onClick={e => { e.preventDefault(); setSf(w.id); setStageFilter('all'); }}>
+              <button type="button" key={w.id} className={`week-tab ${sf === w.id ? 'active' : ''} ${w.complete ? 'week-complete' : ''}`} onClick={e => { e.preventDefault(); setSf(w.id); setStageFilter('all'); }}>
                 <span className="week-tab-label">{w.label}</span>
-                <span className="week-tab-sub">{w.sub}</span>
+                <span className="week-tab-sub">{w.predicted}/{w.count}</span>
+                {w.complete && <CheckCircle size={12} className="week-check" />}
               </button>
             ))}
           </div>
@@ -923,6 +1001,37 @@ const GoalOracle = () => {
 
           <div className="autosave-hint">{saving ? <><RefreshCw size={12} className="spin" /> Saving...</> : <><CheckCircle size={12} /> Auto-saves as you go</>}</div>
 
+          {/* Progress bar */}
+          <div className="pred-progress">
+            <div className="pred-progress-header">
+              <div className="pred-progress-stats">
+                <span className="pred-progress-count">{viewPredicted}/{viewTotal} predicted</span>
+                {viewRemaining > 0 && <span className="pred-progress-remaining">{viewRemaining} left</span>}
+                {viewPct === 100 && <span className="pred-progress-done"><CheckCircle size={14} /> All done!</span>}
+              </div>
+              <span className="pred-progress-pct">{viewPct}%</span>
+            </div>
+            <div className="pred-progress-bar">
+              <div className="pred-progress-fill" style={{ width: `${viewPct}%` }} />
+            </div>
+            {streak >= 3 && <div className="pred-streak"><Zap size={14} /> {streak} in a row — keep going!</div>}
+          </div>
+
+          {/* Toolbar: Quick Pick + Hide Predicted */}
+          <div className="pred-toolbar">
+            {unpredictedCount > 0 && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleQuickPick}>
+                <Sparkles size={14} /> Quick Pick {unpredictedCount} matches
+              </button>
+            )}
+            {viewPredicted > 0 && viewRemaining > 0 && (
+              <label className="pred-hide-toggle">
+                <input type="checkbox" checked={hidePredicted} onChange={e => setHidePredicted(e.target.checked)} />
+                <span>Show only unpredicted</span>
+              </label>
+            )}
+          </div>
+
           {/* Bracket hint for knockout tabs */}
           {['r32','r16','qf','sf','finals'].includes(sf) && filteredMatches.some(m => m.isKnockout && (m.home.includes('Group') || m.home.includes('W '))) && (
             <div className="bracket-hint">
@@ -931,7 +1040,25 @@ const GoalOracle = () => {
             </div>
           )}
 
-          <div className="matches-list">{filteredMatches.map(m => <PredictionCard key={m.id} match={m} />)}</div>
+          {/* Date-grouped matches */}
+          <div className="matches-list">
+            {matchesByDate.map(group => (
+              <div key={group.date} className="match-date-group">
+                <div className="match-date-header">
+                  <span className="match-date-label">{group.label}</span>
+                  <span className="match-date-count">{group.predicted}/{group.matches.length}</span>
+                </div>
+                {group.matches.map(m => <PredictionCard key={m.id} match={m} />)}
+              </div>
+            ))}
+            {matchesByDate.length === 0 && hidePredicted && (
+              <div className="empty-state" style={{ textAlign: 'center', padding: '2rem' }}>
+                <CheckCircle size={32} style={{ color: '#00c853', marginBottom: '0.5rem' }} />
+                <p>All matches in this view are predicted!</p>
+                <button className="btn btn-secondary btn-sm" onClick={() => setHidePredicted(false)}>Show all matches</button>
+              </div>
+            )}
+          </div>
         </div>}
 
         {tab === 'leaderboard' && <div className="leaderboard"><div className="leaderboard-header"><h3>Rankings</h3></div>
