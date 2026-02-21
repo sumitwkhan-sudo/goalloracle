@@ -1467,6 +1467,8 @@ const GoalOracle = () => {
       const validErr = validateUsername(newName.trim());
       if (validErr) { notify(validErr, 'error'); return; }
       try {
+        const token = await getAccessToken();
+        if (token) setAuthToken(token);
         const updated = await updateUserProfile({ displayName: newName.trim(), usernameSet: true });
         if (updated) setUData(updated);
         setEditingName(false);
@@ -1884,6 +1886,8 @@ const GoalOracle = () => {
       if (validErr) { setErr(validErr); return; }
       setBusy(true); setErr('');
       try {
+        const token = await getAccessToken();
+        if (token) setAuthToken(token);
         const updated = await updateUserProfile({ displayName: trimmed, usernameSet: true });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
@@ -1895,6 +1899,8 @@ const GoalOracle = () => {
       if (!emailPrefix) return;
       setBusy(true); setErr('');
       try {
+        const token = await getAccessToken();
+        if (token) setAuthToken(token);
         const updated = await updateUserProfile({ displayName: emailPrefix, usernameSet: true });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
