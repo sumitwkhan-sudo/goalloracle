@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+git add -A && git commit -m "fix: confetti loop, layout gaps, stale prediction updates" && git push --force origin mainimport React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
@@ -251,54 +251,52 @@ const GoalOracle = () => {
 
     const upd = (f, v) => {
       if (locked) return;
-      const u = { ...p, score: { ...p.score } };
+      setPreds(pr => {
+        const cur = pr[match.id] || { result: null, score: { home: '0', away: '0' }, extraTime: false, penalties: false };
+        const u = { ...cur, score: { ...cur.score } };
 
-      if (f === 'result') {
-        u.result = v;
-        // Check if existing score contradicts new result
-        const h = parseInt(u.score.home); const a = parseInt(u.score.away);
-        if (!isNaN(h) && !isNaN(a) && (h > 0 || a > 0)) {
-          if (!scoreMatchesResult(v, u.score.home, u.score.away)) {
-            // Auto-clear score when result changes and they conflict
-            u.score = { home: '0', away: '0' };
-            showMismatch('Score reset to match your new pick');
+        if (f === 'result') {
+          u.result = v;
+          const h = parseInt(u.score.home); const a = parseInt(u.score.away);
+          if (!isNaN(h) && !isNaN(a) && (h > 0 || a > 0)) {
+            if (!scoreMatchesResult(v, u.score.home, u.score.away)) {
+              u.score = { home: '0', away: '0' };
+              showMismatch('Score reset to match your new pick');
+            }
           }
-        }
-      } else if (f === 'hs') {
-        u.score.home = v;
-        // Check score vs result
-        if (u.result && !scoreMatchesResult(u.result, v, u.score.away)) {
-          // Auto-update result to match score
-          const implied = inferResult(v, u.score.away);
-          if (implied && !(match.isKnockout && implied === 'draw')) {
-            u.result = implied;
-            showMismatch(`Switched to ${implied === 'home' ? match.home : implied === 'away' ? match.away : 'Draw'} to match score`);
-          } else if (match.isKnockout && implied === 'draw') {
-            showMismatch("Knockout matches can't end in a draw — adjust score");
+        } else if (f === 'hs') {
+          u.score.home = v;
+          if (u.result && !scoreMatchesResult(u.result, v, u.score.away)) {
+            const implied = inferResult(v, u.score.away);
+            if (implied && !(match.isKnockout && implied === 'draw')) {
+              u.result = implied;
+              showMismatch(`Switched to ${implied === 'home' ? match.home : implied === 'away' ? match.away : 'Draw'} to match score`);
+            } else if (match.isKnockout && implied === 'draw') {
+              showMismatch("Knockout matches can't end in a draw — adjust score");
+            }
+          } else if (!u.result) {
+            const implied = inferResult(v, u.score.away);
+            if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied;
           }
-        } else if (!u.result) {
-          // Auto-set result from score
-          const implied = inferResult(v, u.score.away);
-          if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied;
-        }
-      } else if (f === 'as') {
-        u.score.away = v;
-        if (u.result && !scoreMatchesResult(u.result, u.score.home, v)) {
-          const implied = inferResult(u.score.home, v);
-          if (implied && !(match.isKnockout && implied === 'draw')) {
-            u.result = implied;
-            showMismatch(`Switched to ${implied === 'home' ? match.home : implied === 'away' ? match.away : 'Draw'} to match score`);
-          } else if (match.isKnockout && implied === 'draw') {
-            showMismatch("Knockout matches can't end in a draw — adjust score");
+        } else if (f === 'as') {
+          u.score.away = v;
+          if (u.result && !scoreMatchesResult(u.result, u.score.home, v)) {
+            const implied = inferResult(u.score.home, v);
+            if (implied && !(match.isKnockout && implied === 'draw')) {
+              u.result = implied;
+              showMismatch(`Switched to ${implied === 'home' ? match.home : implied === 'away' ? match.away : 'Draw'} to match score`);
+            } else if (match.isKnockout && implied === 'draw') {
+              showMismatch("Knockout matches can't end in a draw — adjust score");
+            }
+          } else if (!u.result) {
+            const implied = inferResult(u.score.home, v);
+            if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied;
           }
-        } else if (!u.result) {
-          const implied = inferResult(u.score.home, v);
-          if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied;
-        }
-      } else if (f === 'et') { u.extraTime = v; }
-      else if (f === 'pen') { u.penalties = v; }
+        } else if (f === 'et') { u.extraTime = v; }
+        else if (f === 'pen') { u.penalties = v; }
 
-      setPreds(pr => ({ ...pr, [match.id]: u }));
+        return { ...pr, [match.id]: u };
+      });
     };
 
     const dateStr = new Date(match.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -766,7 +764,7 @@ const GoalOracle = () => {
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
     const [hidePredicted, setHidePredicted] = useState(false);
-    const [weekCelebrated, setWeekCelebrated] = useState({});
+    const weekCelebratedRef = useRef({});
 
     const isAdmin = role === 'superadmin' || role === 'admin';
     const isCreator = selLeague?.createdBy === uData?.id;
@@ -911,13 +909,13 @@ const GoalOracle = () => {
     useEffect(() => {
       if (sf === 'all') return;
       const w = matchWeeks.find(w => w.id === sf);
-      if (w && w.complete && !weekCelebrated[sf]) {
-        setWeekCelebrated(prev => ({ ...prev, [sf]: true }));
+      if (w && w.complete && !weekCelebratedRef.current[sf]) {
+        weekCelebratedRef.current[sf] = true;
         setConfetti(true);
         notify(`${w.label} complete! 🎉`);
         setTimeout(() => setConfetti(false), 3000);
       }
-    }, [matchWeeks, sf, weekCelebrated]);
+    }, [matchWeeks, sf]);
 
     const hasU = Object.values(preds).some(p => p.result);
     const filledCount = Object.values(preds).filter(p => p.result).length;
@@ -1049,7 +1047,9 @@ const GoalOracle = () => {
                   <span className="match-date-label">{group.label}</span>
                   <span className="match-date-count">{group.predicted}/{group.matches.length}</span>
                 </div>
-                {group.matches.map(m => <PredictionCard key={m.id} match={m} />)}
+                <div className="match-date-group-grid">
+                  {group.matches.map(m => <PredictionCard key={m.id} match={m} />)}
+                </div>
               </div>
             ))}
             {matchesByDate.length === 0 && hidePredicted && (
