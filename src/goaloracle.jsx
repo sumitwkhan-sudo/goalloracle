@@ -126,47 +126,52 @@ const GoalOracle = () => {
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
   const authInitRef = useRef(false);
-  const authAttemptRef = useRef(0);
 
-  // Simple auth init — no cleanup cancellation issues
-  if (ready && authenticated && user && !authInitRef.current && !uData) {
-    // Use a ref to prevent double-firing
-    if (authAttemptRef.current === 0) {
-      authAttemptRef.current = 1;
-      getAccessToken().then(token => {
-        if (!token) {
-          console.error('[auth] No token from Privy');
-          authAttemptRef.current = 0; // allow retry
-          return;
-        }
-        setAuthToken(token);
-        return createOrUpdateUser(user);
-      }).then(u => {
-        if (!u) {
-          console.error('[auth] createOrUpdateUser returned falsy');
-          authAttemptRef.current = 0;
-          return;
-        }
-        console.log('[auth] SUCCESS:', JSON.stringify({ id: u.id, displayName: u.displayName, role: u.role, usernameSet: u.usernameSet }));
-        authInitRef.current = true;
-        setUData(u);
-        setRole(u.role || 'user');
-        if (!u.usernameSet) setShowUsernamePrompt(true);
-      }).catch(e => {
-        console.error('[auth] FAILED:', e.message);
-        authAttemptRef.current = 0; // allow retry on next render
-      });
-    }
-  }
-
-  // Reset on logout
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
       setUData(null); setRole('user'); setAuthToken(null);
       authInitRef.current = false;
-      authAttemptRef.current = 0;
+      return;
     }
+
+    // Already done
+    if (authInitRef.current) return;
+
+    // Use an interval to keep trying until we succeed
+    let done = false;
+    const tryAuth = async () => {
+      if (done || authInitRef.current) return;
+      try {
+        console.log('[auth] attempting...');
+        const token = await getAccessToken();
+        console.log('[auth] token:', token ? 'YES' : 'NO');
+        if (!token) return; // will retry on next interval
+        setAuthToken(token);
+        console.log('[auth] calling createOrUpdateUser...');
+        const u = await createOrUpdateUser(user);
+        console.log('[auth] result:', u ? JSON.stringify({id:u.id,dn:u.displayName,role:u.role}) : 'NULL');
+        if (u) {
+          done = true;
+          authInitRef.current = true;
+          setUData(u);
+          setRole(u.role || 'user');
+          if (!u.usernameSet) setShowUsernamePrompt(true);
+        }
+      } catch(e) {
+        console.error('[auth] error:', e.message, e.stack);
+      }
+    };
+
+    // Try immediately
+    tryAuth();
+    // Then retry every 2s if not done
+    const interval = setInterval(() => {
+      if (done || authInitRef.current) { clearInterval(interval); return; }
+      tryAuth();
+    }, 2000);
+
+    return () => { done = true; clearInterval(interval); };
   }, [ready, authenticated]);
   // Debug: log whenever critical auth state changes
   useEffect(() => { console.log('[state] uData changed:', uData?.id, uData?.displayName, uData?.role); }, [uData]);
@@ -2009,8 +2014,9 @@ const GoalOracle = () => {
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
       {/* TEMPORARY DEBUG BANNER — remove after fixing */}
       {authenticated && (
-        <div style={{position:'fixed',bottom:0,left:0,right:0,background:'#111',color:'#0f0',padding:'6px 12px',fontSize:'11px',fontFamily:'monospace',zIndex:9999,opacity:0.9}}>
-          ready={String(ready)} | auth={String(authenticated)} | uData={uData ? `✅ ${uData.displayName} (${uData.role})` : '❌ null'} | role={role} | leagues={leagues.length}
+        <div style={{position:'fixed',bottom:0,left:0,right:0,background:'#111',color:'#0f0',padding:'6px 12px',fontSize:'11px',fontFamily:'monospace',zIndex:9999,opacity:0.9,display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+          <span>ready={String(ready)} | auth={String(authenticated)} | uData={uData ? `✅ ${uData.displayName} (${uData.role})` : '❌ null'} | role={role} | leagues={leagues.length}</span>
+          {!uData && <button onClick={() => { authInitRef.current = false; getAccessToken().then(t => { if(t) setAuthToken(t); return createOrUpdateUser(user); }).then(u => { if(u) { setUData(u); setRole(u.role||'user'); authInitRef.current = true; } }).catch(e => alert('[auth retry] ' + e.message)); }} style={{background:'#0f0',color:'#000',border:'none',padding:'2px 8px',borderRadius:'4px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>RETRY AUTH</button>}
         </div>
       )}
     </div>
