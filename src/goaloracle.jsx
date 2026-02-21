@@ -109,6 +109,11 @@ const GoalOracle = () => {
   const [detailTab, setDetailTab] = useState('predictions');
   const [detailWeek, setDetailWeek] = useState('week1');
   const [detailStage, setDetailStage] = useState('all');
+  const [detailPredView, setDetailPredView] = useState(() => {
+    // Default to 'rows' on mobile, 'rows' on desktop (user can toggle)
+    // But on desktop, rows will render in 2 columns via CSS
+    return 'rows';
+  });
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const nav = useCallback((v, l) => {
@@ -425,19 +430,26 @@ const GoalOracle = () => {
 
     const needsPrediction = !locked && !res?.completed && !p.result;
 
+    const handleScoreInput = (field, val) => {
+      const num = val.replace(/[^0-9]/g, '');
+      if (num === '') { upd(field, '0'); return; }
+      const n = Math.min(parseInt(num), 20);
+      upd(field, String(n));
+    };
+
     return (
       <div className={`compact-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''} ${needsPrediction ? 'needs-prediction' : ''}`}>
-        <span className="cr-stage">{match.stage.replace('Group ', 'Grp ')}</span>
-        <div className="cr-teams">
+        {/* Top line: teams + score */}
+        <div className="cr-main">
           <span className="cr-flag">{match.homeFlag}</span>
           <span className="cr-name">{getCode(match.home)}</span>
           {res?.completed ? (
             <div className="cr-final"><span>{res.homeScore}</span><span className="cr-sep">-</span><span>{res.awayScore}</span></div>
           ) : !locked ? (
             <div className="cr-scores">
-              <button className="cr-drum" onClick={() => { const cur = parseInt(p.score.home) || 0; upd('hs', String(Math.min(cur + 1, 20))); }} onContextMenu={e => { e.preventDefault(); const cur = parseInt(p.score.home) || 0; upd('hs', String(Math.max(cur - 1, 0))); }}>{p.score.home}</button>
+              <input type="number" className="cr-input" value={p.score.home} min="0" max="20" onChange={e => handleScoreInput('hs', e.target.value)} onFocus={e => e.target.select()} inputMode="numeric" pattern="[0-9]*" />
               <span className="cr-sep">:</span>
-              <button className="cr-drum" onClick={() => { const cur = parseInt(p.score.away) || 0; upd('as', String(Math.min(cur + 1, 20))); }} onContextMenu={e => { e.preventDefault(); const cur = parseInt(p.score.away) || 0; upd('as', String(Math.max(cur - 1, 0))); }}>{p.score.away}</button>
+              <input type="number" className="cr-input" value={p.score.away} min="0" max="20" onChange={e => handleScoreInput('as', e.target.value)} onFocus={e => e.target.select()} inputMode="numeric" pattern="[0-9]*" />
             </div>
           ) : (
             <div className="cr-locked-pick">{p.result ? <span>{p.score.home}-{p.score.away}</span> : <span>—</span>}</div>
@@ -445,15 +457,19 @@ const GoalOracle = () => {
           <span className="cr-name aw">{getCode(match.away)}</span>
           <span className="cr-flag">{match.awayFlag}</span>
         </div>
-        {!locked && !res?.completed && (
-          <div className="cr-picks">
-            <button className={`cr-pk ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
-            <button className={`cr-pk ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
-            <button className={`cr-pk ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
-          </div>
-        )}
-        <span className="cr-time">{localTime} {cityCode}</span>
-        {pts !== null && <span className="cr-pts">+{pts}</span>}
+        {/* Bottom line: picks + meta */}
+        <div className="cr-bottom">
+          <span className="cr-stage">{match.stage.replace('Group ', 'Grp ')}</span>
+          {!locked && !res?.completed && (
+            <div className="cr-picks">
+              <button className={`cr-pk ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
+              <button className={`cr-pk ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
+              <button className={`cr-pk ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
+            </div>
+          )}
+          <span className="cr-time">{localTime} {cityCode}</span>
+          {pts !== null && <span className="cr-pts">+{pts}</span>}
+        </div>
       </div>
     );
   };
@@ -832,7 +848,7 @@ const GoalOracle = () => {
     const [inviteCopied, setInviteCopied] = useState(false);
     const [hidePredicted, setHidePredicted] = useState(false);
     const weekCelebratedRef = useRef({});
-    const [predView, setPredView] = useState('rows'); // 'rows' (compact) or 'grid' (cards)
+    const predView = detailPredView, setPredView = setDetailPredView;
     const predsLoadedRef = useRef(false);
     // Load celebrated state from localStorage when league changes
     useEffect(() => {
