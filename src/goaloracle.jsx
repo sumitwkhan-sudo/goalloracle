@@ -1550,10 +1550,13 @@ const GoalOracle = () => {
       if (!finalEmail || !fbMsg.trim()) return;
       setFbError('');
       setFbSending(true);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       try {
         const res = await fetch('/api/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
             email: finalEmail,
             name: fbName.trim(),
@@ -1564,14 +1567,17 @@ const GoalOracle = () => {
             timestamp: new Date().toISOString(),
           }),
         });
+        clearTimeout(timeout);
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || `Server error (${res.status})`);
         }
         setFbSent(true);
       } catch (e) {
+        clearTimeout(timeout);
         console.error('Feedback error:', e);
-        setFbError(e.message || 'Something went wrong');
+        const msg = e.name === 'AbortError' ? 'Request timed out — please try again' : (e.message || 'Something went wrong');
+        setFbError(msg);
       } finally {
         setFbSending(false);
       }

@@ -1,6 +1,6 @@
 /**
  * /api/feedback.js — Alpha feedback collection
- * 
+ *
  * Stores in Firestore AND sends email via Resend.
  * No auth required (public endpoint).
  *
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       console.error('Firestore write failed:', fsErr.message);
     }
 
-    // ─── 2) Send email via Resend ───
+    // ─── 2) Send email via Resend (with timeouts) ───
     let emailOk = false;
     const resendKey = process.env.RESEND_API_KEY;
     const destEmail = process.env.FEEDBACK_EMAIL || 'sumitwkhan@gmail.com';
@@ -61,25 +61,7 @@ export default async function handler(req, res) {
     if (!resendKey) {
       console.error('RESEND_API_KEY env var is not set — cannot send email');
     } else {
-      // Use verified domain sender if available, otherwise fall back to Resend's shared sender
-      const fromAddr = 'GoalOracle <feedback@goaloracle.io>';
-      const fallbackFrom = 'GoalOracle <onboarding@resend.dev>';
-
-      // Try with verified domain first
-      for (const sender of [fromAddr, fallbackFrom]) {
-        try {
-          const emailRes = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${resendKey}`,
-            },
-            body: JSON.stringify({
-              from: sender,
-              to: [destEmail],
-              reply_to: email.trim(),
-              subject: `[GoalOracle] ${typeLabel} feedback from ${fromName}`,
-              html: `<div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto">
+      const emailHtml = `<div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto">
   <div style="background:#1a1a2e;padding:20px 24px;border-radius:12px 12px 0 0">
     <h2 style="color:#00d4ff;margin:0;font-size:18px">⚽ New ${typeLabel} Feedback</h2>
   </div>
@@ -93,9 +75,34 @@ export default async function handler(req, res) {
     <div style="background:#f8f9fa;padding:16px;border-radius:8px;white-space:pre-wrap;line-height:1.6;font-size:14px;color:#333">${safeMsg}</div>
     <p style="color:#aaa;font-size:11px;margin:16px 0 0">Hit reply to respond directly to the user.</p>
   </div>
-</div>`,
+</div>`;
+
+      // Use verified domain sender if available, otherwise fall back to Resend's shared sender
+      const senders = [
+        'GoalOracle <feedback@goaloracle.io>',
+        'GoalOracle <onboarding@resend.dev>',
+      ];
+
+      for (const sender of senders) {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 8000);
+        try {
+          const emailRes = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${resendKey}`,
+            },
+            signal: ac.signal,
+            body: JSON.stringify({
+              from: sender,
+              to: [destEmail],
+              reply_to: email.trim(),
+              subject: `[GoalOracle] ${typeLabel} feedback from ${fromName}`,
+              html: emailHtml,
             }),
           });
+          clearTimeout(timer);
 
           const emailData = await emailRes.json().catch(() => ({}));
           console.log(`Resend response (${sender}):`, emailRes.status, JSON.stringify(emailData));
@@ -115,12 +122,15 @@ export default async function handler(req, res) {
           console.error('Resend error:', emailRes.status, JSON.stringify(emailData));
           break;
         } catch (fetchErr) {
-          console.error('Resend fetch error:', fetchErr.message);
+          clearTimeout(timer);
+          console.error(`Resend fetch error (${sender}):`, fetchErr.message);
+          // If first sender timed out, try fallback
+          if (fetchErr.name === 'AbortError') continue;
         }
       }
     }
 
-    // Return result
+    // Return result — succeed if at least Firestore worked
     if (firestoreOk || emailOk) {
       return res.status(200).json({
         success: true,
