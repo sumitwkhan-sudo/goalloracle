@@ -925,6 +925,7 @@ const GoalOracle = () => {
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
     const [hidePredicted, setHidePredicted] = useState(false);
+    const [frozenUnpredictedIds, setFrozenUnpredictedIds] = useState(null);
     const weekCelebratedRef = useRef({});
     const predView = detailPredView, setPredView = setDetailPredView;
     const predsLoadedRef = useRef(false);
@@ -1033,7 +1034,9 @@ const GoalOracle = () => {
 
     // Group matches by date for rendering
     const matchesByDate = useMemo(() => {
-      const displayMatches = hidePredicted ? filteredMatches.filter(m => !preds[m.id]?.result) : filteredMatches;
+      const displayMatches = hidePredicted && frozenUnpredictedIds
+        ? filteredMatches.filter(m => frozenUnpredictedIds.has(m.id))
+        : filteredMatches;
       const groups = {};
       displayMatches.forEach(m => {
         const key = m.date;
@@ -1046,7 +1049,7 @@ const GoalOracle = () => {
         matches,
         predicted: matches.filter(m => preds[m.id]?.result).length,
       }));
-    }, [filteredMatches, preds, hidePredicted]);
+    }, [filteredMatches, preds, hidePredicted, frozenUnpredictedIds]);
 
     // How many unpredicted remain for quick pick
     const unpredictedCount = filteredMatches.filter(m => {
@@ -1188,7 +1191,7 @@ const GoalOracle = () => {
               </button>
             )}
             {viewPredicted > 0 && viewRemaining > 0 && (
-              <label className="pib-hide"><input type="checkbox" checked={hidePredicted} onChange={e => setHidePredicted(e.target.checked)} /><span>Unpredicted only</span></label>
+              <label className="pib-hide"><input type="checkbox" checked={hidePredicted} onChange={e => { const on = e.target.checked; setHidePredicted(on); if (on) { setFrozenUnpredictedIds(new Set(filteredMatches.filter(m => !preds[m.id]?.result).map(m => m.id))); } else { setFrozenUnpredictedIds(null); } }} /><span>Unpredicted only</span></label>
             )}
             <div className="pib-view-toggle">
               <button className={`pvt-btn ${predView === 'rows' ? 'active' : ''}`} onClick={() => setPredView('rows')} title="Compact rows"><List size={14} /></button>
