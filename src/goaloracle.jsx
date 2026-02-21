@@ -2019,42 +2019,13 @@ const GoalOracle = () => {
               const token = await getTokenSafe(5000);
               if (!token) { alert('No token'); return; }
               setAuthToken(token);
-              
-              // Test 1: Can we reach Vercel at all?
-              alert('Test A: fetching /api/health...');
-              const t1 = Date.now();
-              const controller1 = new AbortController();
-              setTimeout(() => controller1.abort(), 8000);
-              try {
-                const r1 = await fetch('/api/health', { headers: { 'Authorization': 'Bearer ' + token }, signal: controller1.signal });
-                alert('Test A result: ' + r1.status + ' in ' + (Date.now()-t1) + 'ms');
-              } catch(e1) { alert('Test A failed: ' + e1.message + ' after ' + (Date.now()-t1) + 'ms'); }
-
-              // Test 2: Try the debug endpoint (no writes, read-only)
-              alert('Test B: fetching /api/debug-user...');
-              const t2 = Date.now();
-              const controller2 = new AbortController();
-              setTimeout(() => controller2.abort(), 10000);
-              try {
-                const r2 = await fetch('/api/debug-user', { headers: { 'Authorization': 'Bearer ' + token }, signal: controller2.signal });
-                const txt = await r2.text();
-                alert('Test B result: ' + r2.status + ' in ' + (Date.now()-t2) + 'ms\n' + txt.slice(0,300));
-              } catch(e2) { alert('Test B failed: ' + e2.message + ' after ' + (Date.now()-t2) + 'ms'); }
-
-              // Test 3: The actual user endpoint
-              alert('Test C: fetching /api/user...');
-              const t3 = Date.now();
-              const controller3 = new AbortController();
-              setTimeout(() => controller3.abort(), 15000);
-              try {
-                const r3 = await fetch('/api/user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({}), signal: controller3.signal });
-                const txt3 = await r3.text();
-                alert('Test C result: ' + r3.status + ' in ' + (Date.now()-t3) + 'ms\n' + txt3.slice(0,300));
-                const data = JSON.parse(txt3);
-                if (data.user) { setUData(data.user); setRole(data.user.role || 'user'); authInitRef.current = true; alert('LOADED: ' + data.user.displayName + ' / ' + data.user.role); }
-              } catch(e3) { alert('Test C failed: ' + e3.message + ' after ' + (Date.now()-t3) + 'ms'); }
-
-            } catch(e) { alert('ERROR: ' + e.name + ': ' + e.message); }
+              const r = await fetch('/api/debug-user', { headers: { 'Authorization': 'Bearer ' + token } });
+              const data = await r.json();
+              if (data.user) { 
+                setUData(data.user); setRole(data.user.role || 'user'); authInitRef.current = true;
+                alert('Loaded: ' + data.user.displayName + ' / ' + data.user.role);
+              } else { alert('No user found'); }
+            } catch(e) { alert('Error: ' + e.message); }
           }} style={{background:'#0f0',color:'#000',border:'none',padding:'2px 8px',borderRadius:'4px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>RETRY AUTH</button>}
         </div>
       )}
