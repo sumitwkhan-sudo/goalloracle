@@ -15,8 +15,14 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(`/api/${endpoint}`, opts);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'API request failed');
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`API ${endpoint} returned ${res.status}: non-JSON response`);
+  }
+  if (!res.ok) throw new Error(data.error || `API request failed (${res.status})`);
   return data;
 }
 

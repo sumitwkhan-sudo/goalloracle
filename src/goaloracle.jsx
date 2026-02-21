@@ -126,66 +126,46 @@ const GoalOracle = () => {
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
   const authInitRef = useRef(false);
-  const authInFlightRef = useRef(false);
   useEffect(() => {
-    // Wait for Privy to finish loading before doing anything
     if (!ready) return;
     if (!authenticated || !user) {
-      // Only clear if we're sure Privy is done loading and user is truly not authenticated
-      if (uData) console.log('Auth cleared — user logged out');
       setUData(null); setRole('user'); setAuthToken(null);
       authInitRef.current = false;
-      authInFlightRef.current = false;
       return;
     }
-    // Skip if already initialized with valid data, or if a call is in flight
-    if (authInitRef.current && uData?.id) return;
-    if (authInFlightRef.current) return;
-    authInFlightRef.current = true;
-    (async () => {
+    if (authInitRef.current) return;
+
+    let cancelled = false;
+    const initAuth = async (attempt = 0) => {
+      if (cancelled || authInitRef.current) return;
       try {
         const token = await getAccessToken();
         if (!token) {
-          console.error('No auth token available from Privy');
-          authInFlightRef.current = false;
+          console.warn(`[auth] No token on attempt ${attempt}, retrying...`);
+          if (attempt < 5 && !cancelled) setTimeout(() => initAuth(attempt + 1), 800);
           return;
         }
         setAuthToken(token);
         const u = await createOrUpdateUser(user);
+        if (cancelled) return;
         if (u) {
-          console.log('Auth init success:', u.id, 'displayName:', u.displayName, 'role:', u.role, 'usernameSet:', u.usernameSet);
+          console.log('[auth] Success:', u.displayName, u.role, u.usernameSet);
           authInitRef.current = true;
           setUData(u);
           setRole(u.role || 'user');
           if (!u.usernameSet) setShowUsernamePrompt(true);
         } else {
-          console.error('createOrUpdateUser returned null/undefined');
-          notify('Account setup failed. Please try logging out and back in.', 'error');
+          console.error('[auth] createOrUpdateUser returned null');
+          if (attempt < 3 && !cancelled) setTimeout(() => initAuth(attempt + 1), 1000);
         }
       } catch(e) {
-        console.error('User setup error:', e);
-        // Retry once with fresh token
-        try {
-          const freshToken = await getAccessToken();
-          if (freshToken) {
-            setAuthToken(freshToken);
-            const u = await createOrUpdateUser(user);
-            if (u) {
-              authInitRef.current = true;
-              setUData(u);
-              setRole(u.role || 'user');
-              if (!u.usernameSet) setShowUsernamePrompt(true);
-              return;
-            }
-          }
-        } catch(retryErr) {
-          console.error('Auth retry also failed:', retryErr);
-        }
-        notify('Login error — try refreshing the page.', 'error');
-      } finally {
-        authInFlightRef.current = false;
+        console.error(`[auth] Error attempt ${attempt}:`, e.message);
+        if (attempt < 3 && !cancelled) setTimeout(() => initAuth(attempt + 1), 1000);
       }
-    })();
+    };
+
+    initAuth(0);
+    return () => { cancelled = true; };
   }, [ready, authenticated]);
   // Debug: log whenever critical auth state changes
   useEffect(() => { console.log('[state] uData changed:', uData?.id, uData?.displayName, uData?.role); }, [uData]);
