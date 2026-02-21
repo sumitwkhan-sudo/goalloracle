@@ -2016,7 +2016,22 @@ const GoalOracle = () => {
       {authenticated && (
         <div style={{position:'fixed',bottom:0,left:0,right:0,background:'#111',color:'#0f0',padding:'6px 12px',fontSize:'11px',fontFamily:'monospace',zIndex:9999,opacity:0.9,display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
           <span>ready={String(ready)} | auth={String(authenticated)} | uData={uData ? `✅ ${uData.displayName} (${uData.role})` : '❌ null'} | role={role} | leagues={leagues.length}</span>
-          {!uData && <button onClick={() => { authInitRef.current = false; getAccessToken().then(t => { if(t) setAuthToken(t); return createOrUpdateUser(user); }).then(u => { if(u) { setUData(u); setRole(u.role||'user'); authInitRef.current = true; } }).catch(e => alert('[auth retry] ' + e.message)); }} style={{background:'#0f0',color:'#000',border:'none',padding:'2px 8px',borderRadius:'4px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>RETRY AUTH</button>}
+          {!uData && <button onClick={async () => { 
+            try { 
+              alert('Step 1: Getting token...');
+              const token = await Promise.race([getAccessToken(), new Promise((_, rej) => setTimeout(() => rej(new Error('Token timeout 5s')), 5000))]);
+              alert('Step 2: Token = ' + (token ? token.slice(0,20) + '...' : 'NULL'));
+              if (!token) return;
+              setAuthToken(token);
+              alert('Step 3: Calling API...');
+              const resp = await fetch('/api/user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({}) });
+              alert('Step 4: API status = ' + resp.status);
+              const text = await resp.text();
+              alert('Step 5: Response = ' + text.slice(0, 200));
+              const data = JSON.parse(text);
+              if (data.user) { setUData(data.user); setRole(data.user.role || 'user'); authInitRef.current = true; alert('Step 6: SUCCESS! ' + data.user.displayName + ' / ' + data.user.role); }
+            } catch(e) { alert('ERROR: ' + e.message); }
+          }} style={{background:'#0f0',color:'#000',border:'none',padding:'2px 8px',borderRadius:'4px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>RETRY AUTH</button>}
         </div>
       )}
     </div>
