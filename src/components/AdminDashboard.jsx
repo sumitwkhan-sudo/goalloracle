@@ -252,7 +252,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 <div className="admin-list-left">
                   <div>
                     <div className="admin-user-name">{u.displayName || u.id.slice(0, 12)}</div>
-                    <div className="admin-user-email">{u.email || u.walletAddress?.slice(0, 16) + '...' || u.id}</div>
+                    {u.email && <div className="admin-user-email">{u.email}</div>}
+                    {u.walletAddress && <div className="admin-user-email" style={{fontSize:'0.7rem',opacity:0.6}}>{u.walletAddress.slice(0, 10)}...{u.walletAddress.slice(-6)}</div>}
+                    {!u.email && !u.walletAddress && <div className="admin-user-email">{u.id.slice(0, 20)}...</div>}
                   </div>
                 </div>
                 <div className="admin-list-right">
