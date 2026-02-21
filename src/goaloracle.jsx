@@ -924,8 +924,6 @@ const GoalOracle = () => {
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
-    const [hidePredicted, setHidePredicted] = useState(false);
-    const [frozenUnpredictedIds, setFrozenUnpredictedIds] = useState(null);
     const weekCelebratedRef = useRef({});
     const predView = detailPredView, setPredView = setDetailPredView;
     const predsLoadedRef = useRef(false);
@@ -1297,6 +1295,8 @@ const GoalOracle = () => {
   const TOKENS = ['ETH', 'USDC', 'USDT', 'POL'];
 
   const [fundModal, setFundModal] = useState(false);
+  const [hidePredicted, setHidePredicted] = useState(false);
+  const [frozenUnpredictedIds, setFrozenUnpredictedIds] = useState(null);
   const [walletBalances, setWalletBalances] = useState({ USDC: '0.00', POL: '0.00' });
   const [balLoading, setBalLoading] = useState(false);
 
