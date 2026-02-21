@@ -765,6 +765,13 @@ const GoalOracle = () => {
     const [inviteCopied, setInviteCopied] = useState(false);
     const [hidePredicted, setHidePredicted] = useState(false);
     const weekCelebratedRef = useRef({});
+    const predsLoadedRef = useRef(false);
+    // Load celebrated state from localStorage when league changes
+    useEffect(() => {
+      predsLoadedRef.current = false;
+      if (!selLeague?.id) { weekCelebratedRef.current = {}; return; }
+      try { weekCelebratedRef.current = JSON.parse(localStorage.getItem(`celebrated_${selLeague.id}`) || '{}'); } catch { weekCelebratedRef.current = {}; }
+    }, [selLeague?.id]);
 
     const isAdmin = role === 'superadmin' || role === 'admin';
     const isCreator = selLeague?.createdBy === uData?.id;
@@ -905,17 +912,36 @@ const GoalOracle = () => {
       }
     };
 
-    // Celebrate when a week is fully predicted
+    // Celebrate when a week is fully predicted (once ever, persisted in localStorage)
     useEffect(() => {
+      if (!selLeague?.id) return;
+      // On first prediction load, mark already-complete weeks as celebrated silently
+      if (!predsLoadedRef.current) {
+        const hasAny = Object.values(preds).some(p => p.result);
+        if (!hasAny) return;
+        predsLoadedRef.current = true;
+        let changed = false;
+        matchWeeks.forEach(w => {
+          if (w.complete && !weekCelebratedRef.current[w.id]) {
+            weekCelebratedRef.current[w.id] = true;
+            changed = true;
+          }
+        });
+        if (changed) {
+          try { localStorage.setItem(`celebrated_${selLeague.id}`, JSON.stringify(weekCelebratedRef.current)); } catch {}
+        }
+        return;
+      }
       if (sf === 'all') return;
       const w = matchWeeks.find(w => w.id === sf);
       if (w && w.complete && !weekCelebratedRef.current[sf]) {
         weekCelebratedRef.current[sf] = true;
+        try { localStorage.setItem(`celebrated_${selLeague.id}`, JSON.stringify(weekCelebratedRef.current)); } catch {}
         setConfetti(true);
         notify(`${w.label} complete! 🎉`);
         setTimeout(() => setConfetti(false), 3000);
       }
-    }, [matchWeeks, sf]);
+    }, [matchWeeks, sf, preds, selLeague?.id]);
 
     const hasU = Object.values(preds).some(p => p.result);
     const filledCount = Object.values(preds).filter(p => p.result).length;
