@@ -90,14 +90,16 @@ export async function leaveLeague(leagueId) {
 export function subscribeToUserLeagues(userId, callback) {
   const q = query(collection(db, 'leagues'), where('members', 'array-contains', userId));
   return onSnapshot(q, (snap) => {
+    console.log('[db] userLeagues snapshot:', snap.docs.length, 'docs for', userId);
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  }, () => callback([]));
+  }, (err) => { console.error('[db] userLeagues error:', err.message, err.code); callback([]); });
 }
 
 export function subscribeToAllLeagues(callback) {
   return onSnapshot(collection(db, 'leagues'), (snap) => {
+    console.log('[db] allLeagues snapshot:', snap.docs.length, 'docs');
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  }, () => callback([]));
+  }, (err) => { console.error('[db] allLeagues error:', err.message, err.code); callback([]); });
 }
 
 // ---- PREDICTIONS (write via API, read via Firestore) ----
