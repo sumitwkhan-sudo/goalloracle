@@ -128,7 +128,11 @@ const GoalOracle = () => {
   const authInitRef = useRef(false);
   const authInFlightRef = useRef(false);
   useEffect(() => {
+    // Wait for Privy to finish loading before doing anything
+    if (!ready) return;
     if (!authenticated || !user) {
+      // Only clear if we're sure Privy is done loading and user is truly not authenticated
+      if (uData) console.log('Auth cleared — user logged out');
       setUData(null); setRole('user'); setAuthToken(null);
       authInitRef.current = false;
       authInFlightRef.current = false;
@@ -149,13 +153,13 @@ const GoalOracle = () => {
         setAuthToken(token);
         const u = await createOrUpdateUser(user);
         if (u) {
-          console.log('Auth init success:', u.id, u.displayName, u.role);
+          console.log('Auth init success:', u.id, 'displayName:', u.displayName, 'role:', u.role, 'usernameSet:', u.usernameSet);
           authInitRef.current = true;
           setUData(u);
           setRole(u.role || 'user');
           if (!u.usernameSet) setShowUsernamePrompt(true);
         } else {
-          console.error('createOrUpdateUser returned null');
+          console.error('createOrUpdateUser returned null/undefined');
           notify('Account setup failed. Please try logging out and back in.', 'error');
         }
       } catch(e) {
@@ -182,7 +186,10 @@ const GoalOracle = () => {
         authInFlightRef.current = false;
       }
     })();
-  }, [authenticated]);
+  }, [ready, authenticated]);
+  // Debug: log whenever critical auth state changes
+  useEffect(() => { console.log('[state] uData changed:', uData?.id, uData?.displayName, uData?.role); }, [uData]);
+  useEffect(() => { console.log('[state] role changed:', role); }, [role]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
@@ -1467,8 +1474,6 @@ const GoalOracle = () => {
       const validErr = validateUsername(newName.trim());
       if (validErr) { notify(validErr, 'error'); return; }
       try {
-        const token = await getAccessToken();
-        if (token) setAuthToken(token);
         const updated = await updateUserProfile({ displayName: newName.trim(), usernameSet: true });
         if (updated) setUData(updated);
         setEditingName(false);
@@ -1886,8 +1891,6 @@ const GoalOracle = () => {
       if (validErr) { setErr(validErr); return; }
       setBusy(true); setErr('');
       try {
-        const token = await getAccessToken();
-        if (token) setAuthToken(token);
         const updated = await updateUserProfile({ displayName: trimmed, usernameSet: true });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
@@ -1899,8 +1902,6 @@ const GoalOracle = () => {
       if (!emailPrefix) return;
       setBusy(true); setErr('');
       try {
-        const token = await getAccessToken();
-        if (token) setAuthToken(token);
         const updated = await updateUserProfile({ displayName: emailPrefix, usernameSet: true });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);

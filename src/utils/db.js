@@ -23,14 +23,22 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 // ---- USERS (write via API) ----
 export async function createOrUpdateUser(privyUser) {
   if (!privyUser) return null;
-  const emailAddr = typeof privyUser.email === 'string' ? privyUser.email : privyUser.email?.address || null;
+  // Privy v3.x: email can be in .email.address, .google.email, or linked_accounts
+  let emailAddr = null;
+  if (typeof privyUser.email === 'string') emailAddr = privyUser.email;
+  else if (privyUser.email?.address) emailAddr = privyUser.email.address;
+  else if (privyUser.google?.email) emailAddr = privyUser.google.email;
+  else {
+    // Check linked_accounts for email
+    const emailAccount = privyUser.linked_accounts?.find(a => a.type === 'email' || a.type === 'google_oauth');
+    if (emailAccount) emailAddr = emailAccount.email || emailAccount.address;
+  }
+
   const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
 
   const data = await apiCall('user', 'POST', {
     email: emailAddr,
     walletAddress: walletAddr,
-    // Don't send displayName — backend should only set default on first creation
-    // and never overwrite a user-chosen username
   });
   return data.user;
 }
