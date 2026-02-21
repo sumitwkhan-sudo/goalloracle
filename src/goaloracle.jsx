@@ -125,17 +125,23 @@ const GoalOracle = () => {
 
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
+  const authInitRef = useRef(false);
   useEffect(() => {
-    if (!authenticated || !user) { setUData(null); setRole('user'); setAuthToken(null); return; }
+    if (!authenticated || !user) { setUData(null); setRole('user'); setAuthToken(null); authInitRef.current = false; return; }
+    // Only run full init once per auth session; skip if we already have user data
+    // (Privy's `user` object changes reference frequently)
+    if (authInitRef.current && uData?.id) return;
     (async () => {
       try {
         const token = await getAccessToken();
+        if (!token) { console.error('No auth token available'); return; }
         setAuthToken(token);
         const u = await createOrUpdateUser(user);
         if (u) {
+          authInitRef.current = true;
           setUData(u);
           setRole(u.role || 'user');
-          // Show username prompt if user hasn't set one yet
+          // Show username prompt only if user hasn't set one yet
           if (!u.usernameSet) setShowUsernamePrompt(true);
         } else {
           console.error('createOrUpdateUser returned null');
@@ -143,10 +149,28 @@ const GoalOracle = () => {
         }
       } catch(e) {
         console.error('User setup error:', e);
-        notify('Account setup error: ' + e.message, 'error');
+        // If token expired, try refreshing once
+        if (e.message?.includes('Unauthorized') || e.message?.includes('401')) {
+          try {
+            const freshToken = await getAccessToken();
+            setAuthToken(freshToken);
+            const u = await createOrUpdateUser(user);
+            if (u) {
+              authInitRef.current = true;
+              setUData(u);
+              setRole(u.role || 'user');
+              if (!u.usernameSet) setShowUsernamePrompt(true);
+            }
+          } catch(retryErr) {
+            console.error('Auth retry failed:', retryErr);
+            notify('Login failed — please try logging out and back in.', 'error');
+          }
+        } else {
+          notify('Account setup error: ' + e.message, 'error');
+        }
       }
     })();
-  }, [authenticated, user]);
+  }, [authenticated, user?.id]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
@@ -160,7 +184,16 @@ const GoalOracle = () => {
   useEffect(() => { if (!uData?.id || !selLeague?.id) return; return subscribeToUserPredictions(uData.id, selLeague.id, setPreds); }, [uData?.id, selLeague?.id]);
   // Don't auto-redirect — users can stay on landing while logged in and navigate via nav
 
-  const handleSave = async () => { if (!uData?.id || !selLeague?.id) return; setSaving(true); try { await saveBatchPredictions(uData.id, selLeague.id, preds); notify('Predictions saved!'); } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); } };
+  const handleSave = async () => {
+    if (!uData?.id || !selLeague?.id) return;
+    setSaving(true);
+    try {
+      const token = await getAccessToken();
+      if (token) setAuthToken(token);
+      await saveBatchPredictions(uData.id, selLeague.id, preds);
+      notify('Predictions saved!');
+    } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); }
+  };
 
   // Auto-save: debounce 2s after any prediction change
   const autoSaveTimer = useRef(null);
@@ -172,7 +205,21 @@ const GoalOracle = () => {
     if (!hasAny) return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
-      try { await saveBatchPredictions(uData.id, selLeague.id, predsRef.current); } catch(e) { console.error('Auto-save failed:', e); }
+      try {
+        // Refresh token before saving in case it expired
+        const token = await getAccessToken();
+        if (token) setAuthToken(token);
+        await saveBatchPredictions(uData.id, selLeague.id, predsRef.current);
+      } catch(e) {
+        console.error('Auto-save failed:', e);
+        // Retry once with fresh token
+        if (e.message?.includes('Unauthorized') || e.message?.includes('401')) {
+          try {
+            const freshToken = await getAccessToken();
+            if (freshToken) { setAuthToken(freshToken); await saveBatchPredictions(uData.id, selLeague.id, predsRef.current); }
+          } catch(retryErr) { console.error('Auto-save retry failed:', retryErr); }
+        }
+      }
     }, 2000);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   }, [preds, uData?.id, selLeague?.id]);
