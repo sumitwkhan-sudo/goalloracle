@@ -179,9 +179,6 @@ const GoalOracle = () => {
 
     return () => { stopped = true; clearTimeout(first); clearInterval(interval); };
   }, [ready, authenticated, getTokenSafe]);
-  // Debug: log whenever critical auth state changes
-  useEffect(() => { console.log('[state] uData changed:', uData?.id, uData?.displayName, uData?.role); }, [uData]);
-  useEffect(() => { console.log('[state] role changed:', role); }, [role]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
@@ -2010,25 +2007,6 @@ const GoalOracle = () => {
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
       {fundModal && <AddFundsModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
-      {/* TEMPORARY DEBUG BANNER — remove after fixing */}
-      {authenticated && (
-        <div style={{position:'fixed',bottom:0,left:0,right:0,background:'#111',color:'#0f0',padding:'6px 12px',fontSize:'11px',fontFamily:'monospace',zIndex:9999,opacity:0.9,display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
-          <span>ready={String(ready)} | auth={String(authenticated)} | uData={uData ? `✅ ${uData.displayName} (${uData.role})` : '❌ null'} | role={role} | leagues={leagues.length}</span>
-          {!uData && <button onClick={async () => { 
-            try { 
-              const token = await getTokenSafe(5000);
-              if (!token) { alert('No token'); return; }
-              setAuthToken(token);
-              const r = await fetch('/api/debug-user', { headers: { 'Authorization': 'Bearer ' + token } });
-              const data = await r.json();
-              if (data.user) { 
-                setUData(data.user); setRole(data.user.role || 'user'); authInitRef.current = true;
-                alert('Loaded: ' + data.user.displayName + ' / ' + data.user.role);
-              } else { alert('No user found'); }
-            } catch(e) { alert('Error: ' + e.message); }
-          }} style={{background:'#0f0',color:'#000',border:'none',padding:'2px 8px',borderRadius:'4px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>RETRY AUTH</button>}
-        </div>
-      )}
     </div>
   );
 };
