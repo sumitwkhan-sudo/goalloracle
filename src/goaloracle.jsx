@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
@@ -71,6 +71,12 @@ const AnimatedCounter = ({ value, prefix = '', suffix = '', decimals = 0 }) => {
 };
 
 let heroAnimated = false;
+const CITY_CODES = {
+  'Atlanta': 'ATL', 'Boston': 'BOS', 'Dallas': 'DAL', 'Guadalajara': 'GDL',
+  'Houston': 'HOU', 'Kansas City': 'KC', 'Los Angeles': 'LA', 'Mexico City': 'MEX',
+  'Miami': 'MIA', 'Monterrey': 'MTY', 'New York/NJ': 'NJ', 'Philadelphia': 'PHI',
+  'San Francisco': 'SF', 'Seattle': 'SEA', 'Toronto': 'TOR', 'Vancouver': 'VAN',
+};
 const GoalOracle = () => {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const [view, setView] = useState('landing');
@@ -332,7 +338,7 @@ const GoalOracle = () => {
         {/* Venue & local time */}
         <div className="pred-venue-row">
           <span className="pred-venue">{match.venue}, {match.city}</span>
-          <span className="pred-kickoff">{localTime} {tzInfo.tz}</span>
+          <span className="pred-kickoff">{localTime} {CITY_CODES[match.city] || match.city}</span>
         </div>
 
         {/* Mismatch warning */}
@@ -387,6 +393,67 @@ const GoalOracle = () => {
             <label className="pred-ko-label"><input type="checkbox" checked={p.penalties || false} onChange={e => upd('pen', e.target.checked)} /><span>Penalties</span></label>
           </div>
         )}
+      </div>
+    );
+  };
+
+  // Compact row variant — single line per match
+  const CompactRow = ({ match }) => {
+    const p = preds[match.id] || { result: null, score: { home: '0', away: '0' }, extraTime: false, penalties: false };
+    const status = getMatchStatus(match.date, match.time);
+    const locked = status !== 'open';
+    const res = results[match.id];
+    const pts = res?.completed ? calculatePoints(p, res, selLeague?.pointsSystem || {}) : null;
+
+    const upd = (f, v) => {
+      if (locked) return;
+      setPreds(pr => {
+        const cur = pr[match.id] || { result: null, score: { home: '0', away: '0' }, extraTime: false, penalties: false };
+        const u = { ...cur, score: { ...cur.score } };
+        if (f === 'result') { u.result = v; const h = parseInt(u.score.home); const a = parseInt(u.score.away); if (!isNaN(h) && !isNaN(a) && (h > 0 || a > 0) && ((v === 'home' && h <= a) || (v === 'away' && a <= h) || (v === 'draw' && h !== a))) u.score = { home: '0', away: '0' }; }
+        else if (f === 'hs') { u.score.home = v; const implied = parseInt(v) > parseInt(u.score.away) ? 'home' : parseInt(v) < parseInt(u.score.away) ? 'away' : 'draw'; if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied; }
+        else if (f === 'as') { u.score.away = v; const implied = parseInt(u.score.home) > parseInt(v) ? 'home' : parseInt(u.score.home) < parseInt(v) ? 'away' : 'draw'; if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied; }
+        return { ...pr, [match.id]: u };
+      });
+    };
+
+    const cityTZ = { 'Atlanta': 0, 'Boston': 0, 'Miami': 0, 'New York/NJ': 0, 'Philadelphia': 0, 'Toronto': 0, 'Dallas': -1, 'Houston': -1, 'Kansas City': -1, 'Monterrey': -2, 'Guadalajara': -2, 'Mexico City': -2, 'Los Angeles': -3, 'San Francisco': -3, 'Seattle': -3, 'Vancouver': -3 };
+    const [hh, mm] = match.time.split(':').map(Number);
+    const localH = ((hh + (cityTZ[match.city] || 0)) % 24 + 24) % 24;
+    const localTime = `${localH > 12 ? localH - 12 : localH || 12}:${String(mm).padStart(2, '0')}${localH >= 12 ? 'p' : 'a'}`;
+    const cityCode = CITY_CODES[match.city] || match.city.slice(0, 3).toUpperCase();
+
+    const needsPrediction = !locked && !res?.completed && !p.result;
+
+    return (
+      <div className={`compact-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''} ${needsPrediction ? 'needs-prediction' : ''}`}>
+        <span className="cr-stage">{match.stage.replace('Group ', 'Grp ')}</span>
+        <div className="cr-teams">
+          <span className="cr-flag">{match.homeFlag}</span>
+          <span className="cr-name">{getCode(match.home)}</span>
+          {res?.completed ? (
+            <div className="cr-final"><span>{res.homeScore}</span><span className="cr-sep">-</span><span>{res.awayScore}</span></div>
+          ) : !locked ? (
+            <div className="cr-scores">
+              <button className="cr-drum" onClick={() => { const cur = parseInt(p.score.home) || 0; upd('hs', String(Math.min(cur + 1, 20))); }} onContextMenu={e => { e.preventDefault(); const cur = parseInt(p.score.home) || 0; upd('hs', String(Math.max(cur - 1, 0))); }}>{p.score.home}</button>
+              <span className="cr-sep">:</span>
+              <button className="cr-drum" onClick={() => { const cur = parseInt(p.score.away) || 0; upd('as', String(Math.min(cur + 1, 20))); }} onContextMenu={e => { e.preventDefault(); const cur = parseInt(p.score.away) || 0; upd('as', String(Math.max(cur - 1, 0))); }}>{p.score.away}</button>
+            </div>
+          ) : (
+            <div className="cr-locked-pick">{p.result ? <span>{p.score.home}-{p.score.away}</span> : <span>—</span>}</div>
+          )}
+          <span className="cr-name aw">{getCode(match.away)}</span>
+          <span className="cr-flag">{match.awayFlag}</span>
+        </div>
+        {!locked && !res?.completed && (
+          <div className="cr-picks">
+            <button className={`cr-pk ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
+            <button className={`cr-pk ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
+            <button className={`cr-pk ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
+          </div>
+        )}
+        <span className="cr-time">{localTime} {cityCode}</span>
+        {pts !== null && <span className="cr-pts">+{pts}</span>}
       </div>
     );
   };
@@ -765,6 +832,7 @@ const GoalOracle = () => {
     const [inviteCopied, setInviteCopied] = useState(false);
     const [hidePredicted, setHidePredicted] = useState(false);
     const weekCelebratedRef = useRef({});
+    const [predView, setPredView] = useState('rows'); // 'rows' (compact) or 'grid' (cards)
     const predsLoadedRef = useRef(false);
     // Load celebrated state from localStorage when league changes
     useEffect(() => {
@@ -948,25 +1016,23 @@ const GoalOracle = () => {
 
     return (
       <div className="league-detail">
-        <div className="page-header"><button className="btn-back" onClick={() => nav('dashboard')}>← Back to Leagues</button>
-          <div className="league-info">
-            <h1>{selLeague?.name}</h1>
-            <div className="league-meta">
-              <span><Users size={16} /> {(selLeague?.memberCount || selLeague?.members?.length || 0).toLocaleString()} players</span>
-              {selLeague?.type === 'paid' && <span><Coins size={16} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}
-              <span><Target size={16} /> {filledCount}/{augmentedMatches.length} predicted</span>
-              {isPrivate && <span className="badge badge-private"><EyeOff size={12} /> Private</span>}
-              {!isPrivate && <span className="badge badge-public"><Eye size={12} /> Public</span>}
-              {selLeague?.matchScope === 'groups' && <span className="badge badge-scope"><Target size={12} /> Groups {(selLeague?.selectedGroups || []).join(', ')}</span>}
-              {selLeague?.matchScope === 'rounds' && <span className="badge badge-scope"><TrendingUp size={12} /> {(selLeague?.selectedRounds || []).map(r => r === 'group' ? 'Groups' : r === 'r32' ? 'R32' : r === 'r16' ? 'R16' : r === 'qf' ? 'QF' : r === 'sf' ? 'SF' : 'Final').join(', ')}</span>}
+        <div className="page-header-compact">
+          <div className="phc-left">
+            <button className="btn-back-sm" onClick={() => nav('dashboard')}>←</button>
+            <h1 className="phc-title">{selLeague?.name}</h1>
+            <div className="phc-meta">
+              <span><Users size={14} /> {(selLeague?.memberCount || selLeague?.members?.length || 0)}</span>
+              {selLeague?.type === 'paid' && <span><Coins size={14} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}
+              <span><Target size={14} /> {filledCount}/{augmentedMatches.length}</span>
+              {isPrivate ? <span className="badge badge-private"><EyeOff size={10} /> Private</span> : <span className="badge badge-public"><Eye size={10} /> Public</span>}
             </div>
           </div>
-          <div className="league-actions">
+          <div className="phc-right">
             {isPrivate && (isCreator || isAdmin) && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowInvite(true)}><Share2 size={14} /> Invite</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowInvite(true)}><Share2 size={14} /></button>
             )}
             {isAdmin && selLeague?.id !== 'global' && (
-              <button className="btn btn-sm" style={{background: 'rgba(255,59,92,0.1)', color: 'var(--danger)', border: '1px solid rgba(255,59,92,0.2)'}} onClick={() => setShowDelete(true)}><Trash2 size={14} /> Delete</button>
+              <button className="btn btn-sm" style={{background: 'rgba(255,59,92,0.1)', color: 'var(--danger)', border: '1px solid rgba(255,59,92,0.2)'}} onClick={() => setShowDelete(true)}><Trash2 size={14} /></button>
             )}
           </div>
         </div>
@@ -1016,45 +1082,24 @@ const GoalOracle = () => {
             ))}
           </div>
 
-          {/* Stage sub-filter if multiple groups in view */}
-          {stagesInView.length > 1 && (
-            <div className="stage-pills">
-              <button type="button" className={`stage-pill ${stageFilter === 'all' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setStageFilter('all'); }}>All ({fm.length})</button>
-              {stagesInView.map(s => <button type="button" key={s} className={`stage-pill ${stageFilter === s ? 'active' : ''}`} onClick={e => { e.preventDefault(); setStageFilter(s); }}>{s}</button>)}
-            </div>
-          )}
-
-          <div className="autosave-hint">{saving ? <><RefreshCw size={12} className="spin" /> Saving...</> : <><CheckCircle size={12} /> Auto-saves as you go</>}</div>
-
-          {/* Progress bar */}
-          <div className="pred-progress">
-            <div className="pred-progress-header">
-              <div className="pred-progress-stats">
-                <span className="pred-progress-count">{viewPredicted}/{viewTotal} predicted</span>
-                {viewRemaining > 0 && <span className="pred-progress-remaining">{viewRemaining} left</span>}
-                {viewPct === 100 && <span className="pred-progress-done"><CheckCircle size={14} /> All done!</span>}
-              </div>
-              <span className="pred-progress-pct">{viewPct}%</span>
-            </div>
-            <div className="pred-progress-bar">
-              <div className="pred-progress-fill" style={{ width: `${viewPct}%` }} />
-            </div>
-            {streak >= 3 && <div className="pred-streak"><Zap size={14} /> {streak} in a row — keep going!</div>}
-          </div>
-
-          {/* Toolbar: Quick Pick + Hide Predicted */}
-          <div className="pred-toolbar">
+          {/* Inline progress + autosave + view toggle + quick pick */}
+          <div className="pred-inline-bar">
+            <span className="pib-count">{viewPredicted}/{viewTotal}</span>
+            <div className="pib-bar"><div className="pib-fill" style={{ width: `${viewPct}%` }} /></div>
+            <span className="pib-pct">{viewPct}%{viewPct === 100 && ' ✓'}</span>
+            <span className="pib-auto">{saving ? <><RefreshCw size={10} className="spin" /> Saving</> : <><CheckCircle size={10} /> Auto-saves</>}</span>
             {unpredictedCount > 0 && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={handleQuickPick}>
-                <Sparkles size={14} /> Quick Pick {unpredictedCount} matches
+              <button type="button" className="btn btn-secondary btn-xs" onClick={handleQuickPick}>
+                <Sparkles size={12} /> Quick Pick
               </button>
             )}
             {viewPredicted > 0 && viewRemaining > 0 && (
-              <label className="pred-hide-toggle">
-                <input type="checkbox" checked={hidePredicted} onChange={e => setHidePredicted(e.target.checked)} />
-                <span>Show only unpredicted</span>
-              </label>
+              <label className="pib-hide"><input type="checkbox" checked={hidePredicted} onChange={e => setHidePredicted(e.target.checked)} /><span>Unpredicted only</span></label>
             )}
+            <div className="pib-view-toggle">
+              <button className={`pvt-btn ${predView === 'rows' ? 'active' : ''}`} onClick={() => setPredView('rows')} title="Compact rows"><List size={14} /></button>
+              <button className={`pvt-btn ${predView === 'grid' ? 'active' : ''}`} onClick={() => setPredView('grid')} title="Card grid"><LayoutGrid size={14} /></button>
+            </div>
           </div>
 
           {/* Bracket hint for knockout tabs */}
@@ -1073,9 +1118,15 @@ const GoalOracle = () => {
                   <span className="match-date-label">{group.label}</span>
                   <span className="match-date-count">{group.predicted}/{group.matches.length}</span>
                 </div>
-                <div className="match-date-group-grid">
-                  {group.matches.map(m => <PredictionCard key={m.id} match={m} />)}
-                </div>
+                {predView === 'grid' ? (
+                  <div className="match-date-group-grid">
+                    {group.matches.map(m => <PredictionCard key={m.id} match={m} />)}
+                  </div>
+                ) : (
+                  <div className="match-date-group-rows">
+                    {group.matches.map(m => <CompactRow key={m.id} match={m} />)}
+                  </div>
+                )}
               </div>
             ))}
             {matchesByDate.length === 0 && hidePredicted && (
