@@ -126,46 +126,47 @@ const GoalOracle = () => {
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
   const authInitRef = useRef(false);
-  useEffect(() => {
-    if (!ready) return;
-    if (!authenticated || !user) {
-      setUData(null); setRole('user'); setAuthToken(null);
-      authInitRef.current = false;
-      return;
-    }
-    if (authInitRef.current) return;
+  const authAttemptRef = useRef(0);
 
-    let cancelled = false;
-    const initAuth = async (attempt = 0) => {
-      if (cancelled || authInitRef.current) return;
-      try {
-        const token = await getAccessToken();
+  // Simple auth init — no cleanup cancellation issues
+  if (ready && authenticated && user && !authInitRef.current && !uData) {
+    // Use a ref to prevent double-firing
+    if (authAttemptRef.current === 0) {
+      authAttemptRef.current = 1;
+      getAccessToken().then(token => {
         if (!token) {
-          console.warn(`[auth] No token on attempt ${attempt}, retrying...`);
-          if (attempt < 5 && !cancelled) setTimeout(() => initAuth(attempt + 1), 800);
+          console.error('[auth] No token from Privy');
+          authAttemptRef.current = 0; // allow retry
           return;
         }
         setAuthToken(token);
-        const u = await createOrUpdateUser(user);
-        if (cancelled) return;
-        if (u) {
-          console.log('[auth] Success:', u.displayName, u.role, u.usernameSet);
-          authInitRef.current = true;
-          setUData(u);
-          setRole(u.role || 'user');
-          if (!u.usernameSet) setShowUsernamePrompt(true);
-        } else {
-          console.error('[auth] createOrUpdateUser returned null');
-          if (attempt < 3 && !cancelled) setTimeout(() => initAuth(attempt + 1), 1000);
+        return createOrUpdateUser(user);
+      }).then(u => {
+        if (!u) {
+          console.error('[auth] createOrUpdateUser returned falsy');
+          authAttemptRef.current = 0;
+          return;
         }
-      } catch(e) {
-        console.error(`[auth] Error attempt ${attempt}:`, e.message);
-        if (attempt < 3 && !cancelled) setTimeout(() => initAuth(attempt + 1), 1000);
-      }
-    };
+        console.log('[auth] SUCCESS:', JSON.stringify({ id: u.id, displayName: u.displayName, role: u.role, usernameSet: u.usernameSet }));
+        authInitRef.current = true;
+        setUData(u);
+        setRole(u.role || 'user');
+        if (!u.usernameSet) setShowUsernamePrompt(true);
+      }).catch(e => {
+        console.error('[auth] FAILED:', e.message);
+        authAttemptRef.current = 0; // allow retry on next render
+      });
+    }
+  }
 
-    initAuth(0);
-    return () => { cancelled = true; };
+  // Reset on logout
+  useEffect(() => {
+    if (!ready) return;
+    if (!authenticated) {
+      setUData(null); setRole('user'); setAuthToken(null);
+      authInitRef.current = false;
+      authAttemptRef.current = 0;
+    }
   }, [ready, authenticated]);
   // Debug: log whenever critical auth state changes
   useEffect(() => { console.log('[state] uData changed:', uData?.id, uData?.displayName, uData?.role); }, [uData]);
