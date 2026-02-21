@@ -786,37 +786,6 @@ const GoalOracle = () => {
       navigator.clipboard.writeText(msg).then(() => { setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); });
     };
 
-    // Celebrate when a week is fully predicted
-    useEffect(() => {
-      if (sf === 'all') return;
-      const w = matchWeeks.find(w => w.id === sf);
-      if (w && w.complete && !weekCelebrated[sf]) {
-        setWeekCelebrated(prev => ({ ...prev, [sf]: true }));
-        setConfetti(true);
-        notify(`${w.label} complete! 🎉`);
-        setTimeout(() => setConfetti(false), 3000);
-      }
-    }, [matchWeeks, sf, weekCelebrated]);
-
-    // Quick Pick: auto-fill unpredicted matches with random (weighted) picks
-    const handleQuickPick = () => {
-      const updates = {};
-      const targets = (activeWeek?.matches || filteredMatches).filter(m => {
-        const status = getMatchStatus(m.date, m.time);
-        return status === 'open' && !results[m.id]?.completed && !preds[m.id]?.result;
-      });
-      targets.forEach(m => {
-        const options = m.isKnockout ? ['home', 'away'] : ['home', 'draw', 'away'];
-        const pick = options[Math.floor(Math.random() * options.length)];
-        const hs = pick === 'home' ? String(Math.floor(Math.random() * 3) + 1) : String(Math.floor(Math.random() * 2));
-        const as = pick === 'away' ? String(Math.floor(Math.random() * 3) + 1) : pick === 'draw' ? hs : String(Math.floor(Math.random() * 2));
-        updates[m.id] = { result: pick, score: { home: hs, away: as }, extraTime: false, penalties: false };
-      });
-      if (Object.keys(updates).length > 0) {
-        setPreds(prev => ({ ...prev, ...updates }));
-        notify(`Quick picked ${Object.keys(updates).length} matches — adjust any you disagree with!`);
-      }
-    };
 
     // ── Bracket resolution: compute resolved team names for knockout matches ──
     const bracketData = useMemo(() => {
@@ -917,6 +886,38 @@ const GoalOracle = () => {
       const status = getMatchStatus(m.date, m.time);
       return status === 'open' && !results[m.id]?.completed && !preds[m.id]?.result;
     }).length;
+
+    // Quick Pick: auto-fill unpredicted matches with random picks
+    const handleQuickPick = () => {
+      const updates = {};
+      const targets = filteredMatches.filter(m => {
+        const status = getMatchStatus(m.date, m.time);
+        return status === 'open' && !results[m.id]?.completed && !preds[m.id]?.result;
+      });
+      targets.forEach(m => {
+        const options = m.isKnockout ? ['home', 'away'] : ['home', 'draw', 'away'];
+        const pick = options[Math.floor(Math.random() * options.length)];
+        const hs = pick === 'home' ? String(Math.floor(Math.random() * 3) + 1) : String(Math.floor(Math.random() * 2));
+        const as = pick === 'away' ? String(Math.floor(Math.random() * 3) + 1) : pick === 'draw' ? hs : String(Math.floor(Math.random() * 2));
+        updates[m.id] = { result: pick, score: { home: hs, away: as }, extraTime: false, penalties: false };
+      });
+      if (Object.keys(updates).length > 0) {
+        setPreds(prev => ({ ...prev, ...updates }));
+        notify(`Quick picked ${Object.keys(updates).length} matches — adjust any you disagree with!`);
+      }
+    };
+
+    // Celebrate when a week is fully predicted
+    useEffect(() => {
+      if (sf === 'all') return;
+      const w = matchWeeks.find(w => w.id === sf);
+      if (w && w.complete && !weekCelebrated[sf]) {
+        setWeekCelebrated(prev => ({ ...prev, [sf]: true }));
+        setConfetti(true);
+        notify(`${w.label} complete! 🎉`);
+        setTimeout(() => setConfetti(false), 3000);
+      }
+    }, [matchWeeks, sf, weekCelebrated]);
 
     const hasU = Object.values(preds).some(p => p.result);
     const filledCount = Object.values(preds).filter(p => p.result).length;
