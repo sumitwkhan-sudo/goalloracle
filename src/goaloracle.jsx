@@ -409,6 +409,8 @@ const GoalOracle = () => {
     const locked = status !== 'open';
     const res = results[match.id];
     const pts = res?.completed ? calculatePoints(p, res, selLeague?.pointsSystem || {}) : null;
+    const homeRef = useRef(null);
+    const awayRef = useRef(null);
 
     const upd = (f, v) => {
       if (locked) return;
@@ -418,8 +420,27 @@ const GoalOracle = () => {
         if (f === 'result') { u.result = v; const h = parseInt(u.score.home); const a = parseInt(u.score.away); if (!isNaN(h) && !isNaN(a) && (h > 0 || a > 0) && ((v === 'home' && h <= a) || (v === 'away' && a <= h) || (v === 'draw' && h !== a))) u.score = { home: '0', away: '0' }; }
         else if (f === 'hs') { u.score.home = v; const implied = parseInt(v) > parseInt(u.score.away) ? 'home' : parseInt(v) < parseInt(u.score.away) ? 'away' : 'draw'; if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied; }
         else if (f === 'as') { u.score.away = v; const implied = parseInt(u.score.home) > parseInt(v) ? 'home' : parseInt(u.score.home) < parseInt(v) ? 'away' : 'draw'; if (implied && !(match.isKnockout && implied === 'draw')) u.result = implied; }
+        else if (f === 'et') { u.extraTime = v; }
+        else if (f === 'pen') { u.penalties = v; }
         return { ...pr, [match.id]: u };
       });
+    };
+
+    const spin = (field, dir) => {
+      if (locked) return;
+      const cur = parseInt(field === 'hs' ? p.score.home : p.score.away) || 0;
+      upd(field, String(Math.max(0, Math.min(20, cur + dir))));
+    };
+
+    const handleScoreInput = (field, val) => {
+      const num = val.replace(/[^0-9]/g, '');
+      if (num === '') { upd(field, '0'); return; }
+      const n = Math.min(parseInt(num), 20);
+      upd(field, String(n));
+      // Auto-advance: home → away after typing a digit
+      if (field === 'hs' && num.length >= 1 && awayRef.current) {
+        setTimeout(() => { awayRef.current.focus(); awayRef.current.select(); }, 60);
+      }
     };
 
     const cityTZ = { 'Atlanta': 0, 'Boston': 0, 'Miami': 0, 'New York/NJ': 0, 'Philadelphia': 0, 'Toronto': 0, 'Dallas': -1, 'Houston': -1, 'Kansas City': -1, 'Monterrey': -2, 'Guadalajara': -2, 'Mexico City': -2, 'Los Angeles': -3, 'San Francisco': -3, 'Seattle': -3, 'Vancouver': -3 };
@@ -427,19 +448,25 @@ const GoalOracle = () => {
     const localH = ((hh + (cityTZ[match.city] || 0)) % 24 + 24) % 24;
     const localTime = `${localH > 12 ? localH - 12 : localH || 12}:${String(mm).padStart(2, '0')}${localH >= 12 ? 'p' : 'a'}`;
     const cityCode = CITY_CODES[match.city] || match.city.slice(0, 3).toUpperCase();
-
     const needsPrediction = !locked && !res?.completed && !p.result;
 
-    const handleScoreInput = (field, val) => {
-      const num = val.replace(/[^0-9]/g, '');
-      if (num === '') { upd(field, '0'); return; }
-      const n = Math.min(parseInt(num), 20);
-      upd(field, String(n));
-    };
+    const ScoreStepper = ({ value, field, inputRef }) => (
+      <div className="cr-stepper">
+        <button type="button" className="cr-arrow" onClick={() => spin(field, 1)} disabled={locked}>
+          <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 5L5 1L9 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+        </button>
+        <input ref={inputRef} type="text" className="cr-input" value={value} inputMode="numeric" pattern="[0-9]*" maxLength={2}
+          onChange={e => handleScoreInput(field, e.target.value)} onFocus={e => e.target.select()}
+          onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); spin(field, 1); } else if (e.key === 'ArrowDown') { e.preventDefault(); spin(field, -1); } }}
+          disabled={locked} />
+        <button type="button" className="cr-arrow" onClick={() => spin(field, -1)} disabled={locked || parseInt(value) <= 0}>
+          <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+        </button>
+      </div>
+    );
 
     return (
-      <div className={`compact-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''} ${needsPrediction ? 'needs-prediction' : ''}`}>
-        {/* Top line: teams + score */}
+      <div className={`compact-row ${locked ? 'locked' : ''} ${res?.completed ? 'completed' : ''} ${needsPrediction ? 'needs-prediction' : ''} ${match.isKnockout ? 'knockout' : ''}`}>
         <div className="cr-main">
           <span className="cr-flag">{match.homeFlag}</span>
           <span className="cr-name">{getCode(match.home)}</span>
@@ -447,9 +474,9 @@ const GoalOracle = () => {
             <div className="cr-final"><span>{res.homeScore}</span><span className="cr-sep">-</span><span>{res.awayScore}</span></div>
           ) : !locked ? (
             <div className="cr-scores">
-              <input type="number" className="cr-input" value={p.score.home} min="0" max="20" onChange={e => handleScoreInput('hs', e.target.value)} onFocus={e => e.target.select()} inputMode="numeric" pattern="[0-9]*" />
+              <ScoreStepper value={p.score.home} field="hs" inputRef={homeRef} />
               <span className="cr-sep">:</span>
-              <input type="number" className="cr-input" value={p.score.away} min="0" max="20" onChange={e => handleScoreInput('as', e.target.value)} onFocus={e => e.target.select()} inputMode="numeric" pattern="[0-9]*" />
+              <ScoreStepper value={p.score.away} field="as" inputRef={awayRef} />
             </div>
           ) : (
             <div className="cr-locked-pick">{p.result ? <span>{p.score.home}-{p.score.away}</span> : <span>—</span>}</div>
@@ -457,7 +484,6 @@ const GoalOracle = () => {
           <span className="cr-name aw">{getCode(match.away)}</span>
           <span className="cr-flag">{match.awayFlag}</span>
         </div>
-        {/* Bottom line: picks + meta */}
         <div className="cr-bottom">
           <span className="cr-stage">{match.stage.replace('Group ', 'Grp ')}</span>
           {!locked && !res?.completed && (
@@ -465,6 +491,12 @@ const GoalOracle = () => {
               <button className={`cr-pk ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
               <button className={`cr-pk ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
               <button className={`cr-pk ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
+            </div>
+          )}
+          {!locked && !res?.completed && match.isKnockout && (
+            <div className="cr-ko">
+              <label className="cr-ko-label"><input type="checkbox" checked={p.extraTime || false} onChange={e => upd('et', e.target.checked)} /><span>AET</span></label>
+              <label className="cr-ko-label"><input type="checkbox" checked={p.penalties || false} onChange={e => upd('pen', e.target.checked)} /><span>PEN</span></label>
             </div>
           )}
           <span className="cr-time">{localTime} {cityCode}</span>
