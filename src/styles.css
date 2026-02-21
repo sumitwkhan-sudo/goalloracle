@@ -762,6 +762,34 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .bridge-status.error, .bridge-status.failed { color: var(--danger); background: rgba(255,59,92,0.1); }
 .fund-new { margin-top: 0.5rem; color: var(--text-dim); }
 
+/* Balance display in dropdown */
+.dropdown-balances { padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.balance-row { display: flex; align-items: center; gap: 0.35rem; }
+.balance-token { font-size: 0.65rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; font-family: var(--mono); }
+.balance-amount { font-size: 0.85rem; font-weight: 600; color: var(--text); font-family: var(--mono); }
+.balance-row-dim .balance-amount { color: var(--text-dim); font-size: 0.75rem; }
+.balance-refresh { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0.2rem; margin-left: auto; opacity: 0.6; transition: opacity 0.2s; }
+.balance-refresh:hover { opacity: 1; }
+
+/* Fund modal balance bar */
+.fund-balance-bar { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 1rem; }
+.fund-bal-item { display: flex; align-items: center; gap: 0.3rem; }
+.fund-bal-label { font-size: 0.6rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; font-family: var(--mono); }
+.fund-bal-val { font-size: 0.95rem; font-weight: 700; color: var(--text); font-family: var(--mono); }
+.fund-bal-dim .fund-bal-val { color: var(--text-dim); font-size: 0.8rem; }
+
+/* Fund tabs */
+.fund-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; padding: 0.2rem; background: var(--bg-elev); border-radius: 8px; }
+.fund-tab { flex: 1; padding: 0.5rem; border: none; background: transparent; color: var(--text-dim); font-size: 0.8rem; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+.fund-tab.active { background: var(--card-bg); color: var(--text); box-shadow: var(--shadow); }
+
+/* Direct transfer notes */
+.fund-note-box { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; background: var(--bg-elev); border-radius: 8px; margin-top: 0.75rem; }
+.fund-note-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--text-sec); line-height: 1.4; }
+.fund-note-item code { font-size: 0.65rem; font-family: var(--mono); color: var(--text-dim); background: var(--bg-body); padding: 0.1rem 0.3rem; border-radius: 4px; }
+.fund-note-item strong { color: var(--text); }
+.input-currency { font-size: 0.85rem; font-weight: 700; color: var(--text-dim); padding: 0.5rem 0.75rem; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; font-family: var(--mono); }
+
 /* ---- SCROLL REVEAL + DEPTH EFFECTS ---- */
 .reveal {
   opacity: 0; transform: translateY(40px) scale(0.97); filter: blur(4px);

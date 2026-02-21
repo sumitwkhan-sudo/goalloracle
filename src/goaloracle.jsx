@@ -8,6 +8,7 @@ import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus 
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
 import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
 import { validateUsername } from './utils/profanity';
+import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
 import './styles.css';
 
@@ -875,7 +876,7 @@ const GoalOracle = () => {
             </div>
           )}
           {tp === 'paid' && <>
-            <div className="form-section"><label>Entry Fee</label><div className="input-group"><input type="number" placeholder="50" value={fe} min="1" onChange={e => setFe(e.target.value)} className="input-field" /><select value={cu} onChange={e => setCu(e.target.value)} className="select-field"><option value="USDC">USDC</option><option value="USDG">USDG</option></select></div></div>
+            <div className="form-section"><label>Entry Fee</label><div className="input-group"><input type="number" placeholder="50" value={fe} min="1" onChange={e => setFe(e.target.value)} className="input-field" /><span className="input-currency">USDC</span></div></div>
             <div className="form-section"><label>Prize Distribution {tot !== 100 && <span className="validation-error">(Currently {tot}%)</span>}</label>
               <div className="prize-distribution">{['first','second','third'].map((k,i) => <div key={k} className="prize-item"><span>{['1st','2nd','3rd'][i]} Place</span><input type="number" value={di[k]} onChange={e => setDi({...di,[k]:parseInt(e.target.value)||0})} className="input-field-sm" /><span>%</span></div>)}</div>
             </div>
@@ -1293,6 +1294,32 @@ const GoalOracle = () => {
   const TOKENS = ['ETH', 'USDC', 'USDT', 'POL'];
 
   const [fundModal, setFundModal] = useState(false);
+  const [walletBalances, setWalletBalances] = useState({ USDC: '0.00', POL: '0.00' });
+  const [balLoading, setBalLoading] = useState(false);
+
+  // Resolve wallet address from Privy user
+  const walletAddress = useMemo(() => {
+    return typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
+  }, [user?.wallet, uData?.walletAddress]);
+
+  // Fetch balances on auth and periodically
+  const refreshBalances = useCallback(async () => {
+    if (!walletAddress) return;
+    setBalLoading(true);
+    try {
+      const bal = await getWalletBalances(walletAddress);
+      setWalletBalances(bal);
+    } catch (e) {
+      console.error('[wallet] Balance fetch failed:', e.message);
+    } finally { setBalLoading(false); }
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (!walletAddress) return;
+    refreshBalances();
+    const interval = setInterval(refreshBalances, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, [walletAddress, refreshBalances]);
 
   const AddFundsModal = () => {
     const [srcChain, setSrcChain] = useState(CHAINS[4]); // Ethereum
@@ -1304,7 +1331,8 @@ const GoalOracle = () => {
     const [loading, setLoading] = useState(false);
     const [err, setErr] = useState('');
     const [copied2, setCopied2] = useState(false);
-    const walletAddr = typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
+    const [useBridge, setUseBridge] = useState(false);
+    const walletAddr = walletAddress;
 
     const getDecimals = () => {
       if (srcToken === 'ETH' || srcToken === 'POL') return 18;
@@ -1356,8 +1384,9 @@ const GoalOracle = () => {
     };
 
     const copyDeposit = () => {
-      if (!depositAddr) return;
-      navigator.clipboard.writeText(depositAddr).then(() => {
+      const addr = useBridge ? depositAddr : walletAddr;
+      if (!addr) return;
+      navigator.clipboard.writeText(addr).then(() => {
         setCopied2(true);
         setTimeout(() => setCopied2(false), 2000);
       });
@@ -1370,7 +1399,37 @@ const GoalOracle = () => {
             <h3><Wallet size={20} /> Add Funds</h3>
             <button className="modal-close" onClick={() => setFundModal(false)}><X size={20} /></button>
           </div>
-          <p className="fund-desc">Send any supported token from any chain — it auto-converts to USDC on Polygon for your prize pool.</p>
+
+          {/* Current balance */}
+          <div className="fund-balance-bar">
+            <div className="fund-bal-item"><span className="fund-bal-label">USDC</span><span className="fund-bal-val">{formatBalance(walletBalances.USDC)}</span></div>
+            <div className="fund-bal-item fund-bal-dim"><span className="fund-bal-label">POL</span><span className="fund-bal-val">{formatBalance(walletBalances.POL)}</span></div>
+            <button className="balance-refresh" onClick={refreshBalances} title="Refresh"><RefreshCw size={12} className={balLoading ? 'spin' : ''} /></button>
+          </div>
+
+          {/* Tab: Direct Transfer vs Bridge */}
+          <div className="fund-tabs">
+            <button className={`fund-tab ${!useBridge ? 'active' : ''}`} onClick={() => setUseBridge(false)}>Direct Transfer</button>
+            <button className={`fund-tab ${useBridge ? 'active' : ''}`} onClick={() => setUseBridge(true)}>Bridge & Swap</button>
+          </div>
+
+          {!useBridge ? (<>
+            {/* Simple direct transfer — just show wallet address */}
+            <p className="fund-desc">Send USDC directly to your wallet on Polygon. No bridging needed if you already have USDC on Polygon.</p>
+            <div className="fund-section">
+              <label>Your Polygon Wallet Address</label>
+              <div className="deposit-addr-box">
+                <code>{walletAddr}</code>
+                <button className="copy-btn" onClick={copyDeposit}>{copied2 ? <CheckCircle size={14} /> : <Copy size={14} />}</button>
+              </div>
+            </div>
+            <div className="fund-note-box">
+              <div className="fund-note-item"><CheckCircle size={14} /> Send <strong>USDC</strong> on Polygon — contract: <code>0x3c499...3359</code></div>
+              <div className="fund-note-item"><AlertTriangle size={14} /> Only send on <strong>Polygon network</strong> — other chains will lose funds</div>
+            </div>
+          </>) : (<>
+            {/* Bridge flow */}
+            <p className="fund-desc">Send any supported token from any chain — it auto-converts to USDC on Polygon for your prize pool.</p>
 
           {!depositAddr ? (<>
             <div className="fund-section">
@@ -1430,6 +1489,7 @@ const GoalOracle = () => {
               New Deposit
             </button>
           </>)}
+          </>)}
         </div>
       </div>
     );
@@ -1441,7 +1501,7 @@ const GoalOracle = () => {
     const [activeChain, setActiveChain] = useState(CHAINS[0]);
     const [editingName, setEditingName] = useState(false);
     const [newName, setNewName] = useState('');
-    const walletAddr = typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
+    const walletAddr = walletAddress;
     const displayEmail = uData?.email || '';
     const displayName = uData?.displayName || displayEmail?.split('@')[0] || 'Player';
 
@@ -1499,14 +1559,27 @@ const GoalOracle = () => {
             </div>
             <div className="dropdown-divider"></div>
             <div className="dropdown-section-label">Wallet</div>
-            {walletAddr ? (
+            {walletAddr ? (<>
               <div className="dropdown-wallet">
                 <code className="wallet-addr">{walletAddr.slice(0, 10)}...{walletAddr.slice(-8)}</code>
                 <button className="copy-btn" onClick={copyAddress} title="Copy address">
                   {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
                 </button>
               </div>
-            ) : (
+              <div className="dropdown-balances">
+                <div className="balance-row">
+                  <span className="balance-token">USDC</span>
+                  <span className="balance-amount">{formatBalance(walletBalances.USDC)}</span>
+                </div>
+                <div className="balance-row balance-row-dim">
+                  <span className="balance-token">POL</span>
+                  <span className="balance-amount">{formatBalance(walletBalances.POL)}</span>
+                </div>
+                <button className="balance-refresh" onClick={e => { e.stopPropagation(); refreshBalances(); }} title="Refresh balances">
+                  <RefreshCw size={12} className={balLoading ? 'spin' : ''} />
+                </button>
+              </div>
+            </>) : (
               <div className="dropdown-wallet"><span className="no-wallet">No wallet connected</span></div>
             )}
             <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setFundModal(true); }}>
@@ -1550,13 +1623,10 @@ const GoalOracle = () => {
       if (!finalEmail || !fbMsg.trim()) return;
       setFbError('');
       setFbSending(true);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
       try {
         const res = await fetch('/api/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
           body: JSON.stringify({
             email: finalEmail,
             name: fbName.trim(),
@@ -1567,17 +1637,14 @@ const GoalOracle = () => {
             timestamp: new Date().toISOString(),
           }),
         });
-        clearTimeout(timeout);
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || `Server error (${res.status})`);
         }
         setFbSent(true);
       } catch (e) {
-        clearTimeout(timeout);
         console.error('Feedback error:', e);
-        const msg = e.name === 'AbortError' ? 'Request timed out — please try again' : (e.message || 'Something went wrong');
-        setFbError(msg);
+        setFbError(e.message || 'Something went wrong');
       } finally {
         setFbSending(false);
       }
