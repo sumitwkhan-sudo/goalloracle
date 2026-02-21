@@ -11,6 +11,7 @@
   "dependencies": {
     "@privy-io/react-auth": "^3.13.1",
     "@privy-io/server-auth": "^1.14.0",
+    "@vercel/analytics": "^1.1.1",
     "@vitejs/plugin-react": "^4.3.4",
     "firebase": "^10.14.1",
     "firebase-admin": "^12.7.0",
