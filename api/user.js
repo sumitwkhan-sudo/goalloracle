@@ -122,12 +122,6 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     };
 
-    // BOOTSTRAP: restore superadmin for founding account (remove after confirmed)
-    if (email === 'sumitwkhan@gmail.com' && userSnap.data().role !== 'superadmin') {
-      updates.role = 'superadmin';
-      console.log(`[user] BOOTSTRAP: restoring superadmin for ${email}`);
-    }
-
     // Only update contact info if provided (from Privy auth data)
     if (email) updates.email = email;
     if (walletAddress) updates.walletAddress = walletAddress;
