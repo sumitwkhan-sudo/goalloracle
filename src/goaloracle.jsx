@@ -2021,14 +2021,17 @@ const GoalOracle = () => {
               alert('Step 2: Token = ' + (token ? token.slice(0,20) + '...' : 'NULL'));
               if (!token) return;
               setAuthToken(token);
-              alert('Step 3: Calling API...');
-              const resp = await fetch('/api/user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({}) });
+              alert('Step 3: Calling API (10s timeout)...');
+              const controller = new AbortController();
+              const tid = setTimeout(() => controller.abort(), 10000);
+              const resp = await fetch('/api/user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({}), signal: controller.signal });
+              clearTimeout(tid);
               alert('Step 4: API status = ' + resp.status);
               const text = await resp.text();
-              alert('Step 5: Response = ' + text.slice(0, 200));
+              alert('Step 5: Response = ' + text.slice(0, 300));
               const data = JSON.parse(text);
               if (data.user) { setUData(data.user); setRole(data.user.role || 'user'); authInitRef.current = true; alert('Step 6: SUCCESS! ' + data.user.displayName + ' / ' + data.user.role); }
-            } catch(e) { alert('ERROR: ' + e.message); }
+            } catch(e) { alert('ERROR: ' + e.name + ': ' + e.message); }
           }} style={{background:'#0f0',color:'#000',border:'none',padding:'2px 8px',borderRadius:'4px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>RETRY AUTH</button>}
         </div>
       )}

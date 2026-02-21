@@ -7,23 +7,33 @@ let _authToken = null;
 export function setAuthToken(token) { _authToken = token; }
 
 async function apiCall(endpoint, method = 'GET', body = null) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
+    signal: controller.signal,
   };
   if (_authToken) opts.headers['Authorization'] = `Bearer ${_authToken}`;
   if (body) opts.body = JSON.stringify(body);
 
-  const res = await fetch(`/api/${endpoint}`, opts);
-  const text = await res.text();
-  let data;
   try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(`API ${endpoint} returned ${res.status}: non-JSON response`);
+    const res = await fetch(`/api/${endpoint}`, opts);
+    clearTimeout(timeout);
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`API ${endpoint} returned ${res.status}: non-JSON response`);
+    }
+    if (!res.ok) throw new Error(data.error || `API request failed (${res.status})`);
+    return data;
+  } catch(e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') throw new Error(`API ${endpoint} timed out after 12s`);
+    throw e;
   }
-  if (!res.ok) throw new Error(data.error || `API request failed (${res.status})`);
-  return data;
 }
 
 // ---- USERS (write via API) ----
