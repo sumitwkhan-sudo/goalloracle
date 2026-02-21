@@ -127,6 +127,18 @@ const GoalOracle = () => {
   useEffect(() => subscribeToMatchResults(setResults), []);
   const authInitRef = useRef(false);
 
+  // getAccessToken() hangs forever when Privy wallet iframe isn't ready — wrap with timeout
+  const getTokenSafe = useCallback(async (timeoutMs = 5000) => {
+    try {
+      return await Promise.race([
+        getAccessToken(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('token_timeout')), timeoutMs))
+      ]);
+    } catch {
+      return null;
+    }
+  }, [getAccessToken]);
+
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
@@ -134,45 +146,39 @@ const GoalOracle = () => {
       authInitRef.current = false;
       return;
     }
-
-    // Already done
     if (authInitRef.current) return;
 
-    // Use an interval to keep trying until we succeed
-    let done = false;
+    let stopped = false;
+    let attempts = 0;
     const tryAuth = async () => {
-      if (done || authInitRef.current) return;
-      try {
-        console.log('[auth] attempting...');
-        const token = await getAccessToken();
-        console.log('[auth] token:', token ? 'YES' : 'NO');
-        if (!token) return; // will retry on next interval
-        setAuthToken(token);
-        console.log('[auth] calling createOrUpdateUser...');
-        const u = await createOrUpdateUser(user);
-        console.log('[auth] result:', u ? JSON.stringify({id:u.id,dn:u.displayName,role:u.role}) : 'NULL');
-        if (u) {
-          done = true;
-          authInitRef.current = true;
-          setUData(u);
-          setRole(u.role || 'user');
-          if (!u.usernameSet) setShowUsernamePrompt(true);
-        }
-      } catch(e) {
-        console.error('[auth] error:', e.message, e.stack);
-      }
+      if (stopped || authInitRef.current) return;
+      attempts++;
+      const timeout = Math.min(3000 + attempts * 2000, 15000);
+      console.log(`[auth] attempt ${attempts}, timeout=${timeout}ms`);
+      const token = await getTokenSafe(timeout);
+      if (!token) { console.warn(`[auth] no token attempt ${attempts}`); return; }
+      if (stopped) return;
+      console.log('[auth] got token, calling API...');
+      setAuthToken(token);
+      const u = await createOrUpdateUser(user);
+      if (stopped || !u) return;
+      console.log('[auth] SUCCESS:', u.displayName, u.role);
+      stopped = true;
+      authInitRef.current = true;
+      setUData(u);
+      setRole(u.role || 'user');
+      if (!u.usernameSet) setShowUsernamePrompt(true);
     };
 
-    // Try immediately
-    tryAuth();
-    // Then retry every 2s if not done
+    // Delay first attempt 1s to let Privy wallet iframe initialize
+    const first = setTimeout(() => tryAuth().catch(e => console.error('[auth]', e.message)), 1000);
     const interval = setInterval(() => {
-      if (done || authInitRef.current) { clearInterval(interval); return; }
-      tryAuth();
-    }, 2000);
+      if (stopped || authInitRef.current) { clearInterval(interval); return; }
+      tryAuth().catch(e => console.error('[auth]', e.message));
+    }, 3000);
 
-    return () => { done = true; clearInterval(interval); };
-  }, [ready, authenticated]);
+    return () => { stopped = true; clearTimeout(first); clearInterval(interval); };
+  }, [ready, authenticated, getTokenSafe]);
   // Debug: log whenever critical auth state changes
   useEffect(() => { console.log('[state] uData changed:', uData?.id, uData?.displayName, uData?.role); }, [uData]);
   useEffect(() => { console.log('[state] role changed:', role); }, [role]);
@@ -193,7 +199,7 @@ const GoalOracle = () => {
     if (!uData?.id || !selLeague?.id) return;
     setSaving(true);
     try {
-      const token = await getAccessToken();
+      const token = await getTokenSafe(5000);
       if (token) setAuthToken(token);
       await saveBatchPredictions(uData.id, selLeague.id, preds);
       notify('Predictions saved!');
@@ -211,19 +217,11 @@ const GoalOracle = () => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
       try {
-        // Refresh token before saving in case it expired
-        const token = await getAccessToken();
+        const token = await getTokenSafe(5000);
         if (token) setAuthToken(token);
         await saveBatchPredictions(uData.id, selLeague.id, predsRef.current);
       } catch(e) {
         console.error('Auto-save failed:', e);
-        // Retry once with fresh token
-        if (e.message?.includes('Unauthorized') || e.message?.includes('401')) {
-          try {
-            const freshToken = await getAccessToken();
-            if (freshToken) { setAuthToken(freshToken); await saveBatchPredictions(uData.id, selLeague.id, predsRef.current); }
-          } catch(retryErr) { console.error('Auto-save retry failed:', retryErr); }
-        }
       }
     }, 2000);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
@@ -1331,7 +1329,7 @@ const GoalOracle = () => {
       try {
         const res = await fetch('/api/bridge', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await getAccessToken()}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await getTokenSafe(5000)}` },
           body: JSON.stringify({
             recipientAddress: walletAddr,
             originChainId: srcChain.id,
@@ -1353,7 +1351,7 @@ const GoalOracle = () => {
       if (!reqId) return;
       try {
         const res = await fetch(`/api/bridge?requestId=${reqId}`, {
-          headers: { 'Authorization': `Bearer ${await getAccessToken()}` },
+          headers: { 'Authorization': `Bearer ${await getTokenSafe(5000)}` },
         });
         const data = await res.json();
         setBridgeStatus(data.status || data.state || 'pending');
@@ -2018,8 +2016,8 @@ const GoalOracle = () => {
           <span>ready={String(ready)} | auth={String(authenticated)} | uData={uData ? `✅ ${uData.displayName} (${uData.role})` : '❌ null'} | role={role} | leagues={leagues.length}</span>
           {!uData && <button onClick={async () => { 
             try { 
-              alert('Step 1: Getting token...');
-              const token = await Promise.race([getAccessToken(), new Promise((_, rej) => setTimeout(() => rej(new Error('Token timeout 5s')), 5000))]);
+              alert('Step 1: Getting token (5s timeout)...');
+              const token = await getTokenSafe(5000);
               alert('Step 2: Token = ' + (token ? token.slice(0,20) + '...' : 'NULL'));
               if (!token) return;
               setAuthToken(token);
