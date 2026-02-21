@@ -39,9 +39,34 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 // ---- USERS (write via API) ----
 export async function createOrUpdateUser(privyUser) {
   if (!privyUser) return null;
-  // Use read-only endpoint for initial load — the POST endpoint has timeout issues
+  // Fast load via read-only GET endpoint
   const data = await apiCall('debug-user');
-  return data.user;
+  const user = data.user;
+
+  // Background: sync email & wallet to Firestore via POST (fire-and-forget)
+  // This ensures Google/email login data gets persisted even though GET is read-only
+  try {
+    let emailAddr = null;
+    if (typeof privyUser.email === 'string') emailAddr = privyUser.email;
+    else if (privyUser.email?.address) emailAddr = privyUser.email.address;
+    else if (privyUser.google?.email) emailAddr = privyUser.google.email;
+    else {
+      const emailAccount = privyUser.linked_accounts?.find(a => a.type === 'email' || a.type === 'google_oauth');
+      if (emailAccount) emailAddr = emailAccount.email || emailAccount.address;
+    }
+    const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
+
+    if (emailAddr || walletAddr) {
+      // Don't await — fire and forget so UI isn't blocked
+      apiCall('user', 'POST', { email: emailAddr, walletAddress: walletAddr })
+        .then(res => { if (res?.user) console.log('[auth] user data synced'); })
+        .catch(e => console.warn('[auth] background sync failed:', e.message));
+    }
+  } catch (e) {
+    console.warn('[auth] email extraction failed:', e.message);
+  }
+
+  return user;
 }
 
 // Separate function for when we actually need to write user data
