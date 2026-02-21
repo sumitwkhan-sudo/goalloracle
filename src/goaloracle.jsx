@@ -225,11 +225,10 @@ const GoalOracle = () => {
   };
 
   // Compact Prediction Row — fits 4-5 per screen
-  const PredictionCard = ({ match }) => {
-    const p = preds[match.id] || { result: null, score: { home: '0', away: '0' }, extraTime: false, penalties: false };
+  const PredictionCard = React.memo(({ match, pred, result: res }) => {
+    const p = pred || { result: null, score: { home: '0', away: '0' }, extraTime: false, penalties: false };
     const status = getMatchStatus(match.date, match.time);
     const locked = status !== 'open';
-    const res = results[match.id];
     const pts = res?.completed ? calculatePoints(p, res, selLeague?.pointsSystem || {}) : null;
     const [mismatch, setMismatch] = useState('');
     const mismatchTimer = useRef(null);
@@ -400,14 +399,13 @@ const GoalOracle = () => {
         )}
       </div>
     );
-  };
+  });
 
   // Compact row variant — single line per match
-  const CompactRow = ({ match }) => {
-    const p = preds[match.id] || { result: null, score: { home: '0', away: '0' }, extraTime: false, penalties: false };
+  const CompactRow = React.memo(({ match, pred, result: res }) => {
+    const p = pred || { result: null, score: { home: '0', away: '0' }, extraTime: false, penalties: false };
     const status = getMatchStatus(match.date, match.time);
     const locked = status !== 'open';
-    const res = results[match.id];
     const pts = res?.completed ? calculatePoints(p, res, selLeague?.pointsSystem || {}) : null;
     const homeRef = useRef(null);
     const awayRef = useRef(null);
@@ -504,7 +502,7 @@ const GoalOracle = () => {
         </div>
       </div>
     );
-  };
+  });
 
   const Landing = () => {
     useScrollReveal();
@@ -1168,11 +1166,11 @@ const GoalOracle = () => {
                 </div>
                 {predView === 'grid' ? (
                   <div className="match-date-group-grid">
-                    {group.matches.map(m => <PredictionCard key={m.id} match={m} />)}
+                    {group.matches.map(m => <PredictionCard key={m.id} match={m} pred={preds[m.id]} result={results[m.id]} />)}
                   </div>
                 ) : (
                   <div className="match-date-group-rows">
-                    {group.matches.map(m => <CompactRow key={m.id} match={m} />)}
+                    {group.matches.map(m => <CompactRow key={m.id} match={m} pred={preds[m.id]} result={results[m.id]} />)}
                   </div>
                 )}
               </div>
