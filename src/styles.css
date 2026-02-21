@@ -88,10 +88,8 @@
 [data-theme="fifa2026"] .site-footer { border-top-color: rgba(255,219,0,0.08); }
 
 /* FIFA theme toggle button special styling */
-[data-theme="fifa2026"] .theme-toggle-btn {
-  background: rgba(2,185,6,0.1) !important;
-  border-color: rgba(2,185,6,0.25) !important;
-  color: #02B906 !important;
+[data-theme="fifa2026"] .theme-opt.active {
+  background: rgba(2,185,6,0.2); color: #02B906; border-color: rgba(2,185,6,0.4);
 }
 
 /* ---- CONFETTI ---- */
@@ -168,13 +166,27 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .nav-menu a:hover, .nav-menu .nav-link:hover { color: var(--cyan); }
 .nav-actions { display: flex; align-items: center; gap: 0.5rem; }
 .mobile-toggle { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 0.25rem; }
-.theme-toggle-btn {
-  display: flex; align-items: center; gap: 0.3rem;
-  padding: 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: 20px;
-  background: transparent; color: var(--text-sec); font-size: 0.7rem; font-weight: 500;
-  cursor: pointer; transition: all 0.2s; font-family: var(--font);
+.theme-switcher {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+  padding: 2px;
 }
-.theme-toggle-btn:hover { border-color: var(--primary); color: var(--primary); }
+.theme-opt {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 4px 10px; height: 26px; border-radius: 14px;
+  background: transparent; border: 1px solid transparent; color: var(--text-sec);
+  cursor: pointer; transition: all 0.2s; opacity: 0.45; font-size: 0.7rem; font-weight: 600;
+  white-space: nowrap;
+}
+.theme-label { display: none; }
+.theme-opt.active .theme-label { display: inline; }
+.theme-opt:not(.active) { padding: 4px 6px; }
+.theme-opt:hover { opacity: 0.8; }
+.theme-opt.active {
+  background: rgba(0, 212, 255, 0.12); color: var(--accent);
+  border-color: rgba(0, 212, 255, 0.25); opacity: 1;
+}
+[data-theme="light"] .theme-opt.active { background: rgba(0,0,0,0.08); color: #333; border-color: rgba(0,0,0,0.15); }
 
 /* ---- BUTTONS ---- */
 .btn {

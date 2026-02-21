@@ -75,8 +75,9 @@ const GoalOracle = () => {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const [view, setView] = useState('landing');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
   const [confetti, setConfetti] = useState(false);
+  useEffect(() => { document.documentElement.setAttribute('data-theme', 'light'); }, []);
   const cycleTheme = () => {
     const order = ['dark', 'light', 'fifa2026'];
     const next = order[(order.indexOf(theme) + 1) % 3];
@@ -1657,10 +1658,19 @@ const GoalOracle = () => {
         <a className="nav-link" onClick={() => nav('faq')}><HelpCircle size={14} /><span>FAQ</span></a>
         <div className="nav-actions" onClick={e => e.stopPropagation()}>
           {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
-          <button type="button" className="theme-toggle-btn" onClick={e => { e.stopPropagation(); cycleTheme(); }}>
-            {theme === 'dark' ? <Sun size={14} /> : theme === 'light' ? <Sparkles size={14} /> : <Moon size={14} />}
-            <span>{theme === 'dark' ? 'Light' : theme === 'light' ? '⚽ 2026' : 'Dark'}</span>
-          </button>
+          <div className="theme-switcher" onClick={e => e.stopPropagation()}>
+            {[
+              { id: 'light', icon: <Sun size={13} />, label: 'Light' },
+              { id: 'dark', icon: <Moon size={13} />, label: 'Dark' },
+              { id: 'fifa2026', icon: <Sparkles size={13} />, label: '2026' },
+            ].map(t => (
+              <button key={t.id} type="button" className={`theme-opt ${theme === t.id ? 'active' : ''}`}
+                title={theme === t.id ? `Current: ${t.label}` : `Switch to ${t.label}`}
+                onClick={() => { setTheme(t.id); document.documentElement.setAttribute('data-theme', t.id); if (t.id === 'fifa2026') { setConfetti(true); setTimeout(() => setConfetti(false), 3000); } }}>
+                {t.icon}<span className="theme-label">{t.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div></nav>
