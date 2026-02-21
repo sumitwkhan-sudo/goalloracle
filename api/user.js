@@ -13,36 +13,127 @@ export default async function handler(req, res) {
 
   try {
     const { email, walletAddress, displayName, usernameSet } = req.body;
-    const userId = claims.userId;
+    // Privy server-auth returns userId (DID) — handle both field names for safety
+    const userId = claims.userId || claims.sub;
+
+    if (!userId) {
+      console.error('No userId in claims:', JSON.stringify(claims));
+      return res.status(500).json({ error: 'No user ID in auth claims' });
+    }
+
+    console.log(`[user] userId=${userId}, email=${email}, checking...`);
 
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
 
-    const userData = {
-      id: userId,
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-
-    // Always update email and wallet if provided (these come from Privy)
-    if (email) userData.email = email;
-    if (walletAddress) userData.walletAddress = walletAddress;
+    if (!userSnap.exists && email) {
+      // User doc doesn't exist for this DID — check if there's an existing account with this email
+      // This handles the case where Privy assigns a different DID (e.g., different login method)
+      console.log(`[user] No doc for ${userId}, checking by email ${email}...`);
+      const emailQuery = await db.collection('users').where('email', '==', email).limit(1).get();
+      if (!emailQuery.empty) {
+        const existingDoc = emailQuery.docs[0];
+        const existingData = existingDoc.data();
+        console.log(`[user] FOUND existing account by email: ${existingDoc.id} → migrating to ${userId}`);
+        
+        // Copy existing user data to new DID doc
+        const migratedData = { ...existingData, id: userId, updatedAt: FieldValue.serverTimestamp() };
+        delete migratedData.createdAt; // preserve original
+        await userRef.set({ ...existingData, id: userId, updatedAt: FieldValue.serverTimestamp() }, { merge: false });
+        
+        // Update all league memberships from old ID to new ID
+        const oldId = existingDoc.id;
+        if (oldId !== userId) {
+          const leagueIds = existingData.leagues || [];
+          for (const lid of leagueIds) {
+            try {
+              const lRef = db.collection('leagues').doc(lid);
+              await lRef.update({
+                members: FieldValue.arrayRemove(oldId),
+              });
+              await lRef.update({
+                members: FieldValue.arrayUnion(userId),
+              });
+              // Update createdBy if this user created the league
+              const lSnap = await lRef.get();
+              if (lSnap.exists && lSnap.data().createdBy === oldId) {
+                await lRef.update({ createdBy: userId });
+              }
+            } catch (e) {
+              console.error(`[user] Failed to migrate league ${lid}:`, e.message);
+            }
+          }
+          
+          // Update predictions from old ID to new ID
+          const predsSnap = await db.collection('predictions').where('userId', '==', oldId).get();
+          if (!predsSnap.empty) {
+            for (const doc of predsSnap.docs) {
+              const data = doc.data();
+              const newDocId = doc.id.replace(oldId, userId);
+              await db.collection('predictions').doc(newDocId).set({ ...data, userId });
+              await doc.ref.delete();
+            }
+            console.log(`[user] Migrated ${predsSnap.size} predictions`);
+          }
+          
+          // Don't delete old doc yet (in case of issues) — just mark it
+          await existingDoc.ref.update({ migratedTo: userId, migratedAt: FieldValue.serverTimestamp() });
+        }
+        
+        const fresh = await userRef.get();
+        return res.status(200).json({ user: { id: fresh.id, ...fresh.data() } });
+      }
+    }
 
     if (!userSnap.exists) {
       // New user — set defaults
-      userData.createdAt = FieldValue.serverTimestamp();
-      userData.role = 'user';
-      userData.leagues = ['global'];
-      userData.email = email || null;
-      userData.walletAddress = walletAddress || null;
-      userData.displayName = email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous');
-      userData.usernameSet = false;
-    } else {
-      // Existing user — only update displayName if explicitly provided (from profile edit or username prompt)
-      if (displayName) userData.displayName = displayName;
-      if (usernameSet === true) userData.usernameSet = true;
+      console.log(`[user] NEW user: ${userId}, email=${email}`);
+      const newUser = {
+        id: userId,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        role: 'user',
+        leagues: ['global'],
+        email: email || null,
+        walletAddress: walletAddress || null,
+        displayName: email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous'),
+        usernameSet: false,
+      };
+      await userRef.set(newUser);
+
+      // Auto-join global league
+      const globalRef = db.collection('leagues').doc('global');
+      const globalSnap = await globalRef.get();
+      if (globalSnap.exists) {
+        await globalRef.update({
+          members: FieldValue.arrayUnion(userId),
+          memberCount: FieldValue.increment(1),
+        });
+      }
+
+      const fresh = await userRef.get();
+      return res.status(200).json({ user: { id: fresh.id, ...fresh.data() } });
     }
 
-    await userRef.set(userData, { merge: true });
+    // Existing user — only update specific fields, NEVER overwrite role/leagues/displayName/usernameSet
+    console.log(`[user] EXISTING user: ${userId}, role=${userSnap.data().role}, displayName=${userSnap.data().displayName}`);
+
+    const updates = {
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    // Only update contact info if provided (from Privy auth data)
+    if (email) updates.email = email;
+    if (walletAddress) updates.walletAddress = walletAddress;
+
+    // Only update displayName if explicitly sent (from profile edit / username prompt)
+    // and only if the user explicitly asked to change it
+    if (displayName !== undefined && displayName !== null && displayName.trim() !== '') {
+      updates.displayName = displayName.trim();
+    }
+    if (usernameSet === true) updates.usernameSet = true;
+
+    await userRef.update(updates);
     const fresh = await userRef.get();
 
     return res.status(200).json({ user: { id: fresh.id, ...fresh.data() } });

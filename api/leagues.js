@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   try {
     // ─── CREATE ───────────────────────────────────────────
     if (action === 'create') {
-      const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem } = req.body;
+      const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds } = req.body;
       if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
 
       if (type === 'paid' && prizeDistribution) {
@@ -53,6 +53,9 @@ export default async function handler(req, res) {
         currency: currency || 'USDC',
         prizeDistribution: prizeDistribution || { first: 50, second: 30, third: 20 },
         pointsSystem: pointsSystem || { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 },
+        matchScope: matchScope || 'all',
+        selectedGroups: selectedGroups || null,
+        selectedRounds: selectedRounds || null,
         createdBy: userId,
         members: [userId],
         memberCount: 1,

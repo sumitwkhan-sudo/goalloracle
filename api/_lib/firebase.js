@@ -34,6 +34,9 @@ async function verifyAuth(req) {
   const token = authHeader.slice(7);
   try {
     const claims = await privy.verifyAuthToken(token);
+    // Normalize userId — different Privy versions use different field names
+    if (!claims.userId && claims.sub) claims.userId = claims.sub;
+    console.log(`[auth] verified: userId=${claims.userId}`);
     return claims;
   } catch (e) {
     console.error('Token verification failed:', e.message);

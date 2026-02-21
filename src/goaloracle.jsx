@@ -126,22 +126,33 @@ const GoalOracle = () => {
   useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
   const authInitRef = useRef(false);
+  const authInFlightRef = useRef(false);
   useEffect(() => {
-    if (!authenticated || !user) { setUData(null); setRole('user'); setAuthToken(null); authInitRef.current = false; return; }
-    // Only run full init once per auth session; skip if we already have user data
-    // (Privy's `user` object changes reference frequently)
+    if (!authenticated || !user) {
+      setUData(null); setRole('user'); setAuthToken(null);
+      authInitRef.current = false;
+      authInFlightRef.current = false;
+      return;
+    }
+    // Skip if already initialized with valid data, or if a call is in flight
     if (authInitRef.current && uData?.id) return;
+    if (authInFlightRef.current) return;
+    authInFlightRef.current = true;
     (async () => {
       try {
         const token = await getAccessToken();
-        if (!token) { console.error('No auth token available'); return; }
+        if (!token) {
+          console.error('No auth token available from Privy');
+          authInFlightRef.current = false;
+          return;
+        }
         setAuthToken(token);
         const u = await createOrUpdateUser(user);
         if (u) {
+          console.log('Auth init success:', u.id, u.displayName, u.role);
           authInitRef.current = true;
           setUData(u);
           setRole(u.role || 'user');
-          // Show username prompt only if user hasn't set one yet
           if (!u.usernameSet) setShowUsernamePrompt(true);
         } else {
           console.error('createOrUpdateUser returned null');
@@ -149,10 +160,10 @@ const GoalOracle = () => {
         }
       } catch(e) {
         console.error('User setup error:', e);
-        // If token expired, try refreshing once
-        if (e.message?.includes('Unauthorized') || e.message?.includes('401')) {
-          try {
-            const freshToken = await getAccessToken();
+        // Retry once with fresh token
+        try {
+          const freshToken = await getAccessToken();
+          if (freshToken) {
             setAuthToken(freshToken);
             const u = await createOrUpdateUser(user);
             if (u) {
@@ -160,17 +171,18 @@ const GoalOracle = () => {
               setUData(u);
               setRole(u.role || 'user');
               if (!u.usernameSet) setShowUsernamePrompt(true);
+              return;
             }
-          } catch(retryErr) {
-            console.error('Auth retry failed:', retryErr);
-            notify('Login failed — please try logging out and back in.', 'error');
           }
-        } else {
-          notify('Account setup error: ' + e.message, 'error');
+        } catch(retryErr) {
+          console.error('Auth retry also failed:', retryErr);
         }
+        notify('Login error — try refreshing the page.', 'error');
+      } finally {
+        authInFlightRef.current = false;
       }
     })();
-  }, [authenticated, user?.id]);
+  }, [authenticated]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
