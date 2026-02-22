@@ -732,10 +732,11 @@ const GoalOracle = () => {
       if (!uData?.id) return;
       try {
         setJoinErr('');
-        await joinLeague(league.id, uData.id, passcode);
-        notify(`Joined ${league.name}!`);
+        const lId = league.id; const lName = league.name;
+        notify(`Joined ${lName}!`);
         setJoiningId(null);
         setPassInput('');
+        joinLeague(lId, uData.id, passcode).catch(e => { notify(e.message, 'error'); });
       } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
     };
 
@@ -756,9 +757,10 @@ const GoalOracle = () => {
                 console.log('[join] Leagues with passcodes:', allLeagues.filter(l => l.passcode).map(l => ({ id: l.id, passcode: l.passcode, vis: l.visibility })));
                 const match = allLeagues.find(l => l.passcode && l.passcode === passInput.trim());
                 if (!match) { setJoinErr('No league found with that passcode'); notify('No league found with that passcode', 'error'); return; }
-                await joinLeague(match.id, uData.id, passInput.trim());
-                notify(`Joined ${match.name}!`);
+                const mId = match.id; const mName = match.name; const code = passInput.trim();
+                notify(`Joined ${mName}!`);
                 setPassInput('');
+                joinLeague(mId, uData.id, code).catch(e => notify(e.message, 'error'));
               } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
             }}><UserPlus size={14} /> Join Private</button>
           </div>
@@ -849,7 +851,7 @@ const GoalOracle = () => {
       const scopeData = matchScope === 'all' ? { matchScope: 'all' } :
         matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
         { matchScope: 'rounds', selectedRounds: selRounds };
-      try { const lid = await createLeague({ name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }, uData.id); console.log('[create] success, leagueId=', lid); notify('League created!'); nav('dashboard'); } catch(e) { console.error('[create] failed:', e); setErr(e.message || 'Failed to create league'); } finally { setBusy(false); }
+      try { const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }; notify('League created!'); nav('dashboard'); createLeague(leagueData, uData.id).catch(e => { console.error('[create] failed:', e); notify(e.message || 'Failed to create league', 'error'); }); } catch(e) { console.error('[create] failed:', e); setErr(e.message || 'Failed to create league'); } finally { setBusy(false); }
     };
     return (
       <div className="create-league">
@@ -945,10 +947,10 @@ const GoalOracle = () => {
     useEffect(() => { if (tab !== 'leaderboard' || !selLeague?.id) return; (async () => { setLbl(true); try { const { leaderboard: bu, userNames } = await getLeagueLeaderboard(selLeague.id); const p = selLeague.pointsSystem || {}; const e = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, displayName: userNames[uid] || uid.slice(0, 8), ...calculateTotalPoints(pr, results, p) })); setLb(sortLeaderboard(e)); } catch(e){console.error(e);} finally{setLbl(false);} })(); }, [tab, selLeague?.id, results]);
 
     const handleDelete = async () => {
-      try { await deleteLeague(selLeague.id); notify(`"${selLeague.name}" deleted`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
+      try { const lid = selLeague.id; const lname = selLeague.name; notify(`"${lname}" deleted`); nav('dashboard'); deleteLeague(lid).catch(e => notify(e.message, 'error')); } catch(e) { notify(e.message, 'error'); }
     };
     const handleLeave = async () => {
-      try { await leaveLeague(selLeague.id, uData.id); notify(`Left "${selLeague.name}"`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
+      try { const lid = selLeague.id; const lname = selLeague.name; const uid = uData.id; notify(`Left "${lname}"`); nav('dashboard'); leaveLeague(lid, uid).catch(e => notify(e.message, 'error')); } catch(e) { notify(e.message, 'error'); }
     };
     const copyInvite = () => {
       const msg = `Join my GoalOracle league "${selLeague.name}"!\n\nPasscode: ${selLeague.passcode}\n\nSign up at ${window.location.origin}`;
@@ -1296,6 +1298,22 @@ const GoalOracle = () => {
     { id: 1, name: 'Ethereum', color: '#627EEA' },
   ];
   const TOKENS = ['ETH', 'USDC', 'USDT', 'POL'];
+
+  // Parent-level league creation handler (survives inline component remounts)
+  const createLeagueRef = useRef(null);
+  const handleCreateLeague = useCallback(async (leagueData) => {
+    if (!uData?.id) return;
+    try {
+      const lid = await createLeague(leagueData, uData.id);
+      console.log('[create] success, leagueId=', lid);
+      notify('League created!');
+      nav('dashboard');
+    } catch (e) {
+      console.error('[create] failed:', e);
+      notify(e.message || 'Failed to create league', 'error');
+    }
+  }, [uData?.id, nav, notify]);
+  createLeagueRef.current = handleCreateLeague;
 
   const [fundModal, setFundModal] = useState(false);
   const [hidePredicted, setHidePredicted] = useState(false);
@@ -2092,11 +2110,11 @@ const GoalOracle = () => {
       </div>
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && <Dash />}
-      {view === 'browse' && <Browse />}
-      {view === 'create' && <Create />}
-      {view === 'detail' && <Detail />}
+      {view === 'browse' && <Browse key="browse" />}
+      {view === 'create' && <Create key="create" />}
+      {view === 'detail' && <Detail key={selLeague?.id || 'detail'} />}
       {view === 'faq' && <FAQ />}
-      {view === 'feedback' && <Feedback />}
+      {view === 'feedback' && <Feedback key="feedback" />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
       {fundModal && <AddFundsModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
