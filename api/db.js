@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, onSnapshot, query, where, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, getDoc, getDocFromServer, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp } from 'firebase/firestore';
 
 // ---- Auth token management ----
 // Set by the main app when Privy provides a token
@@ -96,6 +96,7 @@ export async function getUserRole(userId) {
 
 // ---- LEAGUES (direct Firestore client SDK — no API calls) ----
 export async function createLeague(leagueData, creatorId) {
+  console.log('[createLeague] called with:', JSON.stringify(leagueData), 'creator:', creatorId);
   const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds } = leagueData;
   if (!name?.trim()) throw new Error('Name required');
 
@@ -128,6 +129,19 @@ export async function createLeague(leagueData, creatorId) {
     createdAt: serverTimestamp(),
     status: 'active',
   });
+  console.log('[createLeague] SUCCESS — written to Firestore, id:', leagueId, 'passcode:', visibility === 'private' ? passcode : 'N/A');
+
+  // Verify write actually persisted to server (memoryLocalCache resolves setDoc optimistically)
+  try {
+    const verify = await getDocFromServer(leagueRef);
+    if (!verify.exists()) {
+      throw new Error('League write was rejected by Firestore — check security rules in Firebase Console');
+    }
+    console.log('[createLeague] VERIFIED on server, passcode:', verify.data()?.passcode);
+  } catch (verifyErr) {
+    console.error('[createLeague] Server verification failed:', verifyErr);
+    throw new Error('League was not saved. Firestore may be rejecting writes — check security rules.');
+  }
 
   // Update user doc in background
   updateDoc(userRef, { leagues: arrayUnion(leagueId) }).catch(() => {});
@@ -182,13 +196,7 @@ export async function deleteLeague(leagueId) {
     .catch(e => console.error('Prediction cleanup failed:', e.message));
 }
 
-export async function leaveLeague(leagueId) {
-  // Need userId from the auth context — we'll get it from the user doc subscription
-  // For now this still needs userId passed in from the caller
-  throw new Error('Use leaveLeagueWithUser instead');
-}
-
-export async function leaveLeagueWithUser(leagueId, userId) {
+export async function leaveLeague(leagueId, userId) {
   const leagueRef = doc(db, 'leagues', leagueId);
   const leagueSnap = await getDoc(leagueRef);
   if (!leagueSnap.exists()) throw new Error('League not found');
