@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp } from 'firebase/firestore';
 
 // ---- Auth token management ----
 // Set by the main app when Privy provides a token
@@ -94,22 +94,117 @@ export async function getUserRole(userId) {
   return 'user'; // Role comes from createOrUpdateUser response
 }
 
-// ---- LEAGUES (write via API, read via Firestore) ----
+// ---- LEAGUES (direct Firestore client SDK — no API calls) ----
 export async function createLeague(leagueData, creatorId) {
-  const data = await apiCall('leagues', 'POST', { action: 'create', ...leagueData });
-  return data.leagueId;
+  const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds } = leagueData;
+  if (!name?.trim()) throw new Error('Name required');
+
+  if (type === 'paid' && prizeDistribution) {
+    const total = (prizeDistribution.first || 0) + (prizeDistribution.second || 0) + (prizeDistribution.third || 0);
+    if (total !== 100) throw new Error('Prize distribution must total 100%');
+  }
+  if (visibility === 'private' && !passcode?.trim()) throw new Error('Passcode required for private leagues');
+
+  const leagueId = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now();
+  const leagueRef = doc(db, 'leagues', leagueId);
+  const userRef = doc(db, 'users', creatorId);
+
+  await setDoc(leagueRef, {
+    id: leagueId,
+    name: name.trim(),
+    type: type || 'free',
+    visibility: visibility || 'public',
+    passcode: visibility === 'private' ? passcode.trim().toUpperCase() : null,
+    entryFee: entryFee || 0,
+    currency: currency || 'USDC',
+    prizeDistribution: prizeDistribution || { first: 50, second: 30, third: 20 },
+    pointsSystem: pointsSystem || { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 },
+    matchScope: matchScope || 'all',
+    selectedGroups: selectedGroups || null,
+    selectedRounds: selectedRounds || null,
+    createdBy: creatorId,
+    members: [creatorId],
+    memberCount: 1,
+    createdAt: serverTimestamp(),
+    status: 'active',
+  });
+
+  // Update user doc in background
+  updateDoc(userRef, { leagues: arrayUnion(leagueId) }).catch(() => {});
+  return leagueId;
 }
 
 export async function joinLeague(leagueId, userId, passcode = null) {
-  await apiCall('leagues', 'POST', { action: 'join', leagueId, passcode });
+  const leagueRef = doc(db, 'leagues', leagueId);
+  const leagueSnap = await getDoc(leagueRef);
+  if (!leagueSnap.exists()) throw new Error('League not found');
+
+  const league = leagueSnap.data();
+  if (league.members?.includes(userId)) throw new Error('Already a member');
+
+  if (league.visibility === 'private') {
+    if (!passcode) throw new Error('This is a private league. A passcode is required to join.');
+    if (passcode.trim().toUpperCase() !== league.passcode) throw new Error('Incorrect passcode');
+  }
+
+  await Promise.all([
+    updateDoc(leagueRef, { members: arrayUnion(userId), memberCount: increment(1) }),
+    updateDoc(doc(db, 'users', userId), { leagues: arrayUnion(leagueId) }),
+  ]);
 }
 
 export async function deleteLeague(leagueId) {
-  await apiCall('leagues', 'POST', { action: 'delete', leagueId });
+  if (leagueId === 'global') throw new Error('Cannot delete the global league');
+
+  const leagueRef = doc(db, 'leagues', leagueId);
+  const leagueSnap = await getDoc(leagueRef);
+  if (!leagueSnap.exists()) throw new Error('League not found');
+
+  const league = leagueSnap.data();
+
+  // Delete the league doc first (instant UI feedback)
+  await deleteDoc(leagueRef);
+
+  // Background cleanup: remove from members + delete predictions
+  const memberIds = league.members || [];
+  memberIds.forEach(mid => {
+    updateDoc(doc(db, 'users', mid), { leagues: arrayRemove(leagueId) }).catch(() => {});
+  });
+
+  // Delete predictions for this league in background
+  getDocs(query(collection(db, 'predictions'), where('leagueId', '==', leagueId)))
+    .then(snap => {
+      if (snap.empty) return;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      return batch.commit();
+    })
+    .catch(e => console.error('Prediction cleanup failed:', e.message));
 }
 
-export async function leaveLeague(leagueId) {
-  await apiCall('leagues', 'POST', { action: 'leave', leagueId });
+export async function leaveLeague(leagueId, userId) {
+  const leagueRef = doc(db, 'leagues', leagueId);
+  const leagueSnap = await getDoc(leagueRef);
+  if (!leagueSnap.exists()) throw new Error('League not found');
+
+  const league = leagueSnap.data();
+  if (!league.members?.includes(userId)) throw new Error('Not a member');
+  if (league.createdBy === userId) throw new Error('League creator cannot leave. Delete the league instead.');
+
+  await Promise.all([
+    updateDoc(leagueRef, { members: arrayRemove(userId), memberCount: increment(-1) }),
+    updateDoc(doc(db, 'users', userId), { leagues: arrayRemove(leagueId) }),
+  ]);
+
+  // Delete predictions in background
+  getDocs(query(collection(db, 'predictions'), where('userId', '==', userId), where('leagueId', '==', leagueId)))
+    .then(snap => {
+      if (snap.empty) return;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      return batch.commit();
+    })
+    .catch(e => console.error('Prediction cleanup failed:', e.message));
 }
 
 export function subscribeToUserLeagues(userId, callback) {
@@ -128,9 +223,54 @@ export function subscribeToAllLeagues(callback) {
 }
 
 // ---- PREDICTIONS (write via API, read via Firestore) ----
-export async function saveBatchPredictions(userId, leagueId, predictions) {
-  const data = await apiCall('predictions', 'POST', { leagueId, predictions });
-  return data.saved;
+// ---- PREDICTIONS (direct Firestore client SDK) ----
+// Lock predictions 5 minutes before kickoff
+const LOCK_BUFFER_MS = 5 * 60 * 1000;
+function isMatchLocked(match) {
+  if (!match?.date || !match?.time) return false;
+  const [hh, mm] = match.time.split(':').map(Number);
+  const utcHour = hh + 4; // EDT offset
+  const date = new Date(`${match.date}T00:00:00Z`);
+  date.setUTCHours(utcHour, mm, 0, 0);
+  return Date.now() >= date.getTime() - LOCK_BUFFER_MS;
+}
+
+export async function saveBatchPredictions(userId, leagueId, predictions, matchData = null) {
+  if (!leagueId || !predictions) throw new Error('Missing leagueId or predictions');
+
+  const batch = writeBatch(db);
+  let count = 0;
+  const locked = [];
+
+  for (const [matchId, pred] of Object.entries(predictions)) {
+    if (!pred.result) continue;
+
+    // Client-side lock check (also enforced by security rules)
+    if (matchData) {
+      const match = matchData.find(m => String(m.id) === String(matchId));
+      if (match && isMatchLocked(match)) {
+        locked.push(matchId);
+        continue;
+      }
+    }
+
+    const ref = doc(db, 'predictions', `${userId}_${leagueId}_${matchId}`);
+    batch.set(ref, {
+      userId,
+      leagueId,
+      matchId,
+      result: pred.result,
+      score: { home: pred.score?.home || '', away: pred.score?.away || '' },
+      extraTime: pred.extraTime || false,
+      penalties: pred.penalties || false,
+      updatedAt: serverTimestamp(),
+      submittedAt: serverTimestamp(),
+    }, { merge: true });
+    count++;
+  }
+
+  if (count > 0) await batch.commit();
+  return { saved: count, locked: locked.length > 0 ? locked : undefined };
 }
 
 export function subscribeToUserPredictions(userId, leagueId, callback) {
