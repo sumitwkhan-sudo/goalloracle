@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, deleteLeague, checkOracleHealth } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, checkOracleHealth } from '../utils/db';
 
 const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify }) => {
   const [tab, setTab] = useState('results');
@@ -55,7 +55,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     if (leagueId === 'global') { notify('Cannot delete the global league', 'error'); return; }
     setDeleting(leagueId);
     try {
-      await deleteLeague(leagueId);
+      await adminDeleteLeague(leagueId);
       notify(`Deleted league: ${name}`);
     } catch (e) { notify('Delete failed: ' + e.message, 'error'); }
     finally { setDeleting(null); }

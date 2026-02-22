@@ -1,33 +1,49 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // All collections: read-only from client
-    // All writes go through Vercel serverless functions using Firebase Admin SDK
-    // (Admin SDK bypasses these rules entirely)
-    
+
     match /users/{userId} {
       allow read: if true;
-      allow write: if false;
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.role == 'user'
+                    && request.resource.data.id == userId;
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                       .hasAny(['role', 'createdAt']);
     }
-    
+
     match /leagues/{leagueId} {
       allow read: if true;
-      allow write: if false;
+      allow create: if request.auth != null
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.members.size() == 1
+                    && request.resource.data.members[0] == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null
+                    && resource.data.createdBy == request.auth.uid;
     }
-    
+
     match /predictions/{predId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if request.auth != null
+                   && request.resource.data.userId == request.auth.uid;
     }
-    
+
     match /matchResults/{matchId} {
       allow read: if true;
       allow write: if false;
     }
-    
+
     match /adminLogs/{logId} {
       allow read: if false;
       allow write: if false;
+    }
+
+    match /feedback/{feedbackId} {
+      allow read: if false;
+      allow create: if true;
     }
   }
 }

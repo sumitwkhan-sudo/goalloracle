@@ -85,6 +85,45 @@ export default async function handler(req, res) {
       });
 
       return res.status(200).json({ success: true });
+
+    } else if (action === 'deleteLeague') {
+      const { leagueId } = req.body;
+      if (!leagueId) return res.status(400).json({ error: 'Missing leagueId' });
+      if (leagueId === 'global') return res.status(400).json({ error: 'Cannot delete the global league' });
+
+      const leagueSnap = await db.collection('leagues').doc(leagueId).get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+
+      const league = leagueSnap.data();
+      await db.collection('leagues').doc(leagueId).delete();
+
+      await db.collection('adminLogs').add({
+        action: 'delete_league',
+        leagueId,
+        leagueName: league.name,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+
+      res.status(200).json({ success: true, deleted: leagueId });
+
+      // Background cleanup: member docs + predictions
+      const memberIds = league.members || [];
+      const cleanupPromises = memberIds.map(mid =>
+        db.collection('users').doc(mid).update({ leagues: FieldValue.arrayRemove(leagueId) }).catch(() => {})
+      );
+      db.collection('predictions').where('leagueId', '==', leagueId).get()
+        .then(snap => {
+          const docs = snap.docs;
+          for (let i = 0; i < docs.length; i += 500) {
+            const batch = db.batch();
+            docs.slice(i, i + 500).forEach(d => batch.delete(d.ref));
+            cleanupPromises.push(batch.commit());
+          }
+          return Promise.all(cleanupPromises);
+        })
+        .catch(e => console.error('Admin delete cleanup failed:', e.message));
+      return;
     }
 
     return res.status(400).json({ error: 'Invalid action' });

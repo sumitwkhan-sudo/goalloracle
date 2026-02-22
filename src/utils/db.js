@@ -1,10 +1,39 @@
-import { db } from '../config/firebase';
-import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { db, auth } from '../config/firebase';
+import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs } from 'firebase/firestore';
+import { signInWithCustomToken } from 'firebase/auth';
+import WORLD_CUP_MATCHES from '../data/matches';
 
-// ---- Auth token management ----
+// ---- Auth token management (kept for admin API calls) ----
 let _authToken = null;
 export function setAuthToken(token) { _authToken = token; }
 
+// ---- Firebase Auth bridge ----
+let _firebaseAuthed = false;
+
+export async function signIntoFirebase(privyToken) {
+  if (_firebaseAuthed) return true;
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${privyToken}` },
+    });
+    if (!res.ok) throw new Error(`Auth bridge failed (${res.status})`);
+    const { firebaseToken } = await res.json();
+    await signInWithCustomToken(auth, firebaseToken);
+    _firebaseAuthed = true;
+    console.log('[auth] Firebase Auth signed in');
+    return true;
+  } catch (e) {
+    console.error('[auth] Firebase sign-in failed:', e.message);
+    return false;
+  }
+}
+
+export function resetFirebaseAuth() {
+  _firebaseAuthed = false;
+}
+
+// ---- API helper (kept for admin + leaderboard endpoints only) ----
 async function apiCall(endpoint, method = 'GET', body = null) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 55000);
@@ -35,40 +64,53 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   }
 }
 
-// ---- USERS ----
-// Read user doc directly from Firestore (instant, no API needed)
-// Write user data via API (for creation and updates)
+// ---- Match lock logic (same as server) ----
+const LOCK_BUFFER_MS = 5 * 60 * 1000;
+const matchKickoffUTC = {};
+WORLD_CUP_MATCHES.forEach(m => {
+  const [hh, mm] = m.time.split(':').map(Number);
+  const utcHour = hh + 4; // EDT offset
+  const date = new Date(`${m.date}T00:00:00Z`);
+  date.setUTCHours(utcHour, mm, 0, 0);
+  matchKickoffUTC[m.id] = date.getTime();
+});
+
+function isMatchLocked(matchId) {
+  const kickoff = matchKickoffUTC[matchId];
+  if (!kickoff) return false;
+  return Date.now() >= kickoff - LOCK_BUFFER_MS;
+}
+
+// ---- USERS (direct Firestore writes) ----
 export async function createOrUpdateUser(privyUser) {
   if (!privyUser) return null;
-
-  // Extract Privy user ID
   const userId = privyUser.id;
   if (!userId) return null;
 
-  // Read user doc directly from Firestore — no API call, no timeout risk
-  const userSnap = await getDoc(doc(db, 'users', userId));
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+
+  // Extract email
+  let emailAddr = null;
+  if (typeof privyUser.email === 'string') emailAddr = privyUser.email;
+  else if (privyUser.email?.address) emailAddr = privyUser.email.address;
+  else if (privyUser.google?.email) emailAddr = privyUser.google.email;
+  else {
+    const emailAccount = privyUser.linked_accounts?.find(a => a.type === 'email' || a.type === 'google_oauth');
+    if (emailAccount) emailAddr = emailAccount.email || emailAccount.address;
+  }
+  const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
 
   if (userSnap.exists()) {
     const userData = { id: userSnap.id, ...userSnap.data() };
     console.log('[auth] loaded user from Firestore:', userData.displayName, userData.role);
 
-    // Background: sync email & wallet via API (fire-and-forget, OK if it times out)
+    // Background sync: update email & wallet if provided (fire-and-forget)
     try {
-      let emailAddr = null;
-      if (typeof privyUser.email === 'string') emailAddr = privyUser.email;
-      else if (privyUser.email?.address) emailAddr = privyUser.email.address;
-      else if (privyUser.google?.email) emailAddr = privyUser.google.email;
-      else {
-        const emailAccount = privyUser.linked_accounts?.find(a => a.type === 'email' || a.type === 'google_oauth');
-        if (emailAccount) emailAddr = emailAccount.email || emailAccount.address;
-      }
-      const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
-
-      if (emailAddr || walletAddr) {
-        apiCall('user', 'POST', { email: emailAddr, walletAddress: walletAddr })
-          .then(res => { if (res?.user) console.log('[auth] background sync done'); })
-          .catch(e => console.warn('[auth] background sync failed:', e.message));
-      }
+      const updates = { updatedAt: serverTimestamp() };
+      if (emailAddr) updates.email = emailAddr;
+      if (walletAddr) updates.walletAddress = walletAddr;
+      updateDoc(userRef, updates).catch(e => console.warn('[auth] background sync failed:', e.message));
     } catch (e) {
       console.warn('[auth] email extraction failed:', e.message);
     }
@@ -76,52 +118,177 @@ export async function createOrUpdateUser(privyUser) {
     return userData;
   }
 
-  // User doc doesn't exist — create via API (this is a new user, worth waiting for)
-  console.log('[auth] new user, creating via API...');
+  // New user — create directly in Firestore
+  console.log('[auth] new user, creating in Firestore...');
   try {
-    let emailAddr = null;
-    if (typeof privyUser.email === 'string') emailAddr = privyUser.email;
-    else if (privyUser.email?.address) emailAddr = privyUser.email.address;
-    else if (privyUser.google?.email) emailAddr = privyUser.google.email;
-    else {
-      const emailAccount = privyUser.linked_accounts?.find(a => a.type === 'email' || a.type === 'google_oauth');
-      if (emailAccount) emailAddr = emailAccount.email || emailAccount.address;
-    }
-    const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
+    const displayName = emailAddr?.split('@')[0] || (walletAddr ? walletAddr.slice(0, 8) : 'Anonymous');
+    await setDoc(userRef, {
+      id: userId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      role: 'user',
+      leagues: ['global'],
+      email: emailAddr || null,
+      walletAddress: walletAddr || null,
+      displayName,
+      usernameSet: false,
+    });
 
-    const data = await apiCall('user', 'POST', { email: emailAddr, walletAddress: walletAddr });
-    return data.user;
+    // Auto-join global league (non-blocking)
+    updateDoc(doc(db, 'leagues', 'global'), {
+      members: arrayUnion(userId),
+      memberCount: increment(1),
+    }).catch(() => {});
+
+    // Read back the created doc
+    const fresh = await getDoc(userRef);
+    return { id: fresh.id, ...fresh.data() };
   } catch (e) {
     console.error('[auth] failed to create user:', e.message);
     return null;
   }
 }
 
-export async function updateUserProfile(updates) {
-  const data = await apiCall('user', 'POST', updates);
-  return data.user;
+export async function updateUserProfile(userId, updates) {
+  const userRef = doc(db, 'users', userId);
+  const safeUpdates = { updatedAt: serverTimestamp() };
+  if (updates.displayName && updates.displayName.trim()) safeUpdates.displayName = updates.displayName.trim();
+  if (updates.usernameSet === true) safeUpdates.usernameSet = true;
+  if (updates.email) safeUpdates.email = updates.email;
+  if (updates.walletAddress) safeUpdates.walletAddress = updates.walletAddress;
+  await updateDoc(userRef, safeUpdates);
+  const fresh = await getDoc(userRef);
+  return { id: fresh.id, ...fresh.data() };
 }
 
 export async function getUserRole(userId) {
   return 'user';
 }
 
-// ---- LEAGUES (write via API, read via Firestore) ----
+// ---- LEAGUES (direct Firestore writes) ----
 export async function createLeague(leagueData, creatorId) {
-  const data = await apiCall('leagues', 'POST', { action: 'create', ...leagueData });
-  return data.leagueId;
+  const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds } = leagueData;
+  if (!name?.trim()) throw new Error('Name required');
+
+  if (type === 'paid' && prizeDistribution) {
+    const total = (prizeDistribution.first || 0) + (prizeDistribution.second || 0) + (prizeDistribution.third || 0);
+    if (total !== 100) throw new Error('Prize distribution must total 100%');
+  }
+
+  if (visibility === 'private' && !passcode?.trim()) {
+    throw new Error('Passcode required for private leagues');
+  }
+
+  const leagueId = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now();
+  const leagueRef = doc(db, 'leagues', leagueId);
+
+  await setDoc(leagueRef, {
+    id: leagueId,
+    name: name.trim(),
+    type: type || 'free',
+    visibility: visibility || 'public',
+    passcode: visibility === 'private' ? passcode.trim().toUpperCase() : null,
+    entryFee: entryFee || 0,
+    currency: currency || 'USDC',
+    prizeDistribution: prizeDistribution || { first: 50, second: 30, third: 20 },
+    pointsSystem: pointsSystem || { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 },
+    matchScope: matchScope || 'all',
+    selectedGroups: selectedGroups || null,
+    selectedRounds: selectedRounds || null,
+    createdBy: creatorId,
+    members: [creatorId],
+    memberCount: 1,
+    createdAt: serverTimestamp(),
+    status: 'active',
+  });
+
+  // Update user's leagues array (non-blocking)
+  updateDoc(doc(db, 'users', creatorId), { leagues: arrayUnion(leagueId) }).catch(() => {});
+
+  return leagueId;
 }
 
 export async function joinLeague(leagueId, userId, passcode = null) {
-  await apiCall('leagues', 'POST', { action: 'join', leagueId, passcode });
-}
+  const leagueRef = doc(db, 'leagues', leagueId);
+  const leagueSnap = await getDoc(leagueRef);
+  if (!leagueSnap.exists()) throw new Error('League not found');
 
-export async function deleteLeague(leagueId) {
-  await apiCall('leagues', 'POST', { action: 'delete', leagueId });
+  const league = leagueSnap.data();
+  if (league.members?.includes(userId)) throw new Error('Already a member');
+
+  if (league.visibility === 'private') {
+    if (!passcode) throw new Error('This is a private league. A passcode is required to join.');
+    if (passcode.trim().toUpperCase() !== league.passcode) throw new Error('Incorrect passcode');
+  }
+
+  // Parallel writes
+  await Promise.all([
+    updateDoc(leagueRef, { members: arrayUnion(userId), memberCount: increment(1) }),
+    updateDoc(doc(db, 'users', userId), { leagues: arrayUnion(leagueId) }),
+  ]);
 }
 
 export async function leaveLeague(leagueId, userId) {
-  await apiCall('leagues', 'POST', { action: 'leave', leagueId });
+  const leagueRef = doc(db, 'leagues', leagueId);
+  const leagueSnap = await getDoc(leagueRef);
+  if (!leagueSnap.exists()) throw new Error('League not found');
+
+  const league = leagueSnap.data();
+  if (!league.members?.includes(userId)) throw new Error('Not a member');
+  if (league.createdBy === userId) throw new Error('League creator cannot leave. Delete the league instead.');
+
+  // Parallel writes
+  await Promise.all([
+    updateDoc(leagueRef, { members: arrayRemove(userId), memberCount: increment(-1) }),
+    updateDoc(doc(db, 'users', userId), { leagues: arrayRemove(leagueId) }),
+  ]);
+
+  // Background: delete predictions for this user in this league
+  getDocs(query(collection(db, 'predictions'), where('userId', '==', userId), where('leagueId', '==', leagueId)))
+    .then(snap => {
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        return batch.commit();
+      }
+    })
+    .catch(e => console.error('Prediction cleanup failed:', e.message));
+}
+
+export async function deleteLeague(leagueId, userId) {
+  if (leagueId === 'global') throw new Error('Cannot delete the global league');
+
+  const leagueRef = doc(db, 'leagues', leagueId);
+  const leagueSnap = await getDoc(leagueRef);
+  if (!leagueSnap.exists()) throw new Error('League not found');
+
+  const league = leagueSnap.data();
+
+  // Client-side: only creator can delete (rules enforce this too)
+  // Admin deletion stays via the admin API endpoint
+  if (league.createdBy !== userId) {
+    throw new Error('Only the league creator can delete a league');
+  }
+
+  const memberIds = league.members || [];
+
+  // Delete the league doc
+  await deleteDoc(leagueRef);
+
+  // Background cleanup: remove league from member user docs + delete predictions
+  memberIds.forEach(mid => {
+    updateDoc(doc(db, 'users', mid), { leagues: arrayRemove(leagueId) }).catch(() => {});
+  });
+  getDocs(query(collection(db, 'predictions'), where('leagueId', '==', leagueId)))
+    .then(snap => {
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 500) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + 500).forEach(d => batch.delete(d.ref));
+        batch.commit().catch(() => {});
+      }
+    })
+    .catch(e => console.error('Delete cleanup failed:', e.message));
 }
 
 export function subscribeToUserLeagues(userId, callback) {
@@ -139,10 +306,40 @@ export function subscribeToAllLeagues(callback) {
   }, (err) => { console.error('[db] allLeagues error:', err.message, err.code); callback([]); });
 }
 
-// ---- PREDICTIONS (write via API, read via Firestore) ----
+// ---- PREDICTIONS (direct Firestore writes with client-side lock check) ----
 export async function saveBatchPredictions(userId, leagueId, predictions) {
-  const data = await apiCall('predictions', 'POST', { leagueId, predictions });
-  return data.saved;
+  if (!leagueId || !predictions) throw new Error('Missing leagueId or predictions');
+
+  const batch = writeBatch(db);
+  let count = 0;
+  const locked = [];
+
+  for (const [matchId, pred] of Object.entries(predictions)) {
+    if (!pred.result) continue;
+
+    // Client-side lock check (same logic as server)
+    if (isMatchLocked(matchId)) {
+      locked.push(matchId);
+      continue;
+    }
+
+    const ref = doc(db, 'predictions', `${userId}_${leagueId}_${matchId}`);
+    batch.set(ref, {
+      userId,
+      leagueId,
+      matchId,
+      result: pred.result,
+      score: { home: pred.score?.home || '', away: pred.score?.away || '' },
+      extraTime: pred.extraTime || false,
+      penalties: pred.penalties || false,
+      updatedAt: serverTimestamp(),
+      submittedAt: serverTimestamp(),
+    }, { merge: true });
+    count++;
+  }
+
+  await batch.commit();
+  return count;
 }
 
 export function subscribeToUserPredictions(userId, leagueId, callback) {
@@ -157,6 +354,21 @@ export function subscribeToUserPredictions(userId, leagueId, callback) {
 export async function getLeagueLeaderboard(leagueId) {
   const data = await apiCall(`predictions?type=leaderboard&leagueId=${leagueId}`);
   return { leaderboard: data.leaderboard, userNames: data.userNames || {} };
+}
+
+// ---- FEEDBACK (direct Firestore write) ----
+export async function submitFeedback(feedbackData) {
+  await addDoc(collection(db, 'feedback'), {
+    email: feedbackData.email?.trim() || '',
+    name: feedbackData.name?.trim() || 'Anonymous',
+    type: feedbackData.type || 'general',
+    message: feedbackData.message?.trim() || '',
+    userId: feedbackData.userId || null,
+    displayName: feedbackData.displayName || null,
+    timestamp: feedbackData.timestamp || new Date().toISOString(),
+    createdAt: serverTimestamp(),
+    status: 'new',
+  });
 }
 
 // ---- MATCH RESULTS ----
@@ -188,10 +400,14 @@ export function subscribeToPlatformStats(callback) {
   return () => { u1(); u2(); };
 }
 
-// ---- ADMIN ----
+// ---- ADMIN (via API, server-side only) ----
 export async function getAllUsers() {
   const data = await apiCall('admin?type=users');
   return data.users;
+}
+
+export async function adminDeleteLeague(leagueId) {
+  await apiCall('admin', 'POST', { action: 'deleteLeague', leagueId });
 }
 
 export async function setUserRole(userId, role, adminId) {

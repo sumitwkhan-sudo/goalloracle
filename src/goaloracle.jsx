@@ -6,7 +6,7 @@ import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -143,7 +143,7 @@ const GoalOracle = () => {
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
-      setUData(null); setRole('user'); setAuthToken(null);
+      setUData(null); setRole('user'); setAuthToken(null); resetFirebaseAuth();
       authInitRef.current = false;
       return;
     }
@@ -159,8 +159,11 @@ const GoalOracle = () => {
       const token = await getTokenSafe(timeout);
       if (!token) { console.warn(`[auth] no token attempt ${attempts}`); return; }
       if (stopped) return;
-      console.log('[auth] got token, calling API...');
+      console.log('[auth] got token, signing into Firebase...');
       setAuthToken(token);
+      const fbOk = await signIntoFirebase(token);
+      if (!fbOk) { console.warn('[auth] Firebase sign-in failed, retrying...'); return; }
+      if (stopped) return;
       const u = await createOrUpdateUser(user);
       if (stopped || !u) return;
       console.log('[auth] SUCCESS:', u.displayName, u.role);
@@ -197,8 +200,6 @@ const GoalOracle = () => {
     if (!uData?.id || !selLeague?.id) return;
     setSaving(true);
     try {
-      const token = await getTokenSafe(5000);
-      if (token) setAuthToken(token);
       await saveBatchPredictions(uData.id, selLeague.id, preds);
       notify('Predictions saved!');
     } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); }
@@ -215,8 +216,6 @@ const GoalOracle = () => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
       try {
-        const token = await getTokenSafe(5000);
-        if (token) setAuthToken(token);
         await saveBatchPredictions(uData.id, selLeague.id, predsRef.current);
       } catch(e) {
         console.error('Auto-save failed:', e);
@@ -954,7 +953,7 @@ const GoalOracle = () => {
     useEffect(() => { if (tab !== 'leaderboard' || !selLeague?.id) return; (async () => { setLbl(true); try { const { leaderboard: bu, userNames } = await getLeagueLeaderboard(selLeague.id); const p = selLeague.pointsSystem || {}; const e = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, displayName: userNames[uid] || uid.slice(0, 8), ...calculateTotalPoints(pr, results, p) })); setLb(sortLeaderboard(e)); } catch(e){console.error(e);} finally{setLbl(false);} })(); }, [tab, selLeague?.id, results]);
 
     const handleDelete = async () => {
-      try { await deleteLeague(selLeague.id); notify(`"${selLeague.name}" deleted`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
+      try { await deleteLeague(selLeague.id, uData.id); notify(`"${selLeague.name}" deleted`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
     };
     const handleLeave = async () => {
       try { await leaveLeague(selLeague.id, uData.id); notify(`Left "${selLeague.name}"`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
@@ -1560,7 +1559,7 @@ const GoalOracle = () => {
       const validErr = validateUsername(newName.trim());
       if (validErr) { notify(validErr, 'error'); return; }
       try {
-        const updated = await updateUserProfile({ displayName: newName.trim(), usernameSet: true });
+        const updated = await updateUserProfile(uData.id, { displayName: newName.trim(), usernameSet: true });
         if (updated) setUData(updated);
         setEditingName(false);
         notify('Display name updated!');
@@ -1669,24 +1668,24 @@ const GoalOracle = () => {
       setFbError('');
       setFbSending(true);
       try {
-        const res = await fetch('/api/feedback', {
+        const feedbackPayload = {
+          email: finalEmail,
+          name: fbName.trim(),
+          type: fbType,
+          message: fbMsg.trim(),
+          userId: uData?.id || null,
+          displayName: uData?.displayName || null,
+          timestamp: new Date().toISOString(),
+        };
+        // Write to Firestore directly (instant)
+        await submitFeedback(feedbackPayload);
+        setFbSent(true);
+        // Fire-and-forget: send email notification via API
+        fetch('/api/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: finalEmail,
-            name: fbName.trim(),
-            type: fbType,
-            message: fbMsg.trim(),
-            userId: uData?.id || null,
-            displayName: uData?.displayName || null,
-            timestamp: new Date().toISOString(),
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `Server error (${res.status})`);
-        }
-        setFbSent(true);
+          body: JSON.stringify(feedbackPayload),
+        }).catch(() => {});
       } catch (e) {
         console.error('Feedback error:', e);
         setFbError(e.message || 'Something went wrong');
@@ -1990,7 +1989,7 @@ const GoalOracle = () => {
       if (validErr) { setErr(validErr); return; }
       setBusy(true); setErr('');
       try {
-        const updated = await updateUserProfile({ displayName: trimmed, usernameSet: true });
+        const updated = await updateUserProfile(uData.id, { displayName: trimmed, usernameSet: true });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
         notify(`Welcome, ${trimmed}!`);
@@ -2001,7 +2000,7 @@ const GoalOracle = () => {
       if (!emailPrefix) return;
       setBusy(true); setErr('');
       try {
-        const updated = await updateUserProfile({ displayName: emailPrefix, usernameSet: true });
+        const updated = await updateUserProfile(uData.id, { displayName: emailPrefix, usernameSet: true });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
         notify(`Welcome, ${emailPrefix}!`);
