@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, onSnapshot, query, where, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, getDoc, getDocFromServer, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp } from 'firebase/firestore';
 
 // ---- Auth token management ----
 // Set by the main app when Privy provides a token
@@ -130,6 +130,18 @@ export async function createLeague(leagueData, creatorId) {
     status: 'active',
   });
   console.log('[createLeague] SUCCESS — written to Firestore, id:', leagueId, 'passcode:', visibility === 'private' ? passcode : 'N/A');
+
+  // Verify write actually persisted to server (memoryLocalCache resolves setDoc optimistically)
+  try {
+    const verify = await getDocFromServer(leagueRef);
+    if (!verify.exists()) {
+      throw new Error('League write was rejected by Firestore — check security rules in Firebase Console');
+    }
+    console.log('[createLeague] VERIFIED on server, passcode:', verify.data()?.passcode);
+  } catch (verifyErr) {
+    console.error('[createLeague] Server verification failed:', verifyErr);
+    throw new Error('League was not saved. Firestore may be rejecting writes — check security rules.');
+  }
 
   // Update user doc in background
   updateDoc(userRef, { leagues: arrayUnion(leagueId) }).catch(() => {});
