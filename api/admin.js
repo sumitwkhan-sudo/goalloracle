@@ -105,25 +105,23 @@ export default async function handler(req, res) {
         timestamp: FieldValue.serverTimestamp(),
       });
 
-      res.status(200).json({ success: true, deleted: leagueId });
-
-      // Background cleanup: member docs + predictions
+      // Cleanup: remove league from member docs + delete predictions
       const memberIds = league.members || [];
       const cleanupPromises = memberIds.map(mid =>
         db.collection('users').doc(mid).update({ leagues: FieldValue.arrayRemove(leagueId) }).catch(() => {})
       );
-      db.collection('predictions').where('leagueId', '==', leagueId).get()
-        .then(snap => {
-          const docs = snap.docs;
-          for (let i = 0; i < docs.length; i += 500) {
-            const batch = db.batch();
-            docs.slice(i, i + 500).forEach(d => batch.delete(d.ref));
-            cleanupPromises.push(batch.commit());
-          }
-          return Promise.all(cleanupPromises);
-        })
-        .catch(e => console.error('Admin delete cleanup failed:', e.message));
-      return;
+
+      const predSnap = await db.collection('predictions').where('leagueId', '==', leagueId).get();
+      const docs = predSnap.docs;
+      for (let i = 0; i < docs.length; i += 500) {
+        const batch = db.batch();
+        docs.slice(i, i + 500).forEach(d => batch.delete(d.ref));
+        cleanupPromises.push(batch.commit());
+      }
+
+      await Promise.all(cleanupPromises);
+
+      return res.status(200).json({ success: true, deleted: leagueId });
     }
 
     return res.status(400).json({ error: 'Invalid action' });
