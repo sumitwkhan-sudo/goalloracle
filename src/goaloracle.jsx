@@ -834,6 +834,7 @@ const GoalOracle = () => {
     }, [matchScope, selGroups, selRounds]);
 
     const go = async () => {
+      console.log('[create] go() called, nm=', nm, 'uData=', uData?.id);
       if (!uData?.id) { setErr('Still loading your account. Please wait a moment and try again.'); return; }
       if (!nm.trim()) { setErr('Name required'); return; }
       if (vis === 'private' && !passcode.trim()) { setErr('Passcode required for private leagues'); return; }
@@ -846,7 +847,7 @@ const GoalOracle = () => {
       const scopeData = matchScope === 'all' ? { matchScope: 'all' } :
         matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
         { matchScope: 'rounds', selectedRounds: selRounds };
-      try { await createLeague({ name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }, uData.id); notify('League created!'); nav('dashboard'); } catch(e) { setErr(e.message); } finally { setBusy(false); }
+      try { const lid = await createLeague({ name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }, uData.id); console.log('[create] success, leagueId=', lid); notify('League created!'); nav('dashboard'); } catch(e) { console.error('[create] failed:', e); setErr(e.message || 'Failed to create league'); } finally { setBusy(false); }
     };
     return (
       <div className="create-league">
@@ -1299,6 +1300,7 @@ const GoalOracle = () => {
   const [frozenUnpredictedIds, setFrozenUnpredictedIds] = useState(null);
   const [walletBalances, setWalletBalances] = useState({ USDC: '0.00', POL: '0.00' });
   const [balLoading, setBalLoading] = useState(false);
+  const balancesRef = useRef(walletBalances);
 
   // Resolve wallet address from Privy user
   const walletAddress = useMemo(() => {
@@ -1311,6 +1313,7 @@ const GoalOracle = () => {
     setBalLoading(true);
     try {
       const bal = await getWalletBalances(walletAddress);
+      balancesRef.current = bal;
       setWalletBalances(bal);
     } catch (e) {
       console.error('[wallet] Balance fetch failed:', e.message);
@@ -1320,7 +1323,19 @@ const GoalOracle = () => {
   useEffect(() => {
     if (!walletAddress) return;
     refreshBalances();
-    const interval = setInterval(refreshBalances, 30000); // refresh every 30s
+    // Use ref-based polling to avoid re-renders every 30s
+    const interval = setInterval(async () => {
+      if (!walletAddress) return;
+      try {
+        const bal = await getWalletBalances(walletAddress);
+        balancesRef.current = bal;
+        // Only update state if values actually changed
+        setWalletBalances(prev => {
+          if (prev.USDC === bal.USDC && prev.POL === bal.POL) return prev;
+          return bal;
+        });
+      } catch {}
+    }, 30000);
     return () => clearInterval(interval);
   }, [walletAddress, refreshBalances]);
 
