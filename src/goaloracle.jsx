@@ -752,7 +752,9 @@ const GoalOracle = () => {
               if (!passInput.trim() || !uData?.id) return;
               try {
                 setJoinErr('');
-                const match = allLeagues.find(l => l.passcode === passInput.trim());
+                console.log('[join] Looking for passcode:', passInput.trim(), 'in', allLeagues.length, 'leagues');
+                console.log('[join] Leagues with passcodes:', allLeagues.filter(l => l.passcode).map(l => ({ id: l.id, passcode: l.passcode, vis: l.visibility })));
+                const match = allLeagues.find(l => l.passcode && l.passcode === passInput.trim());
                 if (!match) { setJoinErr('No league found with that passcode'); notify('No league found with that passcode', 'error'); return; }
                 await joinLeague(match.id, uData.id, passInput.trim());
                 notify(`Joined ${match.name}!`);
