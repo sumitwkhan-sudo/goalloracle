@@ -21,9 +21,9 @@ const TOKENS = {
 
 // Public Polygon RPC endpoints (try multiple)
 const RPC_URLS = [
-  'https://polygon-rpc.com',
   'https://rpc.ankr.com/polygon',
-  'https://polygon.llamarpc.com',
+  'https://polygon-mainnet.public.blastapi.io',
+  'https://polygon-bor-rpc.publicnode.com',
 ];
 
 // ERC-20 balanceOf(address) selector
@@ -42,6 +42,7 @@ async function rpcCall(method, params) {
         signal: controller.signal,
       });
       clearTimeout(timeout);
+      if (!res.ok) continue; // skip non-200 responses
       const data = await res.json();
       if (data.result !== undefined) return data.result;
     } catch {

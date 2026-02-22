@@ -753,8 +753,6 @@ const GoalOracle = () => {
               if (!passInput.trim() || !uData?.id) return;
               try {
                 setJoinErr('');
-                console.log('[join] Looking for passcode:', passInput.trim(), 'in', allLeagues.length, 'leagues');
-                console.log('[join] Leagues with passcodes:', allLeagues.filter(l => l.passcode).map(l => ({ id: l.id, passcode: l.passcode, vis: l.visibility })));
                 const match = allLeagues.find(l => l.passcode && l.passcode === passInput.trim());
                 if (!match) { setJoinErr('No league found with that passcode'); notify('No league found with that passcode', 'error'); return; }
                 const mId = match.id; const mName = match.name; const code = passInput.trim();
@@ -838,7 +836,6 @@ const GoalOracle = () => {
     }, [matchScope, selGroups, selRounds]);
 
     const go = async () => {
-      console.log('[create] go() called, nm=', nm, 'uData=', uData?.id);
       if (!uData?.id) { setErr('Still loading your account. Please wait a moment and try again.'); return; }
       if (!nm.trim()) { setErr('Name required'); return; }
       if (vis === 'private' && !passcode.trim()) { setErr('Passcode required for private leagues'); return; }
@@ -1343,7 +1340,7 @@ const GoalOracle = () => {
   useEffect(() => {
     if (!walletAddress) return;
     refreshBalances();
-    // Use ref-based polling to avoid re-renders every 30s
+    // Use ref-based polling to avoid re-renders every 60s
     const interval = setInterval(async () => {
       if (!walletAddress) return;
       try {
@@ -1355,7 +1352,7 @@ const GoalOracle = () => {
           return bal;
         });
       } catch {}
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [walletAddress, refreshBalances]);
 
