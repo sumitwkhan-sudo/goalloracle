@@ -1,18 +1,41 @@
-import { initializeApp } from 'firebase/app';
-import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { PrivyClient } from '@privy-io/server-auth';
+import admin from 'firebase-admin';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+const privy = new PrivyClient(
+  process.env.PRIVY_APP_ID,
+  process.env.PRIVY_APP_SECRET
+);
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+  });
+}
+
+const db = admin.firestore();
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-const app = initializeApp(firebaseConfig);
-// Use memory cache instead of IndexedDB — avoids Safari ITP blocking
-export const db = initializeFirestore(app, { localCache: memoryLocalCache() });
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+async function verifyAuth(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7);
+  try {
+    const claims = await privy.verifyAuthToken(token);
+    if (!claims.userId && claims.sub) claims.userId = claims.sub;
+    return claims;
+  } catch (e) {
+    console.error('Token verification failed:', e.message);
+    return null;
+  }
+}
+
+export { privy, db, admin, corsHeaders, verifyAuth };
