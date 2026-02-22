@@ -16,7 +16,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // POST: create, join, leave, or delete league (authenticated)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const claims = await verifyAuth(req);
@@ -63,8 +62,9 @@ export default async function handler(req, res) {
         status: 'active',
       });
 
-      await db.collection('users').doc(userId).update({ leagues: FieldValue.arrayUnion(leagueId) });
-      return res.status(200).json({ leagueId });
+      // Respond immediately, update user doc in background
+      res.status(200).json({ leagueId });
+      db.collection('users').doc(userId).update({ leagues: FieldValue.arrayUnion(leagueId) }).catch(() => {});
 
     // ─── JOIN ─────────────────────────────────────────────
     } else if (action === 'join') {
@@ -78,7 +78,6 @@ export default async function handler(req, res) {
       const league = leagueSnap.data();
       if (league.members?.includes(userId)) return res.status(400).json({ error: 'Already a member' });
 
-      // Passcode check for private leagues
       if (league.visibility === 'private') {
         if (!passcode) return res.status(403).json({ error: 'This is a private league. A passcode is required to join.' });
         if (passcode.trim().toUpperCase() !== league.passcode) {
@@ -86,11 +85,11 @@ export default async function handler(req, res) {
         }
       }
 
-      await leagueRef.update({
-        members: FieldValue.arrayUnion(userId),
-        memberCount: FieldValue.increment(1),
-      });
-      await db.collection('users').doc(userId).update({ leagues: FieldValue.arrayUnion(leagueId) });
+      // Parallel writes
+      await Promise.all([
+        leagueRef.update({ members: FieldValue.arrayUnion(userId), memberCount: FieldValue.increment(1) }),
+        db.collection('users').doc(userId).update({ leagues: FieldValue.arrayUnion(leagueId) }),
+      ]);
       return res.status(200).json({ success: true });
 
     // ─── LEAVE ────────────────────────────────────────────
@@ -106,73 +105,63 @@ export default async function handler(req, res) {
       if (!league.members?.includes(userId)) return res.status(400).json({ error: 'Not a member' });
       if (league.createdBy === userId) return res.status(400).json({ error: 'League creator cannot leave. Delete the league instead.' });
 
-      await leagueRef.update({
-        members: FieldValue.arrayRemove(userId),
-        memberCount: FieldValue.increment(-1),
-      });
-      await db.collection('users').doc(userId).update({ leagues: FieldValue.arrayRemove(leagueId) });
+      // Parallel writes, respond immediately
+      await Promise.all([
+        leagueRef.update({ members: FieldValue.arrayRemove(userId), memberCount: FieldValue.increment(-1) }),
+        db.collection('users').doc(userId).update({ leagues: FieldValue.arrayRemove(leagueId) }),
+      ]);
 
-      // Delete user's predictions for this league
-      const predsSnap = await db.collection('predictions')
-        .where('userId', '==', userId)
-        .where('leagueId', '==', leagueId)
-        .get();
-      if (!predsSnap.empty) {
-        const batch = db.batch();
-        predsSnap.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-      }
-
-      return res.status(200).json({ success: true });
+      // Delete predictions in background (non-blocking)
+      res.status(200).json({ success: true });
+      db.collection('predictions').where('userId', '==', userId).where('leagueId', '==', leagueId).get()
+        .then(snap => { if (!snap.empty) { const batch = db.batch(); snap.docs.forEach(d => batch.delete(d.ref)); return batch.commit(); } })
+        .catch(e => console.error('Prediction cleanup failed:', e.message));
 
     // ─── DELETE ────────────────────────────────────────────
     } else if (action === 'delete') {
       const { leagueId } = req.body;
       if (!leagueId) return res.status(400).json({ error: 'League ID required' });
+      if (leagueId === 'global') return res.status(400).json({ error: 'Cannot delete the global league' });
 
-      // Only superadmin/admin or the creator can delete
-      const userSnap = await db.collection('users').doc(userId).get();
-      const userRole = userSnap.data()?.role;
+      const [userSnap, leagueSnap] = await Promise.all([
+        db.collection('users').doc(userId).get(),
+        db.collection('leagues').doc(leagueId).get(),
+      ]);
 
-      const leagueRef = db.collection('leagues').doc(leagueId);
-      const leagueSnap = await leagueRef.get();
       if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
 
       const league = leagueSnap.data();
+      const userRole = userSnap.data()?.role;
       if (league.createdBy !== userId && userRole !== 'superadmin' && userRole !== 'admin') {
         return res.status(403).json({ error: 'Only the league creator or an admin can delete a league' });
       }
 
-      // Prevent deleting the global league
-      if (leagueId === 'global') return res.status(400).json({ error: 'Cannot delete the global league' });
+      // Delete the league doc immediately and respond
+      await db.collection('leagues').doc(leagueId).delete();
+      res.status(200).json({ success: true, deleted: leagueId });
 
-      // Delete all predictions for this league (batch in chunks of 500)
-      const predsSnap = await db.collection('predictions').where('leagueId', '==', leagueId).get();
-      const predDocs = predsSnap.docs;
-      for (let i = 0; i < predDocs.length; i += 500) {
-        const batch = db.batch();
-        predDocs.slice(i, i + 500).forEach(d => batch.delete(d.ref));
-        await batch.commit();
-      }
-
-      // Remove league from all member user docs
+      // Background cleanup: predictions + member user docs (non-blocking)
       const memberIds = league.members || [];
-      for (const memberId of memberIds) {
-        try {
-          await db.collection('users').doc(memberId).update({ leagues: FieldValue.arrayRemove(leagueId) });
-        } catch (e) {
-          console.error(`Failed to remove league from user ${memberId}:`, e.message);
-        }
-      }
+      const cleanupPromises = memberIds.map(mid =>
+        db.collection('users').doc(mid).update({ leagues: FieldValue.arrayRemove(leagueId) }).catch(() => {})
+      );
+      db.collection('predictions').where('leagueId', '==', leagueId).get()
+        .then(snap => {
+          const docs = snap.docs;
+          for (let i = 0; i < docs.length; i += 500) {
+            const batch = db.batch();
+            docs.slice(i, i + 500).forEach(d => batch.delete(d.ref));
+            cleanupPromises.push(batch.commit());
+          }
+          return Promise.all(cleanupPromises);
+        })
+        .catch(e => console.error('Delete cleanup failed:', e.message));
 
-      // Delete the league doc
-      await leagueRef.delete();
-      return res.status(200).json({ success: true, deleted: leagueId });
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Use: create, join, leave, or delete' });
     }
-
-    return res.status(400).json({ error: 'Invalid action. Use: create, join, leave, or delete' });
   } catch (e) {
     console.error('League error:', e);
-    return res.status(500).json({ error: e.message });
+    if (!res.headersSent) return res.status(500).json({ error: e.message });
   }
 }
