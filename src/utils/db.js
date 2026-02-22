@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 
 // ---- Auth token management ----
 let _authToken = null;
@@ -7,7 +7,7 @@ export function setAuthToken(token) { _authToken = token; }
 
 async function apiCall(endpoint, method = 'GET', body = null) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000); // 25s for Fluid Compute
+  const timeout = setTimeout(() => controller.abort(), 25000);
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -35,12 +35,49 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   }
 }
 
-// ---- USERS (write via API) ----
+// ---- USERS ----
+// Read user doc directly from Firestore (instant, no API needed)
+// Write user data via API (for creation and updates)
 export async function createOrUpdateUser(privyUser) {
   if (!privyUser) return null;
-  const data = await apiCall('debug-user');
-  const user = data.user;
 
+  // Extract Privy user ID
+  const userId = privyUser.id;
+  if (!userId) return null;
+
+  // Read user doc directly from Firestore — no API call, no timeout risk
+  const userSnap = await getDoc(doc(db, 'users', userId));
+
+  if (userSnap.exists()) {
+    const userData = { id: userSnap.id, ...userSnap.data() };
+    console.log('[auth] loaded user from Firestore:', userData.displayName, userData.role);
+
+    // Background: sync email & wallet via API (fire-and-forget, OK if it times out)
+    try {
+      let emailAddr = null;
+      if (typeof privyUser.email === 'string') emailAddr = privyUser.email;
+      else if (privyUser.email?.address) emailAddr = privyUser.email.address;
+      else if (privyUser.google?.email) emailAddr = privyUser.google.email;
+      else {
+        const emailAccount = privyUser.linked_accounts?.find(a => a.type === 'email' || a.type === 'google_oauth');
+        if (emailAccount) emailAddr = emailAccount.email || emailAccount.address;
+      }
+      const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
+
+      if (emailAddr || walletAddr) {
+        apiCall('user', 'POST', { email: emailAddr, walletAddress: walletAddr })
+          .then(res => { if (res?.user) console.log('[auth] background sync done'); })
+          .catch(e => console.warn('[auth] background sync failed:', e.message));
+      }
+    } catch (e) {
+      console.warn('[auth] email extraction failed:', e.message);
+    }
+
+    return userData;
+  }
+
+  // User doc doesn't exist — create via API (this is a new user, worth waiting for)
+  console.log('[auth] new user, creating via API...');
   try {
     let emailAddr = null;
     if (typeof privyUser.email === 'string') emailAddr = privyUser.email;
@@ -52,16 +89,12 @@ export async function createOrUpdateUser(privyUser) {
     }
     const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
 
-    if (emailAddr || walletAddr) {
-      apiCall('user', 'POST', { email: emailAddr, walletAddress: walletAddr })
-        .then(res => { if (res?.user) console.log('[auth] user data synced'); })
-        .catch(e => console.warn('[auth] background sync failed:', e.message));
-    }
+    const data = await apiCall('user', 'POST', { email: emailAddr, walletAddress: walletAddr });
+    return data.user;
   } catch (e) {
-    console.warn('[auth] email extraction failed:', e.message);
+    console.error('[auth] failed to create user:', e.message);
+    return null;
   }
-
-  return user;
 }
 
 export async function updateUserProfile(updates) {
