@@ -199,7 +199,7 @@ const GoalOracle = () => {
     try {
       const token = await getTokenSafe(5000);
       if (token) setAuthToken(token);
-      await saveBatchPredictions(uData.id, selLeague.id, preds, WORLD_CUP_MATCHES);
+      await saveBatchPredictions(uData.id, selLeague.id, preds);
       notify('Predictions saved!');
     } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); }
   };
@@ -217,7 +217,7 @@ const GoalOracle = () => {
       try {
         const token = await getTokenSafe(5000);
         if (token) setAuthToken(token);
-        await saveBatchPredictions(uData.id, selLeague.id, predsRef.current, WORLD_CUP_MATCHES);
+        await saveBatchPredictions(uData.id, selLeague.id, predsRef.current);
       } catch(e) {
         console.error('Auto-save failed:', e);
       }
