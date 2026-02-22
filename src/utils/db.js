@@ -7,7 +7,7 @@ export function setAuthToken(token) { _authToken = token; }
 
 async function apiCall(endpoint, method = 'GET', body = null) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const timeout = setTimeout(() => controller.abort(), 55000);
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -30,7 +30,7 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     return data;
   } catch(e) {
     clearTimeout(timeout);
-    if (e.name === 'AbortError') throw new Error(`API ${endpoint} timed out after 25s`);
+    if (e.name === 'AbortError') throw new Error(`API ${endpoint} timed out after 55s`);
     throw e;
   }
 }
