@@ -27,7 +27,7 @@ const SUPPORTED_ORIGIN_TOKENS = {
 };
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') return res.status(200).json({});
+  if (req.method === 'OPTIONS') { Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v)); return res.status(200).json({}); }
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
 
   const claims = await verifyAuth(req);
