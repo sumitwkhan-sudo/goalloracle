@@ -560,7 +560,7 @@ const GoalOracle = () => {
       'URU 4-2 ARG 1930 Montevideo\nITA 2-1 CZE 1934 Rome\nITA 4-2 HUN 1938 Paris\nURU 2-1 BRA 1950 Rio\nGER 3-2 HUN 1954 Bern\nBRA 5-2 SWE 1958 Stockholm\nBRA 3-1 CZE 1962 Santiago\nENG 4-2 GER 1966 London\nBRA 4-1 ITA 1970 Mexico City\nGER 2-1 NED 1974 Munich\nARG 3-1 NED 1978 Buenos Aires\nITA 3-1 GER 1982 Madrid\nARG 3-2 GER 1986 Mexico City\nGER 1-0 ARG 1990 Rome\nBRA 0-0(P) ITA 1994 LA\nFRA 3-0 BRA 1998 Paris\nBRA 2-0 GER 2002 Yokohama\nITA 1-1(P) FRA 2006 Berlin\nESP 1-0 NED 2010 Joburg\nGER 1-0 ARG 2014 Rio\nFRA 4-2 CRO 2018 Moscow\nARG 3-3(P) FRA 2022 Doha',
       'BRA x5 GER x4 ITA x4 ARG x3\nFRA x2 URU x2 ENG x1 ESP x1\nKLOSE 16G RONALDO 15G\nMULLER 14G FONTAINE 13G\nPELE 12G MBAPPE 12G\n900+ MATCHES PLAYED\n2720 GOALS SCORED\n48 TEAMS 2026\n104 MATCHES AHEAD\n3 HOST NATIONS USA MEX CAN',
       'gs01 MEX v RSA Jun11\ngs03 USA v PAR Jun12\ngs07 BRA v MAR Jun13\ngs08 GER v CUW Jun14\ngs09 NED v JPN Jun14\ngs11 BEL v IRN Jun15\ngs13 ESP v CPV Jun15\ngs15 FRA v SEN Jun16\ngs17 ARG v ALG Jun16\ngs19 POR v TBD Jun17\ngs21 ENG v CRO Jun17',
-      'POLYGON 137 USDC\nORACLE_1 0x7f..3a\nORACLE_2 0x4b..9e\nVERIFY hash==hash\nCONFIRMATIONS >= 2\nDISPUTE_WINDOW 1h\nPAYOUT_READY true\ncorrectResult +3pts\nexactScore +5pts\npenaltyBonus +2pts\nextraTimeBonus +1pt\nNON-CUSTODIAL\nTRANSPARENT',
+      'MATCH_ID 1\nGROUP A\nUSA vs MEX\nKICKOFF 15:00 ET\nVENUE MetLife Stadium\nPREDICTION home\nSCORE 2-1\ncorrectResult +3pts\nexactScore +5pts\npenaltyBonus +2pts\nextraTimeBonus +1pt\nLEAGUE global\nRANK 1/128',
       '1930 Montevideo URU\n1934 Rome ITA\n1938 Paris ITA\n1950 Rio URU\n1954 Bern GER\n1958 Stockholm BRA\n1962 Santiago BRA\n1966 London ENG\n1970 Mexico BRA\n1974 Munich GER\n1978 B.Aires ARG\n1982 Madrid ITA\n1986 Mexico ARG\n1990 Rome GER\n1994 LA BRA\n1998 Paris FRA\n2002 Yokohama BRA\n2006 Berlin ITA\n2010 Joburg ESP\n2014 Rio GER\n2018 Moscow FRA\n2022 Doha ARG\n2026 ???? ???',
       '48 NATIONS\n12 GROUPS\n104 MATCHES\n16 HOST CITIES\nMetLife Stadium\nSoFi Stadium\nAT&T Stadium\nEstadio Azteca\nHard Rock Stadium\nNRG Houston\nMercedes-Benz ATL\nGillette Foxborough\nLincoln Financial\nLumen Seattle\nLevis Santa Clara\nBC Place Vancouver\nBMO Toronto',
     ];
@@ -581,7 +581,7 @@ const GoalOracle = () => {
             <div className="hero-badge"><span className="live-dot"></span><span>FIFA World Cup 2026 · 23rd Edition</span></div>
             <div className="hero-text-panel">
               <h1 className="hero-title">Predict the<br/><span className="highlight">Beautiful Game</span></h1>
-              <p className="hero-subtitle">104 matches. 48 nations. 96 years of history. Make your predictions count — compete for glory or stake crypto for real rewards.</p>
+              <p className="hero-subtitle">104 matches. 48 nations. 96 years of history. Make your predictions count — compete with friends and climb the leaderboard.</p>
             </div>
             <div className="hero-cta">
               <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}><Globe size={20} /> {authenticated ? 'Start Predicting' : 'Sign Up or Login'}</button>
@@ -589,7 +589,7 @@ const GoalOracle = () => {
             </div>
             <div className="hero-stats">
               <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPlayers || 0} suffix="+" /></div><div className="stat-label">Predictors</div></div>
-              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPrizePools || 0} prefix="$" /></div><div className="stat-label">Prize Pools</div></div>
+              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.activeLeagues || 0} /></div><div className="stat-label">Active Leagues</div></div>
               <div className="stat"><div className="stat-value">22</div><div className="stat-label">Tournaments of Legacy</div></div>
             </div>
           </div>
@@ -629,28 +629,27 @@ const GoalOracle = () => {
           <div className="section-header reveal"><h2>How It Works</h2><p>From spectator to oracle in three steps</p></div>
           <div className="features-grid">
             <div className="feature-card reveal-float stagger-1 glow-hover"><div className="feature-icon">// 01</div><h3>Predict Every Match</h3><p>Call the winner across all 104 fixtures. Predict exact scores for bonus points. Your bracket auto-fills as you go — knockout matchups resolve from your group predictions.</p></div>
-            <div className="feature-card reveal-float stagger-2 glow-hover"><div className="feature-icon">// 02</div><h3>Custom Leagues</h3><p>Create leagues scoped to specific groups, knockout rounds, or the full tournament. Go private with passcodes, or stake USDC on Polygon for crypto prize pools.</p></div>
-            <div className="feature-card reveal-float stagger-3 glow-hover"><div className="feature-icon">// 03</div><h3>Collect Rewards</h3><p>Smart contracts distribute prizes automatically when dual-oracle verification confirms results. Transparent, trustless, instant.</p></div>
+            <div className="feature-card reveal-float stagger-2 glow-hover"><div className="feature-icon">// 02</div><h3>Custom Leagues</h3><p>Create leagues scoped to specific groups, knockout rounds, or the full tournament. Go private with passcodes and compete with your crew.</p></div>
+            <div className="feature-card reveal-float stagger-3 glow-hover"><div className="feature-icon">// 03</div><h3>Track Results</h3><p>Match results update with verified scores. See how your predictions stack up in real time across all your leagues.</p></div>
           </div>
         </div></section>
 
         {/* Crypto / Self-Custody Section — moved up after How It Works */}
         <section className="crypto-section section-zoom"><div className="container"><div className="crypto-content">
           <div className="crypto-text reveal-left">
-            <h2>Non-Custodial. Transparent. Fair.</h2>
-            <p>Entry fees go directly to smart contracts on Polygon — never to us. Prizes are distributed automatically when results are verified by two independent oracles.</p>
+            <h2>Crypto Leagues — Coming Soon</h2>
+            <p>We're building on-chain paid leagues with transparent prize pools. This feature is currently disabled while we finalize smart contract audits and regulatory review.</p>
             <ul className="crypto-features">
               <li><CheckCircle size={20} /> Embedded wallet via Privy — no extensions needed</li>
-              <li><CheckCircle size={20} /> USDC escrow on Polygon smart contracts</li>
-              <li><CheckCircle size={20} /> Multi-source oracle verification before payout</li>
-              <li><CheckCircle size={20} /> Bridge any token from any chain</li>
+              <li><CheckCircle size={20} /> USDC escrow on Polygon (coming soon)</li>
+              <li><CheckCircle size={20} /> Multi-source oracle verification (coming soon)</li>
+              <li><CheckCircle size={20} /> Free leagues available now — no crypto needed</li>
             </ul>
           </div>
           <div className="crypto-visual reveal-right">
-            <div className="wallet-card">
+            <div className="wallet-card" style={{opacity: 0.5}}>
               <Coins size={48} />
-              <div className="wallet-info"><div className="wallet-label">Entry Fee</div><div className="wallet-amount">50 USDC</div></div>
-              <div className="wallet-info"><div className="wallet-label">Prize Pool</div><div className="wallet-amount">5,000 USDC</div></div>
+              <div className="wallet-info"><div className="wallet-label">Paid Leagues</div><div className="wallet-amount">Coming Soon</div></div>
             </div>
           </div>
         </div></div></section>
@@ -684,7 +683,10 @@ const GoalOracle = () => {
               <a onClick={() => nav('faq')}>FAQ</a>
               <a onClick={() => nav('feedback')}>Feedback</a>
             </div>
-            <div className="footer-copy">Built on Polygon · Smart Contract Verified · 22 Tournaments of Legacy</div>
+            <div className="footer-copy">A free prediction game for the FIFA World Cup 2026 · Not affiliated with FIFA · For entertainment purposes only</div>
+            <div className="footer-disclaimer" style={{fontSize: '11px', opacity: 0.5, maxWidth: '600px', margin: '8px auto 0', lineHeight: 1.4}}>
+              GoalOracle is a free entertainment platform. No real money is wagered, collected, or distributed. This is not a gambling service. "FIFA World Cup" and related marks are trademarks of FIFA. GoalOracle is not endorsed by or affiliated with FIFA.
+            </div>
             <div className="photo-credit">Stadium photos via Unsplash (free commercial license)</div>
           </div>
         </footer>
@@ -866,8 +868,8 @@ const GoalOracle = () => {
           {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}
           <div className="form-section"><label>League Type</label>
             <div className="type-selector">
-              <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and glory</p></div></button>
-              <button type="button" className={`type-option ${tp === 'paid' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('paid'); if (matchScope === 'rounds') setMatchScope('all'); }}><Lock size={24} /><div><h4>Paid League</h4><p>Stake crypto, win rewards</p></div></button>
+              <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and bragging rights</p></div></button>
+              <button type="button" className="type-option disabled-option" disabled style={{opacity: 0.5, cursor: 'not-allowed'}} onClick={e => e.preventDefault()}><Lock size={24} /><div><h4>Paid League</h4><p>Coming soon — pending regulatory review</p></div></button>
             </div>
           </div>
           <div className="form-section"><label>Visibility</label>
@@ -1473,7 +1475,7 @@ const GoalOracle = () => {
             </div>
           </>) : (<>
             {/* Bridge flow */}
-            <p className="fund-desc">Send any supported token from any chain — it auto-converts to USDC on Polygon for your prize pool.</p>
+            <p className="fund-desc">Send any supported token from any chain — it auto-converts to USDC on Polygon for your wallet.</p>
 
           {!depositAddr ? (<>
             <div className="fund-section">
@@ -1774,7 +1776,7 @@ const GoalOracle = () => {
         questions: [
           {
             q: 'What is GoalOracle?',
-            a: 'GoalOracle is a prediction game for the FIFA World Cup 2026. You predict the outcomes of all 104 matches — from the group stage through to the final — and compete against friends and the global community on leaderboards. You can play for free or stake crypto for real prizes.'
+            a: 'GoalOracle is a free prediction game for the FIFA World Cup 2026. You predict the outcomes of all 104 matches — from the group stage through to the final — and compete against friends and the global community on leaderboards. It\'s free to play — no money involved, just bragging rights.'
           },
           {
             q: 'How do I make predictions?',
@@ -1808,7 +1810,7 @@ const GoalOracle = () => {
           },
           {
             q: 'Can I create a league for specific groups or rounds?',
-            a: 'Yes! When creating a league, choose "Specific Groups" to select one or more groups (A–L), or "By Round" to pick from Group Stage, Round of 32, Round of 16, Quarterfinals, Semifinals, or Final. Members will only see and predict the matches in that scope. Note: paid leagues are restricted to "All Matches" or "Specific Groups" only — knockout-only round selection is available for free leagues. This protects staked funds since knockout matchups aren\'t known until the group stage finishes.'
+            a: 'Yes! When creating a league, choose "Specific Groups" to select one or more groups (A–L), or "By Round" to pick from Group Stage, Round of 32, Round of 16, Quarterfinals, Semifinals, or Final. Members will only see and predict the matches in that scope.'
           },
           {
             q: 'How do I invite friends to a private league?',
@@ -1816,7 +1818,7 @@ const GoalOracle = () => {
           },
           {
             q: 'Can the league creator change settings after creation?',
-            a: 'Currently, league settings (points system, entry fee, match scope, prize distribution) are fixed at creation. Admins can delete leagues if needed. We may add editable settings in a future update.'
+            a: 'Currently, league settings (points system, match scope) are fixed at creation. Admins can delete leagues if needed. We may add editable settings in a future update.'
           },
         ]
       },
@@ -1853,58 +1855,24 @@ const GoalOracle = () => {
         ]
       },
       {
-        title: 'Crypto, Wallets & Smart Contracts',
+        title: 'Paid Leagues & Crypto (Coming Soon)',
         icon: '💰',
         questions: [
           {
-            q: 'Do I need crypto to play?',
-            a: 'No. Free leagues require no wallet or crypto at all — just sign up and predict. Crypto is only needed if you want to join paid leagues with real prize pools.'
+            q: 'Do I need crypto or money to play?',
+            a: 'No. GoalOracle is completely free to play. All leagues are free — there are no entry fees, no real-money prizes, and no gambling of any kind. You compete for fun and bragging rights only.'
           },
           {
-            q: 'How do wallets work on GoalOracle?',
-            a: 'When you sign up, an embedded wallet is automatically created for you via Privy — no browser extension or MetaMask needed. This wallet lives on the Polygon network and can hold USDC for paid league entry fees. You can also bridge tokens from Ethereum, Base, Arbitrum, and Optimism.'
+            q: 'Are paid leagues available?',
+            a: 'Not yet. We are building on-chain paid leagues using smart contracts on Polygon, but this feature is currently disabled while we complete smart contract audits and regulatory review. We will announce when paid leagues become available.'
           },
           {
-            q: 'How are prize pools managed?',
-            a: (<>
-              For paid leagues, entry fees are held in a smart contract on the Polygon blockchain — not by GoalOracle. The contract automatically distributes prizes to the top 3 finishers based on the prize split set at league creation (default: 50% / 30% / 20%). This is fully non-custodial — we never hold your funds.
-              <br/><br/>
-              <strong>Smart Contract:</strong> GoalOracleVerifier.sol
-              <br/>
-              <span className="faq-contract-label">Contract Address (Polygon):</span>
-              <br/>
-              <code className="faq-contract-addr">Coming soon — deployment pending</code>
-              <br/><br/>
-              Once deployed, you'll be able to verify the contract source code on:
-              <br/>
-              <a href="https://polygonscan.com" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> Polygonscan</a>
-              <br/><br/>
-              The contract source code is open and auditable in our repository:
-              <br/>
-              <a href="https://github.com/nicholascpark/goaloracle/blob/main/contracts/GoalOracleVerifier.sol" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> View GoalOracleVerifier.sol on GitHub</a>
-            </>)
+            q: 'What about the wallets I see on the platform?',
+            a: 'When you sign up, an embedded wallet is automatically created for you via Privy. This is part of our authentication system. The wallet functionality for paid leagues (entry fees, prize pools, bridging) is not yet active. No funds are collected or held by GoalOracle.'
           },
           {
-            q: 'What blockchain does GoalOracle use?',
-            a: 'GoalOracle uses Polygon PoS for all on-chain transactions. Polygon offers fast transactions (2-second finality) and very low gas fees (typically under $0.01), making it ideal for a prediction game with many participants. Entry fees and prizes are in USDC, a dollar-pegged stablecoin.'
-          },
-          {
-            q: 'How does the on-chain oracle verification work?',
-            a: (<>
-              The GoalOracleVerifier smart contract uses a multi-oracle pattern:
-              <br/><br/>
-              1. Two independent oracle wallets are registered on the contract<br/>
-              2. Each oracle submits match results independently (score, extra time, penalties)<br/>
-              3. Results are hashed and compared — when 2 out of 2 oracles agree, the result is marked as VERIFIED<br/>
-              4. Only verified results can trigger prize distribution<br/>
-              5. An admin can flag disputes if oracles conflict, freezing payouts until resolved
-              <br/><br/>
-              This dual-oracle design ensures no single point of failure can produce incorrect results or trigger wrongful payouts.
-            </>)
-          },
-          {
-            q: 'Are there fees beyond the entry fee?',
-            a: 'GoalOracle does not take a platform fee from prize pools. The only additional cost is the small Polygon gas fee (under $0.01) when the smart contract distributes prizes. What goes into the pool is what gets paid out.'
+            q: 'Is GoalOracle a gambling site?',
+            a: 'No. GoalOracle is a free prediction game for entertainment purposes only. There is no real-money wagering, no entry fees, and no cash prizes. It is similar to a fantasy sports bracket challenge among friends. Paid league features are planned for the future but are not currently active.'
           },
         ]
       },
@@ -1918,7 +1886,7 @@ const GoalOracle = () => {
           },
           {
             q: 'What login methods are supported?',
-            a: 'You can sign up with email, Google, Twitter/X, or directly with a crypto wallet (MetaMask, Coinbase Wallet, etc.). All methods create the same account with an embedded Polygon wallet.'
+            a: 'You can sign up with email, Google, Twitter/X, or directly with a crypto wallet (MetaMask, Coinbase Wallet, etc.). All methods create the same account.'
           },
           {
             q: 'Who can I contact for support?',
@@ -1934,7 +1902,7 @@ const GoalOracle = () => {
           {authenticated && <button className="btn-back" onClick={() => nav('dashboard')}>← Back</button>}
           <div>
             <h1>Frequently Asked Questions</h1>
-            <p className="faq-page-sub">Everything you need to know about GoalOracle — how it works, how scores are verified, and how your funds are protected.</p>
+            <p className="faq-page-sub">Everything you need to know about GoalOracle — how it works, how scores are verified, and more.</p>
           </div>
         </div>
 
