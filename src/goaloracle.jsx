@@ -634,22 +634,22 @@ const GoalOracle = () => {
           </div>
         </div></section>
 
-        {/* Crypto / Self-Custody Section — moved up after How It Works */}
+        {/* Prize Leagues Teaser */}
         <section className="crypto-section section-zoom"><div className="container"><div className="crypto-content">
           <div className="crypto-text reveal-left">
-            <h2>Crypto Leagues — Coming Soon</h2>
-            <p>We're building on-chain paid leagues with transparent prize pools. This feature is currently disabled while we finalize smart contract audits and regulatory review.</p>
+            <h2>Prize Leagues — Coming Soon</h2>
+            <p>We're exploring ways to let leagues offer prizes in the future. For now, all leagues are completely free — compete for bragging rights and leaderboard glory.</p>
             <ul className="crypto-features">
               <li><CheckCircle size={20} /> Embedded wallet via Privy — no extensions needed</li>
-              <li><CheckCircle size={20} /> USDC escrow on Polygon (coming soon)</li>
-              <li><CheckCircle size={20} /> Multi-source oracle verification (coming soon)</li>
+              <li><CheckCircle size={20} /> On-chain prize distribution being explored</li>
+              <li><CheckCircle size={20} /> Multi-source oracle verification for results</li>
               <li><CheckCircle size={20} /> Free leagues available now — no crypto needed</li>
             </ul>
           </div>
           <div className="crypto-visual reveal-right">
             <div className="wallet-card" style={{opacity: 0.5}}>
               <Coins size={48} />
-              <div className="wallet-info"><div className="wallet-label">Paid Leagues</div><div className="wallet-amount">Coming Soon</div></div>
+              <div className="wallet-info"><div className="wallet-label">Prize Leagues</div><div className="wallet-amount">Coming Soon</div></div>
             </div>
           </div>
         </div></div></section>
@@ -869,7 +869,7 @@ const GoalOracle = () => {
           <div className="form-section"><label>League Type</label>
             <div className="type-selector">
               <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and bragging rights</p></div></button>
-              <button type="button" className="type-option disabled-option" disabled style={{opacity: 0.5, cursor: 'not-allowed'}} onClick={e => e.preventDefault()}><Lock size={24} /><div><h4>Paid League</h4><p>Coming soon — pending regulatory review</p></div></button>
+              <button type="button" className="type-option disabled-option" disabled style={{opacity: 0.5, cursor: 'not-allowed'}} onClick={e => e.preventDefault()}><Lock size={24} /><div><h4>Prize League</h4><p>Coming soon</p></div></button>
             </div>
           </div>
           <div className="form-section"><label>Visibility</label>
@@ -1855,7 +1855,7 @@ const GoalOracle = () => {
         ]
       },
       {
-        title: 'Paid Leagues & Crypto (Coming Soon)',
+        title: 'Prize Leagues & Future Plans',
         icon: '💰',
         questions: [
           {
@@ -1863,16 +1863,16 @@ const GoalOracle = () => {
             a: 'No. GoalOracle is completely free to play. All leagues are free — there are no entry fees, no real-money prizes, and no gambling of any kind. You compete for fun and bragging rights only.'
           },
           {
-            q: 'Are paid leagues available?',
-            a: 'Not yet. We are building on-chain paid leagues using smart contracts on Polygon, but this feature is currently disabled while we complete smart contract audits and regulatory review. We will announce when paid leagues become available.'
+            q: 'Are prize leagues available?',
+            a: 'Not yet. We are exploring ways to let leagues offer prizes in the future, but this feature is not currently available. We will announce if and when prize leagues become available.'
           },
           {
             q: 'What about the wallets I see on the platform?',
-            a: 'When you sign up, an embedded wallet is automatically created for you via Privy. This is part of our authentication system. The wallet functionality for paid leagues (entry fees, prize pools, bridging) is not yet active. No funds are collected or held by GoalOracle.'
+            a: 'When you sign up, an embedded wallet is automatically created for you via Privy. This is part of our authentication system and may be used for future features. Currently, no funds are collected, held, or managed by GoalOracle.'
           },
           {
             q: 'Is GoalOracle a gambling site?',
-            a: 'No. GoalOracle is a free prediction game for entertainment purposes only. There is no real-money wagering, no entry fees, and no cash prizes. It is similar to a fantasy sports bracket challenge among friends. Paid league features are planned for the future but are not currently active.'
+            a: 'No. GoalOracle is a free prediction game for entertainment purposes only. There is no real-money wagering, no entry fees, and no cash prizes. It is similar to a fantasy sports bracket challenge among friends.'
           },
         ]
       },
