@@ -732,11 +732,10 @@ const GoalOracle = () => {
       if (!uData?.id) return;
       try {
         setJoinErr('');
-        const lId = league.id; const lName = league.name;
-        notify(`Joined ${lName}!`);
+        await joinLeague(league.id, uData.id, passcode);
+        notify(`Joined ${league.name}!`);
         setJoiningId(null);
         setPassInput('');
-        joinLeague(lId, uData.id, passcode).catch(e => { notify(e.message, 'error'); });
       } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
     };
 
@@ -755,10 +754,9 @@ const GoalOracle = () => {
                 setJoinErr('');
                 const match = allLeagues.find(l => l.passcode && l.passcode === passInput.trim());
                 if (!match) { setJoinErr('No league found with that passcode'); notify('No league found with that passcode', 'error'); return; }
-                const mId = match.id; const mName = match.name; const code = passInput.trim();
-                notify(`Joined ${mName}!`);
+                await joinLeague(match.id, uData.id, passInput.trim());
+                notify(`Joined ${match.name}!`);
                 setPassInput('');
-                joinLeague(mId, uData.id, code).catch(e => notify(e.message, 'error'));
               } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
             }}><UserPlus size={14} /> Join Private</button>
           </div>
@@ -848,7 +846,19 @@ const GoalOracle = () => {
       const scopeData = matchScope === 'all' ? { matchScope: 'all' } :
         matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
         { matchScope: 'rounds', selectedRounds: selRounds };
-      try { const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }; notify('League created!'); nav('dashboard'); createLeague(leagueData, uData.id).catch(e => { console.error('[create] failed:', e); notify(e.message || 'Failed to create league', 'error'); }); } catch(e) { console.error('[create] failed:', e); setErr(e.message || 'Failed to create league'); } finally { setBusy(false); }
+      try { 
+        const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }; 
+        const lid = await createLeague(leagueData, uData.id); 
+        console.log('[create] success, id:', lid); 
+        notify('League created!'); 
+        nav('dashboard'); 
+      } catch(e) { 
+        console.error('[create] FAILED:', e); 
+        setBusy(false); 
+        setErr(e.message || 'Failed to create league — check Firestore rules'); 
+        notify('League creation failed: ' + e.message, 'error'); 
+        return; 
+      } finally { setBusy(false); }
     };
     return (
       <div className="create-league">
@@ -944,10 +954,10 @@ const GoalOracle = () => {
     useEffect(() => { if (tab !== 'leaderboard' || !selLeague?.id) return; (async () => { setLbl(true); try { const { leaderboard: bu, userNames } = await getLeagueLeaderboard(selLeague.id); const p = selLeague.pointsSystem || {}; const e = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, displayName: userNames[uid] || uid.slice(0, 8), ...calculateTotalPoints(pr, results, p) })); setLb(sortLeaderboard(e)); } catch(e){console.error(e);} finally{setLbl(false);} })(); }, [tab, selLeague?.id, results]);
 
     const handleDelete = async () => {
-      try { const lid = selLeague.id; const lname = selLeague.name; notify(`"${lname}" deleted`); nav('dashboard'); deleteLeague(lid).catch(e => notify(e.message, 'error')); } catch(e) { notify(e.message, 'error'); }
+      try { await deleteLeague(selLeague.id); notify(`"${selLeague.name}" deleted`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
     };
     const handleLeave = async () => {
-      try { const lid = selLeague.id; const lname = selLeague.name; const uid = uData.id; notify(`Left "${lname}"`); nav('dashboard'); leaveLeague(lid, uid).catch(e => notify(e.message, 'error')); } catch(e) { notify(e.message, 'error'); }
+      try { await leaveLeague(selLeague.id, uData.id); notify(`Left "${selLeague.name}"`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
     };
     const copyInvite = () => {
       const msg = `Join my GoalOracle league "${selLeague.name}"!\n\nPasscode: ${selLeague.passcode}\n\nSign up at ${window.location.origin}`;

@@ -96,6 +96,7 @@ export async function getUserRole(userId) {
 
 // ---- LEAGUES (direct Firestore client SDK — no API calls) ----
 export async function createLeague(leagueData, creatorId) {
+  console.log('[createLeague] called with:', JSON.stringify(leagueData), 'creator:', creatorId);
   const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds } = leagueData;
   if (!name?.trim()) throw new Error('Name required');
 
@@ -128,6 +129,7 @@ export async function createLeague(leagueData, creatorId) {
     createdAt: serverTimestamp(),
     status: 'active',
   });
+  console.log('[createLeague] SUCCESS — written to Firestore, id:', leagueId, 'passcode:', visibility === 'private' ? passcode : 'N/A');
 
   // Update user doc in background
   updateDoc(userRef, { leagues: arrayUnion(leagueId) }).catch(() => {});

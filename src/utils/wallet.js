@@ -19,11 +19,11 @@ const TOKENS = {
   },
 };
 
-// Public Polygon RPC endpoints (try multiple)
+// Public Polygon RPC endpoints (CORS-friendly only)
 const RPC_URLS = [
   'https://rpc.ankr.com/polygon',
-  'https://polygon-mainnet.public.blastapi.io',
-  'https://polygon-bor-rpc.publicnode.com',
+  'https://polygon.gateway.tenderly.co',
+  'https://1rpc.io/matic',
 ];
 
 // ERC-20 balanceOf(address) selector
