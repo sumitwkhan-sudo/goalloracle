@@ -1560,3 +1560,106 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .pred-inline-bar { flex-wrap: wrap; gap: 0.3rem; }
   .pib-view-toggle { margin-left: 0; }
 }
+
+/* ---- TEAM PICKER ---- */
+.team-picker-wrap { position: relative; }
+.team-picker-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; height: 28px; border-radius: 14px;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  color: var(--text-sec); cursor: pointer; transition: all 0.2s;
+  font-size: 0.72rem; font-weight: 600; font-family: var(--font);
+  white-space: nowrap;
+}
+.team-picker-btn:hover { border-color: var(--primary); color: var(--text); }
+.team-picker-btn.has-team {
+  border-color: var(--team-primary, var(--border));
+  background: color-mix(in srgb, var(--team-primary, transparent) 12%, var(--bg-elev));
+  color: var(--text);
+}
+.team-picker-flag { font-size: 1rem; line-height: 1; }
+.team-picker-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+.team-picker-dropdown {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  width: 240px; max-height: 360px; overflow-y: auto;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  z-index: 200; padding: 4px;
+}
+.team-picker-header {
+  padding: 8px 12px 6px; font-size: 0.65rem; font-weight: 700;
+  color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em;
+}
+.team-picker-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 12px; border: none; border-radius: 8px;
+  background: transparent; color: var(--text); cursor: pointer;
+  font-size: 0.78rem; font-weight: 500; font-family: var(--font);
+  transition: background 0.15s;
+}
+.team-picker-item:hover { background: var(--bg-elev); }
+.team-picker-item.active { background: color-mix(in srgb, var(--team-primary, var(--primary)) 15%, var(--bg-elev)); color: var(--team-primary, var(--primary)); font-weight: 700; }
+.team-picker-clear { color: var(--text-sec); font-size: 0.72rem; }
+.team-picker-clear:hover { color: var(--danger); }
+.team-picker-swatch {
+  width: 14px; height: 10px; border-radius: 3px; margin-left: auto; flex-shrink: 0;
+}
+.team-picker-dropdown::-webkit-scrollbar { width: 4px; }
+.team-picker-dropdown::-webkit-scrollbar-track { background: transparent; }
+.team-picker-dropdown::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ---- TEAM THEME OVERRIDES ---- */
+/* When a home team is selected, override key UI colors */
+[data-team] {
+  --primary: var(--team-primary);
+  --primary-soft: color-mix(in srgb, var(--team-primary) 10%, transparent);
+  --accent: var(--team-secondary);
+  --grad: linear-gradient(135deg, var(--team-primary), var(--team-secondary));
+  --border-br: color-mix(in srgb, var(--team-primary) 25%, transparent);
+}
+[data-team] .navbar {
+  border-bottom-color: color-mix(in srgb, var(--team-primary) 20%, transparent);
+}
+[data-team] .gt {
+  background: linear-gradient(135deg, var(--team-primary), var(--team-secondary));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+[data-team] .nav-brand svg { color: var(--team-primary); }
+[data-team] .btn-primary {
+  background: linear-gradient(135deg, var(--team-primary), color-mix(in srgb, var(--team-primary) 80%, var(--team-secondary))) !important;
+  color: var(--team-accent) !important;
+}
+[data-team] .btn-primary:hover {
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--team-primary) 30%, transparent);
+}
+[data-team] .theme-opt.active {
+  background: color-mix(in srgb, var(--team-primary) 15%, transparent);
+  color: var(--team-primary); border-color: color-mix(in srgb, var(--team-primary) 30%, transparent);
+}
+[data-team] .nav-menu a:hover,
+[data-team] .nav-menu .nav-link:hover { color: var(--team-primary); }
+[data-team] .tab.active { border-bottom-color: var(--team-primary); color: var(--team-primary); }
+[data-team] .week-tab.active { border-color: var(--team-primary); background: color-mix(in srgb, var(--team-primary) 10%, transparent); color: var(--team-primary); }
+[data-team] .stage-pill.active { background: var(--team-primary); color: var(--team-accent); }
+[data-team] .pred-team.selected { border-color: var(--team-primary); background: color-mix(in srgb, var(--team-primary) 10%, transparent); }
+[data-team] .stat-val { color: var(--team-secondary); text-shadow: 0 0 20px color-mix(in srgb, var(--team-secondary) 30%, transparent); }
+[data-team] .hero-title .highlight {
+  background: linear-gradient(135deg, var(--team-primary), var(--team-secondary));
+  -webkit-background-clip: text; background-clip: text;
+}
+[data-team] .badge-free { background: color-mix(in srgb, var(--team-primary) 10%, transparent); color: var(--team-primary); }
+[data-team] .league-card:hover { border-color: color-mix(in srgb, var(--team-primary) 25%, transparent); box-shadow: 0 4px 30px color-mix(in srgb, var(--team-primary) 10%, transparent); }
+[data-team] .input-field:focus, [data-team] .input-field-sm:focus {
+  border-color: var(--team-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--team-primary) 12%, transparent);
+}
+[data-team] .faq-question:hover { color: var(--team-primary); }
+[data-team] .faq-chevron.rotated { color: var(--team-primary); }
+[data-team] .faq-item.open { border-color: color-mix(in srgb, var(--team-primary) 20%, transparent); }
+[data-team] .glow-hover:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--team-primary) 15%, transparent); }
+[data-team] .type-option.active { border-color: var(--team-primary); background: color-mix(in srgb, var(--team-primary) 8%, transparent); }
+[data-team] .type-option.active h4, [data-team] .type-option.active svg { color: var(--team-primary); }
+
+@media (max-width: 900px) {
+  .team-picker-dropdown { position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: 100%; max-height: 50vh; border-radius: 16px 16px 0 0; }
+  .team-picker-name { display: none; }
+}

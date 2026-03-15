@@ -5,6 +5,7 @@ import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
+import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
 import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
 import { validateUsername } from './utils/profanity';
@@ -84,7 +85,39 @@ const GoalOracle = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [confetti, setConfetti] = useState(false);
+  const [homeTeam, setHomeTeam] = useState(() => localStorage.getItem('goaloracle_home_team') || '');
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
+  const teamPickerRef = useRef(null);
   useEffect(() => { document.documentElement.setAttribute('data-theme', 'light'); }, []);
+
+  // Apply team colors as CSS variables
+  useEffect(() => {
+    const root = document.documentElement;
+    if (homeTeam && TEAM_COLORS[homeTeam]) {
+      const t = TEAM_COLORS[homeTeam];
+      root.style.setProperty('--team-primary', t.primary);
+      root.style.setProperty('--team-secondary', t.secondary);
+      root.style.setProperty('--team-accent', t.accent);
+      root.setAttribute('data-team', homeTeam);
+      localStorage.setItem('goaloracle_home_team', homeTeam);
+    } else {
+      root.style.removeProperty('--team-primary');
+      root.style.removeProperty('--team-secondary');
+      root.style.removeProperty('--team-accent');
+      root.removeAttribute('data-team');
+      localStorage.removeItem('goaloracle_home_team');
+    }
+  }, [homeTeam]);
+
+  // Close team picker on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (teamPickerRef.current && !teamPickerRef.current.contains(e.target)) setTeamPickerOpen(false);
+    };
+    if (teamPickerOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [teamPickerOpen]);
+
   const cycleTheme = () => {
     const order = ['dark', 'light', 'fifa2026'];
     const next = order[(order.indexOf(theme) + 1) % 3];
@@ -2041,6 +2074,25 @@ const GoalOracle = () => {
         <a className="nav-link" onClick={() => nav('faq')}><HelpCircle size={14} /><span>FAQ</span></a>
         <div className="nav-actions" onClick={e => e.stopPropagation()}>
           {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
+          <div className="team-picker-wrap" ref={teamPickerRef} onClick={e => e.stopPropagation()}>
+            <button type="button" className={`team-picker-btn${homeTeam ? ' has-team' : ''}`} onClick={() => setTeamPickerOpen(!teamPickerOpen)} title={homeTeam || 'Pick your team'}>
+              {homeTeam && TEAM_COLORS[homeTeam] ? <><span className="team-picker-flag">{TEAM_COLORS[homeTeam].flag}</span><span className="team-picker-name">{homeTeam}</span></> : <><Globe size={14} /><span className="team-picker-name">My Team</span></>}
+              <ChevronDown size={12} />
+            </button>
+            {teamPickerOpen && (
+              <div className="team-picker-dropdown">
+                <div className="team-picker-header">Pick your home team</div>
+                {homeTeam && <button className="team-picker-item team-picker-clear" onClick={() => { setHomeTeam(''); setTeamPickerOpen(false); }}><X size={14} /><span>Clear selection</span></button>}
+                {Object.entries(TEAM_COLORS).map(([name, t]) => (
+                  <button key={name} className={`team-picker-item${homeTeam === name ? ' active' : ''}`} onClick={() => { setHomeTeam(name); setTeamPickerOpen(false); }}>
+                    <span className="team-picker-flag">{t.flag}</span>
+                    <span>{name}</span>
+                    <span className="team-picker-swatch" style={{ background: t.primary, boxShadow: `3px 0 0 ${t.secondary}` }} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="theme-switcher" onClick={e => e.stopPropagation()}>
             {[
               { id: 'light', icon: <Sun size={13} />, label: 'Light' },
