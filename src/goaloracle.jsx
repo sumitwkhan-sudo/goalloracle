@@ -586,44 +586,68 @@ const GoalOracle = () => {
 
   const Landing = () => {
     useScrollReveal();
-    const featuredIds = ['gs07', 'gs11', 'gs17', 'gs23', 'gs32', 'gs64'];
-    const featured = featuredIds.map(id => WORLD_CUP_MATCHES.find(m => m.id === id)).filter(Boolean).slice(0, 6);
-    // Code wall data
-    const codeData = [
-      'URU 4-2 ARG 1930 Montevideo\nITA 2-1 CZE 1934 Rome\nITA 4-2 HUN 1938 Paris\nURU 2-1 BRA 1950 Rio\nGER 3-2 HUN 1954 Bern\nBRA 5-2 SWE 1958 Stockholm\nBRA 3-1 CZE 1962 Santiago\nENG 4-2 GER 1966 London\nBRA 4-1 ITA 1970 Mexico City\nGER 2-1 NED 1974 Munich\nARG 3-1 NED 1978 Buenos Aires\nITA 3-1 GER 1982 Madrid\nARG 3-2 GER 1986 Mexico City\nGER 1-0 ARG 1990 Rome\nBRA 0-0(P) ITA 1994 LA\nFRA 3-0 BRA 1998 Paris\nBRA 2-0 GER 2002 Yokohama\nITA 1-1(P) FRA 2006 Berlin\nESP 1-0 NED 2010 Joburg\nGER 1-0 ARG 2014 Rio\nFRA 4-2 CRO 2018 Moscow\nARG 3-3(P) FRA 2022 Doha',
-      'BRA x5 GER x4 ITA x4 ARG x3\nFRA x2 URU x2 ENG x1 ESP x1\nKLOSE 16G RONALDO 15G\nMULLER 14G FONTAINE 13G\nPELE 12G MBAPPE 12G\n900+ MATCHES PLAYED\n2720 GOALS SCORED\n48 TEAMS 2026\n104 MATCHES AHEAD\n3 HOST NATIONS USA MEX CAN',
-      'gs01 MEX v RSA Jun11\ngs03 USA v PAR Jun12\ngs07 BRA v MAR Jun13\ngs08 GER v CUW Jun14\ngs09 NED v JPN Jun14\ngs11 BEL v IRN Jun15\ngs13 ESP v CPV Jun15\ngs15 FRA v SEN Jun16\ngs17 ARG v ALG Jun16\ngs19 POR v TBD Jun17\ngs21 ENG v CRO Jun17',
-      'MATCH_ID 1\nGROUP A\nUSA vs MEX\nKICKOFF 15:00 ET\nVENUE MetLife Stadium\nPREDICTION home\nSCORE 2-1\ncorrectResult +3pts\nexactScore +5pts\npenaltyBonus +2pts\nextraTimeBonus +1pt\nLEAGUE global\nRANK 1/128',
-      '1930 Montevideo URU\n1934 Rome ITA\n1938 Paris ITA\n1950 Rio URU\n1954 Bern GER\n1958 Stockholm BRA\n1962 Santiago BRA\n1966 London ENG\n1970 Mexico BRA\n1974 Munich GER\n1978 B.Aires ARG\n1982 Madrid ITA\n1986 Mexico ARG\n1990 Rome GER\n1994 LA BRA\n1998 Paris FRA\n2002 Yokohama BRA\n2006 Berlin ITA\n2010 Joburg ESP\n2014 Rio GER\n2018 Moscow FRA\n2022 Doha ARG\n2026 ???? ???',
-      '48 NATIONS\n12 GROUPS\n104 MATCHES\n16 HOST CITIES\nMetLife Stadium\nSoFi Stadium\nAT&T Stadium\nEstadio Azteca\nHard Rock Stadium\nNRG Houston\nMercedes-Benz ATL\nGillette Foxborough\nLincoln Financial\nLumen Seattle\nLevis Santa Clara\nBC Place Vancouver\nBMO Toronto',
-    ];
+    const [quickPicks, setQuickPicks] = useState({});
+    const [showSignupNudge, setShowSignupNudge] = useState(false);
+    const [activeGroup, setActiveGroup] = useState('featured');
+    const pickCount = Object.keys(quickPicks).length;
+
+    // Featured big matches for Quick Pick
+    const featuredIds = ['gs01', 'gs04', 'gs07', 'gs11', 'gs17', 'gs19', 'gs23', 'gs15', 'gs13', 'gs09', 'gs16', 'gs05'];
+    const featuredMatches = featuredIds.map(id => WORLD_CUP_MATCHES.find(m => m.id === id)).filter(Boolean);
+
+    // Group matches for browsing
+    const groups = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+    const displayMatches = activeGroup === 'featured'
+      ? featuredMatches
+      : WORLD_CUP_MATCHES.filter(m => m.stage === `Group ${activeGroup}`);
+
+    const handleQuickPick = (matchId, pick) => {
+      setQuickPicks(prev => {
+        const next = { ...prev };
+        if (next[matchId] === pick) { delete next[matchId]; return next; }
+        next[matchId] = pick;
+        // Show signup nudge after 3 picks if not authenticated
+        if (!authenticated && Object.keys(next).length >= 3 && !showSignupNudge) {
+          setShowSignupNudge(true);
+        }
+        return next;
+      });
+    };
+
+    const handleSavePicks = () => {
+      if (!authenticated) { login(); return; }
+      nav('dashboard');
+    };
+
+    // Countdown to tournament
+    const daysToGo = Math.max(0, Math.ceil((new Date('2026-06-11T00:00:00Z') - Date.now()) / 86400000));
 
     return (
       <div className="landing-page">
-        {/* Code Wall Background */}
-        <div className="code-wall">
-          {codeData.map((d, i) => <div key={i} className="code-col">{d.split('\n').map((l, j) => <span key={j}>{l}<br/></span>)}{d.split('\n').map((l, j) => <span key={`r${j}`}>{l}<br/></span>)}</div>)}
-        </div>
         <div className="grad-mesh"></div>
 
-        {/* Hero with Stadium */}
-        <section className={`hero ${heroAnimated ? 'hero-no-anim' : ''}`}>
+        {/* Hero — compact, action-oriented */}
+        <section className={`hero hero-compact ${heroAnimated ? 'hero-no-anim' : ''}`}>
           <div className="hero-stadium-bg"></div>
           <div className="hero-stadium-overlay"></div>
           <div className="hero-content" ref={el => { if (el && !heroAnimated) { heroAnimated = true; } }}>
-            <div className="hero-badge"><span className="live-dot"></span><span>FIFA World Cup 2026 · 23rd Edition</span></div>
-            <div className="hero-text-panel">
-              <h1 className="hero-title">Predict the<br/><span className="highlight">Beautiful Game</span></h1>
-              <p className="hero-subtitle">104 matches. 48 nations. 96 years of history. Make your predictions count — compete with friends and climb the leaderboard.</p>
-            </div>
+            <div className="hero-badge"><span className="live-dot"></span><span>{daysToGo > 0 ? `${daysToGo} days to kickoff` : 'Tournament is LIVE'}</span></div>
+            <h1 className="hero-title">Who&rsquo;s Going to<br/><span className="highlight">Win?</span></h1>
+            <p className="hero-subtitle">Pick winners for every World Cup 2026 match. No sign-up needed to start.</p>
             <div className="hero-cta">
-              <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}><Globe size={20} /> {authenticated ? 'Start Predicting' : 'Sign Up or Login'}</button>
-              <button className="btn btn-secondary btn-lg" onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works <ChevronRight size={18} /></button>
+              <button className="btn btn-primary btn-lg" onClick={() => document.querySelector('.qp-section')?.scrollIntoView({ behavior: 'smooth' })}>
+                <Zap size={20} /> Make Your Picks
+              </button>
+              {authenticated && (
+                <button className="btn btn-secondary btn-lg" onClick={() => nav('dashboard')}>
+                  My Leagues <ChevronRight size={18} />
+                </button>
+              )}
             </div>
             <div className="hero-stats">
-              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPlayers || 0} suffix="+" /></div><div className="stat-label">Predictors</div></div>
-              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.activeLeagues || 0} /></div><div className="stat-label">Active Leagues</div></div>
-              <div className="stat"><div className="stat-value">22</div><div className="stat-label">Tournaments of Legacy</div></div>
+              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPlayers || 0} suffix="+" /></div><div className="stat-label">Players</div></div>
+              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.activeLeagues || 0} /></div><div className="stat-label">Leagues</div></div>
+              <div className="stat"><div className="stat-value">104</div><div className="stat-label">Matches</div></div>
             </div>
           </div>
         </section>
@@ -635,92 +659,154 @@ const GoalOracle = () => {
           ))}
         </div></div>
 
-        {/* Legacy Section with Stadium Atmosphere */}
-        <section className="atmosphere">
-          <div className="atmosphere-bg"></div>
-          <div className="atmosphere-overlay"></div>
+        {/* Quick Pick Section — the hook */}
+        <section className="qp-section">
           <div className="container">
-            <div className="section-eyebrow reveal" style={{color: 'var(--cyan)'}}>01 — Legacy</div>
-            <div className="section-title reveal">96 Years of Glory</div>
-            <div className="section-sub reveal">Every nation that has lifted the trophy</div>
-            <div className="legacy-grid">
-              {CHAMPIONS.map((c, i) => (
-                <div key={c.name} className={`legacy-card reveal stagger-${i + 1}`}>
-                  <div className="legacy-flag">{c.name === 'England' ? '🏴󠁧󠁢󠁥󠁮󠁧󠁿' : c.flag}</div>
-                  <div className="legacy-name">{c.name}</div>
-                  <div className="legacy-count">{c.count}× Champions</div>
-                  <div className="legacy-years">{c.years}</div>
-                  <div className="legacy-bar"><div className="legacy-fill" style={{width: `${(c.count / 5) * 100}%`}}></div></div>
+            <div className="qp-header">
+              <div>
+                <h2 className="qp-title">Quick Pick</h2>
+                <p className="qp-sub">Tap a winner or call it a draw — it&rsquo;s that simple</p>
+              </div>
+              {pickCount > 0 && (
+                <div className="qp-pick-counter">
+                  <span className="qp-count">{pickCount}</span>
+                  <span className="qp-count-label">{pickCount === 1 ? 'pick' : 'picks'} made</span>
                 </div>
+              )}
+            </div>
+
+            {/* Group filter tabs */}
+            <div className="qp-group-tabs">
+              <button className={`qp-tab ${activeGroup === 'featured' ? 'active' : ''}`} onClick={() => setActiveGroup('featured')}>
+                <Sparkles size={14} /> Featured
+              </button>
+              {groups.map(g => (
+                <button key={g} className={`qp-tab ${activeGroup === g ? 'active' : ''}`} onClick={() => setActiveGroup(g)}>
+                  {g}
+                </button>
               ))}
             </div>
+
+            {/* Quick Pick match cards */}
+            <div className="qp-grid">
+              {displayMatches.map(m => {
+                const pick = quickPicks[m.id];
+                return (
+                  <div key={m.id} className={`qp-card ${pick ? 'qp-card-picked' : ''}`}>
+                    <div className="qp-card-meta">
+                      <span className="qp-stage">{m.stage}</span>
+                      <span className="qp-date">{new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    </div>
+                    <div className="qp-matchup">
+                      <button
+                        className={`qp-team ${pick === 'home' ? 'qp-team-selected' : ''}`}
+                        onClick={() => handleQuickPick(m.id, 'home')}
+                      >
+                        <span className="qp-flag">{m.homeFlag}</span>
+                        <span className="qp-name">{m.home}</span>
+                        {pick === 'home' && <CheckCircle size={16} className="qp-check" />}
+                      </button>
+                      <button
+                        className={`qp-draw ${pick === 'draw' ? 'qp-draw-selected' : ''}`}
+                        onClick={() => handleQuickPick(m.id, 'draw')}
+                      >
+                        Draw
+                      </button>
+                      <button
+                        className={`qp-team qp-team-away ${pick === 'away' ? 'qp-team-selected' : ''}`}
+                        onClick={() => handleQuickPick(m.id, 'away')}
+                      >
+                        {pick === 'away' && <CheckCircle size={16} className="qp-check" />}
+                        <span className="qp-name">{m.away}</span>
+                        <span className="qp-flag">{m.awayFlag}</span>
+                      </button>
+                    </div>
+                    <div className="qp-venue">{m.city}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Signup nudge — appears after a few picks for unauthenticated users */}
+            {showSignupNudge && !authenticated && (
+              <div className="qp-nudge reveal">
+                <div className="qp-nudge-inner">
+                  <div className="qp-nudge-icon"><Trophy size={28} /></div>
+                  <div className="qp-nudge-text">
+                    <strong>Nice picks!</strong> Save your predictions, join leagues, and compete on the leaderboard.
+                  </div>
+                  <button className="btn btn-primary" onClick={() => login()}>
+                    <UserPlus size={18} /> Sign up free
+                  </button>
+                  <button className="qp-nudge-dismiss" onClick={() => setShowSignupNudge(false)}>
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Sticky save bar when picks exist */}
+            {pickCount > 0 && (
+              <div className="qp-save-bar">
+                <div className="qp-save-inner">
+                  <span>{pickCount} {pickCount === 1 ? 'prediction' : 'predictions'} ready</span>
+                  <button className="btn btn-primary" onClick={handleSavePicks}>
+                    {authenticated ? <><Save size={18} /> Save &amp; Go to Leagues</> : <><UserPlus size={18} /> Sign up to save</>}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
-        {/* Features */}
+        {/* How it Works — simplified */}
         <section className="features"><div className="container">
           <div className="section-header reveal"><h2>How It Works</h2><p>From spectator to oracle in three steps</p></div>
           <div className="features-grid">
-            <div className="feature-card reveal-float stagger-1 glow-hover"><div className="feature-icon">// 01</div><h3>Predict Every Match</h3><p>Call the winner across all 104 fixtures. Predict exact scores for bonus points. Your bracket auto-fills as you go — knockout matchups resolve from your group predictions.</p></div>
-            <div className="feature-card reveal-float stagger-2 glow-hover"><div className="feature-icon">// 02</div><h3>Custom Leagues</h3><p>Create leagues scoped to specific groups, knockout rounds, or the full tournament. Go private with passcodes and compete with your crew.</p></div>
-            <div className="feature-card reveal-float stagger-3 glow-hover"><div className="feature-icon">// 03</div><h3>Track Results</h3><p>Match results update with verified scores. See how your predictions stack up in real time across all your leagues.</p></div>
-          </div>
-        </div></section>
-
-        {/* Prize Leagues Teaser */}
-        <section className="crypto-section section-zoom"><div className="container"><div className="crypto-content">
-          <div className="crypto-text reveal-left">
-            <h2>Prize Leagues — Coming Soon</h2>
-            <p>We're exploring ways to let leagues offer prizes in the future. For now, all leagues are completely free — compete for bragging rights and leaderboard glory.</p>
-            <ul className="crypto-features">
-              <li><CheckCircle size={20} /> Embedded wallet via Privy — no extensions needed</li>
-              <li><CheckCircle size={20} /> On-chain prize distribution being explored</li>
-              <li><CheckCircle size={20} /> Multi-source oracle verification for results</li>
-              <li><CheckCircle size={20} /> Free leagues available now — no crypto needed</li>
-            </ul>
-          </div>
-          <div className="crypto-visual reveal-right">
-            <div className="wallet-card" style={{opacity: 0.5}}>
-              <Coins size={48} />
-              <div className="wallet-info"><div className="wallet-label">Prize Leagues</div><div className="wallet-amount">Coming Soon</div></div>
+            <div className="feature-card reveal-float stagger-1 glow-hover">
+              <div className="feature-icon">// 01</div>
+              <h3>Pick Winners</h3>
+              <p>Tap home, draw, or away for every match. Quick Pick mode gets you started in seconds — or go deep with exact score predictions in leagues.</p>
+            </div>
+            <div className="feature-card reveal-float stagger-2 glow-hover">
+              <div className="feature-icon">// 02</div>
+              <h3>Join Leagues</h3>
+              <p>Create your own league or join public ones. Go private with invite codes and compete with friends, family, or coworkers.</p>
+            </div>
+            <div className="feature-card reveal-float stagger-3 glow-hover">
+              <div className="feature-icon">// 03</div>
+              <h3>Climb the Leaderboard</h3>
+              <p>Earn points for correct calls. Exact score predictions score big bonus points. Results verified live from multiple sources.</p>
             </div>
           </div>
-        </div></div></section>
-
-        {/* Featured Matches */}
-        <section className="matches-showcase"><div className="container">
-          <div className="section-header reveal"><h2>Featured Matches</h2><p>Some of the biggest group stage clashes</p></div>
-          <div className="showcase-grid">
-            {featured.map((m, i) => (
-              <div key={m.id} className={`showcase-match reveal-scale stagger-${(i % 3) + 1} glow-hover`}>
-                <div className="showcase-group">{m.stage}</div>
-                <div className="showcase-teams">
-                  <span className="showcase-flag">{m.homeFlag}</span>
-                  <span>{m.home}</span>
-                  <span className="showcase-vs">vs</span>
-                  <span>{m.away}</span>
-                  <span className="showcase-flag">{m.awayFlag}</span>
-                </div>
-                <div className="showcase-date">{m.city} · {new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-              </div>
-            ))}
-          </div>
         </div></section>
+
+        {/* Social proof / CTA */}
+        <section className="cta-section">
+          <div className="container">
+            <div className="cta-card reveal">
+              <h2>104 matches. 48 nations. One question.</h2>
+              <p>Who&rsquo;s going to win?</p>
+              <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}>
+                {authenticated ? 'Go to Dashboard' : 'Join free — takes 10 seconds'}
+              </button>
+            </div>
+          </div>
+        </section>
 
         <footer className="site-footer">
           <div className="footer-content">
             <div className="footer-brand"><span className="gt">GoalOracle</span> · 2026</div>
             <div className="footer-links">
+              <a onClick={() => document.querySelector('.qp-section')?.scrollIntoView({ behavior: 'smooth' })}>Quick Pick</a>
               <a onClick={() => authenticated ? nav('dashboard') : login()}>Play Now</a>
-              <a onClick={() => document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' })}>How It Works</a>
               <a onClick={() => nav('faq')}>FAQ</a>
               <a onClick={() => nav('feedback')}>Feedback</a>
             </div>
             <div className="footer-copy">A free prediction game for the FIFA World Cup 2026 · Not affiliated with FIFA · For entertainment purposes only</div>
             <div className="footer-disclaimer" style={{fontSize: '11px', opacity: 0.5, maxWidth: '600px', margin: '8px auto 0', lineHeight: 1.4}}>
-              GoalOracle is a free entertainment platform. No real money is wagered, collected, or distributed. This is not a gambling service. "FIFA World Cup" and related marks are trademarks of FIFA. GoalOracle is not endorsed by or affiliated with FIFA.
+              GoalOracle is a free entertainment platform. No real money is wagered, collected, or distributed. This is not a gambling service. &ldquo;FIFA World Cup&rdquo; and related marks are trademarks of FIFA. GoalOracle is not endorsed by or affiliated with FIFA.
             </div>
-            <div className="photo-credit">Stadium photos via Unsplash (free commercial license)</div>
           </div>
         </footer>
       </div>
