@@ -40,6 +40,12 @@ const TEAM_COLORS = {
   'Ghana':         { primary: '#006B3F', secondary: '#FCD116', flag: '🇬🇭', accent: '#CE1126' },
   'Panama':        { primary: '#DA121A', secondary: '#003DA5', flag: '🇵🇦', accent: '#FFFFFF' },
   'Switzerland':   { primary: '#FF0000', secondary: '#FFFFFF', flag: '🇨🇭', accent: '#FFFFFF' },
+  'Czechia':       { primary: '#11457E', secondary: '#D7141A', flag: '🇨🇿', accent: '#FFFFFF' },
+  'Bosnia and Herzegovina': { primary: '#002395', secondary: '#FECB00', flag: '🇧🇦', accent: '#FFFFFF' },
+  'Türkiye':       { primary: '#E30A17', secondary: '#FFFFFF', flag: '🇹🇷', accent: '#000000' },
+  'Sweden':        { primary: '#006AA7', secondary: '#FECC02', flag: '🇸🇪', accent: '#FFFFFF' },
+  'Iraq':          { primary: '#007A3D', secondary: '#FFFFFF', flag: '🇮🇶', accent: '#CE1126' },
+  'DR Congo':      { primary: '#007FFF', secondary: '#CE1126', flag: '🇨🇩', accent: '#F7D618' },
 };
 
 export default TEAM_COLORS;
