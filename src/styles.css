@@ -785,11 +785,47 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .dashboard-header h1 { font-size: 1.75rem; font-weight: 700; }
 .dashboard-header p { color: var(--text-sec); font-size: 0.9rem; }
 .dashboard-actions { display: flex; gap: 0.5rem; }
+/* ─── DASH STATS ROW (XP + Streak) ─── */
+.dash-stats-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;
+}
+@media (max-width: 768px) { .dash-stats-row { grid-template-columns: 1fr; } }
+
+/* ─── XP CARD ─── */
+.xp-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 0.9rem 1.25rem;
+}
+.xp-card-top { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.xp-level-badge {
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 700;
+  color: var(--primary); display: flex; align-items: center; gap: 0.25rem;
+}
+.xp-title { font-size: 0.8rem; color: var(--text-sec); font-weight: 600; }
+.xp-bar-wrap { margin-bottom: 0.3rem; }
+.xp-bar { height: 8px; background: var(--bg-elev); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+.xp-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--amber)); border-radius: 4px; transition: width 0.5s ease; }
+.xp-bar-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); margin-top: 0.25rem; }
+.xp-to-next { font-family: var(--mono); font-size: 0.6rem; color: var(--text-sec); }
+
+/* Leaderboard level tag */
+.lb-level-tag {
+  font-family: var(--mono); font-size: 0.55rem; color: var(--text-dim);
+  display: inline-flex; align-items: center; gap: 0.15rem; margin-left: 0.3rem;
+}
+
+/* Profile dropdown XP */
+.dropdown-xp {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.7rem; color: var(--primary); margin-top: 0.3rem;
+}
+.dropdown-xp-num { color: var(--text-dim); font-family: var(--mono); font-size: 0.6rem; }
+
 /* ─── STREAK BANNER (Dashboard) ─── */
 .streak-banner {
   display: flex; justify-content: space-between; align-items: center;
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 0.9rem 1.25rem; margin-bottom: 1.5rem;
+  padding: 0.9rem 1.25rem;
 }
 .streak-banner-main {
   display: flex; align-items: center; gap: 0.5rem;
