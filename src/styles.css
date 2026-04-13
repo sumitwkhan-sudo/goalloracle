@@ -454,6 +454,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .nmc-meta svg { flex-shrink: 0; }
 .nmc-btn { width: calc(100% - 2.5rem); margin: 0 1.25rem 1.25rem; }
+.nmc-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.nmc-locked { border-color: var(--border); opacity: 0.85; }
+.nmc-countdown-locked { color: var(--danger); }
+.nmc-countdown-locked svg { color: var(--danger); }
+.nmc-empty { display: flex; align-items: center; justify-content: center; min-height: 280px; }
+.nmc-empty-inner { text-align: center; color: var(--text-sec); display: flex; flex-direction: column; align-items: center; gap: 0.75rem; padding: 2rem; }
+.nmc-empty-inner svg { color: var(--text-dim); }
+.nmc-empty-inner p { font-size: 0.9rem; }
 
 /* ─── HOW IT WORKS ─── */
 .hiw-section { padding: 5rem 2rem; position: relative; z-index: 2; }
