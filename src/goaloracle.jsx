@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, Gift, MapPin, Calendar } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
@@ -586,224 +586,289 @@ const GoalOracle = () => {
 
   const Landing = () => {
     useScrollReveal();
-    const [quickPicks, setQuickPicks] = useState({});
-    const [showSignupNudge, setShowSignupNudge] = useState(false);
-    const [activeGroup, setActiveGroup] = useState('featured');
-    const pickCount = Object.keys(quickPicks).length;
+    const [lbTab, setLbTab] = useState('global');
 
-    // Featured big matches for Quick Pick
-    const featuredIds = ['gs01', 'gs04', 'gs07', 'gs11', 'gs17', 'gs19', 'gs23', 'gs15', 'gs13', 'gs09', 'gs16', 'gs05'];
-    const featuredMatches = featuredIds.map(id => WORLD_CUP_MATCHES.find(m => m.id === id)).filter(Boolean);
+    // Find next upcoming match
+    const now = Date.now();
+    const nextMatch = useMemo(() => {
+      return WORLD_CUP_MATCHES.filter(m => !m.isKnockout).find(m => {
+        const [hh, mm] = (m.time || '15:00').split(':').map(Number);
+        const d = new Date(`${m.date}T00:00:00Z`);
+        d.setUTCHours(hh + 4, mm, 0, 0);
+        return d.getTime() > now;
+      }) || WORLD_CUP_MATCHES.find(m => m.id === 'gs01');
+    }, []);
 
-    // Group matches for browsing
-    const groups = ['A','B','C','D','E','F','G','H','I','J','K','L'];
-    const displayMatches = activeGroup === 'featured'
-      ? featuredMatches
-      : WORLD_CUP_MATCHES.filter(m => m.stage === `Group ${activeGroup}`);
+    // Countdown timer
+    const [countdown, setCountdown] = useState('');
+    useEffect(() => {
+      if (!nextMatch) return;
+      const [hh, mm] = (nextMatch.time || '15:00').split(':').map(Number);
+      const kick = new Date(`${nextMatch.date}T00:00:00Z`);
+      kick.setUTCHours(hh + 4, mm, 0, 0);
+      const lockMs = kick.getTime() - 5 * 60 * 1000;
+      const tick = () => {
+        const diff = lockMs - Date.now();
+        if (diff <= 0) { setCountdown('LOCKED'); return; }
+        const d = Math.floor(diff / 86400000);
+        const h = Math.floor((diff % 86400000) / 3600000);
+        const mi = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        setCountdown(d > 0 ? `${d}d ${h}h ${mi}m` : `${h}h ${mi}m ${s}s`);
+      };
+      tick();
+      const iv = setInterval(tick, 1000);
+      return () => clearInterval(iv);
+    }, [nextMatch]);
 
-    const handleQuickPick = (matchId, pick) => {
-      setQuickPicks(prev => {
-        const next = { ...prev };
-        if (next[matchId] === pick) { delete next[matchId]; return next; }
-        next[matchId] = pick;
-        // Show signup nudge after 3 picks if not authenticated
-        if (!authenticated && Object.keys(next).length >= 3 && !showSignupNudge) {
-          setShowSignupNudge(true);
-        }
-        return next;
-      });
-    };
+    // Mock leaderboard data
+    const mockLb = [
+      { rank: 1, name: 'LeoM', pts: 78, level: 12 },
+      { rank: 2, name: 'SamNYC', pts: 74, level: 9 },
+      { rank: 3, name: 'MariaFutbol', pts: 71, level: 10 },
+      { rank: 4, name: 'You', pts: 68, level: 7, isYou: true },
+    ];
 
-    const handleSavePicks = () => {
-      if (!authenticated) { login(); return; }
-      nav('dashboard');
-    };
-
-    // Countdown to tournament
-    const daysToGo = Math.max(0, Math.ceil((new Date('2026-06-11T00:00:00Z') - Date.now()) / 86400000));
+    // Community predictions mock
+    const communityMatch = WORLD_CUP_MATCHES.find(m => m.id === 'gs17');
 
     return (
       <div className="landing-page">
         <div className="grad-mesh"></div>
 
-        {/* Hero — compact, action-oriented */}
-        <section className={`hero hero-compact ${heroAnimated ? 'hero-no-anim' : ''}`}>
+        {/* ─── 1. HERO + NEXT MATCH ─── */}
+        <section className={`hero hero-split ${heroAnimated ? 'hero-no-anim' : ''}`}>
           <div className="hero-stadium-bg"></div>
           <div className="hero-stadium-overlay"></div>
-          <div className="hero-content" ref={el => { if (el && !heroAnimated) { heroAnimated = true; } }}>
-            <div className="hero-badge"><span className="live-dot"></span><span>{daysToGo > 0 ? `${daysToGo} days to kickoff` : 'Tournament is LIVE'}</span></div>
-            <h1 className="hero-title">Who&rsquo;s Going to<br/><span className="highlight">Win?</span></h1>
-            <p className="hero-subtitle">Pick winners for every World Cup 2026 match. No sign-up needed to start.</p>
-            <div className="hero-cta">
-              <button className="btn btn-primary btn-lg" onClick={() => document.querySelector('.qp-section')?.scrollIntoView({ behavior: 'smooth' })}>
-                <Zap size={20} /> Make Your Picks
-              </button>
-              {authenticated && (
-                <button className="btn btn-secondary btn-lg" onClick={() => nav('dashboard')}>
-                  My Leagues <ChevronRight size={18} />
-                </button>
-              )}
+          <div className="hero-split-inner" ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
+            <div className="hero-left">
+              <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
+              <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
+              <div className="hero-cta">
+                <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}>Start Predicting &mdash; It&rsquo;s Free</button>
+                <button className="btn btn-secondary btn-lg" onClick={() => authenticated ? nav('create') : login()}>Create a League</button>
+              </div>
+              <div className="hero-social-proof">
+                <div className="hero-avatars">
+                  {['🇧🇷','🇩🇪','🇦🇷','🇫🇷'].map((f,i) => <span key={i} className="hero-avatar">{f}</span>)}
+                </div>
+                <span className="hero-proof-text"><AnimatedCounter value={stats.totalPlayers ? stats.totalPlayers * 12 : 13402} /> predictions made today &middot; 82 countries &middot; Free to play</span>
+              </div>
             </div>
-            <div className="hero-stats">
-              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.totalPlayers || 0} suffix="+" /></div><div className="stat-label">Players</div></div>
-              <div className="stat"><div className="stat-value"><AnimatedCounter value={stats.activeLeagues || 0} /></div><div className="stat-label">Leagues</div></div>
-              <div className="stat"><div className="stat-value">104</div><div className="stat-label">Matches</div></div>
+            <div className="hero-right">
+              {nextMatch && (
+                <div className="next-match-card">
+                  <div className="nmc-header">
+                    <span className="nmc-label">Next Match</span>
+                    <span className="nmc-countdown"><Clock size={12} /> Predictions close in: <strong>{countdown}</strong></span>
+                  </div>
+                  <div className="nmc-teams">
+                    <div className="nmc-team"><span className="nmc-flag">{nextMatch.homeFlag}</span><span className="nmc-name">{nextMatch.home}</span></div>
+                    <span className="nmc-vs">VS</span>
+                    <div className="nmc-team"><span className="nmc-flag">{nextMatch.awayFlag}</span><span className="nmc-name">{nextMatch.away}</span></div>
+                  </div>
+                  <div className="nmc-meta">
+                    <span><Calendar size={12} /> {new Date(nextMatch.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                    <span>&middot;</span>
+                    <span>{nextMatch.time} ET</span>
+                    <span>&middot;</span>
+                    <span><MapPin size={12} /> {nextMatch.venue}</span>
+                  </div>
+                  <button className="btn btn-primary nmc-btn" onClick={() => authenticated ? nav('dashboard') : login()}>Make Your Prediction</button>
+                </div>
+              )}
             </div>
           </div>
         </section>
 
-        {/* Finals Marquee Strip */}
-        <div className="finals-strip"><div className="finals-track">
-          {[...FINALS, ...FINALS].map((f, i) => (
-            <span key={i} className="fi"><span className="yr">{f.yr}</span> <span className="win">{f.win}</span> <span className="sc">{f.score}</span> {f.city}</span>
-          ))}
-        </div></div>
-
-        {/* Quick Pick Section — the hook */}
-        <section className="qp-section">
-          <div className="container">
-            <div className="qp-header">
-              <div>
-                <h2 className="qp-title">Quick Pick</h2>
-                <p className="qp-sub">Tap a winner or call it a draw — it&rsquo;s that simple</p>
-              </div>
-              {pickCount > 0 && (
-                <div className="qp-pick-counter">
-                  <span className="qp-count">{pickCount}</span>
-                  <span className="qp-count-label">{pickCount === 1 ? 'pick' : 'picks'} made</span>
+        {/* ─── 2. HOW IT WORKS ─── */}
+        <section className="hiw-section"><div className="container">
+          <div className="hiw-eyebrow reveal">How It Works</div>
+          <h2 className="hiw-title reveal">3 Simple Steps to Glory</h2>
+          <div className="hiw-grid">
+            <div className="hiw-card reveal-float stagger-1 glow-hover">
+              <div className="hiw-num">1</div>
+              <h3>Predict</h3>
+              <p>Predict match scores, results, and your confidence before kickoff.</p>
+              <div className="hiw-preview">
+                <div className="hiw-mini-match">
+                  <span>{WORLD_CUP_MATCHES[18]?.homeFlag} {WORLD_CUP_MATCHES[18]?.home}</span>
+                  <span className="hiw-score">2 - 1</span>
+                  <span>{WORLD_CUP_MATCHES[18]?.awayFlag} {WORLD_CUP_MATCHES[18]?.away}</span>
                 </div>
-              )}
+                <div className="hiw-confidence"><div className="hiw-conf-bar"><div className="hiw-conf-fill" style={{width:'86%'}}></div></div><span>Confidence: 86%</span></div>
+              </div>
             </div>
-
-            {/* Group filter tabs */}
-            <div className="qp-group-tabs">
-              <button className={`qp-tab ${activeGroup === 'featured' ? 'active' : ''}`} onClick={() => setActiveGroup('featured')}>
-                <Sparkles size={14} /> Featured
-              </button>
-              {groups.map(g => (
-                <button key={g} className={`qp-tab ${activeGroup === g ? 'active' : ''}`} onClick={() => setActiveGroup(g)}>
-                  {g}
-                </button>
-              ))}
-            </div>
-
-            {/* Quick Pick match cards */}
-            <div className="qp-grid">
-              {displayMatches.map(m => {
-                const pick = quickPicks[m.id];
-                return (
-                  <div key={m.id} className={`qp-card ${pick ? 'qp-card-picked' : ''}`}>
-                    <div className="qp-card-meta">
-                      <span className="qp-stage">{m.stage}</span>
-                      <span className="qp-date">{new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                    </div>
-                    <div className="qp-matchup">
-                      <button
-                        className={`qp-team ${pick === 'home' ? 'qp-team-selected' : ''}`}
-                        onClick={() => handleQuickPick(m.id, 'home')}
-                      >
-                        <span className="qp-flag">{m.homeFlag}</span>
-                        <span className="qp-name">{m.home}</span>
-                        {pick === 'home' && <CheckCircle size={16} className="qp-check" />}
-                      </button>
-                      <button
-                        className={`qp-draw ${pick === 'draw' ? 'qp-draw-selected' : ''}`}
-                        onClick={() => handleQuickPick(m.id, 'draw')}
-                      >
-                        Draw
-                      </button>
-                      <button
-                        className={`qp-team qp-team-away ${pick === 'away' ? 'qp-team-selected' : ''}`}
-                        onClick={() => handleQuickPick(m.id, 'away')}
-                      >
-                        {pick === 'away' && <CheckCircle size={16} className="qp-check" />}
-                        <span className="qp-name">{m.away}</span>
-                        <span className="qp-flag">{m.awayFlag}</span>
-                      </button>
-                    </div>
-                    <div className="qp-venue">{m.city}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Signup nudge — appears after a few picks for unauthenticated users */}
-            {showSignupNudge && !authenticated && (
-              <div className="qp-nudge reveal">
-                <div className="qp-nudge-inner">
-                  <div className="qp-nudge-icon"><Trophy size={28} /></div>
-                  <div className="qp-nudge-text">
-                    <strong>Nice picks!</strong> Save your predictions, join leagues, and compete on the leaderboard.
-                  </div>
-                  <button className="btn btn-primary" onClick={() => login()}>
-                    <UserPlus size={18} /> Sign up free
-                  </button>
-                  <button className="qp-nudge-dismiss" onClick={() => setShowSignupNudge(false)}>
-                    <X size={16} />
-                  </button>
+            <div className="hiw-card reveal-float stagger-2 glow-hover">
+              <div className="hiw-num">2</div>
+              <h3>Compete</h3>
+              <p>Join or create leagues with friends, fans, or your community.</p>
+              <div className="hiw-preview">
+                <div className="hiw-league-row">
+                  <div className="hiw-league-avatars">{['🇲🇽','🇺🇸','🇧🇷'].map((f,i) => <span key={i}>{f}</span>)}<span className="hiw-plus-badge"><Plus size={10} /></span></div>
+                  <div><strong>Your League</strong><br/><span className="hiw-dim">12 members</span></div>
                 </div>
               </div>
-            )}
-
-            {/* Sticky save bar when picks exist */}
-            {pickCount > 0 && (
-              <div className="qp-save-bar">
-                <div className="qp-save-inner">
-                  <span>{pickCount} {pickCount === 1 ? 'prediction' : 'predictions'} ready</span>
-                  <button className="btn btn-primary" onClick={handleSavePicks}>
-                    {authenticated ? <><Save size={18} /> Save &amp; Go to Leagues</> : <><UserPlus size={18} /> Sign up to save</>}
-                  </button>
+            </div>
+            <div className="hiw-card reveal-float stagger-3 glow-hover">
+              <div className="hiw-num">3</div>
+              <h3>Climb</h3>
+              <p>Earn XP, build streaks, climb leaderboards, win rewards.</p>
+              <div className="hiw-preview">
+                <div className="hiw-level-row">
+                  <div className="hiw-level-badge"><Star size={14} /> Level 7 &mdash; Analyst</div>
+                  <div className="hiw-xp-bar"><div className="hiw-xp-fill" style={{width:'62.5%'}}></div></div>
+                  <span className="hiw-dim">1,250 / 2,000 XP</span>
                 </div>
               </div>
-            )}
-          </div>
-        </section>
-
-        {/* How it Works — simplified */}
-        <section className="features"><div className="container">
-          <div className="section-header reveal"><h2>How It Works</h2><p>From spectator to oracle in three steps</p></div>
-          <div className="features-grid">
-            <div className="feature-card reveal-float stagger-1 glow-hover">
-              <div className="feature-icon">// 01</div>
-              <h3>Pick Winners</h3>
-              <p>Tap home, draw, or away for every match. Quick Pick mode gets you started in seconds — or go deep with exact score predictions in leagues.</p>
-            </div>
-            <div className="feature-card reveal-float stagger-2 glow-hover">
-              <div className="feature-icon">// 02</div>
-              <h3>Join Leagues</h3>
-              <p>Create your own league or join public ones. Go private with invite codes and compete with friends, family, or coworkers.</p>
-            </div>
-            <div className="feature-card reveal-float stagger-3 glow-hover">
-              <div className="feature-icon">// 03</div>
-              <h3>Climb the Leaderboard</h3>
-              <p>Earn points for correct calls. Exact score predictions score big bonus points. Results verified live from multiple sources.</p>
             </div>
           </div>
         </div></section>
 
-        {/* Social proof / CTA */}
-        <section className="cta-section">
+        {/* ─── 3. LEADERBOARD + STREAKS ─── */}
+        <section className="lb-streaks-section"><div className="container">
+          <div className="lb-streaks-grid">
+            {/* Leaderboard */}
+            <div className="lb-panel reveal">
+              <div className="lb-panel-head">
+                <h3>Global Leaderboard</h3>
+                <a className="lb-view-all" onClick={() => authenticated ? nav('dashboard') : login()}>View Full Leaderboard <ChevronRight size={14} /></a>
+              </div>
+              <div className="lb-tabs">
+                {['global','country','friends'].map(t => (
+                  <button key={t} className={`lb-tab ${lbTab === t ? 'active' : ''}`} onClick={() => setLbTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>
+                ))}
+              </div>
+              <div className="lb-rows">
+                {mockLb.map(p => (
+                  <div key={p.rank} className={`lb-row ${p.isYou ? 'lb-row-you' : ''}`}>
+                    <span className={`lb-rank lb-rank-${p.rank}`}>{p.rank <= 3 ? ['','🥇','🥈','🥉'][p.rank] : p.rank}</span>
+                    <span className="lb-name">{p.name}</span>
+                    <span className="lb-pts">{p.pts} pts</span>
+                    <span className="lb-level"><Star size={12} /> Level {p.level}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Streaks & Badges */}
+            <div className="streaks-panel reveal">
+              <div className="lb-panel-head">
+                <h3>Streaks &amp; Badges</h3>
+                <a className="lb-view-all" onClick={() => authenticated ? nav('dashboard') : login()}>View All <ChevronRight size={14} /></a>
+              </div>
+              <div className="streak-current">
+                <div className="streak-label">Current Streak</div>
+                <div className="streak-num">6</div>
+                <div className="streak-sub">correct predictions</div>
+                <div className="streak-flames">{[1,2,3,4,5,6].map(i => <Flame key={i} size={20} className="streak-flame" />)}</div>
+              </div>
+              <div className="badges-grid">
+                <div className="badge-item"><div className="badge-icon badge-bronze"><Award size={20} /></div><div className="badge-count">3</div><div className="badge-label">Bronze</div></div>
+                <div className="badge-item"><div className="badge-icon badge-silver"><Award size={20} /></div><div className="badge-count">5</div><div className="badge-label">Silver</div></div>
+                <div className="badge-item"><div className="badge-icon badge-gold"><Award size={20} /></div><div className="badge-count">10</div><div className="badge-label">Golden Oracle</div></div>
+              </div>
+            </div>
+          </div>
+        </div></section>
+
+        {/* ─── 4. SHARE + COMMUNITY ─── */}
+        <section className="share-section"><div className="container">
+          <div className="share-grid">
+            {/* Share card preview */}
+            <div className="share-left reveal">
+              <div className="share-card-preview">
+                <div className="scp-brand"><span className="gt">GoalOracle</span></div>
+                <div className="scp-label">My Prediction</div>
+                <div className="scp-match">
+                  <span>{WORLD_CUP_MATCHES[18]?.homeFlag} {WORLD_CUP_MATCHES[18]?.home}</span>
+                  <strong>2 - 1</strong>
+                  <span>{WORLD_CUP_MATCHES[18]?.awayFlag} {WORLD_CUP_MATCHES[18]?.away}</span>
+                </div>
+                <div className="scp-meta"><CheckCircle size={12} /> Confidence: 72% &middot; <Flame size={12} /> Streak: 4 Correct</div>
+                <div className="scp-invite">Can you beat me? goaloracle.io</div>
+                <div className="scp-tags">#GoalOracle #WorldCup</div>
+              </div>
+              <div className="share-text">
+                <h3>Share Your Predictions</h3>
+                <p>Show off your predictions. Challenge your friends. Grow your league.</p>
+                <div className="share-icons">
+                  {['X','WhatsApp','Instagram','Discord'].map(s => (
+                    <div key={s} className="share-icon-item"><Share2 size={18} /><span>{s}</span></div>
+                  ))}
+                </div>
+                <button className="btn btn-primary">Share Prediction</button>
+              </div>
+            </div>
+
+            {/* Community predictions */}
+            <div className="community-panel reveal">
+              <h3>Community Predictions</h3>
+              {communityMatch && (
+                <div className="comm-match">
+                  <span>{communityMatch.homeFlag} {communityMatch.home}</span>
+                  <span className="comm-vs">vs</span>
+                  <span>{communityMatch.awayFlag} {communityMatch.away}</span>
+                </div>
+              )}
+              <div className="comm-bars">
+                <div className="comm-bar-row"><span className="comm-bar-label">{communityMatch?.home} Win</span><div className="comm-bar"><div className="comm-bar-fill comm-fill-home" style={{width:'52%'}}></div></div><span>52%</span></div>
+                <div className="comm-bar-row"><span className="comm-bar-label">Draw</span><div className="comm-bar"><div className="comm-bar-fill comm-fill-draw" style={{width:'28%'}}></div></div><span>28%</span></div>
+                <div className="comm-bar-row"><span className="comm-bar-label">{communityMatch?.away} Win</span><div className="comm-bar"><div className="comm-bar-fill comm-fill-away" style={{width:'20%'}}></div></div><span>20%</span></div>
+              </div>
+              <div className="comm-total">12,843 predictions</div>
+            </div>
+          </div>
+        </div></section>
+
+        {/* ─── 5. REWARDS & LEVELS ─── */}
+        <section className="rewards-section"><div className="container">
+          <h2 className="rewards-title reveal">Rewards &amp; Levels</h2>
+          <div className="rewards-grid">
+            {[
+              { icon: <TrendingUp size={28} />, title: 'XP & Levels', sub: 'Climb from Fan to Legend' },
+              { icon: <Gift size={28} />, title: 'Jerseys', sub: 'Win signed jerseys' },
+              { icon: <Award size={28} />, title: 'Badges', sub: 'Show off your achievements' },
+              { icon: <Trophy size={28} />, title: 'Tournaments', sub: 'Invite-only competitions' },
+            ].map((r, i) => (
+              <div key={i} className={`reward-card reveal-float stagger-${i+1} glow-hover`}>
+                <div className="reward-icon">{r.icon}</div>
+                <h4>{r.title}</h4>
+                <p>{r.sub}</p>
+              </div>
+            ))}
+          </div>
+        </div></section>
+
+        {/* ─── 6. FINAL CTA ─── */}
+        <section className="final-cta-section">
           <div className="container">
-            <div className="cta-card reveal">
-              <h2>104 matches. 48 nations. One question.</h2>
-              <p>Who&rsquo;s going to win?</p>
-              <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}>
-                {authenticated ? 'Go to Dashboard' : 'Join free — takes 10 seconds'}
-              </button>
+            <div className="final-cta reveal">
+              <h2>Ready to Become the Oracle?</h2>
+              <p>Join thousands of football fans already predicting, competing, and winning.</p>
+              <div className="final-cta-btns">
+                <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}>Start Predicting &mdash; It&rsquo;s Free</button>
+                <button className="btn btn-secondary btn-lg" onClick={() => authenticated ? nav('create') : login()}>Create a League</button>
+              </div>
             </div>
           </div>
         </section>
 
         <footer className="site-footer">
           <div className="footer-content">
-            <div className="footer-brand"><span className="gt">GoalOracle</span> · 2026</div>
+            <div className="footer-top">
+              <div className="footer-proof"><Globe size={14} /> Trusted by football fans in 82 countries &middot; <AnimatedCounter value={stats.totalPlayers ? stats.totalPlayers * 30 : 32000} suffix="+" /> predictions this week</div>
+              <div className="footer-socials">
+                {['X','Instagram','Discord'].map(s => <span key={s} className="footer-social-icon"><Share2 size={14} /></span>)}
+              </div>
+            </div>
             <div className="footer-links">
-              <a onClick={() => document.querySelector('.qp-section')?.scrollIntoView({ behavior: 'smooth' })}>Quick Pick</a>
-              <a onClick={() => authenticated ? nav('dashboard') : login()}>Play Now</a>
+              <a onClick={() => authenticated ? nav('dashboard') : login()}>Predict</a>
+              <a onClick={() => authenticated ? nav('browse') : login()}>Leagues</a>
               <a onClick={() => nav('faq')}>FAQ</a>
               <a onClick={() => nav('feedback')}>Feedback</a>
             </div>
-            <div className="footer-copy">A free prediction game for the FIFA World Cup 2026 · Not affiliated with FIFA · For entertainment purposes only</div>
+            <div className="footer-copy">A free prediction game for the FIFA World Cup 2026 &middot; Not affiliated with FIFA &middot; For entertainment purposes only</div>
             <div className="footer-disclaimer" style={{fontSize: '11px', opacity: 0.5, maxWidth: '600px', margin: '8px auto 0', lineHeight: 1.4}}>
               GoalOracle is a free entertainment platform. No real money is wagered, collected, or distributed. This is not a gambling service. &ldquo;FIFA World Cup&rdquo; and related marks are trademarks of FIFA. GoalOracle is not endorsed by or affiliated with FIFA.
             </div>
