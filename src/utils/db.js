@@ -202,17 +202,6 @@ export async function createLeague(leagueData, creatorId) {
     status: 'active',
   });
 
-  // Verify write persisted to server (memoryLocalCache resolves setDoc optimistically)
-  try {
-    const verify = await getDocFromServer(leagueRef);
-    if (!verify.exists()) {
-      throw new Error('League write was rejected by Firestore security rules');
-    }
-  } catch (verifyErr) {
-    if (verifyErr.message?.includes('rejected')) throw verifyErr;
-    console.warn('[createLeague] Server verify failed (offline?):', verifyErr.message);
-  }
-
   // Update user's leagues array (non-blocking)
   updateDoc(doc(db, 'users', creatorId), { leagues: arrayUnion(leagueId) }).catch(() => {});
 

@@ -1125,9 +1125,15 @@ const GoalOracle = () => {
         { matchScope: 'rounds', selectedRounds: selRounds };
       try {
         const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData };
-        const lid = await createLeague(leagueData, uData.id);
-        setCreateSuccess({ name: nm.trim(), id: lid, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null });
+        // Race against a 15s timeout so it never hangs
+        const lid = await Promise.race([
+          createLeague(leagueData, uData.id),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('League creation timed out — please check your connection and try again')), 15000)),
+        ]);
+        const savedName = nm.trim();
+        const savedPasscode = vis === 'private' ? passcode.trim().toUpperCase() : null;
         resetForm();
+        setCreateSuccess({ name: savedName, id: lid, passcode: savedPasscode });
       } catch(e) {
         console.error('[create] FAILED:', e);
         setBusy(false);
@@ -1159,9 +1165,10 @@ const GoalOracle = () => {
     return (
       <div className="create-league">
         <div className="page-header"><button className="btn-back" onClick={() => { resetForm(); setCreateSuccess(null); nav('dashboard'); }}>← Back</button><h1>Create Your League</h1></div>
-        <div className="create-league-form">
+        <div className="create-league-form" style={{position:'relative'}}>
+          {busy && <div className="create-loading-overlay"><div className="create-loading-inner"><Loader size={32} className="spin" /><p>Creating your league...</p></div></div>}
           {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}
-          <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={e => setNm(e.target.value)} className="input-field" autoFocus /></div>
+          <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={e => setNm(e.target.value)} className="input-field" /></div>
           <div className="form-section"><label>League Type</label>
             <div className="type-selector">
               <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and bragging rights</p></div></button>
