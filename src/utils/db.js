@@ -1,5 +1,5 @@
 import { db, auth } from '../config/firebase';
-import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs } from 'firebase/firestore';
 import { signInWithCustomToken } from 'firebase/auth';
 import WORLD_CUP_MATCHES from '../data/matches';
 
@@ -201,6 +201,17 @@ export async function createLeague(leagueData, creatorId) {
     createdAt: serverTimestamp(),
     status: 'active',
   });
+
+  // Verify write persisted to server (memoryLocalCache resolves setDoc optimistically)
+  try {
+    const verify = await getDocFromServer(leagueRef);
+    if (!verify.exists()) {
+      throw new Error('League write was rejected by Firestore security rules');
+    }
+  } catch (verifyErr) {
+    if (verifyErr.message?.includes('rejected')) throw verifyErr;
+    console.warn('[createLeague] Server verify failed (offline?):', verifyErr.message);
+  }
 
   // Update user's leagues array (non-blocking)
   updateDoc(doc(db, 'users', creatorId), { leagues: arrayUnion(leagueId) }).catch(() => {});

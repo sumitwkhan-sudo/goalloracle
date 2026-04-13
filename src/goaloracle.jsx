@@ -155,6 +155,15 @@ const GoalOracle = () => {
   const [createVis, setCreateVis] = useState('public');
   const [createPasscode, setCreatePasscode] = useState('');
   const [createSuccess, setCreateSuccess] = useState(null); // null or { name, id }
+  const [createTp, setCreateTp] = useState('free');
+  const [createFe, setCreateFe] = useState('');
+  const [createDi, setCreateDi] = useState({ first: 50, second: 30, third: 20 });
+  const [createPs, setCreatePs] = useState({ correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 });
+  const [createScope, setCreateScope] = useState('all');
+  const [createGroups, setCreateGroups] = useState([]);
+  const [createRounds, setCreateRounds] = useState([]);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createErr, setCreateErr] = useState('');
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const nav = useCallback((v, l) => {
@@ -1048,19 +1057,19 @@ const GoalOracle = () => {
   };
 
   const Create = () => {
-    const [tp, setTp] = useState('free');
+    const tp = createTp, setTp = setCreateTp;
     const nm = createName, setNm = setCreateName;
     const vis = createVis, setVis = setCreateVis;
     const passcode = createPasscode, setPasscode = setCreatePasscode;
-    const [fe, setFe] = useState('');
-    const [cu, setCu] = useState('USDC');
-    const [di, setDi] = useState({ first: 50, second: 30, third: 20 });
-    const [ps, setPs] = useState({ correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 });
-    const [matchScope, setMatchScope] = useState('all'); // all | groups | rounds
-    const [selGroups, setSelGroups] = useState([]); // selected group letters
-    const [selRounds, setSelRounds] = useState([]); // selected round ids
-    const [busy, setBusy] = useState(false);
-    const [err, setErr] = useState('');
+    const fe = createFe, setFe = setCreateFe;
+    const di = createDi, setDi = setCreateDi;
+    const ps = createPs, setPs = setCreatePs;
+    const matchScope = createScope, setMatchScope = setCreateScope;
+    const selGroups = createGroups, setSelGroups = setCreateGroups;
+    const selRounds = createRounds, setSelRounds = setCreateRounds;
+    const busy = createBusy, setBusy = setCreateBusy;
+    const err = createErr, setErr = setCreateErr;
+    const cu = 'USDC';
     const tot = di.first + di.second + di.third;
     const genCode = () => { const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)]; setPasscode(c); };
 
@@ -1076,7 +1085,6 @@ const GoalOracle = () => {
     const toggleGroup = (g) => setSelGroups(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]);
     const toggleRound = (r) => setSelRounds(p => p.includes(r) ? p.filter(x => x !== r) : [...p, r]);
 
-    // Compute match count for scope
     const scopeMatchCount = useMemo(() => {
       if (matchScope === 'all') return WORLD_CUP_MATCHES.length;
       if (matchScope === 'groups') return WORLD_CUP_MATCHES.filter(m => !m.isKnockout && selGroups.some(g => m.stage === `Group ${g}`)).length;
@@ -1094,6 +1102,14 @@ const GoalOracle = () => {
       return 0;
     }, [matchScope, selGroups, selRounds]);
 
+    const resetForm = () => {
+      setCreateName(''); setCreateVis('public'); setCreatePasscode('');
+      setCreateTp('free'); setCreateFe(''); setCreateDi({ first: 50, second: 30, third: 20 });
+      setCreatePs({ correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 });
+      setCreateScope('all'); setCreateGroups([]); setCreateRounds([]);
+      setCreateBusy(false); setCreateErr('');
+    };
+
     const go = async () => {
       if (!uData?.id) { setErr('Still loading your account. Please wait a moment and try again.'); return; }
       if (!nm.trim()) { setErr('Name required'); return; }
@@ -1102,7 +1118,7 @@ const GoalOracle = () => {
       if (tp === 'paid' && tot !== 100) { setErr('Must total 100%'); return; }
       if (matchScope === 'groups' && selGroups.length === 0) { setErr('Select at least one group'); return; }
       if (matchScope === 'rounds' && selRounds.length === 0) { setErr('Select at least one round'); return; }
-      if (tp === 'paid' && matchScope === 'rounds') { setErr('Paid leagues must use All Matches or Specific Groups — knockout-only scope is available for free leagues only'); return; }
+      if (tp === 'paid' && matchScope === 'rounds') { setErr('Paid leagues must use All Matches or Specific Groups'); return; }
       setBusy(true); setErr('');
       const scopeData = matchScope === 'all' ? { matchScope: 'all' } :
         matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
@@ -1110,17 +1126,16 @@ const GoalOracle = () => {
       try {
         const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData };
         const lid = await createLeague(leagueData, uData.id);
-        console.log('[create] success, id:', lid);
         setCreateSuccess({ name: nm.trim(), id: lid, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null });
-        setCreateName(''); setCreateVis('public'); setCreatePasscode('');
+        resetForm();
       } catch(e) {
-        console.error('[create] FAILED:', e); 
-        setBusy(false); 
-        setErr(e.message || 'Failed to create league — check Firestore rules'); 
-        notify('League creation failed: ' + e.message, 'error'); 
-        return; 
-      } finally { setBusy(false); }
+        console.error('[create] FAILED:', e);
+        setBusy(false);
+        setErr(e.message || 'Failed to create league');
+        notify('League creation failed: ' + e.message, 'error');
+      }
     };
+
     if (createSuccess) return (
       <div className="create-league">
         <div className="create-success">
@@ -1143,9 +1158,10 @@ const GoalOracle = () => {
 
     return (
       <div className="create-league">
-        <div className="page-header"><button className="btn-back" onClick={() => { setCreateSuccess(null); nav('dashboard'); }}>← Back</button><h1>Create Your League</h1></div>
+        <div className="page-header"><button className="btn-back" onClick={() => { resetForm(); setCreateSuccess(null); nav('dashboard'); }}>← Back</button><h1>Create Your League</h1></div>
         <div className="create-league-form">
           {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}
+          <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={e => setNm(e.target.value)} className="input-field" autoFocus /></div>
           <div className="form-section"><label>League Type</label>
             <div className="type-selector">
               <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and bragging rights</p></div></button>
@@ -1158,7 +1174,6 @@ const GoalOracle = () => {
               <button type="button" className={`type-option ${vis === 'private' ? 'active' : ''}`} onClick={e => { e.preventDefault(); setVis('private'); if (!passcode) genCode(); }}><EyeOff size={24} /><div><h4>Private</h4><p>Invite-only with passcode</p></div></button>
             </div>
           </div>
-          <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={e => setNm(e.target.value)} className="input-field" /></div>
           {vis === 'private' && (
             <div className="form-section"><label>Invite Passcode</label>
               <div className="passcode-row">
