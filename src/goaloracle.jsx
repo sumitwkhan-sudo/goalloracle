@@ -4,7 +4,7 @@ import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, Trendi
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
-import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus } from './utils/points';
+import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
 import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
@@ -911,6 +911,9 @@ const GoalOracle = () => {
 
   const Dash = () => {
     const ml = leagues.length > 0 ? leagues : [{ id: 'global', name: 'Global League', type: 'free', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } }];
+    const { streak, bestStreak } = useMemo(() => calculateStreak(preds, results), [preds, results]);
+    const streakBadge = getStreakBadge(streak);
+    const bestBadge = getStreakBadge(bestStreak);
     return (
       <div className="dashboard">
         <div className="dashboard-header">
@@ -918,6 +921,19 @@ const GoalOracle = () => {
           <div className="dashboard-actions">
             <button className="btn btn-secondary" onClick={() => nav('browse')}><Search size={18} /> Browse</button>
             <button className="btn btn-primary" onClick={() => nav('create')}><Plus size={20} /> Create League</button>
+          </div>
+        </div>
+        {/* Streak banner */}
+        <div className="streak-banner">
+          <div className="streak-banner-main">
+            <Flame size={20} className="streak-flame" />
+            <span className="streak-banner-num">{streak}</span>
+            <span className="streak-banner-label">Current Streak</span>
+            {streakBadge && <span className={`streak-badge streak-badge-${streakBadge.tier}`}>{streakBadge.emoji} {streakBadge.name}</span>}
+          </div>
+          <div className="streak-banner-best">
+            <span>Best: {bestStreak}</span>
+            {bestBadge && <span className={`streak-badge streak-badge-${bestBadge.tier}`}>{bestBadge.emoji}</span>}
           </div>
         </div>
         <div className="leagues-grid">{ml.map(l => (
@@ -1468,8 +1484,8 @@ const GoalOracle = () => {
             : <div className="leaderboard-list">{lb.map((e, i) => (
               <div key={e.userId} className={`leaderboard-item ${e.userId === uData?.id ? 'is-you' : ''}`}>
                 <div className="rank">{i === 0 && <Trophy size={20} className="gold" />}{i === 1 && <Trophy size={20} className="silver" />}{i === 2 && <Trophy size={20} className="bronze" />}{i > 2 && <span>#{i+1}</span>}</div>
-                <div className="player-info"><div className="player-avatar">{e.displayName[0]?.toUpperCase()}</div><div><div className="player-name">{e.displayName} {e.userId === uData?.id && <span className="you-badge">You</span>}</div><div className="player-sub">{e.correctResults} correct • {e.exactScores} exact</div></div></div>
-                <div className="player-points"><span className="points">{e.totalPoints} pts</span></div>
+                <div className="player-info"><div className="player-avatar">{e.displayName[0]?.toUpperCase()}</div><div><div className="player-name">{e.displayName} {e.userId === uData?.id && <span className="you-badge">You</span>}</div><div className="player-sub">{e.correctResults} correct • {e.exactScores} exact{e.streak > 0 && <> • <Flame size={11} style={{verticalAlign:'middle',color:'var(--amber)'}} /> {e.streak}</>}</div></div></div>
+                <div className="player-points"><span className="points">{e.totalPoints} pts</span>{e.streak >= 3 && <span className={`lb-streak-badge lb-streak-${getStreakBadge(e.streak)?.tier || ''}`}><Flame size={12} /> {e.streak}</span>}</div>
               </div>
             ))}</div>}
         </div>}
@@ -1807,6 +1823,7 @@ const GoalOracle = () => {
                 </div>
               )}
               {displayEmail && <div className="dropdown-email">{displayEmail}</div>}
+              {(() => { const { streak: s } = calculateStreak(preds, results); const b = getStreakBadge(s); return s > 0 ? <div className="dropdown-streak"><Flame size={13} style={{color:'var(--amber)'}} /> Streak: {s}{b && <span className={`streak-badge streak-badge-${b.tier}`}>{b.emoji} {b.name}</span>}</div> : null; })()}
             </div>
             <div className="dropdown-divider"></div>
             <div className="dropdown-section-label">Network</div>

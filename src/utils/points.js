@@ -51,7 +51,67 @@ export function calculateTotalPoints(userPredictions, matchResults, pointsSystem
     if (pred.penalties && result.penalties) knockoutBonuses++;
   }
 
-  return { totalPoints, exactScores, knockoutBonuses, correctResults };
+  // Calculate streak from completed matches in chronological order
+  const { streak, bestStreak } = calculateStreak(userPredictions, matchResults);
+
+  return { totalPoints, exactScores, knockoutBonuses, correctResults, streak, bestStreak };
+}
+
+// Calculate current and best prediction streak from match results
+// A streak is consecutive correct result predictions (win/loss/draw)
+// ordered by match kickoff time
+export function calculateStreak(userPredictions, matchResults) {
+  // Build a list of completed matches the user predicted, sorted chronologically
+  const completedPreds = [];
+  for (const [matchId, pred] of Object.entries(userPredictions)) {
+    const result = matchResults[matchId];
+    if (!result?.completed || !pred?.result) continue;
+
+    let actual;
+    if (result.homeScore > result.awayScore) actual = 'home';
+    else if (result.homeScore < result.awayScore) actual = 'away';
+    else actual = 'draw';
+
+    completedPreds.push({ matchId, correct: pred.result === actual, date: result.verifiedAt || result.completedAt || matchId });
+  }
+
+  // Sort by matchId (gs01, gs02... r32-01...) which are in chronological order
+  completedPreds.sort((a, b) => {
+    const toNum = id => {
+      if (id.startsWith('gs')) return parseInt(id.slice(2));
+      if (id.startsWith('r32-')) return 100 + parseInt(id.slice(4));
+      if (id.startsWith('r16-')) return 200 + parseInt(id.slice(4));
+      if (id.startsWith('qf-')) return 300 + parseInt(id.slice(3));
+      if (id.startsWith('sf-')) return 400 + parseInt(id.slice(3));
+      if (id === '3rd') return 500;
+      if (id === 'final') return 501;
+      return 999;
+    };
+    return toNum(a.matchId) - toNum(b.matchId);
+  });
+
+  let currentStreak = 0;
+  let bestStreak = 0;
+
+  // Walk in order — current streak counts from the end backwards
+  for (const p of completedPreds) {
+    if (p.correct) {
+      currentStreak++;
+      bestStreak = Math.max(bestStreak, currentStreak);
+    } else {
+      currentStreak = 0;
+    }
+  }
+
+  return { streak: currentStreak, bestStreak };
+}
+
+// Get streak badge info
+export function getStreakBadge(streak) {
+  if (streak >= 10) return { name: 'Golden Oracle', tier: 'gold', emoji: '🏆' };
+  if (streak >= 5) return { name: 'Silver', tier: 'silver', emoji: '🥈' };
+  if (streak >= 3) return { name: 'Bronze', tier: 'bronze', emoji: '🥉' };
+  return null;
 }
 
 export function sortLeaderboard(entries) {

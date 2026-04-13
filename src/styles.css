@@ -785,6 +785,44 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .dashboard-header h1 { font-size: 1.75rem; font-weight: 700; }
 .dashboard-header p { color: var(--text-sec); font-size: 0.9rem; }
 .dashboard-actions { display: flex; gap: 0.5rem; }
+/* ─── STREAK BANNER (Dashboard) ─── */
+.streak-banner {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 0.9rem 1.25rem; margin-bottom: 1.5rem;
+}
+.streak-banner-main {
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.streak-banner-num { font-size: 1.6rem; font-weight: 800; font-family: var(--mono); color: var(--text); }
+.streak-banner-label { font-size: 0.8rem; color: var(--text-sec); }
+.streak-banner-best { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.4rem; }
+
+/* Streak badges */
+.streak-badge {
+  font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 10px;
+  display: inline-flex; align-items: center; gap: 0.2rem; margin-left: 0.35rem;
+}
+.streak-badge-bronze { background: rgba(205,127,50,0.15); color: #CD7F32; }
+.streak-badge-silver { background: rgba(192,192,192,0.15); color: #C0C0C0; }
+.streak-badge-gold { background: rgba(255,215,0,0.15); color: #FFD700; }
+
+/* Leaderboard streak badge */
+.lb-streak-badge {
+  font-size: 0.6rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 8px;
+  display: inline-flex; align-items: center; gap: 0.2rem; margin-top: 0.2rem;
+}
+.lb-streak-bronze { background: rgba(205,127,50,0.12); color: #CD7F32; }
+.lb-streak-silver { background: rgba(192,192,192,0.12); color: #C0C0C0; }
+.lb-streak-gold { background: rgba(255,215,0,0.12); color: #FFD700; }
+
+/* Profile dropdown streak */
+.dropdown-streak {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-family: var(--mono); font-size: 0.7rem; color: var(--amber);
+  margin-top: 0.35rem;
+}
+
 .leagues-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
 .league-card {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
