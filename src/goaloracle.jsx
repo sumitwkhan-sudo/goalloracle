@@ -1125,11 +1125,7 @@ const GoalOracle = () => {
         { matchScope: 'rounds', selectedRounds: selRounds };
       try {
         const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData };
-        // Race against a 15s timeout so it never hangs
-        const lid = await Promise.race([
-          createLeague(leagueData, uData.id),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('League creation timed out — please check your connection and try again')), 15000)),
-        ]);
+        const lid = await createLeague(leagueData, uData.id);
         const savedName = nm.trim();
         const savedPasscode = vis === 'private' ? passcode.trim().toUpperCase() : null;
         resetForm();

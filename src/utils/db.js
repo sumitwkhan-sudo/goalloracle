@@ -165,130 +165,22 @@ export async function getUserRole(userId) {
   return 'user';
 }
 
-// ---- LEAGUES (direct Firestore writes) ----
+// ---- LEAGUES (via API — uses admin SDK, bypasses client Firestore security rules) ----
 export async function createLeague(leagueData, creatorId) {
-  const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds } = leagueData;
-  if (!name?.trim()) throw new Error('Name required');
-
-  if (type === 'paid' && prizeDistribution) {
-    const total = (prizeDistribution.first || 0) + (prizeDistribution.second || 0) + (prizeDistribution.third || 0);
-    if (total !== 100) throw new Error('Prize distribution must total 100%');
-  }
-
-  if (visibility === 'private' && !passcode?.trim()) {
-    throw new Error('Passcode required for private leagues');
-  }
-
-  const leagueId = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now();
-  const leagueRef = doc(db, 'leagues', leagueId);
-
-  await setDoc(leagueRef, {
-    id: leagueId,
-    name: name.trim(),
-    type: type || 'free',
-    visibility: visibility || 'public',
-    passcode: visibility === 'private' ? passcode.trim().toUpperCase() : null,
-    entryFee: entryFee || 0,
-    currency: currency || 'USDC',
-    prizeDistribution: prizeDistribution || { first: 50, second: 30, third: 20 },
-    pointsSystem: pointsSystem || { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 },
-    matchScope: matchScope || 'all',
-    selectedGroups: selectedGroups || null,
-    selectedRounds: selectedRounds || null,
-    createdBy: creatorId,
-    members: [creatorId],
-    memberCount: 1,
-    createdAt: serverTimestamp(),
-    status: 'active',
-  });
-
-  // Update user's leagues array (non-blocking)
-  updateDoc(doc(db, 'users', creatorId), { leagues: arrayUnion(leagueId) }).catch(() => {});
-
-  return leagueId;
+  const data = await apiCall('leagues', 'POST', { action: 'create', ...leagueData });
+  return data.leagueId;
 }
 
 export async function joinLeague(leagueId, userId, passcode = null) {
-  const leagueRef = doc(db, 'leagues', leagueId);
-  const leagueSnap = await getDoc(leagueRef);
-  if (!leagueSnap.exists()) throw new Error('League not found');
-
-  const league = leagueSnap.data();
-  if (league.members?.includes(userId)) throw new Error('Already a member');
-
-  if (league.visibility === 'private') {
-    if (!passcode) throw new Error('This is a private league. A passcode is required to join.');
-    if (passcode.trim().toUpperCase() !== league.passcode) throw new Error('Incorrect passcode');
-  }
-
-  // Parallel writes
-  await Promise.all([
-    updateDoc(leagueRef, { members: arrayUnion(userId), memberCount: increment(1) }),
-    updateDoc(doc(db, 'users', userId), { leagues: arrayUnion(leagueId) }),
-  ]);
+  await apiCall('leagues', 'POST', { action: 'join', leagueId, passcode });
 }
 
 export async function leaveLeague(leagueId, userId) {
-  const leagueRef = doc(db, 'leagues', leagueId);
-  const leagueSnap = await getDoc(leagueRef);
-  if (!leagueSnap.exists()) throw new Error('League not found');
-
-  const league = leagueSnap.data();
-  if (!league.members?.includes(userId)) throw new Error('Not a member');
-  if (league.createdBy === userId) throw new Error('League creator cannot leave. Delete the league instead.');
-
-  // Parallel writes
-  await Promise.all([
-    updateDoc(leagueRef, { members: arrayRemove(userId), memberCount: increment(-1) }),
-    updateDoc(doc(db, 'users', userId), { leagues: arrayRemove(leagueId) }),
-  ]);
-
-  // Background: delete predictions for this user in this league
-  getDocs(query(collection(db, 'predictions'), where('userId', '==', userId), where('leagueId', '==', leagueId)))
-    .then(snap => {
-      if (!snap.empty) {
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => batch.delete(d.ref));
-        return batch.commit();
-      }
-    })
-    .catch(e => console.error('Prediction cleanup failed:', e.message));
+  await apiCall('leagues', 'POST', { action: 'leave', leagueId });
 }
 
 export async function deleteLeague(leagueId, userId) {
-  if (leagueId === 'global') throw new Error('Cannot delete the global league');
-
-  const leagueRef = doc(db, 'leagues', leagueId);
-  const leagueSnap = await getDoc(leagueRef);
-  if (!leagueSnap.exists()) throw new Error('League not found');
-
-  const league = leagueSnap.data();
-
-  // Client-side: only creator can delete (rules enforce this too)
-  // Admin deletion stays via the admin API endpoint
-  if (league.createdBy !== userId) {
-    throw new Error('Only the league creator can delete a league');
-  }
-
-  const memberIds = league.members || [];
-
-  // Delete the league doc
-  await deleteDoc(leagueRef);
-
-  // Background cleanup: remove league from member user docs + delete predictions
-  memberIds.forEach(mid => {
-    updateDoc(doc(db, 'users', mid), { leagues: arrayRemove(leagueId) }).catch(() => {});
-  });
-  getDocs(query(collection(db, 'predictions'), where('leagueId', '==', leagueId)))
-    .then(snap => {
-      const docs = snap.docs;
-      for (let i = 0; i < docs.length; i += 500) {
-        const batch = writeBatch(db);
-        docs.slice(i, i + 500).forEach(d => batch.delete(d.ref));
-        batch.commit().catch(() => {});
-      }
-    })
-    .catch(e => console.error('Delete cleanup failed:', e.message));
+  await apiCall('leagues', 'POST', { action: 'delete', leagueId });
 }
 
 export function subscribeToUserLeagues(userId, callback) {
