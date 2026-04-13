@@ -140,6 +140,7 @@ const GoalOracle = () => {
   const [notif, setNotif] = useState(null);
   const [stats, setStats] = useState({ totalPlayers: 0, totalPrizePools: 0, activeLeagues: 0 });
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
+  const [shareCard, setShareCard] = useState(null); // { matchId, home, away, homeFlag, awayFlag, homeScore, awayScore, result }
   // Lifted from Detail — survives Firestore re-renders
   const [detailTab, setDetailTab] = useState('predictions');
   const [detailWeek, setDetailWeek] = useState('week1');
@@ -236,6 +237,13 @@ const GoalOracle = () => {
     try {
       await saveBatchPredictions(uData.id, selLeague.id, preds);
       notify('Predictions saved!');
+      // Show share card for the most recent prediction
+      const predEntries = Object.entries(preds).filter(([, p]) => p.result);
+      if (predEntries.length > 0) {
+        const [mId, p] = predEntries[predEntries.length - 1];
+        const match = WORLD_CUP_MATCHES.find(m => m.id === mId);
+        if (match) setShareCard({ matchId: mId, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result });
+      }
     } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); }
   };
 
@@ -1186,6 +1194,7 @@ const GoalOracle = () => {
     const stageFilter = detailStage, setStageFilter = setDetailStage;
     const [lb, setLb] = useState([]);
     const [lbl, setLbl] = useState(false);
+    const [lbSort, setLbSort] = useState('points'); // 'points' | 'xp' | 'streak'
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
@@ -1499,14 +1508,26 @@ const GoalOracle = () => {
           </div>
         </div>}
 
-        {tab === 'leaderboard' && <div className="leaderboard"><div className="leaderboard-header"><h3>Rankings</h3></div>
+        {tab === 'leaderboard' && <div className="leaderboard">
+          <div className="leaderboard-header">
+            <h3>Rankings</h3>
+            <div className="lb-sort-tabs">
+              <button className={`lb-sort-tab ${lbSort === 'points' ? 'active' : ''}`} onClick={() => setLbSort('points')}>Points</button>
+              <button className={`lb-sort-tab ${lbSort === 'xp' ? 'active' : ''}`} onClick={() => setLbSort('xp')}><Star size={12} /> XP</button>
+              <button className={`lb-sort-tab ${lbSort === 'streak' ? 'active' : ''}`} onClick={() => setLbSort('streak')}><Flame size={12} /> Streak</button>
+            </div>
+          </div>
           {lbl ? <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
             : lb.length === 0 ? <div className="empty-state"><p>No predictions yet.</p></div>
-            : <div className="leaderboard-list">{lb.map((e, i) => (
+            : <div className="leaderboard-list">{[...lb].sort((a, b) => lbSort === 'xp' ? (b.xp || 0) - (a.xp || 0) : lbSort === 'streak' ? (b.streak || 0) - (a.streak || 0) : 0).map((e, i) => (
               <div key={e.userId} className={`leaderboard-item ${e.userId === uData?.id ? 'is-you' : ''}`}>
                 <div className="rank">{i === 0 && <Trophy size={20} className="gold" />}{i === 1 && <Trophy size={20} className="silver" />}{i === 2 && <Trophy size={20} className="bronze" />}{i > 2 && <span>#{i+1}</span>}</div>
                 <div className="player-info"><div className="player-avatar">{e.displayName[0]?.toUpperCase()}</div><div><div className="player-name">{e.displayName} {e.userId === uData?.id && <span className="you-badge">You</span>}</div><div className="player-sub">{e.correctResults} correct • {e.exactScores} exact{e.streak > 0 && <> • <Flame size={11} style={{verticalAlign:'middle',color:'var(--amber)'}} /> {e.streak}</>}</div></div></div>
-                <div className="player-points"><span className="points">{e.totalPoints} pts</span><span className="lb-level-tag"><Star size={10} /> Lv.{e.levelInfo?.level || 1}</span>{e.streak >= 3 && <span className={`lb-streak-badge lb-streak-${getStreakBadge(e.streak)?.tier || ''}`}><Flame size={12} /> {e.streak}</span>}</div>
+                <div className="player-points">
+                  {lbSort === 'xp' ? <span className="points">{(e.xp || 0).toLocaleString()} XP</span> : lbSort === 'streak' ? <span className="points"><Flame size={14} style={{color:'var(--amber)'}} /> {e.streak || 0}</span> : <span className="points">{e.totalPoints} pts</span>}
+                  <span className="lb-level-tag"><Star size={10} /> Lv.{e.levelInfo?.level || 1}</span>
+                  {e.streak >= 3 && lbSort !== 'streak' && <span className={`lb-streak-badge lb-streak-${getStreakBadge(e.streak)?.tier || ''}`}><Flame size={12} /> {e.streak}</span>}
+                </div>
               </div>
             ))}</div>}
         </div>}
@@ -2019,6 +2040,62 @@ const GoalOracle = () => {
     );
   };
 
+  // ─── Share Card Modal ───
+  const ShareCardModal = () => {
+    if (!shareCard) return null;
+    const { home, away, homeFlag, awayFlag, homeScore, awayScore, result } = shareCard;
+    const { streak } = calculateStreak(preds, results);
+    const streakBadge = getStreakBadge(streak);
+    const displayName = uData?.displayName || 'Player';
+    const hasScore = homeScore !== '' && awayScore !== '' && homeScore != null && awayScore != null;
+    const resultLabel = result === 'home' ? `${home} Win` : result === 'away' ? `${away} Win` : 'Draw';
+
+    const shareText = `${homeFlag} ${home} ${hasScore ? `${homeScore}–${awayScore}` : resultLabel} ${awayFlag} ${away}${streak > 0 ? ` | 🔥 Streak: ${streak}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCup`;
+
+    const shareTwitter = () => { window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank'); };
+    const shareWhatsApp = () => { window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank'); };
+    const copyLink = () => { navigator.clipboard.writeText(shareText).then(() => notify('Copied to clipboard!')); };
+
+    return (
+      <div className="modal-overlay" onClick={() => setShareCard(null)}>
+        <div className="share-modal" onClick={e => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setShareCard(null)}><X size={20} /></button>
+          {/* Preview card */}
+          <div className="share-preview-card" id="share-card">
+            <div className="spc-brand"><span className="gt">GoalOracle</span> <span>⚽</span></div>
+            <div className="spc-label">My Prediction</div>
+            <div className="spc-match-row">
+              <div className="spc-team"><span className="spc-flag">{homeFlag}</span><span>{home}</span></div>
+              {hasScore ? (
+                <div className="spc-score">{homeScore} – {awayScore}</div>
+              ) : (
+                <div className="spc-result-tag">{resultLabel}</div>
+              )}
+              <div className="spc-team"><span>{away}</span><span className="spc-flag">{awayFlag}</span></div>
+            </div>
+            {streak > 0 && (
+              <div className="spc-streak">
+                <Flame size={14} /> Streak: {streak} Correct
+                {streakBadge && <span className={`streak-badge streak-badge-${streakBadge.tier}`}>{streakBadge.emoji} {streakBadge.name}</span>}
+              </div>
+            )}
+            <div className="spc-footer">
+              <span>Can you beat me?</span>
+              <strong>goaloracle.io</strong>
+            </div>
+            <div className="spc-tags">#GoalOracle #WorldCup</div>
+          </div>
+          {/* Share buttons */}
+          <div className="share-buttons">
+            <button className="share-btn share-btn-x" onClick={shareTwitter}><ExternalLink size={16} /> Share on X</button>
+            <button className="share-btn share-btn-wa" onClick={shareWhatsApp}><Send size={16} /> WhatsApp</button>
+            <button className="share-btn share-btn-copy" onClick={copyLink}><Copy size={16} /> Copy</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const FAQ = () => {
     const [openQ, setOpenQ] = useState(null);
     const toggle = (i) => setOpenQ(openQ === i ? null : i);
@@ -2365,6 +2442,7 @@ const GoalOracle = () => {
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
       {fundModal && <AddFundsModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
+      <ShareCardModal />
     </div>
   );
 };
