@@ -820,6 +820,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .lb-sort-tab.active { background: var(--primary); color: #000; border-color: var(--primary); font-weight: 600; }
 .leaderboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 
+/* Share button in prediction toolbar */
+.btn-share-preds {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-family: var(--mono); font-size: 0.65rem; font-weight: 600;
+  padding: 0.3rem 0.7rem; border-radius: 6px; cursor: pointer;
+  background: var(--primary-soft); border: 1px solid var(--border-br);
+  color: var(--primary); transition: all 0.2s;
+}
+.btn-share-preds:hover { background: var(--primary); color: #000; }
+
 /* Share button on prediction rows */
 .pred-share-btn {
   background: none; border: 1px solid var(--border); border-radius: 6px;
@@ -1266,6 +1276,24 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .validation-error { color: var(--danger); font-size: 0.7rem; font-weight: 400; }
 .create-league-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; max-width: 600px; margin: 0 auto; }
 .create-league { max-width: 700px; margin: 0 auto; padding: 2rem; position: relative; z-index: 2; }
+/* League creation success screen */
+.create-success {
+  text-align: center; padding: 4rem 2rem;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  max-width: 480px; margin: 2rem auto;
+}
+.create-success-icon { color: var(--success); margin-bottom: 1rem; }
+.create-success h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; }
+.create-success-name { font-size: 1.1rem; color: var(--primary); font-weight: 600; margin-bottom: 1.25rem; }
+.create-success-code {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-family: var(--mono); font-size: 0.85rem; color: var(--text);
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.6rem 1.2rem; margin-bottom: 1.5rem;
+}
+.create-success-code strong { color: var(--amber); letter-spacing: 0.1em; }
+.create-success-actions { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.create-success-hint { font-size: 0.75rem; color: var(--text-dim); }
 .type-option {
   padding: 1.25rem; border: 1.5px solid var(--border); border-radius: 10px;
   background: var(--bg-elev); cursor: pointer; transition: all 0.2s; text-align: center;

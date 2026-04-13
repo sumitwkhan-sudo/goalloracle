@@ -154,6 +154,7 @@ const GoalOracle = () => {
   const [createName, setCreateName] = useState('');
   const [createVis, setCreateVis] = useState('public');
   const [createPasscode, setCreatePasscode] = useState('');
+  const [createSuccess, setCreateSuccess] = useState(null); // null or { name, id }
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const nav = useCallback((v, l) => {
@@ -1106,14 +1107,13 @@ const GoalOracle = () => {
       const scopeData = matchScope === 'all' ? { matchScope: 'all' } :
         matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
         { matchScope: 'rounds', selectedRounds: selRounds };
-      try { 
-        const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }; 
-        const lid = await createLeague(leagueData, uData.id); 
-        console.log('[create] success, id:', lid); 
-        notify('League created!');
+      try {
+        const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData };
+        const lid = await createLeague(leagueData, uData.id);
+        console.log('[create] success, id:', lid);
+        setCreateSuccess({ name: nm.trim(), id: lid, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null });
         setCreateName(''); setCreateVis('public'); setCreatePasscode('');
-        nav('dashboard'); 
-      } catch(e) { 
+      } catch(e) {
         console.error('[create] FAILED:', e); 
         setBusy(false); 
         setErr(e.message || 'Failed to create league — check Firestore rules'); 
@@ -1121,9 +1121,29 @@ const GoalOracle = () => {
         return; 
       } finally { setBusy(false); }
     };
+    if (createSuccess) return (
+      <div className="create-league">
+        <div className="create-success">
+          <CheckCircle size={56} className="create-success-icon" />
+          <h2>League Created!</h2>
+          <p className="create-success-name">{createSuccess.name}</p>
+          {createSuccess.passcode && <div className="create-success-code"><Key size={16} /> Invite code: <strong>{createSuccess.passcode}</strong></div>}
+          <div className="create-success-actions">
+            <button className="btn btn-primary btn-lg" onClick={() => { const l = leagues.find(x => x.id === createSuccess.id); setCreateSuccess(null); if (l) nav('detail', l); else nav('dashboard'); }}>
+              Start Predicting <ChevronRight size={18} />
+            </button>
+            <button className="btn btn-secondary" onClick={() => { setCreateSuccess(null); nav('dashboard'); }}>
+              Go to Dashboard
+            </button>
+          </div>
+          {createSuccess.passcode && <p className="create-success-hint">Share the invite code with friends so they can join your league.</p>}
+        </div>
+      </div>
+    );
+
     return (
       <div className="create-league">
-        <div className="page-header"><button className="btn-back" onClick={() => nav('dashboard')}>← Back</button><h1>Create Your League</h1></div>
+        <div className="page-header"><button className="btn-back" onClick={() => { setCreateSuccess(null); nav('dashboard'); }}>← Back</button><h1>Create Your League</h1></div>
         <div className="create-league-form">
           {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}
           <div className="form-section"><label>League Type</label>
@@ -1457,6 +1477,17 @@ const GoalOracle = () => {
             <div className="pib-bar"><div className="pib-fill" style={{ width: `${viewPct}%` }} /></div>
             <span className="pib-pct">{viewPct}%{viewPct === 100 && ' ✓'}</span>
             <span className="pib-auto">{saving ? <><RefreshCw size={10} className="spin" /> Saving</> : <><CheckCircle size={10} /> Auto-saves</>}</span>
+            {viewPredicted > 0 && (
+              <button type="button" className="btn btn-share-preds" onClick={() => {
+                const predEntries = Object.entries(preds).filter(([, p]) => p.result);
+                if (predEntries.length === 0) return;
+                const [mId, p] = predEntries[predEntries.length - 1];
+                const match = WORLD_CUP_MATCHES.find(m => m.id === mId);
+                if (match) setShareCard({ matchId: mId, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result });
+              }}>
+                <Share2 size={13} /> Share
+              </button>
+            )}
             {unpredictedCount > 0 && (
               <button type="button" className="btn btn-secondary btn-xs" onClick={handleQuickPick}>
                 <Sparkles size={12} /> Quick Pick
