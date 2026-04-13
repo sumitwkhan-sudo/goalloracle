@@ -150,6 +150,10 @@ const GoalOracle = () => {
     // But on desktop, rows will render in 2 columns via CSS
     return 'rows';
   });
+  // Lifted from Create — survives parent re-renders from Firestore subscriptions
+  const [createName, setCreateName] = useState('');
+  const [createVis, setCreateVis] = useState('public');
+  const [createPasscode, setCreatePasscode] = useState('');
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const nav = useCallback((v, l) => {
@@ -1044,9 +1048,9 @@ const GoalOracle = () => {
 
   const Create = () => {
     const [tp, setTp] = useState('free');
-    const [nm, setNm] = useState('');
-    const [vis, setVis] = useState('public');
-    const [passcode, setPasscode] = useState('');
+    const nm = createName, setNm = setCreateName;
+    const vis = createVis, setVis = setCreateVis;
+    const passcode = createPasscode, setPasscode = setCreatePasscode;
     const [fe, setFe] = useState('');
     const [cu, setCu] = useState('USDC');
     const [di, setDi] = useState({ first: 50, second: 30, third: 20 });
@@ -1106,7 +1110,8 @@ const GoalOracle = () => {
         const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData }; 
         const lid = await createLeague(leagueData, uData.id); 
         console.log('[create] success, id:', lid); 
-        notify('League created!'); 
+        notify('League created!');
+        setCreateName(''); setCreateVis('public'); setCreatePasscode('');
         nav('dashboard'); 
       } catch(e) { 
         console.error('[create] FAILED:', e); 
