@@ -820,6 +820,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .lb-sort-tab.active { background: var(--primary); color: #000; border-color: var(--primary); font-weight: 600; }
 .leaderboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 
+/* Share button on prediction rows */
+.pred-share-btn {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-dim); cursor: pointer; padding: 0.35rem 0.5rem;
+  display: flex; align-items: center; transition: all 0.2s; margin-left: auto;
+}
+.pred-share-btn:hover { color: var(--primary); border-color: var(--border-br); }
+.pred-share-btn-sm {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  padding: 0.1rem; display: inline-flex; align-items: center; transition: color 0.2s;
+  margin-left: 0.35rem;
+}
+.pred-share-btn-sm:hover { color: var(--primary); }
+
 /* ─── SHARE CARD MODAL ─── */
 .share-modal {
   background: var(--bg-card); border: 1px solid var(--border-br); border-radius: var(--radius-lg);

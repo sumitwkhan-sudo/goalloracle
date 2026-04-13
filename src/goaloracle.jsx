@@ -237,13 +237,6 @@ const GoalOracle = () => {
     try {
       await saveBatchPredictions(uData.id, selLeague.id, preds);
       notify('Predictions saved!');
-      // Show share card for the most recent prediction
-      const predEntries = Object.entries(preds).filter(([, p]) => p.result);
-      if (predEntries.length > 0) {
-        const [mId, p] = predEntries[predEntries.length - 1];
-        const match = WORLD_CUP_MATCHES.find(m => m.id === mId);
-        if (match) setShareCard({ matchId: mId, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result });
-      }
     } catch(e) { notify('Save failed', 'error'); } finally { setSaving(false); }
   };
 
@@ -427,6 +420,7 @@ const GoalOracle = () => {
           <span className="pred-date">{dateStr}</span>
           {locked && <span className="lock-badge"><Lock size={10} /></span>}
           {pts !== null && <span className="points-badge">+{pts}</span>}
+          {p.result && (locked || res?.completed) && <button type="button" className="pred-share-btn-sm" title="Share prediction" onClick={() => setShareCard({ matchId: match.id, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result })}><Share2 size={12} /></button>}
         </div>
         {/* Venue & local time */}
         <div className="pred-venue-row">
@@ -476,6 +470,7 @@ const GoalOracle = () => {
             <button type="button" className={`pred-pick ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
             <button type="button" className={`pred-pick ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
             <button type="button" className={`pred-pick ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
+            {p.result && <button type="button" className="pred-share-btn" title="Share this prediction" onClick={() => setShareCard({ matchId: match.id, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result })}><Share2 size={14} /></button>}
           </div>
         )}
 
