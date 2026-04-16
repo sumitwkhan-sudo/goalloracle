@@ -134,11 +134,7 @@ export async function createOrUpdateUser(privyUser) {
       usernameSet: false,
     });
 
-    // Auto-join global league (non-blocking)
-    updateDoc(doc(db, 'leagues', 'global'), {
-      members: arrayUnion(userId),
-      memberCount: increment(1),
-    }).catch(() => {});
+    // Global league membership handled by /api/user on background sync
 
     // Read back the created doc
     const fresh = await getDoc(userRef);
