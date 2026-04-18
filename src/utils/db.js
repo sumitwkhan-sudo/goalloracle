@@ -1,5 +1,5 @@
 import { db, auth } from '../config/firebase';
-import { collection, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs, getCountFromServer, documentId } from 'firebase/firestore';
 import { signInWithCustomToken } from 'firebase/auth';
 import WORLD_CUP_MATCHES from '../data/matches';
 
@@ -187,11 +187,9 @@ export function subscribeToUserLeagues(userId, callback) {
   }, (err) => { console.error('[db] userLeagues error:', err.message, err.code); callback([]); });
 }
 
-export function subscribeToAllLeagues(callback) {
-  return onSnapshot(collection(db, 'leagues'), (snap) => {
-    console.log('[db] allLeagues snapshot:', snap.docs.length, 'docs');
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  }, (err) => { console.error('[db] allLeagues error:', err.message, err.code); callback([]); });
+export async function fetchAllLeagues() {
+  const snap = await getDocs(collection(db, 'leagues'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 // ---- PREDICTIONS (direct Firestore writes with client-side lock check) ----
@@ -261,15 +259,9 @@ export async function getSimplePrediction(userId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-/**
- * Merge a partial Simple Mode prediction. Only provided fields are written.
- * Accepts any subset of { groupPredictions, bestThirdPicks, knockoutPredictions, isComplete }.
- * submittedAt is set on first save only.
- */
 export async function saveSimplePrediction(userId, partial) {
   if (!userId) throw new Error('Missing userId');
   const ref = doc(db, 'simplePredictions', userId);
-  const existing = await getDoc(ref);
 
   const payload = { userId, updatedAt: serverTimestamp() };
   if (partial.groupPredictions !== undefined) payload.groupPredictions = partial.groupPredictions;
@@ -277,11 +269,12 @@ export async function saveSimplePrediction(userId, partial) {
   if (partial.knockoutPredictions !== undefined) payload.knockoutPredictions = partial.knockoutPredictions;
   if (partial.isComplete !== undefined) payload.isComplete = partial.isComplete;
 
-  if (!existing.exists() || !existing.data().submittedAt) {
-    payload.submittedAt = serverTimestamp();
-  }
-
   await setDoc(ref, payload, { merge: true });
+}
+
+export async function getSimpleLeaderboard(leagueId) {
+  const data = await apiCall(`simple-leaderboard?leagueId=${leagueId}`);
+  return data;
 }
 
 export function subscribeToSimpleScore(userId, leagueId, callback) {
@@ -320,19 +313,16 @@ export async function updateMatchResult(matchId, result, adminId) {
 }
 
 // ---- PLATFORM STATS ----
-export function subscribeToPlatformStats(callback) {
-  const u1 = onSnapshot(collection(db, 'users'), (snap) => {
-    callback(prev => ({ ...prev, totalPlayers: snap.size }));
-  }, () => {});
-  const u2 = onSnapshot(collection(db, 'leagues'), (snap) => {
-    const leagues = snap.docs.map(d => d.data());
-    callback(prev => ({
-      ...prev,
-      activeLeagues: leagues.length,
-      totalPrizePools: leagues.reduce((s, l) => s + (l.entryFee || 0) * (l.memberCount || 0), 0),
-    }));
-  }, () => {});
-  return () => { u1(); u2(); };
+export async function fetchPlatformStats() {
+  const [usersCount, leaguesCount] = await Promise.all([
+    getCountFromServer(collection(db, 'users')),
+    getCountFromServer(collection(db, 'leagues')),
+  ]);
+  return {
+    totalPlayers: usersCount.data().count,
+    activeLeagues: leaguesCount.data().count,
+    totalPrizePools: 0,
+  };
 }
 
 // ---- ADMIN (via API, server-side only) ----
