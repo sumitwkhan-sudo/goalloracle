@@ -11,7 +11,7 @@
  * are allowed — the scoring engine handles them with an adjusted denominator.
  */
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { ArrowLeft, ArrowRight, Check, AlertTriangle } from 'lucide-react';
 import StepProgress from '../components/simple/StepProgress';
 import GroupGrid from '../components/simple/GroupGrid';
@@ -23,54 +23,22 @@ import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
 import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
-import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
+import { GROUPS, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isPredictionLocked } from '../utils/points';
 
 const SAVED_INDICATOR_MS = 2000;
 
-export default function SimplePrediction({ userId, league, onExit, onComplete, embedded = false }) {
-  const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId);
-
-  if (loading) {
-    return (
-      <div className="simple-page">
-        <div className="simple-skeleton">
-          <div className="simple-skeleton-steps" />
-          <div className="simple-skeleton-grid" />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <SimplePredictionWizard
-      initialData={data}
-      league={league}
-      onExit={onExit}
-      onComplete={onComplete}
-      embedded={embedded}
-      saving={saving}
-      savedAt={savedAt}
-      error={error}
-      save={save}
-      saveNow={saveNow}
-    />
-  );
-}
-
-function SimplePredictionWizard({ initialData, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow }) {
+export default function SimplePrediction({ userId, league, onExit }) {
+  const { data, loading, saving, savedAt, error, save } = useSimplePrediction(userId);
   const [step, setStep] = useState(1);
   const [showSaved, setShowSaved] = useState(false);
 
-  // Freeze the initial snapshot for hydration. Further snapshots don't
-  // re-hydrate — local state is the source of truth after mount.
-  const frozenInitial = useRef(initialData).current;
-
-  const groups = useGroupPredictions(frozenInitial?.groupPredictions);
-  const bestThird = useBestThird(frozenInitial?.bestThirdPicks);
+  const groups = useGroupPredictions(data?.groupPredictions);
+  const bestThird = useBestThird(data?.bestThirdPicks);
   const layout = useBracketLayout();
 
+  // Lookup table for kickoff-based locking on knockout matches.
   const matchLookup = useMemo(() => {
     const out = {};
     for (const m of WORLD_CUP_MATCHES) out[m.id] = m;
@@ -86,10 +54,11 @@ function SimplePredictionWizard({ initialData, league, onExit, onComplete, embed
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
-    knockoutPredictions: frozenInitial?.knockoutPredictions,
+    knockoutPredictions: data?.knockoutPredictions,
     onChange: (next) => save({ knockoutPredictions: next }),
   });
 
+  // Briefly flash "Saved ✓" after each successful save
   useEffect(() => {
     if (!savedAt) return;
     setShowSaved(true);
@@ -97,21 +66,17 @@ function SimplePredictionWizard({ initialData, league, onExit, onComplete, embed
     return () => clearTimeout(t);
   }, [savedAt]);
 
-  // Skip the initial fire of these effects (post-hydration) so we don't
-  // re-save the just-loaded data on mount.
-  const groupsHydrated = useRef(false);
-  const bestThirdHydrated = useRef(false);
-
+  // Debounced autosave on group ranking changes (after any user interaction)
   useEffect(() => {
-    if (groups.touchedCount === 0) return;
-    if (!groupsHydrated.current) { groupsHydrated.current = true; return; }
+    if (loading || groups.touchedCount === 0) return;
     save({ groupPredictions: groups.predictions });
-  }, [groups.predictions, groups.touchedCount, save]);
+  }, [groups.predictions, groups.touchedCount, loading, save]);
 
+  // Autosave best-third selection
   useEffect(() => {
-    if (!bestThirdHydrated.current) { bestThirdHydrated.current = true; return; }
+    if (loading) return;
     save({ bestThirdPicks: bestThird.picks });
-  }, [bestThird.picks, save]);
+  }, [bestThird.picks, loading, save]);
 
   const step1Complete = groups.allTouched;
   const step2Complete = bestThird.isComplete;
@@ -129,45 +94,46 @@ function SimplePredictionWizard({ initialData, league, onExit, onComplete, embed
   }, []);
 
   const handleStepClick = useCallback((s) => {
-    const hasKnockoutPicks = Object.keys(bracketState.picksByMatchId).length > 0;
+    // Warn if changing group rankings would invalidate downstream knockout picks
+    const hasKnockoutPicks = data?.knockoutPredictions && Object.values(data.knockoutPredictions)
+      .some((arr) => Array.isArray(arr) && arr.length > 0);
     if (s === 1 && step === 3 && hasKnockoutPicks) {
       const ok = window.confirm('Changing group rankings will reset your knockout predictions. Continue?');
       if (!ok) return;
-      bracketState.resetAll();
       save({ knockoutPredictions: emptyKnockoutPredictions() });
     }
     goToStep(s);
-  }, [bracketState, step, save, goToStep]);
+  }, [data, step, save, goToStep]);
+
+  if (loading) {
+    return (
+      <div className="simple-page">
+        <div className="simple-skeleton">
+          <div className="simple-skeleton-steps" />
+          <div className="simple-skeleton-grid" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
-      {!embedded && (
-        <div className="simple-page-header">
-          <button type="button" className="btn btn-ghost" onClick={onExit} aria-label="Back">
-            <ArrowLeft size={16} /> Back
-          </button>
-          <div className="simple-page-title">
-            <h1>{league?.name || 'Simple Mode'}</h1>
-            <span className="simple-page-subtitle">Predict rankings, not scores</span>
-          </div>
-          <div className="simple-page-status" aria-live="polite">
-            {error && <span className="simple-page-error"><AlertTriangle size={14} /> {error}</span>}
-            {!error && saving && <span className="simple-page-saving">Saving…</span>}
-            {!error && !saving && showSaved && (
-              <span className="simple-page-saved"><Check size={14} /> Saved</span>
-            )}
-          </div>
+    <div className="simple-page">
+      <div className="simple-page-header">
+        <button type="button" className="btn btn-ghost" onClick={onExit} aria-label="Back">
+          <ArrowLeft size={16} /> Back
+        </button>
+        <div className="simple-page-title">
+          <h1>{league?.name || 'Simple Mode'}</h1>
+          <span className="simple-page-subtitle">Predict rankings, not scores</span>
         </div>
-      )}
-      {embedded && (
-        <div className="simple-page-status-inline" aria-live="polite">
+        <div className="simple-page-status" aria-live="polite">
           {error && <span className="simple-page-error"><AlertTriangle size={14} /> {error}</span>}
           {!error && saving && <span className="simple-page-saving">Saving…</span>}
           {!error && !saving && showSaved && (
             <span className="simple-page-saved"><Check size={14} /> Saved</span>
           )}
         </div>
-      )}
+      </div>
 
       <StepProgress current={step} completed={completedSteps} onStepClick={handleStepClick} />
 
@@ -242,7 +208,6 @@ function SimplePredictionWizard({ initialData, league, onExit, onComplete, embed
               bracket={bracketState.bracket}
               pickWinner={bracketState.pickWinner}
               isMatchLocked={isMatchLocked}
-              matchLookup={matchLookup}
             />
           ) : (
             <BracketMobile
@@ -251,7 +216,6 @@ function SimplePredictionWizard({ initialData, league, onExit, onComplete, embed
               isRoundComplete={bracketState.isRoundComplete}
               isRoundUnlocked={bracketState.isRoundUnlocked}
               isMatchLocked={isMatchLocked}
-              matchLookup={matchLookup}
             />
           )}
 
@@ -259,30 +223,11 @@ function SimplePredictionWizard({ initialData, league, onExit, onComplete, embed
             <button type="button" className="btn btn-secondary" onClick={() => goToStep(2)}>
               <ArrowLeft size={16} /> Back to best third
             </button>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="button" className="btn btn-ghost" onClick={() => {
-                if (window.confirm('Reset all knockout predictions?')) {
-                  bracketState.resetAll();
-                  save({ knockoutPredictions: emptyKnockoutPredictions() });
-                }
-              }}>
-                Reset bracket
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={async () => {
-                  const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
-                  if (allComplete) {
-                    await saveNow({ isComplete: true });
-                  }
-                  if (onComplete) onComplete();
-                  else if (onExit) onExit();
-                }}
-              >
-                Continue <ArrowRight size={16} />
-              </button>
-            </div>
+            <button type="button" className="btn btn-ghost" onClick={() => {
+              if (window.confirm('Reset all knockout predictions?')) bracketState.resetAll();
+            }}>
+              Reset bracket
+            </button>
           </div>
         </section>
       )}

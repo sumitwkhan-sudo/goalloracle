@@ -1,3 +1,14 @@
+/**
+ * useSimplePrediction
+ *
+ * Subscribes to /simplePredictions/{userId}, exposes the current snapshot,
+ * and provides a debounced save() that merges partial updates.
+ *
+ * Usage:
+ *   const { data, loading, save, saving, savedAt, error } = useSimplePrediction(userId);
+ *   save({ groupPredictions: {...} });  // debounced ~1s, merges into Firestore
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { subscribeToSimplePrediction, saveSimplePrediction } from '../utils/db';
 
@@ -12,12 +23,8 @@ export default function useSimplePrediction(userId) {
 
   const pendingRef = useRef({});
   const timerRef = useRef(null);
-  const userIdRef = useRef(userId);
-  const mountedRef = useRef(true);
-  userIdRef.current = userId;
 
   useEffect(() => {
-    mountedRef.current = true;
     if (!userId) { setLoading(false); return; }
     setLoading(true);
     const unsub = subscribeToSimplePrediction(userId, (doc) => {
@@ -25,37 +32,29 @@ export default function useSimplePrediction(userId) {
       setLoading(false);
     });
     return () => {
-      mountedRef.current = false;
       unsub && unsub();
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      const pending = pendingRef.current;
-      pendingRef.current = {};
-      if (userId && Object.keys(pending).length > 0) {
-        saveSimplePrediction(userId, pending).catch(() => {});
-      }
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [userId]);
 
   const flush = useCallback(async () => {
-    const uid = userIdRef.current;
-    if (!uid) return;
+    if (!userId) return;
     const payload = pendingRef.current;
     pendingRef.current = {};
     if (Object.keys(payload).length === 0) return;
-    if (mountedRef.current) { setSaving(true); setError(null); }
+    setSaving(true);
+    setError(null);
     try {
-      await saveSimplePrediction(uid, payload);
-      if (mountedRef.current) setSavedAt(Date.now());
+      await saveSimplePrediction(userId, payload);
+      setSavedAt(Date.now());
     } catch (e) {
-      if (mountedRef.current) setError(e.message || 'Failed to save');
+      setError(e.message || 'Failed to save');
+      // Requeue so the user's in-flight edits aren't lost on retry
       pendingRef.current = { ...payload, ...pendingRef.current };
     } finally {
-      if (mountedRef.current) setSaving(false);
+      setSaving(false);
     }
-  }, []);
+  }, [userId]);
 
   const save = useCallback((partial) => {
     pendingRef.current = { ...pendingRef.current, ...partial };

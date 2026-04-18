@@ -8,14 +8,7 @@
 import React from 'react';
 import { Lock } from 'lucide-react';
 
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function formatMatchDate(dateStr) {
-  if (!dateStr) return null;
-  const [, m, d] = dateStr.split('-');
-  return `${MONTH_SHORT[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
-}
-
-function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick }) {
+function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label }) {
   const homeSelected = winnerId && winnerId === homeTeam;
   const awaySelected = winnerId && winnerId === awayTeam;
 
@@ -34,16 +27,9 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
 
   const homeIsLoser = winnerId && !homeSelected;
   const awayIsLoser = winnerId && !awaySelected;
-  const formattedDate = formatMatchDate(date);
 
   return (
-    <div className={`bracket-match size-${size}${needsPick ? ' needs-pick' : ''}`} data-match-id={matchId}>
-      {(city || formattedDate) && (
-        <div className="bracket-match-meta">
-          {city && <span className="bracket-match-city">{city}</span>}
-          {formattedDate && <span className="bracket-match-date">{formattedDate}</span>}
-        </div>
-      )}
+    <div className={`bracket-match size-${size}`} data-match-id={matchId}>
       {label && <div className="bracket-match-label">{label}</div>}
       <button
         type="button"

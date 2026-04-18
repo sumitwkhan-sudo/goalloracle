@@ -29,7 +29,7 @@ const ROUND_TOTAL = {
   final: 1,
 };
 
-export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup }) {
+export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked }) {
   const firstIncomplete = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r)) || 'roundOf32';
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
@@ -72,28 +72,21 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
 
             {isOpen && unlocked && (
               <div className="bracket-round-body">
-                {slots.map((s, i) => {
-                  const meta = matchLookup?.[s.matchId];
-                  const needsPick = !!(s.home && s.away && !s.pick?.winnerId);
-                  return (
-                    <BracketMatch
-                      key={s.matchId}
-                      matchId={s.matchId}
-                      label={`Match ${i + 1}`}
-                      homeTeam={s.home}
-                      awayTeam={s.away}
-                      homeFlag={s.homeFlag}
-                      awayFlag={s.awayFlag}
-                      winnerId={s.pick?.winnerId || null}
-                      onPick={(team) => pickWinner(s.matchId, team)}
-                      isLocked={isMatchLocked ? isMatchLocked(s.matchId) : false}
-                      size="full"
-                      city={meta?.city}
-                      date={meta?.date}
-                      needsPick={needsPick}
-                    />
-                  );
-                })}
+                {slots.map((s, i) => (
+                  <BracketMatch
+                    key={s.matchId}
+                    matchId={s.matchId}
+                    label={`Match ${i + 1}`}
+                    homeTeam={s.home}
+                    awayTeam={s.away}
+                    homeFlag={s.homeFlag}
+                    awayFlag={s.awayFlag}
+                    winnerId={s.pick?.winnerId || null}
+                    onPick={(team) => pickWinner(s.matchId, team)}
+                    isLocked={isMatchLocked ? isMatchLocked(s.matchId) : false}
+                    size="full"
+                  />
+                ))}
               </div>
             )}
           </section>

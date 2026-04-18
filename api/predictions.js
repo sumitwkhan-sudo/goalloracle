@@ -59,27 +59,6 @@ export default async function handler(req, res) {
         // Fill in any missing names
         userIds.forEach(uid => { if (!userNames[uid]) userNames[uid] = uid.slice(0, 8); });
 
-        // Include all league members (even those without predictions)
-        const leagueSnap = await db.collection('leagues').doc(leagueId).get();
-        if (leagueSnap.exists) {
-          const members = leagueSnap.data().members || [];
-          const missingIds = members.filter(uid => !byUser[uid]);
-          if (missingIds.length > 0) {
-            for (let i = 0; i < missingIds.length; i += 30) {
-              const batch = missingIds.slice(i, i + 30);
-              const usersSnap = await db.collection('users').where('id', 'in', batch).get();
-              usersSnap.docs.forEach(d => {
-                const u = d.data();
-                userNames[d.id] = u.displayName || u.email?.split('@')[0] || d.id.slice(0, 8);
-              });
-            }
-            missingIds.forEach(uid => {
-              if (!byUser[uid]) byUser[uid] = {};
-              if (!userNames[uid]) userNames[uid] = uid.slice(0, 8);
-            });
-          }
-        }
-
         return res.status(200).json({ leaderboard: byUser, userNames });
 
       } else if (type === 'user' && userId && leagueId) {

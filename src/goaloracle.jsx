@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, Gift, MapPin, Calendar } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
@@ -8,149 +8,13 @@ import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus,
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
 import SimplePrediction from './pages/SimplePrediction';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import './styles.css';
-
-const _teamFlags = (() => {
-  const flags = {};
-  for (const m of WORLD_CUP_MATCHES) {
-    if (m.isKnockout) continue;
-    flags[m.home] = m.homeFlag;
-    flags[m.away] = m.awayFlag;
-  }
-  return flags;
-})();
-
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername }) {
-  const [sTab, setSTab] = useState('leaderboard');
-  const [simLb, setSimLb] = useState([]);
-  const [simLbl, setSimLbl] = useState(false);
-  const [lbKey, setLbKey] = useState(0);
-
-  useEffect(() => {
-    if (sTab !== 'leaderboard' || !league?.id) return;
-    let cancelled = false;
-    (async () => {
-      setSimLbl(true);
-      try {
-        const data = await getSimpleLeaderboard(league.id);
-        if (!cancelled) setSimLb(data.leaderboard || []);
-      } catch (e) { console.error(e); }
-      finally { if (!cancelled) setSimLbl(false); }
-    })();
-    return () => { cancelled = true; };
-  }, [sTab, league?.id, lbKey]);
-
-  const needsUsername = userData && !userData.usernameSet;
-
-  const handleComplete = useCallback(() => {
-    setSTab('leaderboard');
-    setLbKey(k => k + 1);
-  }, []);
-
-  return (
-    <div className="league-detail">
-      <div className="page-header-compact">
-        <div className="phc-left">
-          <button className="btn-back-sm" onClick={onBack}>&larr;</button>
-          <h1 className="phc-title">{league?.name}</h1>
-          <div className="phc-meta">
-            <span><Users size={14} /> {(league?.memberCount || league?.members?.length || 0).toLocaleString()} members</span>
-            <span className="lv2-mode-pill simple">SIMPLE</span>
-          </div>
-        </div>
-      </div>
-
-      {needsUsername && (
-        <div className="username-nudge" onClick={onSetUsername}>
-          <AlertTriangle size={14} />
-          <span>You haven&apos;t set a username yet.</span>
-          <button className="btn btn-primary btn-xs">Set Username</button>
-        </div>
-      )}
-
-      <div className="tabs">
-        <button className={`tab ${sTab === 'leaderboard' ? 'active' : ''}`} onClick={() => setSTab('leaderboard')}><TrendingUp size={16} /> Leaderboard</button>
-        <button className={`tab ${sTab === 'predictions' ? 'active' : ''}`} onClick={() => setSTab('predictions')}><Target size={16} /> Predictions</button>
-      </div>
-
-      {sTab === 'leaderboard' && (
-        <div className="leaderboard">
-          <div className="leaderboard-header"><h3>Rankings</h3></div>
-          {simLbl ? (
-            <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
-          ) : simLb.length === 0 ? (
-            <div className="empty-state"><p>No members yet.</p></div>
-          ) : (
-            <div className="leaderboard-list">
-              {simLb.map((e, i) => (
-                <div key={e.userId} className={`leaderboard-item ${e.userId === userData?.id ? 'is-you' : ''}`}>
-                  <div className="rank">
-                    {i === 0 && <Trophy size={20} className="gold" />}
-                    {i === 1 && <Trophy size={20} className="silver" />}
-                    {i === 2 && <Trophy size={20} className="bronze" />}
-                    {i > 2 && <span>#{i + 1}</span>}
-                  </div>
-                  <div className="player-info">
-                    <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
-                    <div>
-                      <div className="player-name">
-                        {e.displayName}
-                        {e.userId === userData?.id && <span className="you-badge">You</span>}
-                      </div>
-                      <div className="player-sub">
-                        {e.isComplete ? (
-                          <><CheckCircle size={11} style={{color:'var(--success)', verticalAlign:'middle'}} /> Complete</>
-                        ) : e.hasSubmitted ? (
-                          <><RefreshCw size={11} style={{color:'var(--amber)', verticalAlign:'middle'}} /> In progress</>
-                        ) : (
-                          <><Clock size={11} style={{color:'var(--text-sec)', verticalAlign:'middle'}} /> Not started</>
-                        )}
-                      </div>
-                      {(e.winner || e.runnerUp) && (
-                        <div className="player-picks">
-                          {e.winner && (
-                            <span className="player-pick winner-pick">
-                              <Trophy size={10} /> {_teamFlags[e.winner] || ''} {e.winner}
-                            </span>
-                          )}
-                          {e.runnerUp && (
-                            <span className="player-pick runnerup-pick">
-                              <Award size={10} /> {_teamFlags[e.runnerUp] || ''} {e.runnerUp}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="player-points">
-                    <span className="points">{e.totalAccuracy > 0 ? `${e.totalAccuracy}%` : '—'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {sTab === 'predictions' && (
-        <SimplePrediction
-          key={`simple-${league?.id}`}
-          userId={userData?.id}
-          league={league}
-          onExit={onBack}
-          onComplete={handleComplete}
-          embedded
-        />
-      )}
-    </div>
-  );
-});
 
 // Scroll reveal hook with stadium + code wall parallax + section depth
 const useScrollReveal = () => {
@@ -220,7 +84,6 @@ const CITY_CODES = {
 };
 const GoalOracle = () => {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
-  const { wallets } = useWallets();
   const [view, setView] = useState('landing');
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState('light');
@@ -313,13 +176,12 @@ const GoalOracle = () => {
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const nav = useCallback((v, l) => {
     if (l) { setSelLeague(l); setDetailTab('predictions'); setDetailWeek('week1'); setDetailStage('all'); }
-    if (v === 'browse') loadAllLeagues();
     setView(prev => prev === v && !l ? prev : v);
     setMenuOpen(false);
     window.scrollTo(0, 0);
-  }, [loadAllLeagues]);
+  }, []);
 
-  useEffect(() => { fetchPlatformStats().then(setStats).catch(() => {}); }, []);
+  useEffect(() => subscribeToPlatformStats(setStats), []);
   useEffect(() => subscribeToMatchResults(setResults), []);
   const authInitRef = useRef(false);
 
@@ -379,8 +241,7 @@ const GoalOracle = () => {
     return () => { stopped = true; clearTimeout(first); clearInterval(interval); };
   }, [ready, authenticated, getTokenSafe]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
-  const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
-  useEffect(loadAllLeagues, [loadAllLeagues]);
+  useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
   useEffect(() => {
     if (!selLeague?.id) return;
@@ -921,79 +782,6 @@ const GoalOracle = () => {
           </div>
         </div></section>
 
-        {/* ─── 2b. THE LEDGER — SCORING BREAKDOWN ─── */}
-        <section className="ledger-section"><div className="container">
-          <div className="editorial-head reveal">
-            <div className="editorial-eyebrow">The Ledger</div>
-            <h2 className="editorial-title">Seventy-six points.<br/><span className="editorial-em">One tournament.</span></h2>
-            <div className="editorial-num">Simple mode scoring</div>
-          </div>
-          <div className="ledger-grid">
-            <article className="ledger-card reveal-float stagger-1">
-              <header><span className="ledger-idx">I.</span><span className="ledger-stage">Group stage</span></header>
-              <div className="ledger-points"><span className="ledger-num">36</span><span className="ledger-unit">pts</span></div>
-              <p className="ledger-desc">Twelve groups, four teams each. <strong>1 point</strong> for each correctly ranked 1st or 2nd place, <strong>0.5</strong> for 3rd and 4th.</p>
-              <div className="ledger-math"><span>12 groups</span><i>×</i><span>4 positions</span></div>
-            </article>
-            <article className="ledger-card ledger-accent reveal-float stagger-2">
-              <header><span className="ledger-idx">II.</span><span className="ledger-stage">Best thirds</span></header>
-              <div className="ledger-points"><span className="ledger-num">8</span><span className="ledger-unit">pts</span></div>
-              <p className="ledger-desc">Eight third-place finishers advance to the Round of 32. <strong>1 point</strong> for each correct pick.</p>
-              <div className="ledger-math"><span>8 slots</span><i>×</i><span>1 pt</span></div>
-            </article>
-            <article className="ledger-card reveal-float stagger-3">
-              <header><span className="ledger-idx">III.</span><span className="ledger-stage">Knockout rounds</span></header>
-              <div className="ledger-points"><span className="ledger-num">32</span><span className="ledger-unit">pts</span></div>
-              <p className="ledger-desc">Round of 32 through the Final. <strong>1 point</strong> per correct winner across all 32 knockout fixtures.</p>
-              <div className="ledger-math"><span>R32: 16</span><i>·</i><span>R16: 8</span><i>·</i><span>QF: 4</span><i>·</i><span>SF+: 4</span></div>
-            </article>
-            <article className="ledger-card ledger-total reveal-float stagger-4">
-              <header><span className="ledger-idx">&Sigma;</span><span className="ledger-stage">Perfect ledger</span></header>
-              <div className="ledger-points"><span className="ledger-num">76</span><span className="ledger-unit">pts</span></div>
-              <p className="ledger-desc">The upper bound. Tiebreaker: earliest submission wins.</p>
-              <div className="ledger-math ledger-math-all"><span>36</span><i>+</i><span>8</span><i>+</i><span>32</span><i>=</i><span className="ledger-sum">76</span></div>
-            </article>
-          </div>
-        </div></section>
-
-        {/* ─── 2c. THE CLIMB — XP TIER LADDER ─── */}
-        <section className="climb-section"><div className="container">
-          <div className="editorial-head reveal">
-            <div className="editorial-eyebrow">The Climb</div>
-            <h2 className="editorial-title">From fan to legend,<br/><span className="editorial-em">in thirty levels.</span></h2>
-            <div className="editorial-num">XP ladder &middot; 9,300 total</div>
-          </div>
-          <div className="climb-ladder reveal">
-            <div className="climb-track">
-              <div className="climb-fill" style={{ width: '26%' }}></div>
-              <span className="climb-tick" style={{ left: '0%' }} data-label="Lv 1"></span>
-              <span className="climb-tick" style={{ left: '13.3%' }} data-label="Lv 5"></span>
-              <span className="climb-tick" style={{ left: '33.3%' }} data-label="Lv 10"></span>
-              <span className="climb-tick" style={{ left: '83.3%' }} data-label="Lv 25"></span>
-              <span className="climb-tick" style={{ left: '100%' }} data-label="Lv 30"></span>
-            </div>
-          </div>
-          <div className="climb-grid">
-            {[
-              { key: 'fan', tier: 'Fan', range: 'Lv 01 — 04', xp: '0 — 200', lede: 'Learning the form book.', perks: 'Daily pick · streaks', badge: 'Whistle' },
-              { key: 'analyst', tier: 'Analyst', range: 'Lv 05 — 09', xp: '300 — 900', lede: 'Reading the xG, trusting the tape.', perks: 'Confidence · odds chips', badge: 'Silver clipboard' },
-              { key: 'oracle', tier: 'Oracle', range: 'Lv 10 — 24', xp: '1.1k — 6.0k', lede: 'The board starts to listen.', perks: 'Pool heatmap · private leagues', badge: 'Gold sextant' },
-              { key: 'legend', tier: 'Legend', range: 'Lv 25 — 30', xp: '6.5k — 9.3k', lede: 'Engraved into the Pantheon.', perks: 'Name in Almanac · custom seal', badge: 'Laurel wreath' },
-            ].map((t, i) => (
-              <article key={t.key} className={`climb-tier reveal-float stagger-${i+1}`} data-tier={t.key}>
-                <div className="climb-tier-band"><span>{t.range}</span></div>
-                <h3 className="climb-tier-name">{t.tier}</h3>
-                <p className="climb-tier-lede">{t.lede}</p>
-                <ul className="climb-tier-list">
-                  <li><span>XP range</span><em>{t.xp}</em></li>
-                  <li><span>Perks</span><em>{t.perks}</em></li>
-                  <li><span>Badge</span><em>{t.badge}</em></li>
-                </ul>
-              </article>
-            ))}
-          </div>
-        </div></section>
-
         {/* ─── 3. LEADERBOARD + STREAKS ─── */}
         <section className="lb-streaks-section"><div className="container">
           <div className="lb-streaks-grid">
@@ -1090,39 +878,6 @@ const GoalOracle = () => {
           </div>
         </div></section>
 
-        {/* ─── 4b. THE PEDIGREE — CHAMPIONS STRIP ─── */}
-        <section className="pedigree-section"><div className="container">
-          <div className="editorial-head reveal">
-            <div className="editorial-eyebrow">The Pedigree</div>
-            <h2 className="editorial-title">Twenty-two finals.<br/><span className="editorial-em">Eight victors.</span></h2>
-            <div className="editorial-num">1930 &mdash; 2022</div>
-          </div>
-          <div className="pedigree-strip-ro">
-            <div className="pedigree-track-ro">
-              {FINALS.map((f, idx) => (
-                <div
-                  key={f.yr}
-                  className={`pedigree-f ${idx === FINALS.length - 1 ? 'pedigree-f-future' : ''} ${idx === FINALS.length - 2 ? 'pedigree-f-current' : ''}`}
-                  data-champ={f.win}
-                >
-                  <span className="pedigree-yr">{f.yr}</span>
-                  <span className="pedigree-ch">{f.win}</span>
-                  <span className="pedigree-sc">{f.score}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="pedigree-tally-ro">
-            {CHAMPIONS.map(c => (
-              <span key={c.name} className="pedigree-tally-item">
-                <span className="pedigree-tally-flag">{c.flagAlt || c.flag}</span>
-                <strong>{c.count}×</strong>
-                <span className="pedigree-tally-name">{c.name}</span>
-              </span>
-            ))}
-          </div>
-        </div></section>
-
         {/* ─── 5. REWARDS & LEVELS ─── */}
         <section className="rewards-section"><div className="container">
           <h2 className="rewards-title reveal">Rewards &amp; Levels</h2>
@@ -1181,10 +936,7 @@ const GoalOracle = () => {
   };
 
   const Dash = () => {
-    const ml = leagues.length > 0 ? leagues : [
-      { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
-      { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', memberCount: stats.totalPlayers },
-    ];
+    const ml = leagues.length > 0 ? leagues : [{ id: 'global', name: 'Global League', type: 'free', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } }];
     const defaultPS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
     const ps = ml[0]?.pointsSystem || defaultPS;
 
@@ -1229,21 +981,14 @@ const GoalOracle = () => {
       if (!uData?.id || ml.length === 0) return;
       let cancelled = false;
       (async () => {
-        for (const league of ml.slice(0, 6)) {
+        for (const league of ml.slice(0, 5)) {
           if (leagueRanks[league.id] || cancelled) continue;
           try {
-            if (league.predictionMode === 'simple') {
-              const data = await getSimpleLeaderboard(league.id);
-              const lb = data.leaderboard || [];
-              const myIdx = lb.findIndex(e => e.userId === uData.id);
-              if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx >= 0 ? myIdx + 1 : lb.length + 1, total: lb.length } }));
-            } else {
-              const { leaderboard: bu, userNames } = await getLeagueLeaderboard(league.id);
-              const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || defaultPS) }));
-              const sorted = sortLeaderboard(entries);
-              const myIdx = sorted.findIndex(e => e.userId === uData.id);
-              if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0 } }));
-            }
+            const { leaderboard: bu, userNames } = await getLeagueLeaderboard(league.id);
+            const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || defaultPS) }));
+            const sorted = sortLeaderboard(entries);
+            const myIdx = sorted.findIndex(e => e.userId === uData.id);
+            if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0 } }));
           } catch {}
         }
       })();
@@ -1947,13 +1692,6 @@ const GoalOracle = () => {
         </div>}
 
         {tab === 'leaderboard' && <div className="leaderboard">
-          {uData && !uData.usernameSet && (
-            <div className="username-nudge" onClick={() => setShowUsernamePrompt(true)}>
-              <AlertTriangle size={14} />
-              <span>You haven't set a username yet.</span>
-              <button className="btn btn-primary btn-xs">Set Username</button>
-            </div>
-          )}
           <div className="leaderboard-header">
             <h3>Rankings</h3>
             <div className="lb-sort-tabs">
@@ -2014,7 +1752,6 @@ const GoalOracle = () => {
   };
 
   // ================================
-  // ================================
   // ACCOUNT DROPDOWN + ADD FUNDS MODAL
   // ================================
   const CHAINS = [
@@ -2033,18 +1770,16 @@ const GoalOracle = () => {
     try {
       const lid = await createLeague(leagueData, uData.id);
       console.log('[create] success, leagueId=', lid);
-      loadAllLeagues();
       notify('League created!');
       nav('dashboard');
     } catch (e) {
       console.error('[create] failed:', e);
       notify(e.message || 'Failed to create league', 'error');
     }
-  }, [uData?.id, nav, notify, loadAllLeagues]);
+  }, [uData?.id, nav, notify]);
   createLeagueRef.current = handleCreateLeague;
 
   const [fundModal, setFundModal] = useState(false);
-  const [sendModal, setSendModal] = useState(false);
   const [hidePredicted, setHidePredicted] = useState(false);
   const [frozenUnpredictedIds, setFrozenUnpredictedIds] = useState(null);
   const [walletBalances, setWalletBalances] = useState({ USDC: '0.00', POL: '0.00' });
@@ -2262,264 +1997,6 @@ const GoalOracle = () => {
     );
   };
 
-  const SendModal = () => {
-    const [step, setStep] = useState('form'); // 'form' | 'confirm' | 'sending' | 'success' | 'error'
-    const [token, setToken] = useState('USDC');
-    const [recipient, setRecipient] = useState('');
-    const [amount, setAmount] = useState('');
-    const [txHash, setTxHash] = useState(null);
-    const [err, setErr] = useState('');
-    const [acknowledged, setAcknowledged] = useState(false);
-
-    // Pick the embedded wallet (Privy-created); falls back to first connected wallet
-    const embeddedWallet = wallets.find(w => w.walletClientType === 'privy') || wallets[0];
-    const fromAddr = embeddedWallet?.address || walletAddress;
-
-    const usdcBalance = parseFloat(walletBalances.USDC || '0');
-    const polBalance = parseFloat(walletBalances.POL || '0');
-    const currentBalance = token === 'USDC' ? usdcBalance : polBalance;
-
-    const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(recipient);
-    const isSelfAddress = fromAddr && recipient.toLowerCase() === fromAddr.toLowerCase();
-    const amountNum = parseFloat(amount || '0');
-    const hasPolForGas = polBalance > 0.001;
-    const canContinue = isValidAddress && !isSelfAddress && amountNum > 0 && amountNum <= currentBalance;
-
-    const setMax = () => {
-      if (token === 'POL') {
-        // Leave ~0.01 POL as gas buffer
-        const remaining = Math.max(0, polBalance - 0.01);
-        setAmount(remaining > 0 ? remaining.toFixed(4) : '0');
-      } else {
-        setAmount(String(currentBalance));
-      }
-    };
-
-    const handleContinue = () => {
-      setErr('');
-      if (!isValidAddress) { setErr('Invalid wallet address'); return; }
-      if (isSelfAddress) { setErr('You can\u2019t send to your own wallet'); return; }
-      if (amountNum <= 0) { setErr('Amount must be greater than 0'); return; }
-      if (amountNum > currentBalance) { setErr(`Insufficient ${token} balance`); return; }
-      if (!hasPolForGas) { setErr('You need some POL to pay for gas fees'); return; }
-      setAcknowledged(false);
-      setStep('confirm');
-    };
-
-    const handleSend = async () => {
-      if (!embeddedWallet) { setErr('No wallet available'); return; }
-      setErr('');
-      setStep('sending');
-      try {
-        if (typeof embeddedWallet.switchChain === 'function') {
-          try { await embeddedWallet.switchChain(137); } catch {}
-        }
-        const provider = await embeddedWallet.getEthereumProvider();
-
-        let txParams;
-        if (token === 'USDC') {
-          const USDC_ADDR = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
-          const decimals = 6;
-          // Convert amount string to smallest units preserving up to `decimals` fractional digits
-          const parts = amount.split('.');
-          const whole = parts[0] || '0';
-          const frac = (parts[1] || '').padEnd(decimals, '0').slice(0, decimals);
-          const amountUnits = BigInt(whole) * BigInt(10 ** decimals) + BigInt(frac);
-          // transfer(address,uint256) — selector 0xa9059cbb
-          const paddedAddr = recipient.slice(2).toLowerCase().padStart(64, '0');
-          const paddedAmt = amountUnits.toString(16).padStart(64, '0');
-          const data = '0xa9059cbb' + paddedAddr + paddedAmt;
-          txParams = { from: fromAddr, to: USDC_ADDR, data, value: '0x0' };
-        } else {
-          const decimals = 18;
-          const parts = amount.split('.');
-          const whole = parts[0] || '0';
-          const frac = (parts[1] || '').padEnd(decimals, '0').slice(0, decimals);
-          const amountWei = BigInt(whole) * BigInt(10 ** decimals) + BigInt(frac);
-          txParams = { from: fromAddr, to: recipient, value: '0x' + amountWei.toString(16) };
-        }
-
-        const hash = await provider.request({
-          method: 'eth_sendTransaction',
-          params: [txParams],
-        });
-
-        setTxHash(hash);
-        setStep('success');
-        setTimeout(() => refreshBalances(), 8000);
-      } catch (e) {
-        console.error('[send] Error:', e);
-        const msg = e?.message || '';
-        if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
-          setErr('Transaction cancelled');
-        } else {
-          setErr(msg || 'Transaction failed');
-        }
-        setStep('error');
-      }
-    };
-
-    const closeModal = () => { if (step !== 'sending') setSendModal(false); };
-
-    return (
-      <div className="modal-overlay" onClick={closeModal}>
-        <div className="fund-modal" onClick={e => e.stopPropagation()}>
-          <div className="fund-modal-header">
-            <h3><Send size={20} /> Send Crypto</h3>
-            <button className="modal-close" onClick={closeModal} disabled={step === 'sending'}><X size={20} /></button>
-          </div>
-
-          {step === 'form' && (<>
-            <div className="fund-balance-bar">
-              <div className="fund-bal-item"><span className="fund-bal-label">USDC</span><span className="fund-bal-val">{formatBalance(walletBalances.USDC)}</span></div>
-              <div className="fund-bal-item fund-bal-dim"><span className="fund-bal-label">POL</span><span className="fund-bal-val">{formatBalance(walletBalances.POL)}</span></div>
-              <button className="balance-refresh" onClick={refreshBalances} title="Refresh"><RefreshCw size={12} className={balLoading ? 'spin' : ''} /></button>
-            </div>
-
-            <div className="fund-section">
-              <label>Token</label>
-              <div className="fund-tabs">
-                <button className={`fund-tab ${token === 'USDC' ? 'active' : ''}`} onClick={() => { setToken('USDC'); setAmount(''); }}>USDC</button>
-                <button className={`fund-tab ${token === 'POL' ? 'active' : ''}`} onClick={() => { setToken('POL'); setAmount(''); }}>POL</button>
-              </div>
-            </div>
-
-            <div className="fund-section">
-              <label>Recipient wallet address</label>
-              <input
-                type="text"
-                className="fund-input send-addr-input"
-                placeholder="0x..."
-                value={recipient}
-                onChange={e => setRecipient(e.target.value.trim())}
-                spellCheck={false}
-                autoComplete="off"
-              />
-              {recipient && !isValidAddress && (
-                <div className="send-field-err"><AlertTriangle size={12} /> Not a valid Ethereum address</div>
-              )}
-              {isSelfAddress && (
-                <div className="send-field-err"><AlertTriangle size={12} /> This is your own wallet</div>
-              )}
-            </div>
-
-            <div className="fund-section">
-              <label>Amount</label>
-              <div className="send-amount-wrap">
-                <input
-                  type="number"
-                  className="fund-input"
-                  placeholder={`0.00 ${token}`}
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  min="0"
-                  step="any"
-                />
-                <button type="button" className="send-max-btn" onClick={setMax}>MAX</button>
-              </div>
-              <div className="send-balance-info">
-                Available: {formatBalance(currentBalance)} {token}
-                {token === 'POL' && <span className="send-gas-hint"> &middot; MAX leaves 0.01 POL for gas</span>}
-              </div>
-            </div>
-
-            <div className="fund-note-box fund-note-danger">
-              <div className="fund-note-item">
-                <AlertTriangle size={14} />
-                <span><strong>Polygon network only.</strong> Confirm the recipient's wallet supports <strong>{token} on Polygon</strong>. Sending to an incompatible address or wrong network will result in <strong>permanent loss of funds</strong>.</span>
-              </div>
-              <div className="fund-note-item">
-                <AlertTriangle size={14} />
-                <span>Double-check the recipient address — crypto transactions are <strong>irreversible</strong>.</span>
-              </div>
-              {!hasPolForGas && (
-                <div className="fund-note-item">
-                  <AlertTriangle size={14} />
-                  <span>You have no POL for gas. Add POL to your wallet before sending.</span>
-                </div>
-              )}
-            </div>
-
-            {err && <div className="fund-error"><AlertTriangle size={14} /> {err}</div>}
-
-            <button className="btn btn-primary fund-btn" onClick={handleContinue} disabled={!canContinue || !hasPolForGas}>
-              Review Transaction <ChevronRight size={16} />
-            </button>
-          </>)}
-
-          {step === 'confirm' && (<>
-            <p className="fund-desc">Review carefully. This cannot be reversed.</p>
-
-            <div className="send-review">
-              <div className="send-review-row"><span>Network</span><strong>Polygon</strong></div>
-              <div className="send-review-row"><span>Token</span><strong>{token}</strong></div>
-              <div className="send-review-row send-review-amount"><span>Amount</span><strong>{amount} {token}</strong></div>
-              <div className="send-review-row"><span>From</span><code className="send-review-addr">{fromAddr ? `${fromAddr.slice(0,10)}...${fromAddr.slice(-8)}` : '—'}</code></div>
-              <div className="send-review-row send-review-to"><span>To</span><code className="send-review-addr send-review-addr-full">{recipient}</code></div>
-            </div>
-
-            <div className="fund-note-box fund-note-danger">
-              <div className="fund-note-item">
-                <AlertTriangle size={14} />
-                <span><strong>Warning:</strong> If the recipient's wallet does not support <strong>{token} on Polygon</strong>, your funds will be <strong>permanently lost</strong>. Verify both the address and network compatibility before continuing.</span>
-              </div>
-            </div>
-
-            <label className="send-ack">
-              <input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)} />
-              <span>I have verified the recipient address and confirmed it supports {token} on Polygon. I understand this transaction cannot be undone.</span>
-            </label>
-
-            {err && <div className="fund-error"><AlertTriangle size={14} /> {err}</div>}
-
-            <div className="send-confirm-actions">
-              <button className="btn btn-secondary" onClick={() => setStep('form')}>
-                <ChevronDown size={16} style={{transform:'rotate(90deg)'}} /> Back
-              </button>
-              <button className="btn btn-primary" onClick={handleSend} disabled={!acknowledged}>
-                <Send size={14} /> Send {amount} {token}
-              </button>
-            </div>
-          </>)}
-
-          {step === 'sending' && (
-            <div className="send-status-view">
-              <Loader size={36} className="spin" />
-              <h4>Sending transaction...</h4>
-              <p>Confirm in your wallet if prompted. This may take up to a minute.</p>
-            </div>
-          )}
-
-          {step === 'success' && (
-            <div className="send-status-view">
-              <CheckCircle size={44} style={{color: 'var(--success, #00c853)'}} />
-              <h4>Transaction sent!</h4>
-              <p>Your transaction has been broadcast to Polygon. It usually confirms in a few seconds.</p>
-              {txHash && (
-                <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="tx-link">
-                  View on Polygonscan <ExternalLink size={14} />
-                </a>
-              )}
-              <button className="btn btn-primary" onClick={() => setSendModal(false)} style={{marginTop: '1rem'}}>Done</button>
-            </div>
-          )}
-
-          {step === 'error' && (
-            <div className="send-status-view">
-              <AlertTriangle size={44} style={{color: 'var(--danger, #ff3b5c)'}} />
-              <h4>Transaction failed</h4>
-              <p>{err || 'Something went wrong.'}</p>
-              <div className="send-confirm-actions">
-                <button className="btn btn-secondary" onClick={() => { setErr(''); setStep('form'); }}>Try again</button>
-                <button className="btn btn-primary" onClick={() => setSendModal(false)}>Close</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const AccountDropdown = () => {
     const [open, setOpen] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -2612,15 +2089,8 @@ const GoalOracle = () => {
             <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setFundModal(true); }}>
               <ArrowRightLeft size={16} />
               <div>
-                <div className="dropdown-item-title">Receive / Add Funds</div>
+                <div className="dropdown-item-title">Add Funds</div>
                 <div className="dropdown-item-sub">Bridge any token to USDC on Polygon</div>
-              </div>
-            </button>
-            <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setSendModal(true); }} disabled={!walletAddr}>
-              <Send size={16} />
-              <div>
-                <div className="dropdown-item-title">Send</div>
-                <div className="dropdown-item-sub">Transfer USDC or POL to another wallet</div>
               </div>
             </button>
             <div className="dropdown-divider"></div>
@@ -3167,12 +2637,11 @@ const GoalOracle = () => {
         />
       )}
       {view === 'detail' && selLeague?.predictionMode === 'simple' && (
-        <SimpleDetail
-          key={`simple-detail-${selLeague.id}`}
+        <SimplePrediction
+          key={`simple-${selLeague.id}`}
+          userId={uData?.id}
           league={selLeague}
-          userData={uData}
-          onBack={() => nav('leagues')}
-          onSetUsername={() => setShowUsernamePrompt(true)}
+          onExit={() => nav('leagues')}
         />
       )}
       {view === 'detail' && selLeague?.predictionMode !== 'simple' && <Detail key={selLeague?.id || 'detail'} />}
@@ -3188,7 +2657,6 @@ const GoalOracle = () => {
       {view === 'feedback' && <Feedback key="feedback" />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
       {fundModal && <AddFundsModal />}
-      {sendModal && <SendModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
       <ShareCardModal />
     </div>

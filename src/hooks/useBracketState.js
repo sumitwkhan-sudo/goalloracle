@@ -39,10 +39,8 @@ import {
 export default function useBracketState({ groupPredictions, bestThirdPicks, knockoutPredictions, onChange }) {
   const [picks, setPicks] = useState(() => normalize(knockoutPredictions));
   const hydratedRef = useRef(false);
-  const dirtyRef = useRef(false);
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
 
+  // Hydrate once
   useEffect(() => {
     if (hydratedRef.current) return;
     if (knockoutPredictions) {
@@ -50,12 +48,6 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
       hydratedRef.current = true;
     }
   }, [knockoutPredictions]);
-
-  useEffect(() => {
-    if (!dirtyRef.current) return;
-    dirtyRef.current = false;
-    onChangeRef.current && onChangeRef.current(picks);
-  }, [picks]);
 
   // Flat lookup by matchId for cascade math
   const flatPicks = useMemo(() => flattenPicks(picks), [picks]);
@@ -89,14 +81,15 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
     if (winnerTeam !== slot.home && winnerTeam !== slot.away) return;
     const loser = winnerTeam === slot.home ? slot.away : slot.home;
 
-    dirtyRef.current = true;
     setPicks((prev) => {
       const next = cloneRounds(prev);
+      // Replace or insert this pick
       const arr = next[round];
       const idx = arr.findIndex((p) => p.matchId === matchId);
       const entry = { matchId, winnerId: winnerTeam, loserId: loser };
       if (idx >= 0) arr[idx] = entry; else arr.push(entry);
 
+      // Reset any downstream picks whose team feed no longer matches
       const downstream = getDownstreamMatchIds(matchId);
       for (const dsId of downstream) {
         const dsRound = getRoundForMatchId(dsId);
@@ -104,14 +97,14 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
         next[dsRound] = next[dsRound].filter((p) => p.matchId !== dsId);
       }
 
+      onChange && onChange(next);
       return next;
     });
-  }, [bracket]);
+  }, [bracket, onChange]);
 
   const resetMatch = useCallback((matchId) => {
     const round = getRoundForMatchId(matchId);
     if (!round) return;
-    dirtyRef.current = true;
     setPicks((prev) => {
       const next = cloneRounds(prev);
       next[round] = next[round].filter((p) => p.matchId !== matchId);
@@ -119,14 +112,16 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
         const dsRound = getRoundForMatchId(dsId);
         if (dsRound) next[dsRound] = next[dsRound].filter((p) => p.matchId !== dsId);
       }
+      onChange && onChange(next);
       return next;
     });
-  }, []);
+  }, [onChange]);
 
   const resetAll = useCallback(() => {
-    dirtyRef.current = true;
-    setPicks(emptyKnockoutPredictions());
-  }, []);
+    const empty = emptyKnockoutPredictions();
+    setPicks(empty);
+    onChange && onChange(empty);
+  }, [onChange]);
 
   const isRoundComplete = useCallback((roundKey) => {
     const slots = bracket[roundKey] || [];
