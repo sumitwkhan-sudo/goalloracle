@@ -921,6 +921,79 @@ const GoalOracle = () => {
           </div>
         </div></section>
 
+        {/* ─── 2b. THE LEDGER — SCORING BREAKDOWN ─── */}
+        <section className="ledger-section"><div className="container">
+          <div className="editorial-head reveal">
+            <div className="editorial-eyebrow">The Ledger</div>
+            <h2 className="editorial-title">Seventy-six points.<br/><span className="editorial-em">One tournament.</span></h2>
+            <div className="editorial-num">Simple mode scoring</div>
+          </div>
+          <div className="ledger-grid">
+            <article className="ledger-card reveal-float stagger-1">
+              <header><span className="ledger-idx">I.</span><span className="ledger-stage">Group stage</span></header>
+              <div className="ledger-points"><span className="ledger-num">36</span><span className="ledger-unit">pts</span></div>
+              <p className="ledger-desc">Twelve groups, four teams each. <strong>1 point</strong> for each correctly ranked 1st or 2nd place, <strong>0.5</strong> for 3rd and 4th.</p>
+              <div className="ledger-math"><span>12 groups</span><i>×</i><span>4 positions</span></div>
+            </article>
+            <article className="ledger-card ledger-accent reveal-float stagger-2">
+              <header><span className="ledger-idx">II.</span><span className="ledger-stage">Best thirds</span></header>
+              <div className="ledger-points"><span className="ledger-num">8</span><span className="ledger-unit">pts</span></div>
+              <p className="ledger-desc">Eight third-place finishers advance to the Round of 32. <strong>1 point</strong> for each correct pick.</p>
+              <div className="ledger-math"><span>8 slots</span><i>×</i><span>1 pt</span></div>
+            </article>
+            <article className="ledger-card reveal-float stagger-3">
+              <header><span className="ledger-idx">III.</span><span className="ledger-stage">Knockout rounds</span></header>
+              <div className="ledger-points"><span className="ledger-num">32</span><span className="ledger-unit">pts</span></div>
+              <p className="ledger-desc">Round of 32 through the Final. <strong>1 point</strong> per correct winner across all 32 knockout fixtures.</p>
+              <div className="ledger-math"><span>R32: 16</span><i>·</i><span>R16: 8</span><i>·</i><span>QF: 4</span><i>·</i><span>SF+: 4</span></div>
+            </article>
+            <article className="ledger-card ledger-total reveal-float stagger-4">
+              <header><span className="ledger-idx">&Sigma;</span><span className="ledger-stage">Perfect ledger</span></header>
+              <div className="ledger-points"><span className="ledger-num">76</span><span className="ledger-unit">pts</span></div>
+              <p className="ledger-desc">The upper bound. Tiebreaker: earliest submission wins.</p>
+              <div className="ledger-math ledger-math-all"><span>36</span><i>+</i><span>8</span><i>+</i><span>32</span><i>=</i><span className="ledger-sum">76</span></div>
+            </article>
+          </div>
+        </div></section>
+
+        {/* ─── 2c. THE CLIMB — XP TIER LADDER ─── */}
+        <section className="climb-section"><div className="container">
+          <div className="editorial-head reveal">
+            <div className="editorial-eyebrow">The Climb</div>
+            <h2 className="editorial-title">From fan to legend,<br/><span className="editorial-em">in thirty levels.</span></h2>
+            <div className="editorial-num">XP ladder &middot; 9,300 total</div>
+          </div>
+          <div className="climb-ladder reveal">
+            <div className="climb-track">
+              <div className="climb-fill" style={{ width: '26%' }}></div>
+              <span className="climb-tick" style={{ left: '0%' }} data-label="Lv 1"></span>
+              <span className="climb-tick" style={{ left: '13.3%' }} data-label="Lv 5"></span>
+              <span className="climb-tick" style={{ left: '33.3%' }} data-label="Lv 10"></span>
+              <span className="climb-tick" style={{ left: '83.3%' }} data-label="Lv 25"></span>
+              <span className="climb-tick" style={{ left: '100%' }} data-label="Lv 30"></span>
+            </div>
+          </div>
+          <div className="climb-grid">
+            {[
+              { key: 'fan', tier: 'Fan', range: 'Lv 01 — 04', xp: '0 — 200', lede: 'Learning the form book.', perks: 'Daily pick · streaks', badge: 'Whistle' },
+              { key: 'analyst', tier: 'Analyst', range: 'Lv 05 — 09', xp: '300 — 900', lede: 'Reading the xG, trusting the tape.', perks: 'Confidence · odds chips', badge: 'Silver clipboard' },
+              { key: 'oracle', tier: 'Oracle', range: 'Lv 10 — 24', xp: '1.1k — 6.0k', lede: 'The board starts to listen.', perks: 'Pool heatmap · private leagues', badge: 'Gold sextant' },
+              { key: 'legend', tier: 'Legend', range: 'Lv 25 — 30', xp: '6.5k — 9.3k', lede: 'Engraved into the Pantheon.', perks: 'Name in Almanac · custom seal', badge: 'Laurel wreath' },
+            ].map((t, i) => (
+              <article key={t.key} className={`climb-tier reveal-float stagger-${i+1}`} data-tier={t.key}>
+                <div className="climb-tier-band"><span>{t.range}</span></div>
+                <h3 className="climb-tier-name">{t.tier}</h3>
+                <p className="climb-tier-lede">{t.lede}</p>
+                <ul className="climb-tier-list">
+                  <li><span>XP range</span><em>{t.xp}</em></li>
+                  <li><span>Perks</span><em>{t.perks}</em></li>
+                  <li><span>Badge</span><em>{t.badge}</em></li>
+                </ul>
+              </article>
+            ))}
+          </div>
+        </div></section>
+
         {/* ─── 3. LEADERBOARD + STREAKS ─── */}
         <section className="lb-streaks-section"><div className="container">
           <div className="lb-streaks-grid">
@@ -1014,6 +1087,39 @@ const GoalOracle = () => {
               </div>
               <div className="comm-total">12,843 predictions</div>
             </div>
+          </div>
+        </div></section>
+
+        {/* ─── 4b. THE PEDIGREE — CHAMPIONS STRIP ─── */}
+        <section className="pedigree-section"><div className="container">
+          <div className="editorial-head reveal">
+            <div className="editorial-eyebrow">The Pedigree</div>
+            <h2 className="editorial-title">Twenty-two finals.<br/><span className="editorial-em">Eight victors.</span></h2>
+            <div className="editorial-num">1930 &mdash; 2022</div>
+          </div>
+          <div className="pedigree-strip-ro">
+            <div className="pedigree-track-ro">
+              {FINALS.map((f, idx) => (
+                <div
+                  key={f.yr}
+                  className={`pedigree-f ${idx === FINALS.length - 1 ? 'pedigree-f-future' : ''} ${idx === FINALS.length - 2 ? 'pedigree-f-current' : ''}`}
+                  data-champ={f.win}
+                >
+                  <span className="pedigree-yr">{f.yr}</span>
+                  <span className="pedigree-ch">{f.win}</span>
+                  <span className="pedigree-sc">{f.score}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="pedigree-tally-ro">
+            {CHAMPIONS.map(c => (
+              <span key={c.name} className="pedigree-tally-item">
+                <span className="pedigree-tally-flag">{c.flagAlt || c.flag}</span>
+                <strong>{c.count}×</strong>
+                <span className="pedigree-tally-name">{c.name}</span>
+              </span>
+            ))}
           </div>
         </div></section>
 

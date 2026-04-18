@@ -587,6 +587,256 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .comm-fill-away { background: var(--danger); }
 .comm-total { text-align: right; font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); margin-top: 0.75rem; }
 
+/* ─── EDITORIAL ENGAGEMENT SECTIONS (Ledger / Climb / Pedigree) ─── */
+.ledger-section, .climb-section, .pedigree-section {
+  padding: 4rem 2rem; position: relative; z-index: 2;
+}
+.editorial-head {
+  max-width: 720px; margin: 0 auto 2.25rem; text-align: center;
+  display: flex; flex-direction: column; gap: 0.5rem; align-items: center;
+}
+.editorial-eyebrow {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--amber);
+  text-transform: uppercase; letter-spacing: 0.22em; font-weight: 500;
+}
+.editorial-title {
+  font-size: clamp(1.75rem, 3.5vw, 2.4rem); font-weight: 700;
+  line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+}
+.editorial-em {
+  background: var(--grad); -webkit-background-clip: text; background-clip: text;
+  color: transparent; font-style: italic; font-weight: 600;
+}
+.editorial-num {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.18em; margin-top: 0.25rem;
+}
+
+/* ── The Ledger ── */
+.ledger-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.ledger-card {
+  position: relative; padding: 1.5rem 1.25rem 1.25rem;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  display: flex; flex-direction: column; min-height: 240px; overflow: hidden;
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+.ledger-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--border-br); transition: background 0.3s;
+}
+.ledger-card:hover { transform: translateY(-3px); border-color: var(--border-br); }
+.ledger-accent::before { background: linear-gradient(90deg, var(--cyan), var(--magenta)); }
+.ledger-total {
+  background: linear-gradient(135deg, rgba(255,184,0,0.06), rgba(255,45,135,0.04));
+  border-color: rgba(255,184,0,0.25);
+}
+.ledger-total::before { background: linear-gradient(90deg, var(--magenta), var(--amber)); }
+.ledger-card header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);
+}
+.ledger-idx {
+  font-family: var(--mono); font-size: 1.2rem; color: var(--text-dim);
+  font-weight: 300; letter-spacing: 0.08em;
+}
+.ledger-stage {
+  font-family: var(--mono); font-weight: 600; font-size: 0.65rem;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-sec);
+}
+.ledger-points { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.75rem; }
+.ledger-num {
+  font-size: 3.75rem; line-height: 0.9; color: var(--text); font-weight: 300;
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "lnum" 1;
+}
+.ledger-total .ledger-num {
+  background: linear-gradient(135deg, var(--magenta), var(--amber));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.ledger-unit {
+  font-family: var(--mono); font-weight: 500; font-size: 0.7rem;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim);
+}
+.ledger-desc {
+  font-size: 0.8rem; line-height: 1.55; color: var(--text-sec); margin: 0 0 1rem;
+}
+.ledger-desc strong { color: var(--text); font-weight: 600; }
+.ledger-math {
+  margin-top: auto; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
+  padding-top: 0.75rem; border-top: 1px dashed var(--border);
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.06em;
+  color: var(--text-dim); font-variant-numeric: tabular-nums;
+}
+.ledger-math i { font-style: normal; opacity: 0.5; font-size: 0.85rem; }
+.ledger-math-all { font-size: 0.8rem; }
+.ledger-sum {
+  color: var(--text); font-weight: 700; padding: 0.1rem 0.5rem;
+  background: rgba(255,184,0,0.12); border-radius: 3px;
+}
+
+/* ── The Climb ── */
+.climb-ladder { max-width: 960px; margin: 0 auto 2.5rem; position: relative; }
+.climb-track {
+  position: relative; height: 4px; background: var(--border); border-radius: 2px;
+  margin: 3rem 0 3.5rem;
+}
+.climb-fill {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  border-radius: 2px; transition: width 0.8s cubic-bezier(.2,.7,.2,1);
+}
+.climb-tick {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 8px; height: 8px; border-radius: 50%; background: var(--text-sec);
+}
+.climb-tick::after {
+  content: attr(data-label); position: absolute; top: 14px; left: 50%;
+  transform: translateX(-50%); white-space: nowrap;
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.climb-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.climb-tier {
+  position: relative; padding: 1.25rem 1.25rem 1.1rem;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  transition: transform 0.3s, border-color 0.3s;
+}
+.climb-tier:hover { transform: translateY(-3px); border-color: var(--border-br); }
+.climb-tier[data-tier="legend"] {
+  border-color: rgba(255,184,0,0.3);
+  background: linear-gradient(180deg, rgba(255,184,0,0.05), var(--bg-card));
+}
+.climb-tier-band {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 0.6rem; margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-weight: 500; font-size: 0.62rem;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.climb-tier-name { font-size: 1.6rem; margin: 0 0 0.25rem; font-weight: 700; letter-spacing: -0.01em; }
+.climb-tier[data-tier="legend"] .climb-tier-name {
+  background: linear-gradient(135deg, var(--amber), var(--magenta));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.climb-tier-lede {
+  font-size: 0.82rem; line-height: 1.4; color: var(--text-sec); margin: 0 0 0.85rem;
+  font-style: italic;
+}
+.climb-tier-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+.climb-tier-list li {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 0.35rem 0; border-top: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.72rem;
+}
+.climb-tier-list li:first-child { border-top: none; padding-top: 0; }
+.climb-tier-list li span {
+  color: var(--text-dim); letter-spacing: 0.12em;
+  text-transform: uppercase; font-size: 0.58rem;
+}
+.climb-tier-list li em {
+  font-style: normal; color: var(--text); font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* ── The Pedigree ── */
+.pedigree-strip-ro {
+  position: relative; margin: 0 -1rem; padding: 0.5rem 1rem 1rem;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: thin; scrollbar-color: var(--border-br) transparent;
+}
+.pedigree-strip-ro::-webkit-scrollbar { height: 6px; }
+.pedigree-strip-ro::-webkit-scrollbar-thumb { background: var(--border-br); border-radius: 3px; }
+.pedigree-strip-ro::-webkit-scrollbar-track { background: transparent; }
+.pedigree-track-ro {
+  display: flex; gap: 0.6rem; min-width: max-content; padding: 0.3rem 0;
+}
+.pedigree-f {
+  flex: 0 0 auto; width: 110px; padding: 0.9rem 0.85rem 0.75rem;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  display: flex; flex-direction: column; gap: 0.3rem;
+  transition: transform 0.3s, border-color 0.3s, background 0.3s;
+  position: relative;
+}
+.pedigree-f:hover {
+  transform: translateY(-3px); border-color: var(--border-br);
+  background: var(--bg-elev);
+}
+.pedigree-yr {
+  font-family: var(--mono); font-size: 1.1rem; color: var(--text); font-weight: 500;
+  letter-spacing: 0.04em; font-variant-numeric: tabular-nums;
+}
+.pedigree-ch {
+  font-size: 0.82rem; color: var(--text); font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.pedigree-sc {
+  font-family: var(--mono); font-size: 0.62rem; font-weight: 500;
+  letter-spacing: 0.08em; color: var(--text-dim); font-variant-numeric: tabular-nums;
+  padding-top: 0.3rem; border-top: 1px dashed var(--border); margin-top: auto;
+}
+.pedigree-f::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--champ-color, var(--border-br));
+  border-top-left-radius: var(--radius); border-bottom-left-radius: var(--radius);
+}
+.pedigree-f[data-champ="BRA"] { --champ-color: #FED100; }
+.pedigree-f[data-champ="ARG"] { --champ-color: #75AADB; }
+.pedigree-f[data-champ="ITA"] { --champ-color: #0065A3; }
+.pedigree-f[data-champ="GER"] { --champ-color: #4A4A4A; }
+.pedigree-f[data-champ="FRA"] { --champ-color: #0055A4; }
+.pedigree-f[data-champ="ENG"] { --champ-color: #CC2B2B; }
+.pedigree-f[data-champ="ESP"] { --champ-color: #C8102E; }
+.pedigree-f[data-champ="URU"] { --champ-color: #5CB8E6; }
+.pedigree-f-current {
+  border-color: rgba(255,184,0,0.4);
+  background: linear-gradient(180deg, rgba(255,184,0,0.08), var(--bg-card));
+}
+.pedigree-f-future {
+  border-style: dashed; border-color: var(--magenta); background: transparent;
+}
+.pedigree-f-future::before {
+  background: linear-gradient(180deg, var(--cyan), var(--magenta), var(--amber));
+}
+.pedigree-f-future .pedigree-yr {
+  background: linear-gradient(135deg, var(--cyan), var(--magenta), var(--amber));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.pedigree-f-future .pedigree-ch { color: var(--text-dim); }
+.pedigree-f-future .pedigree-sc { color: var(--magenta); font-weight: 600; }
+
+.pedigree-tally-ro {
+  margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem;
+  padding-top: 1rem; border-top: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.75rem; color: var(--text-sec);
+}
+.pedigree-tally-item {
+  display: inline-flex; align-items: baseline; gap: 0.35rem;
+  letter-spacing: 0.04em;
+}
+.pedigree-tally-flag { font-size: 1rem; line-height: 1; }
+.pedigree-tally-item strong {
+  color: var(--amber); font-weight: 700; font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.pedigree-tally-name { color: var(--text); font-weight: 500; }
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .ledger-grid { grid-template-columns: repeat(2, 1fr); }
+  .climb-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .ledger-section, .climb-section, .pedigree-section { padding: 2.5rem 1rem; }
+  .ledger-grid, .climb-grid { grid-template-columns: 1fr; }
+  .ledger-num { font-size: 3rem; }
+  .climb-tier-name { font-size: 1.35rem; }
+  .pedigree-f { width: 100px; }
+  .editorial-title { font-size: 1.5rem; }
+}
+
 /* ─── REWARDS ─── */
 .rewards-section { padding: 4rem 2rem; position: relative; z-index: 2; }
 .rewards-title { text-align: center; font-size: 1.8rem; font-weight: 700; margin-bottom: 2rem; }
