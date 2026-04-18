@@ -33,7 +33,15 @@ export default function useSimplePrediction(userId) {
     });
     return () => {
       unsub && unsub();
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      const pending = pendingRef.current;
+      pendingRef.current = {};
+      if (userId && Object.keys(pending).length > 0) {
+        saveSimplePrediction(userId, pending).catch(() => {});
+      }
     };
   }, [userId]);
 

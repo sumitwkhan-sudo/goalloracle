@@ -16,6 +16,111 @@ import SimplePrediction from './pages/SimplePrediction';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import './styles.css';
 
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername }) {
+  const [sTab, setSTab] = useState('leaderboard');
+  const [simLb, setSimLb] = useState([]);
+  const [simLbl, setSimLbl] = useState(false);
+
+  useEffect(() => {
+    if (sTab !== 'leaderboard' || !league?.id) return;
+    let cancelled = false;
+    (async () => {
+      setSimLbl(true);
+      try {
+        const data = await getSimpleLeaderboard(league.id);
+        if (!cancelled) setSimLb(data.leaderboard || []);
+      } catch (e) { console.error(e); }
+      finally { if (!cancelled) setSimLbl(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [sTab, league?.id]);
+
+  const needsUsername = userData && !userData.usernameSet;
+
+  return (
+    <div className="league-detail">
+      <div className="page-header-compact">
+        <div className="phc-left">
+          <button className="btn-back-sm" onClick={onBack}>&larr;</button>
+          <h1 className="phc-title">{league?.name}</h1>
+          <div className="phc-meta">
+            <span><Users size={14} /> {(league?.memberCount || league?.members?.length || 0).toLocaleString()} members</span>
+            <span className="lv2-mode-pill simple">SIMPLE</span>
+          </div>
+        </div>
+      </div>
+
+      {needsUsername && (
+        <div className="username-nudge" onClick={onSetUsername}>
+          <AlertTriangle size={14} />
+          <span>You haven&apos;t set a username yet.</span>
+          <button className="btn btn-primary btn-xs">Set Username</button>
+        </div>
+      )}
+
+      <div className="tabs">
+        <button className={`tab ${sTab === 'leaderboard' ? 'active' : ''}`} onClick={() => setSTab('leaderboard')}><TrendingUp size={16} /> Leaderboard</button>
+        <button className={`tab ${sTab === 'predictions' ? 'active' : ''}`} onClick={() => setSTab('predictions')}><Target size={16} /> Predictions</button>
+      </div>
+
+      {sTab === 'leaderboard' && (
+        <div className="leaderboard">
+          <div className="leaderboard-header"><h3>Rankings</h3></div>
+          {simLbl ? (
+            <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
+          ) : simLb.length === 0 ? (
+            <div className="empty-state"><p>No members yet.</p></div>
+          ) : (
+            <div className="leaderboard-list">
+              {simLb.map((e, i) => (
+                <div key={e.userId} className={`leaderboard-item ${e.userId === userData?.id ? 'is-you' : ''}`}>
+                  <div className="rank">
+                    {i === 0 && <Trophy size={20} className="gold" />}
+                    {i === 1 && <Trophy size={20} className="silver" />}
+                    {i === 2 && <Trophy size={20} className="bronze" />}
+                    {i > 2 && <span>#{i + 1}</span>}
+                  </div>
+                  <div className="player-info">
+                    <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
+                    <div>
+                      <div className="player-name">
+                        {e.displayName}
+                        {e.userId === userData?.id && <span className="you-badge">You</span>}
+                      </div>
+                      <div className="player-sub">
+                        {e.isComplete ? (
+                          <><CheckCircle size={11} style={{color:'var(--success)', verticalAlign:'middle'}} /> Complete</>
+                        ) : e.hasSubmitted ? (
+                          <><RefreshCw size={11} style={{color:'var(--amber)', verticalAlign:'middle'}} /> In progress</>
+                        ) : (
+                          <><Clock size={11} style={{color:'var(--text-sec)', verticalAlign:'middle'}} /> Not started</>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="player-points">
+                    <span className="points">{e.isComplete ? 'Ready' : e.hasSubmitted ? 'Partial' : '—'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {sTab === 'predictions' && (
+        <SimplePrediction
+          key={`simple-${league?.id}`}
+          userId={userData?.id}
+          league={league}
+          onExit={onBack}
+          embedded
+        />
+      )}
+    </div>
+  );
+});
+
 // Scroll reveal hook with stadium + code wall parallax + section depth
 const useScrollReveal = () => {
   useEffect(() => {
@@ -1770,113 +1875,6 @@ const GoalOracle = () => {
   };
 
   // ================================
-  // SIMPLE MODE DETAIL (leaderboard + predictions wrapper)
-  // ================================
-  const SimpleDetail = () => {
-    const [sTab, setSTab] = useState('leaderboard');
-    const [simLb, setSimLb] = useState([]);
-    const [simLbl, setSimLbl] = useState(false);
-
-    useEffect(() => {
-      if (sTab !== 'leaderboard' || !selLeague?.id) return;
-      let cancelled = false;
-      (async () => {
-        setSimLbl(true);
-        try {
-          const data = await getSimpleLeaderboard(selLeague.id);
-          if (!cancelled) setSimLb(data.leaderboard || []);
-        } catch (e) { console.error(e); }
-        finally { if (!cancelled) setSimLbl(false); }
-      })();
-      return () => { cancelled = true; };
-    }, [sTab, selLeague?.id]);
-
-    const needsUsername = uData && !uData.usernameSet;
-
-    return (
-      <div className="league-detail">
-        <div className="page-header-compact">
-          <div className="phc-left">
-            <button className="btn-back-sm" onClick={() => nav('leagues')}>←</button>
-            <h1 className="phc-title">{selLeague?.name}</h1>
-            <div className="phc-meta">
-              <span><Users size={14} /> {(selLeague?.memberCount || selLeague?.members?.length || 0).toLocaleString()} members</span>
-              <span className="lv2-mode-pill simple">SIMPLE</span>
-            </div>
-          </div>
-        </div>
-
-        {needsUsername && (
-          <div className="username-nudge" onClick={() => setShowUsernamePrompt(true)}>
-            <AlertTriangle size={14} />
-            <span>You haven't set a username yet.</span>
-            <button className="btn btn-primary btn-xs">Set Username</button>
-          </div>
-        )}
-
-        <div className="tabs">
-          <button className={`tab ${sTab === 'leaderboard' ? 'active' : ''}`} onClick={() => setSTab('leaderboard')}><TrendingUp size={16} /> Leaderboard</button>
-          <button className={`tab ${sTab === 'predictions' ? 'active' : ''}`} onClick={() => setSTab('predictions')}><Target size={16} /> Predictions</button>
-        </div>
-
-        {sTab === 'leaderboard' && (
-          <div className="leaderboard">
-            <div className="leaderboard-header"><h3>Rankings</h3></div>
-            {simLbl ? (
-              <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
-            ) : simLb.length === 0 ? (
-              <div className="empty-state"><p>No members yet.</p></div>
-            ) : (
-              <div className="leaderboard-list">
-                {simLb.map((e, i) => (
-                  <div key={e.userId} className={`leaderboard-item ${e.userId === uData?.id ? 'is-you' : ''}`}>
-                    <div className="rank">
-                      {i === 0 && <Trophy size={20} className="gold" />}
-                      {i === 1 && <Trophy size={20} className="silver" />}
-                      {i === 2 && <Trophy size={20} className="bronze" />}
-                      {i > 2 && <span>#{i + 1}</span>}
-                    </div>
-                    <div className="player-info">
-                      <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
-                      <div>
-                        <div className="player-name">
-                          {e.displayName}
-                          {e.userId === uData?.id && <span className="you-badge">You</span>}
-                        </div>
-                        <div className="player-sub">
-                          {e.isComplete ? (
-                            <><CheckCircle size={11} style={{color:'var(--success)', verticalAlign:'middle'}} /> Complete</>
-                          ) : e.hasSubmitted ? (
-                            <><RefreshCw size={11} style={{color:'var(--amber)', verticalAlign:'middle'}} /> In progress</>
-                          ) : (
-                            <><Clock size={11} style={{color:'var(--text-sec)', verticalAlign:'middle'}} /> Not started</>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="player-points">
-                      <span className="points">{e.isComplete ? 'Ready' : e.hasSubmitted ? 'Partial' : '—'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {sTab === 'predictions' && (
-          <SimplePrediction
-            key={`simple-${selLeague?.id}`}
-            userId={uData?.id}
-            league={selLeague}
-            onExit={() => nav('leagues')}
-            embedded
-          />
-        )}
-      </div>
-    );
-  };
-
   // ================================
   // ACCOUNT DROPDOWN + ADD FUNDS MODAL
   // ================================
@@ -3029,7 +3027,13 @@ const GoalOracle = () => {
         />
       )}
       {view === 'detail' && selLeague?.predictionMode === 'simple' && (
-        <SimpleDetail key={`simple-detail-${selLeague.id}`} />
+        <SimpleDetail
+          key={`simple-detail-${selLeague.id}`}
+          league={selLeague}
+          userData={uData}
+          onBack={() => nav('leagues')}
+          onSetUsername={() => setShowUsernamePrompt(true)}
+        />
       )}
       {view === 'detail' && selLeague?.predictionMode !== 'simple' && <Detail key={selLeague?.id || 'detail'} />}
       {view === 'simplePredict' && (
