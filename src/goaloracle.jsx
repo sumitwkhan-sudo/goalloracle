@@ -16,10 +16,21 @@ import SimplePrediction from './pages/SimplePrediction';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import './styles.css';
 
+const _teamFlags = (() => {
+  const flags = {};
+  for (const m of WORLD_CUP_MATCHES) {
+    if (m.isKnockout) continue;
+    flags[m.home] = m.homeFlag;
+    flags[m.away] = m.awayFlag;
+  }
+  return flags;
+})();
+
 const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername }) {
   const [sTab, setSTab] = useState('leaderboard');
   const [simLb, setSimLb] = useState([]);
   const [simLbl, setSimLbl] = useState(false);
+  const [lbKey, setLbKey] = useState(0);
 
   useEffect(() => {
     if (sTab !== 'leaderboard' || !league?.id) return;
@@ -33,9 +44,14 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       finally { if (!cancelled) setSimLbl(false); }
     })();
     return () => { cancelled = true; };
-  }, [sTab, league?.id]);
+  }, [sTab, league?.id, lbKey]);
 
   const needsUsername = userData && !userData.usernameSet;
+
+  const handleComplete = useCallback(() => {
+    setSTab('leaderboard');
+    setLbKey(k => k + 1);
+  }, []);
 
   return (
     <div className="league-detail">
@@ -96,10 +112,24 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                           <><Clock size={11} style={{color:'var(--text-sec)', verticalAlign:'middle'}} /> Not started</>
                         )}
                       </div>
+                      {(e.winner || e.runnerUp) && (
+                        <div className="player-picks">
+                          {e.winner && (
+                            <span className="player-pick winner-pick">
+                              <Trophy size={10} /> {_teamFlags[e.winner] || ''} {e.winner}
+                            </span>
+                          )}
+                          {e.runnerUp && (
+                            <span className="player-pick runnerup-pick">
+                              <Award size={10} /> {_teamFlags[e.runnerUp] || ''} {e.runnerUp}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="player-points">
-                    <span className="points">{e.isComplete ? 'Ready' : e.hasSubmitted ? 'Partial' : '—'}</span>
+                    <span className="points">{e.totalAccuracy > 0 ? `${e.totalAccuracy}%` : '—'}</span>
                   </div>
                 </div>
               ))}
@@ -114,6 +144,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           userId={userData?.id}
           league={league}
           onExit={onBack}
+          onComplete={handleComplete}
           embedded
         />
       )}

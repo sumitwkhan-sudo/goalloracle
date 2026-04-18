@@ -46,6 +46,11 @@ export default async function handler(req, res) {
       const user = users[userId] || { displayName: userId.slice(0, 8), usernameSet: false };
       const pred = preds[userId];
       const ts = pred?.submittedAt || pred?.updatedAt;
+
+      const finalPick = pred?.knockoutPredictions?.final?.[0];
+      const winner = finalPick?.winnerId || null;
+      const runnerUp = finalPick?.loserId || null;
+
       return {
         userId,
         displayName: user.displayName,
@@ -54,6 +59,8 @@ export default async function handler(req, res) {
         isComplete: pred?.isComplete || false,
         submittedAt: ts?._seconds ? ts._seconds * 1000 : ts?.toMillis ? ts.toMillis() : ts || null,
         totalAccuracy: 0,
+        winner,
+        runnerUp,
       };
     });
 

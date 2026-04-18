@@ -997,6 +997,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .player-name { font-weight: 600; font-size: 0.85rem; }
 .you-badge { font-family: var(--mono); font-size: 0.55rem; color: var(--cyan); background: var(--primary-soft); padding: 0.1rem 0.35rem; border-radius: 3px; margin-left: 0.3rem; }
 .player-sub { font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); }
+.player-picks {
+  display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.2rem;
+}
+.player-pick {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  font-family: var(--mono); font-size: 0.58rem;
+  padding: 0.1rem 0.4rem; border-radius: 3px;
+}
+.player-pick.winner-pick { background: rgba(245,158,11,0.12); color: var(--amber); }
+.player-pick.runnerup-pick { background: rgba(192,192,192,0.1); color: #C0C0C0; }
 .player-points { font-family: var(--mono); }
 .points { font-weight: 700; color: var(--cyan); font-size: 0.9rem; }
 
@@ -2514,7 +2524,21 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   display: flex; flex-direction: column; gap: 0;
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
+.bracket-match.needs-pick {
+  border-color: rgba(245,158,11,0.45);
+  box-shadow: 0 0 0 1px rgba(245,158,11,0.12), 0 0 8px rgba(245,158,11,0.08);
+}
+.bracket-match-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.2rem 0.6rem;
+  font-family: var(--mono); font-size: 0.55rem; letter-spacing: 0.05em;
+  color: var(--text-dim); background: rgba(255,255,255,0.02);
+}
+.bracket-match-city { text-transform: uppercase; letter-spacing: 0.08em; }
+.bracket-match-date { opacity: 0.7; }
+.bracket-match.size-compact .bracket-match-meta { padding: 0.15rem 0.45rem; font-size: 0.5rem; }
 .bracket-match-label {
   font-family: var(--mono); font-size: 0.6rem; text-transform: uppercase;
   letter-spacing: 0.1em; color: var(--text-dim);

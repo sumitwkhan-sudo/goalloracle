@@ -42,7 +42,7 @@ const CONNECTIONS = [
   { from: 'sf-01', to: '3rd' },   { from: 'sf-02', to: '3rd' },
 ];
 
-function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matchRefs, compact = true }) {
+function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matchRefs, matchLookup, compact = true }) {
   return (
     <div className="bracket-desktop-col">
       {title && <div className="bracket-desktop-col-title">{title}</div>}
@@ -50,6 +50,8 @@ function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matc
         {matchIds.map((id) => {
           const slot = findSlot(bracket, id);
           if (!slot) return null;
+          const meta = matchLookup?.[id];
+          const needsPick = !!(slot.home && slot.away && !slot.pick?.winnerId);
           return (
             <div
               key={id}
@@ -66,6 +68,9 @@ function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matc
                 onPick={(team) => pickWinner(id, team)}
                 isLocked={isMatchLocked ? isMatchLocked(id) : false}
                 size={compact ? 'compact' : 'full'}
+                city={meta?.city}
+                date={meta?.date}
+                needsPick={needsPick}
               />
             </div>
           );
@@ -83,7 +88,7 @@ function findSlot(bracket, matchId) {
   return null;
 }
 
-export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
+export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, matchLookup }) {
   const containerRef = useRef(null);
   const matchRefs = useRef({});
   const [paths, setPaths] = useState([]);
@@ -138,6 +143,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
           pickWinner={pickWinner}
           isMatchLocked={isMatchLocked}
           matchRefs={matchRefs}
+          matchLookup={matchLookup}
         />
         <MatchColumn
           title="Round of 16"
@@ -146,6 +152,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
           pickWinner={pickWinner}
           isMatchLocked={isMatchLocked}
           matchRefs={matchRefs}
+          matchLookup={matchLookup}
         />
         <MatchColumn
           title="Quarterfinals"
@@ -154,6 +161,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
           pickWinner={pickWinner}
           isMatchLocked={isMatchLocked}
           matchRefs={matchRefs}
+          matchLookup={matchLookup}
         />
 
         <div className="bracket-desktop-center">
@@ -166,6 +174,9 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
                 onPick={(team) => pickWinner('sf-01', team)}
                 isLocked={isMatchLocked ? isMatchLocked('sf-01') : false}
                 size="compact"
+                city={matchLookup?.['sf-01']?.city}
+                date={matchLookup?.['sf-01']?.date}
+                needsPick={!!(slotProps(bracket, 'sf-01').homeTeam && slotProps(bracket, 'sf-01').awayTeam && !slotProps(bracket, 'sf-01').winnerId)}
               />
             </div>
             <div className="bracket-desktop-final-slot" ref={(el) => { if (el) matchRefs.current['final'] = el; }}>
@@ -176,6 +187,9 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
                 onPick={(team) => pickWinner('final', team)}
                 isLocked={isMatchLocked ? isMatchLocked('final') : false}
                 size="compact"
+                city={matchLookup?.['final']?.city}
+                date={matchLookup?.['final']?.date}
+                needsPick={!!(slotProps(bracket, 'final').homeTeam && slotProps(bracket, 'final').awayTeam && !slotProps(bracket, 'final').winnerId)}
               />
             </div>
             <div className="bracket-desktop-slot" ref={(el) => { if (el) matchRefs.current['sf-02'] = el; }}>
@@ -185,6 +199,9 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
                 onPick={(team) => pickWinner('sf-02', team)}
                 isLocked={isMatchLocked ? isMatchLocked('sf-02') : false}
                 size="compact"
+                city={matchLookup?.['sf-02']?.city}
+                date={matchLookup?.['sf-02']?.date}
+                needsPick={!!(slotProps(bracket, 'sf-02').homeTeam && slotProps(bracket, 'sf-02').awayTeam && !slotProps(bracket, 'sf-02').winnerId)}
               />
             </div>
             <div className="bracket-desktop-third-slot" ref={(el) => { if (el) matchRefs.current['3rd'] = el; }}>
@@ -195,6 +212,9 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
                 onPick={(team) => pickWinner('3rd', team)}
                 isLocked={isMatchLocked ? isMatchLocked('3rd') : false}
                 size="compact"
+                city={matchLookup?.['3rd']?.city}
+                date={matchLookup?.['3rd']?.date}
+                needsPick={!!(slotProps(bracket, '3rd').homeTeam && slotProps(bracket, '3rd').awayTeam && !slotProps(bracket, '3rd').winnerId)}
               />
             </div>
           </div>
@@ -207,6 +227,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
           pickWinner={pickWinner}
           isMatchLocked={isMatchLocked}
           matchRefs={matchRefs}
+          matchLookup={matchLookup}
         />
         <MatchColumn
           title="Round of 16"
@@ -215,6 +236,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
           pickWinner={pickWinner}
           isMatchLocked={isMatchLocked}
           matchRefs={matchRefs}
+          matchLookup={matchLookup}
         />
         <MatchColumn
           title="Round of 32"
@@ -223,6 +245,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked }) {
           pickWinner={pickWinner}
           isMatchLocked={isMatchLocked}
           matchRefs={matchRefs}
+          matchLookup={matchLookup}
         />
       </div>
     </div>

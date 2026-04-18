@@ -23,14 +23,14 @@ import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
 import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
-import { GROUPS, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
+import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isPredictionLocked } from '../utils/points';
 
 const SAVED_INDICATOR_MS = 2000;
 
-export default function SimplePrediction({ userId, league, onExit, embedded = false }) {
-  const { data, loading, saving, savedAt, error, save } = useSimplePrediction(userId);
+export default function SimplePrediction({ userId, league, onExit, onComplete, embedded = false }) {
+  const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId);
 
   if (loading) {
     return (
@@ -43,25 +43,23 @@ export default function SimplePrediction({ userId, league, onExit, embedded = fa
     );
   }
 
-  // Wizard only mounts after the first snapshot arrives. Child hooks
-  // initialize from `data` once, then own their local state — the snapshot
-  // data `data` is never passed in again, so Firestore round-trips can't
-  // clobber in-flight user picks during the 1s save debounce window.
   return (
     <SimplePredictionWizard
       initialData={data}
       league={league}
       onExit={onExit}
+      onComplete={onComplete}
       embedded={embedded}
       saving={saving}
       savedAt={savedAt}
       error={error}
       save={save}
+      saveNow={saveNow}
     />
   );
 }
 
-function SimplePredictionWizard({ initialData, league, onExit, embedded, saving, savedAt, error, save }) {
+function SimplePredictionWizard({ initialData, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow }) {
   const [step, setStep] = useState(1);
   const [showSaved, setShowSaved] = useState(false);
 
@@ -244,6 +242,7 @@ function SimplePredictionWizard({ initialData, league, onExit, embedded, saving,
               bracket={bracketState.bracket}
               pickWinner={bracketState.pickWinner}
               isMatchLocked={isMatchLocked}
+              matchLookup={matchLookup}
             />
           ) : (
             <BracketMobile
@@ -252,6 +251,7 @@ function SimplePredictionWizard({ initialData, league, onExit, embedded, saving,
               isRoundComplete={bracketState.isRoundComplete}
               isRoundUnlocked={bracketState.isRoundUnlocked}
               isMatchLocked={isMatchLocked}
+              matchLookup={matchLookup}
             />
           )}
 
@@ -259,14 +259,30 @@ function SimplePredictionWizard({ initialData, league, onExit, embedded, saving,
             <button type="button" className="btn btn-secondary" onClick={() => goToStep(2)}>
               <ArrowLeft size={16} /> Back to best third
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => {
-              if (window.confirm('Reset all knockout predictions?')) {
-                bracketState.resetAll();
-                save({ knockoutPredictions: emptyKnockoutPredictions() });
-              }
-            }}>
-              Reset bracket
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => {
+                if (window.confirm('Reset all knockout predictions?')) {
+                  bracketState.resetAll();
+                  save({ knockoutPredictions: emptyKnockoutPredictions() });
+                }
+              }}>
+                Reset bracket
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
+                  if (allComplete) {
+                    await saveNow({ isComplete: true });
+                  }
+                  if (onComplete) onComplete();
+                  else if (onExit) onExit();
+                }}
+              >
+                Continue <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </section>
       )}
