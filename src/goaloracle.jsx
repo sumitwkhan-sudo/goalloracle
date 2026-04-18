@@ -8,7 +8,7 @@ import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus,
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -282,12 +282,13 @@ const GoalOracle = () => {
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const nav = useCallback((v, l) => {
     if (l) { setSelLeague(l); setDetailTab('predictions'); setDetailWeek('week1'); setDetailStage('all'); }
+    if (v === 'browse') loadAllLeagues();
     setView(prev => prev === v && !l ? prev : v);
     setMenuOpen(false);
     window.scrollTo(0, 0);
-  }, []);
+  }, [loadAllLeagues]);
 
-  useEffect(() => subscribeToPlatformStats(setStats), []);
+  useEffect(() => { fetchPlatformStats().then(setStats).catch(() => {}); }, []);
   useEffect(() => subscribeToMatchResults(setResults), []);
   const authInitRef = useRef(false);
 
@@ -347,7 +348,8 @@ const GoalOracle = () => {
     return () => { stopped = true; clearTimeout(first); clearInterval(interval); };
   }, [ready, authenticated, getTokenSafe]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
-  useEffect(() => subscribeToAllLeagues(setAllLeagues), []);
+  const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
+  useEffect(loadAllLeagues, [loadAllLeagues]);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
   useEffect(() => {
     if (!selLeague?.id) return;
@@ -1894,13 +1896,14 @@ const GoalOracle = () => {
     try {
       const lid = await createLeague(leagueData, uData.id);
       console.log('[create] success, leagueId=', lid);
+      loadAllLeagues();
       notify('League created!');
       nav('dashboard');
     } catch (e) {
       console.error('[create] failed:', e);
       notify(e.message || 'Failed to create league', 'error');
     }
-  }, [uData?.id, nav, notify]);
+  }, [uData?.id, nav, notify, loadAllLeagues]);
   createLeagueRef.current = handleCreateLeague;
 
   const [fundModal, setFundModal] = useState(false);

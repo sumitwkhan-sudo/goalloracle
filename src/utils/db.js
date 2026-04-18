@@ -1,5 +1,5 @@
 import { db, auth } from '../config/firebase';
-import { collection, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs, getCountFromServer, documentId } from 'firebase/firestore';
 import { signInWithCustomToken } from 'firebase/auth';
 import WORLD_CUP_MATCHES from '../data/matches';
 
@@ -187,11 +187,9 @@ export function subscribeToUserLeagues(userId, callback) {
   }, (err) => { console.error('[db] userLeagues error:', err.message, err.code); callback([]); });
 }
 
-export function subscribeToAllLeagues(callback) {
-  return onSnapshot(collection(db, 'leagues'), (snap) => {
-    console.log('[db] allLeagues snapshot:', snap.docs.length, 'docs');
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  }, (err) => { console.error('[db] allLeagues error:', err.message, err.code); callback([]); });
+export async function fetchAllLeagues() {
+  const snap = await getDocs(collection(db, 'leagues'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 // ---- PREDICTIONS (direct Firestore writes with client-side lock check) ----
@@ -315,19 +313,16 @@ export async function updateMatchResult(matchId, result, adminId) {
 }
 
 // ---- PLATFORM STATS ----
-export function subscribeToPlatformStats(callback) {
-  const u1 = onSnapshot(collection(db, 'users'), (snap) => {
-    callback(prev => ({ ...prev, totalPlayers: snap.size }));
-  }, () => {});
-  const u2 = onSnapshot(collection(db, 'leagues'), (snap) => {
-    const leagues = snap.docs.map(d => d.data());
-    callback(prev => ({
-      ...prev,
-      activeLeagues: leagues.length,
-      totalPrizePools: leagues.reduce((s, l) => s + (l.entryFee || 0) * (l.memberCount || 0), 0),
-    }));
-  }, () => {});
-  return () => { u1(); u2(); };
+export async function fetchPlatformStats() {
+  const [usersCount, leaguesCount] = await Promise.all([
+    getCountFromServer(collection(db, 'users')),
+    getCountFromServer(collection(db, 'leagues')),
+  ]);
+  return {
+    totalPlayers: usersCount.data().count,
+    activeLeagues: leaguesCount.data().count,
+    totalPrizePools: 0,
+  };
 }
 
 // ---- ADMIN (via API, server-side only) ----

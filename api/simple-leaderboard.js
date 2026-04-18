@@ -1,4 +1,4 @@
-import { db, corsHeaders } from './_lib/firebase.js';
+import { db, admin, corsHeaders } from './_lib/firebase.js';
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
@@ -32,10 +32,15 @@ export default async function handler(req, res) {
       });
     }
 
-    // Fetch all simple predictions
-    const predsSnap = await db.collection('simplePredictions').get();
+    // Fetch simple predictions only for league members (batched, max 30 per query)
     const preds = {};
-    predsSnap.docs.forEach(d => { preds[d.id] = d.data(); });
+    for (let i = 0; i < members.length; i += 30) {
+      const batch = members.slice(i, i + 30);
+      const predsSnap = await db.collection('simplePredictions')
+        .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+        .get();
+      predsSnap.docs.forEach(d => { preds[d.id] = d.data(); });
+    }
 
     const leaderboard = members.map(userId => {
       const user = users[userId] || { displayName: userId.slice(0, 8), usernameSet: false };
