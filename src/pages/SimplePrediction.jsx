@@ -16,10 +16,16 @@ import { ArrowLeft, ArrowRight, Check, AlertTriangle } from 'lucide-react';
 import StepProgress from '../components/simple/StepProgress';
 import GroupGrid from '../components/simple/GroupGrid';
 import BestThirdSelector from '../components/simple/BestThirdSelector';
+import BracketMobile from '../components/simple/BracketMobile';
+import BracketDesktop from '../components/simple/BracketDesktop';
 import useSimplePrediction from '../hooks/useSimplePrediction';
 import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
+import useBracketState from '../hooks/useBracketState';
+import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
+import WORLD_CUP_MATCHES from '../data/matches';
+import { isPredictionLocked } from '../utils/points';
 
 const SAVED_INDICATOR_MS = 2000;
 
@@ -30,6 +36,27 @@ export default function SimplePrediction({ userId, league, onExit }) {
 
   const groups = useGroupPredictions(data?.groupPredictions);
   const bestThird = useBestThird(data?.bestThirdPicks);
+  const layout = useBracketLayout();
+
+  // Lookup table for kickoff-based locking on knockout matches.
+  const matchLookup = useMemo(() => {
+    const out = {};
+    for (const m of WORLD_CUP_MATCHES) out[m.id] = m;
+    return out;
+  }, []);
+
+  const isMatchLocked = useCallback((matchId) => {
+    const m = matchLookup[matchId];
+    if (!m) return false;
+    return isPredictionLocked(m.date, m.time);
+  }, [matchLookup]);
+
+  const bracketState = useBracketState({
+    groupPredictions: groups.predictions,
+    bestThirdPicks: bestThird.picks,
+    knockoutPredictions: data?.knockoutPredictions,
+    onChange: (next) => save({ knockoutPredictions: next }),
+  });
 
   // Briefly flash "Saved ✓" after each successful save
   useEffect(() => {
@@ -173,15 +200,33 @@ export default function SimplePrediction({ userId, league, onExit }) {
         <section className="simple-step-section">
           <div className="simple-step-intro">
             <h2>Step 3 — Knockout bracket</h2>
-            <p>Pick winners round by round.</p>
+            <p>Pick the winner of each match. The bracket fills forward as you go.</p>
           </div>
-          {/* Phase 3 fills in BracketMobile + BracketDesktop here. */}
-          <div className="simple-bracket-placeholder">
-            <p>Bracket view coming soon.</p>
-          </div>
+
+          {layout === 'desktop' ? (
+            <BracketDesktop
+              bracket={bracketState.bracket}
+              pickWinner={bracketState.pickWinner}
+              isMatchLocked={isMatchLocked}
+            />
+          ) : (
+            <BracketMobile
+              bracket={bracketState.bracket}
+              pickWinner={bracketState.pickWinner}
+              isRoundComplete={bracketState.isRoundComplete}
+              isRoundUnlocked={bracketState.isRoundUnlocked}
+              isMatchLocked={isMatchLocked}
+            />
+          )}
+
           <div className="simple-step-nav simple-step-nav-split">
             <button type="button" className="btn btn-secondary" onClick={() => goToStep(2)}>
               <ArrowLeft size={16} /> Back to best third
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => {
+              if (window.confirm('Reset all knockout predictions?')) bracketState.resetAll();
+            }}>
+              Reset bracket
             </button>
           </div>
         </section>
