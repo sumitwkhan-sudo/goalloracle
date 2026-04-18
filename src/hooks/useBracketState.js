@@ -52,9 +52,8 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
   }, [knockoutPredictions]);
 
   useEffect(() => {
-    if (!dirtyRef.current) { return; }
+    if (!dirtyRef.current) return;
     dirtyRef.current = false;
-    console.log('[bracket] onChange firing, rounds with picks:', Object.entries(picks).filter(([,v]) => v.length > 0).map(([k,v]) => `${k}:${v.length}`).join(', '));
     onChangeRef.current && onChangeRef.current(picks);
   }, [picks]);
 

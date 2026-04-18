@@ -271,14 +271,7 @@ export async function saveSimplePrediction(userId, partial) {
   if (partial.knockoutPredictions !== undefined) payload.knockoutPredictions = partial.knockoutPredictions;
   if (partial.isComplete !== undefined) payload.isComplete = partial.isComplete;
 
-  console.log('[saveSimple] auth:', auth.currentUser?.uid, 'docId:', userId, 'fields:', Object.keys(payload).join(','));
-  try {
-    await setDoc(ref, payload, { merge: true });
-    console.log('[saveSimple] SUCCESS');
-  } catch (e) {
-    console.error('[saveSimple] FAILED:', e.code, e.message);
-    throw e;
-  }
+  await setDoc(ref, payload, { merge: true });
 }
 
 export async function getSimpleLeaderboard(leagueId) {
