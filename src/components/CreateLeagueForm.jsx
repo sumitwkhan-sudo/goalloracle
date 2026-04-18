@@ -8,23 +8,12 @@
  * DOM and the focused input across re-renders.
  */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   AlertTriangle, CheckCircle, Key, Unlock, Lock, Eye, EyeOff,
-  RefreshCw, ChevronRight, Globe, Target, TrendingUp, Loader,
+  RefreshCw, ChevronRight, Loader,
 } from 'lucide-react';
-import WORLD_CUP_MATCHES from '../data/matches';
 import ModePicker from './simple/ModePicker';
-
-const ALL_GROUPS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
-const ALL_ROUNDS = [
-  { id: 'group', label: 'Group Stage' },
-  { id: 'r32', label: 'Round of 32' },
-  { id: 'r16', label: 'Round of 16' },
-  { id: 'qf', label: 'Quarterfinals' },
-  { id: 'sf', label: 'Semifinals' },
-  { id: 'final', label: 'Final' },
-];
 
 function generatePasscode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -63,34 +52,12 @@ export default function CreateLeagueForm({
   const fe = createFe, setFe = setCreateFe;
   const di = createDi, setDi = setCreateDi;
   const ps = createPs, setPs = setCreatePs;
-  const matchScope = createScope, setMatchScope = setCreateScope;
-  const selGroups = createGroups, setSelGroups = setCreateGroups;
-  const selRounds = createRounds, setSelRounds = setCreateRounds;
   const busy = createBusy, setBusy = setCreateBusy;
   const err = createErr, setErr = setCreateErr;
   const cu = 'USDC';
   const tot = di.first + di.second + di.third;
 
   const genCode = () => setPasscode(generatePasscode());
-  const toggleGroup = (g) => setSelGroups((p) => (p.includes(g) ? p.filter((x) => x !== g) : [...p, g]));
-  const toggleRound = (r) => setSelRounds((p) => (p.includes(r) ? p.filter((x) => x !== r) : [...p, r]));
-
-  const scopeMatchCount = useMemo(() => {
-    if (matchScope === 'all') return WORLD_CUP_MATCHES.length;
-    if (matchScope === 'groups') return WORLD_CUP_MATCHES.filter((m) => !m.isKnockout && selGroups.some((g) => m.stage === `Group ${g}`)).length;
-    if (matchScope === 'rounds') {
-      return WORLD_CUP_MATCHES.filter((m) => {
-        if (selRounds.includes('group') && !m.isKnockout) return true;
-        if (selRounds.includes('r32') && m.stage === 'Round of 32') return true;
-        if (selRounds.includes('r16') && m.stage === 'Round of 16') return true;
-        if (selRounds.includes('qf') && m.stage === 'Quarterfinal') return true;
-        if (selRounds.includes('sf') && m.stage === 'Semifinal') return true;
-        if (selRounds.includes('final') && (m.stage === 'Final' || m.stage === '3rd Place')) return true;
-        return false;
-      }).length;
-    }
-    return 0;
-  }, [matchScope, selGroups, selRounds]);
 
   const resetForm = () => {
     setCreateName(''); setCreateVis('public'); setCreatePasscode('');
@@ -107,13 +74,7 @@ export default function CreateLeagueForm({
     if (vis === 'private' && !passcode.trim()) { setErr('Passcode required for private leagues'); return; }
     if (tp === 'paid' && (!fe || parseFloat(fe) <= 0)) { setErr('Fee required'); return; }
     if (tp === 'paid' && tot !== 100) { setErr('Must total 100%'); return; }
-    if (matchScope === 'groups' && selGroups.length === 0) { setErr('Select at least one group'); return; }
-    if (matchScope === 'rounds' && selRounds.length === 0) { setErr('Select at least one round'); return; }
-    if (tp === 'paid' && matchScope === 'rounds') { setErr('Paid leagues must use All Matches or Specific Groups'); return; }
     setBusy(true); setErr('');
-    const scopeData = matchScope === 'all' ? { matchScope: 'all' } :
-      matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
-      { matchScope: 'rounds', selectedRounds: selRounds };
     try {
       const leagueData = {
         name: nm.trim(), type: tp, visibility: vis,
@@ -122,7 +83,7 @@ export default function CreateLeagueForm({
         prizeDistribution: tp === 'paid' ? di : null,
         pointsSystem: createMode === 'simple' ? null : ps,
         predictionMode: createMode,
-        ...scopeData,
+        matchScope: 'all',
       };
       const lid = await createLeague(leagueData, uData.id);
       const savedName = nm.trim();
@@ -194,33 +155,6 @@ export default function CreateLeagueForm({
             <div className="prize-distribution">{['first', 'second', 'third'].map((k, i) => <div key={k} className="prize-item"><span>{['1st', '2nd', '3rd'][i]} Place</span><input type="number" value={di[k]} onChange={(e) => setDi({ ...di, [k]: parseInt(e.target.value) || 0 })} className="input-field-sm" /><span>%</span></div>)}</div>
           </div>
         </>}
-        <div className="form-section"><label>Match Selection {tp === 'paid' && <span className="form-hint-inline">(Paid leagues: All Matches or Groups only)</span>}</label>
-          <div className="type-selector triple">
-            <button type="button" className={`type-option ${matchScope === 'all' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setMatchScope('all'); }}><Globe size={24} /><div><h4>All Matches</h4><p>Full tournament (104)</p></div></button>
-            <button type="button" className={`type-option ${matchScope === 'groups' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setMatchScope('groups'); }}><Target size={24} /><div><h4>Specific Groups</h4><p>Pick groups A–L</p></div></button>
-            <button type="button" className={`type-option ${matchScope === 'rounds' ? 'active' : ''} ${tp === 'paid' ? 'disabled-option' : ''}`} onClick={(e) => { e.preventDefault(); if (tp !== 'paid') setMatchScope('rounds'); }}><TrendingUp size={24} /><div><h4>By Round</h4><p>{tp === 'paid' ? 'Free leagues only' : 'Group stage, knockouts, etc.'}</p></div></button>
-          </div>
-        </div>
-        {matchScope === 'groups' && (
-          <div className="form-section">
-            <label>Select Groups <span className="form-hint-inline">({selGroups.length} selected · {scopeMatchCount} matches)</span></label>
-            <div className="group-selector">{ALL_GROUPS.map((g) => (
-              <button type="button" key={g} className={`group-chip ${selGroups.includes(g) ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); toggleGroup(g); }}>
-                Group {g}
-              </button>
-            ))}</div>
-          </div>
-        )}
-        {matchScope === 'rounds' && (
-          <div className="form-section">
-            <label>Select Rounds <span className="form-hint-inline">({selRounds.length} selected · {scopeMatchCount} matches)</span></label>
-            <div className="group-selector">{ALL_ROUNDS.map((r) => (
-              <button type="button" key={r.id} className={`group-chip ${selRounds.includes(r.id) ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); toggleRound(r.id); }}>
-                {r.label}
-              </button>
-            ))}</div>
-          </div>
-        )}
         {createMode !== 'simple' && (
           <div className="form-section"><label>Points System</label><div className="points-grid">{Object.entries(ps).map(([k, v]) => <div className="point-item" key={k}><label>{k.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}</label><input type="number" value={v} min="0" onChange={(e) => setPs({ ...ps, [k]: parseInt(e.target.value) || 0 })} className="input-field-sm" /></div>)}</div></div>
         )}
