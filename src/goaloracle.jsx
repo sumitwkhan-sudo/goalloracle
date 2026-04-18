@@ -12,6 +12,7 @@ import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinL
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
+import SimplePrediction from './pages/SimplePrediction';
 import './styles.css';
 
 // Scroll reveal hook with stadium + code wall parallax + section depth
@@ -2744,7 +2745,23 @@ const GoalOracle = () => {
       {view === 'leagues' && <LeaguesList />}
       {view === 'browse' && <Browse key="browse" />}
       {view === 'create' && <Create key="create" />}
-      {view === 'detail' && <Detail key={selLeague?.id || 'detail'} />}
+      {view === 'detail' && selLeague?.predictionMode === 'simple' && (
+        <SimplePrediction
+          key={`simple-${selLeague.id}`}
+          userId={uData?.id}
+          league={selLeague}
+          onExit={() => nav('leagues')}
+        />
+      )}
+      {view === 'detail' && selLeague?.predictionMode !== 'simple' && <Detail key={selLeague?.id || 'detail'} />}
+      {view === 'simplePredict' && (
+        <SimplePrediction
+          key={`simple-${selLeague?.id || 'solo'}`}
+          userId={uData?.id}
+          league={selLeague}
+          onExit={() => nav('leagues')}
+        />
+      )}
       {view === 'faq' && <FAQ />}
       {view === 'feedback' && <Feedback key="feedback" />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
