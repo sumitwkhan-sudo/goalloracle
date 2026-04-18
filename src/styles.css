@@ -2696,3 +2696,23 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .lv2-mode-pill.simple { background: rgba(0,230,118,0.14); color: var(--success); }
 .lv2-mode-pill.classic { background: rgba(0,212,255,0.14); color: var(--cyan); }
+
+/* Username nudge banner */
+.username-nudge {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: rgba(255,183,0,0.1); border: 1px solid rgba(255,183,0,0.25);
+  border-radius: 0.5rem; padding: 0.6rem 1rem; margin: 0.75rem 0;
+  cursor: pointer; color: var(--amber); font-size: 0.85rem;
+  transition: background 0.15s;
+}
+.username-nudge:hover { background: rgba(255,183,0,0.18); }
+.username-nudge span { flex: 1; }
+.username-nudge .btn { flex-shrink: 0; font-size: 0.72rem; padding: 0.25rem 0.6rem; }
+
+/* Embedded simple prediction page */
+.simple-page-embedded { padding-top: 0; }
+.simple-page-embedded .simple-step-section { margin-top: 0; }
+.simple-page-status-inline {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 0.5rem; padding: 0.5rem 0; min-height: 1.5rem;
+}

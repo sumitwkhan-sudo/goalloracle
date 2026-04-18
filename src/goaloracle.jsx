@@ -8,7 +8,7 @@ import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus,
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, subscribeToAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, subscribeToPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -936,7 +936,10 @@ const GoalOracle = () => {
   };
 
   const Dash = () => {
-    const ml = leagues.length > 0 ? leagues : [{ id: 'global', name: 'Global League', type: 'free', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } }];
+    const ml = leagues.length > 0 ? leagues : [
+      { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
+      { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', memberCount: stats.totalPlayers },
+    ];
     const defaultPS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
     const ps = ml[0]?.pointsSystem || defaultPS;
 
@@ -981,14 +984,21 @@ const GoalOracle = () => {
       if (!uData?.id || ml.length === 0) return;
       let cancelled = false;
       (async () => {
-        for (const league of ml.slice(0, 5)) {
+        for (const league of ml.slice(0, 6)) {
           if (leagueRanks[league.id] || cancelled) continue;
           try {
-            const { leaderboard: bu, userNames } = await getLeagueLeaderboard(league.id);
-            const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || defaultPS) }));
-            const sorted = sortLeaderboard(entries);
-            const myIdx = sorted.findIndex(e => e.userId === uData.id);
-            if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0 } }));
+            if (league.predictionMode === 'simple') {
+              const data = await getSimpleLeaderboard(league.id);
+              const lb = data.leaderboard || [];
+              const myIdx = lb.findIndex(e => e.userId === uData.id);
+              if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx >= 0 ? myIdx + 1 : lb.length + 1, total: lb.length } }));
+            } else {
+              const { leaderboard: bu, userNames } = await getLeagueLeaderboard(league.id);
+              const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || defaultPS) }));
+              const sorted = sortLeaderboard(entries);
+              const myIdx = sorted.findIndex(e => e.userId === uData.id);
+              if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0 } }));
+            }
           } catch {}
         }
       })();
@@ -1867,6 +1877,13 @@ const GoalOracle = () => {
         </div>}
 
         {tab === 'leaderboard' && <div className="leaderboard">
+          {uData && !uData.usernameSet && (
+            <div className="username-nudge" onClick={() => setShowUsernamePrompt(true)}>
+              <AlertTriangle size={14} />
+              <span>You haven't set a username yet.</span>
+              <button className="btn btn-primary btn-xs">Set Username</button>
+            </div>
+          )}
           <div className="leaderboard-header">
             <h3>Rankings</h3>
             <div className="lb-sort-tabs">
@@ -1922,6 +1939,114 @@ const GoalOracle = () => {
             </div>
           )}
         </div>}
+      </div>
+    );
+  };
+
+  // ================================
+  // SIMPLE MODE DETAIL (leaderboard + predictions wrapper)
+  // ================================
+  const SimpleDetail = () => {
+    const [sTab, setSTab] = useState('leaderboard');
+    const [simLb, setSimLb] = useState([]);
+    const [simLbl, setSimLbl] = useState(false);
+
+    useEffect(() => {
+      if (sTab !== 'leaderboard' || !selLeague?.id) return;
+      let cancelled = false;
+      (async () => {
+        setSimLbl(true);
+        try {
+          const data = await getSimpleLeaderboard(selLeague.id);
+          if (!cancelled) setSimLb(data.leaderboard || []);
+        } catch (e) { console.error(e); }
+        finally { if (!cancelled) setSimLbl(false); }
+      })();
+      return () => { cancelled = true; };
+    }, [sTab, selLeague?.id]);
+
+    const needsUsername = uData && !uData.usernameSet;
+
+    return (
+      <div className="league-detail">
+        <div className="page-header-compact">
+          <div className="phc-left">
+            <button className="btn-back-sm" onClick={() => nav('leagues')}>←</button>
+            <h1 className="phc-title">{selLeague?.name}</h1>
+            <div className="phc-meta">
+              <span><Users size={14} /> {(selLeague?.memberCount || selLeague?.members?.length || 0).toLocaleString()} members</span>
+              <span className="lv2-mode-pill simple">SIMPLE</span>
+            </div>
+          </div>
+        </div>
+
+        {needsUsername && (
+          <div className="username-nudge" onClick={() => setShowUsernamePrompt(true)}>
+            <AlertTriangle size={14} />
+            <span>You haven't set a username yet.</span>
+            <button className="btn btn-primary btn-xs">Set Username</button>
+          </div>
+        )}
+
+        <div className="tabs">
+          <button className={`tab ${sTab === 'leaderboard' ? 'active' : ''}`} onClick={() => setSTab('leaderboard')}><TrendingUp size={16} /> Leaderboard</button>
+          <button className={`tab ${sTab === 'predictions' ? 'active' : ''}`} onClick={() => setSTab('predictions')}><Target size={16} /> Predictions</button>
+        </div>
+
+        {sTab === 'leaderboard' && (
+          <div className="leaderboard">
+            <div className="leaderboard-header"><h3>Rankings</h3></div>
+            {simLbl ? (
+              <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
+            ) : simLb.length === 0 ? (
+              <div className="empty-state"><p>No members yet.</p></div>
+            ) : (
+              <div className="leaderboard-list">
+                {simLb.map((e, i) => (
+                  <div key={e.userId} className={`leaderboard-item ${e.userId === uData?.id ? 'is-you' : ''}`}>
+                    <div className="rank">
+                      {i === 0 && <Trophy size={20} className="gold" />}
+                      {i === 1 && <Trophy size={20} className="silver" />}
+                      {i === 2 && <Trophy size={20} className="bronze" />}
+                      {i > 2 && <span>#{i + 1}</span>}
+                    </div>
+                    <div className="player-info">
+                      <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
+                      <div>
+                        <div className="player-name">
+                          {e.displayName}
+                          {e.userId === uData?.id && <span className="you-badge">You</span>}
+                        </div>
+                        <div className="player-sub">
+                          {e.isComplete ? (
+                            <><CheckCircle size={11} style={{color:'var(--success)', verticalAlign:'middle'}} /> Complete</>
+                          ) : e.hasSubmitted ? (
+                            <><RefreshCw size={11} style={{color:'var(--amber)', verticalAlign:'middle'}} /> In progress</>
+                          ) : (
+                            <><Clock size={11} style={{color:'var(--text-sec)', verticalAlign:'middle'}} /> Not started</>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="player-points">
+                      <span className="points">{e.isComplete ? 'Ready' : e.hasSubmitted ? 'Partial' : '—'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {sTab === 'predictions' && (
+          <SimplePrediction
+            key={`simple-${selLeague?.id}`}
+            userId={uData?.id}
+            league={selLeague}
+            onExit={() => nav('leagues')}
+            embedded
+          />
+        )}
       </div>
     );
   };
@@ -2790,12 +2915,7 @@ const GoalOracle = () => {
       {view === 'browse' && <Browse key="browse" />}
       {view === 'create' && <Create key="create" />}
       {view === 'detail' && selLeague?.predictionMode === 'simple' && (
-        <SimplePrediction
-          key={`simple-${selLeague.id}`}
-          userId={uData?.id}
-          league={selLeague}
-          onExit={() => nav('leagues')}
-        />
+        <SimpleDetail key={`simple-detail-${selLeague.id}`} />
       )}
       {view === 'detail' && selLeague?.predictionMode !== 'simple' && <Detail key={selLeague?.id || 'detail'} />}
       {view === 'simplePredict' && (

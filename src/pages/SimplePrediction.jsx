@@ -29,7 +29,7 @@ import { isPredictionLocked } from '../utils/points';
 
 const SAVED_INDICATOR_MS = 2000;
 
-export default function SimplePrediction({ userId, league, onExit }) {
+export default function SimplePrediction({ userId, league, onExit, embedded = false }) {
   const { data, loading, saving, savedAt, error, save } = useSimplePrediction(userId);
   const [step, setStep] = useState(1);
   const [showSaved, setShowSaved] = useState(false);
@@ -117,23 +117,34 @@ export default function SimplePrediction({ userId, league, onExit }) {
   }
 
   return (
-    <div className="simple-page">
-      <div className="simple-page-header">
-        <button type="button" className="btn btn-ghost" onClick={onExit} aria-label="Back">
-          <ArrowLeft size={16} /> Back
-        </button>
-        <div className="simple-page-title">
-          <h1>{league?.name || 'Simple Mode'}</h1>
-          <span className="simple-page-subtitle">Predict rankings, not scores</span>
+    <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
+      {!embedded && (
+        <div className="simple-page-header">
+          <button type="button" className="btn btn-ghost" onClick={onExit} aria-label="Back">
+            <ArrowLeft size={16} /> Back
+          </button>
+          <div className="simple-page-title">
+            <h1>{league?.name || 'Simple Mode'}</h1>
+            <span className="simple-page-subtitle">Predict rankings, not scores</span>
+          </div>
+          <div className="simple-page-status" aria-live="polite">
+            {error && <span className="simple-page-error"><AlertTriangle size={14} /> {error}</span>}
+            {!error && saving && <span className="simple-page-saving">Saving…</span>}
+            {!error && !saving && showSaved && (
+              <span className="simple-page-saved"><Check size={14} /> Saved</span>
+            )}
+          </div>
         </div>
-        <div className="simple-page-status" aria-live="polite">
+      )}
+      {embedded && (
+        <div className="simple-page-status-inline" aria-live="polite">
           {error && <span className="simple-page-error"><AlertTriangle size={14} /> {error}</span>}
           {!error && saving && <span className="simple-page-saving">Saving…</span>}
           {!error && !saving && showSaved && (
             <span className="simple-page-saved"><Check size={14} /> Saved</span>
           )}
         </div>
-      </div>
+      )}
 
       <StepProgress current={step} completed={completedSteps} onStepClick={handleStepClick} />
 

@@ -284,6 +284,11 @@ export async function saveSimplePrediction(userId, partial) {
   await setDoc(ref, payload, { merge: true });
 }
 
+export async function getSimpleLeaderboard(leagueId) {
+  const data = await apiCall(`simple-leaderboard?leagueId=${leagueId}`);
+  return data;
+}
+
 export function subscribeToSimpleScore(userId, leagueId, callback) {
   const ref = doc(db, 'simplePredictions', userId, 'scores', leagueId);
   return onSnapshot(ref, (snap) => {
