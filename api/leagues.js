@@ -27,8 +27,10 @@ export default async function handler(req, res) {
   try {
     // ─── CREATE ───────────────────────────────────────────
     if (action === 'create') {
-      const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds } = req.body;
+      const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds, predictionMode } = req.body;
       if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
+
+      const mode = predictionMode === 'classic' ? 'classic' : 'simple';
 
       if (type === 'paid' && prizeDistribution) {
         const total = (prizeDistribution.first || 0) + (prizeDistribution.second || 0) + (prizeDistribution.third || 0);
@@ -55,6 +57,7 @@ export default async function handler(req, res) {
         matchScope: matchScope || 'all',
         selectedGroups: selectedGroups || null,
         selectedRounds: selectedRounds || null,
+        predictionMode: mode,
         createdBy: userId,
         members: [userId],
         memberCount: 1,
@@ -121,7 +124,7 @@ export default async function handler(req, res) {
     } else if (action === 'delete') {
       const { leagueId } = req.body;
       if (!leagueId) return res.status(400).json({ error: 'League ID required' });
-      if (leagueId === 'global') return res.status(400).json({ error: 'Cannot delete the global league' });
+      if (leagueId === 'global' || leagueId === 'global-simple') return res.status(400).json({ error: 'Cannot delete a global league' });
 
       const [userSnap, leagueSnap] = await Promise.all([
         db.collection('users').doc(userId).get(),

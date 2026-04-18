@@ -127,7 +127,7 @@ export async function createOrUpdateUser(privyUser) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       role: 'user',
-      leagues: ['global'],
+      leagues: ['global', 'global-simple'],
       email: emailAddr || null,
       walletAddress: walletAddr || null,
       displayName,
@@ -242,6 +242,53 @@ export function subscribeToUserPredictions(userId, leagueId, callback) {
 export async function getLeagueLeaderboard(leagueId) {
   const data = await apiCall(`predictions?type=leaderboard&leagueId=${leagueId}`);
   return { leaderboard: data.leaderboard, userNames: data.userNames || {} };
+}
+
+// ---- SIMPLE MODE PREDICTIONS (direct Firestore writes) ----
+// Data lives under /simplePredictions/{userId} — one document per user covering
+// all leagues. Per-league scores live in /simplePredictions/{userId}/scores/{leagueId}.
+// submittedAt is set once, on first save, and never updated — it's the tiebreaker.
+
+export function subscribeToSimplePrediction(userId, callback) {
+  const ref = doc(db, 'simplePredictions', userId);
+  return onSnapshot(ref, (snap) => {
+    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+  }, (err) => { console.error('[db] simplePrediction error:', err.message); callback(null); });
+}
+
+export async function getSimplePrediction(userId) {
+  const snap = await getDoc(doc(db, 'simplePredictions', userId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Merge a partial Simple Mode prediction. Only provided fields are written.
+ * Accepts any subset of { groupPredictions, bestThirdPicks, knockoutPredictions, isComplete }.
+ * submittedAt is set on first save only.
+ */
+export async function saveSimplePrediction(userId, partial) {
+  if (!userId) throw new Error('Missing userId');
+  const ref = doc(db, 'simplePredictions', userId);
+  const existing = await getDoc(ref);
+
+  const payload = { userId, updatedAt: serverTimestamp() };
+  if (partial.groupPredictions !== undefined) payload.groupPredictions = partial.groupPredictions;
+  if (partial.bestThirdPicks !== undefined) payload.bestThirdPicks = partial.bestThirdPicks;
+  if (partial.knockoutPredictions !== undefined) payload.knockoutPredictions = partial.knockoutPredictions;
+  if (partial.isComplete !== undefined) payload.isComplete = partial.isComplete;
+
+  if (!existing.exists() || !existing.data().submittedAt) {
+    payload.submittedAt = serverTimestamp();
+  }
+
+  await setDoc(ref, payload, { merge: true });
+}
+
+export function subscribeToSimpleScore(userId, leagueId, callback) {
+  const ref = doc(db, 'simplePredictions', userId, 'scores', leagueId);
+  return onSnapshot(ref, (snap) => {
+    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+  }, () => callback(null));
 }
 
 // ---- FEEDBACK (direct Firestore write) ----

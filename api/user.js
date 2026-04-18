@@ -1,14 +1,17 @@
 import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
-// Ensure global league exists (called once, cached)
+// Ensure global leagues exist (called once, cached)
 let globalLeagueChecked = false;
 async function ensureGlobalLeague() {
   if (globalLeagueChecked) return;
-  const ref = db.collection('leagues').doc('global');
-  const snap = await ref.get();
-  if (!snap.exists) {
-    await ref.set({
+
+  const classicRef = db.collection('leagues').doc('global');
+  const simpleRef = db.collection('leagues').doc('global-simple');
+  const [classicSnap, simpleSnap] = await Promise.all([classicRef.get(), simpleRef.get()]);
+
+  if (!classicSnap.exists) {
+    await classicRef.set({
       id: 'global',
       name: 'Global League',
       type: 'free',
@@ -21,14 +24,44 @@ async function ensureGlobalLeague() {
       matchScope: 'all',
       selectedGroups: null,
       selectedRounds: null,
+      predictionMode: 'classic',
+      isGlobal: true,
       createdBy: 'system',
       members: [],
       memberCount: 0,
       createdAt: FieldValue.serverTimestamp(),
       status: 'active',
     });
-    console.log('[user] Created global league doc');
+    console.log('[user] Created global league doc (classic)');
+  } else if (classicSnap.data().predictionMode == null) {
+    await classicRef.update({ predictionMode: 'classic', isGlobal: true });
   }
+
+  if (!simpleSnap.exists) {
+    await simpleRef.set({
+      id: 'global-simple',
+      name: 'Global League Simple',
+      type: 'free',
+      visibility: 'public',
+      passcode: null,
+      entryFee: 0,
+      currency: 'USDC',
+      prizeDistribution: { first: 50, second: 30, third: 20 },
+      pointsSystem: null,
+      matchScope: 'all',
+      selectedGroups: null,
+      selectedRounds: null,
+      predictionMode: 'simple',
+      isGlobal: true,
+      createdBy: 'system',
+      members: [],
+      memberCount: 0,
+      createdAt: FieldValue.serverTimestamp(),
+      status: 'active',
+    });
+    console.log('[user] Created global league doc (simple)');
+  }
+
   globalLeagueChecked = true;
 }
 
@@ -58,17 +91,23 @@ export default async function handler(req, res) {
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         role: 'user',
-        leagues: ['global'],
+        leagues: ['global', 'global-simple'],
         email: email || null,
         walletAddress: walletAddress || null,
         displayName: email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous'),
         usernameSet: false,
       });
-      // Add to global league members
-      await db.collection('leagues').doc('global').update({
-        members: FieldValue.arrayUnion(userId),
-        memberCount: FieldValue.increment(1),
-      });
+      // Add to both global leagues' member lists
+      await Promise.all([
+        db.collection('leagues').doc('global').update({
+          members: FieldValue.arrayUnion(userId),
+          memberCount: FieldValue.increment(1),
+        }),
+        db.collection('leagues').doc('global-simple').update({
+          members: FieldValue.arrayUnion(userId),
+          memberCount: FieldValue.increment(1),
+        }),
+      ]);
     } else {
       // Existing user — sync updates
       console.log(`[user] EXISTING: ${userId}, role=${userSnap.data().role}, name=${userSnap.data().displayName}`);
@@ -78,14 +117,19 @@ export default async function handler(req, res) {
       if (displayName && displayName.trim()) updates.displayName = displayName.trim();
       if (usernameSet === true) updates.usernameSet = true;
 
-      // Ensure user is in global league (backfill for old accounts)
+      // Ensure user is in both global leagues (backfill for old accounts)
       const userLeagues = userSnap.data().leagues || [];
-      if (!userLeagues.includes('global')) {
-        updates.leagues = FieldValue.arrayUnion('global');
-        db.collection('leagues').doc('global').update({
-          members: FieldValue.arrayUnion(userId),
-          memberCount: FieldValue.increment(1),
-        }).catch(() => {});
+      const leaguesToAdd = [];
+      if (!userLeagues.includes('global')) leaguesToAdd.push('global');
+      if (!userLeagues.includes('global-simple')) leaguesToAdd.push('global-simple');
+      if (leaguesToAdd.length > 0) {
+        updates.leagues = FieldValue.arrayUnion(...leaguesToAdd);
+        for (const leagueId of leaguesToAdd) {
+          db.collection('leagues').doc(leagueId).update({
+            members: FieldValue.arrayUnion(userId),
+            memberCount: FieldValue.increment(1),
+          }).catch(() => {});
+        }
       }
 
       await userRef.update(updates);
