@@ -1,9 +1,9 @@
 /* ============================================
    GOALORACLE — DIRECTION B2: CODE WALL + STADIUM
-   Fonts: Space Grotesk (UI) + Italiana (display) + Cormorant Garamond (italic serif) + JetBrains Mono (meta)
+   Fonts: Space Grotesk (UI) + Chakra Petch (crypto-futuristic display) + JetBrains Mono (meta)
    Palette: Cyan/Magenta/Lime/Amber + editorial Gold/Rose/Platinum
    ============================================ */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500&family=DM+Mono:wght@400;500&family=Italiana&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter+Tight:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500&family=DM+Mono:wght@400;500&family=Chakra+Petch:wght@400;500;600;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap');
 
 :root {
   --cyan: #00D4FF; --magenta: #FF2D87; --lime: #A6FF00; --violet: #7B61FF; --amber: #FFB800;
@@ -17,9 +17,9 @@
   --text: #E8E8EF; --text-sec: #7A7A8E; --text-dim: #3E3E4F;
   --radius: 10px; --radius-lg: 14px;
   --shadow: 0 4px 20px rgba(0,0,0,0.3);
-  --font: 'Inter Tight', 'Space Grotesk', -apple-system, sans-serif;
-  --font-display: 'Italiana', 'Cormorant Garamond', Georgia, serif;
-  --font-editorial: 'Cormorant Garamond', Georgia, serif;
+  --font: 'Space Grotesk', 'Inter Tight', -apple-system, sans-serif;
+  --font-display: 'Chakra Petch', 'Space Grotesk', system-ui, sans-serif;
+  --font-editorial: 'Chakra Petch', 'Space Grotesk', system-ui, sans-serif;
   --mono: 'JetBrains Mono', monospace;
 }
 
@@ -250,8 +250,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .hero-badge .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); animation: pulse 2s ease infinite; box-shadow: 0 0 8px var(--lime); }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 .hero-title {
-  font-size: clamp(2.8rem, 7vw, 5.5rem); font-weight: 700; line-height: 1;
-  letter-spacing: -0.03em; margin-bottom: 1.5rem; animation: fadeUp 0.6s 0.25s both;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 7vw, 5.5rem); font-weight: 700; line-height: 1.05;
+  letter-spacing: -0.02em; margin-bottom: 1.5rem; animation: fadeUp 0.6s 0.25s both;
   text-shadow: 0 2px 20px rgba(0,0,0,0.7), 0 4px 60px rgba(0,0,0,0.4);
   color: #fff;
 }
@@ -470,7 +471,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 /* ─── HOW IT WORKS ─── */
 .hiw-section { padding: 5rem 2rem; position: relative; z-index: 2; }
 .hiw-eyebrow { text-align: center; font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 0.5rem; }
-.hiw-title { text-align: center; font-size: 2rem; font-weight: 700; margin-bottom: 2.5rem; }
+.hiw-title { text-align: center; font-family: var(--font-display); font-size: clamp(1.8rem, 3.2vw, 2.4rem); font-weight: 700; margin-bottom: 2.5rem; letter-spacing: -0.01em; }
 .hiw-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
 .hiw-card {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -858,7 +859,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* ─── REWARDS ─── */
 .rewards-section { padding: 4rem 2rem; position: relative; z-index: 2; }
-.rewards-title { text-align: center; font-size: 1.8rem; font-weight: 700; margin-bottom: 2rem; }
+.rewards-title { text-align: center; font-family: var(--font-display); font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; margin-bottom: 2rem; letter-spacing: -0.01em; }
 .rewards-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
 .reward-card {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -876,7 +877,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(255,45,135,0.05));
   border: 1px solid var(--border-br); border-radius: var(--radius-lg);
 }
-.final-cta h2 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+.final-cta h2 { font-family: var(--font-display); font-size: clamp(1.8rem, 3.5vw, 2.4rem); font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.01em; }
 .final-cta p { color: var(--text-sec); font-size: 0.95rem; margin-bottom: 1.75rem; }
 .final-cta-btns { display: flex; justify-content: center; gap: 0.75rem; }
 
