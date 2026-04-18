@@ -165,6 +165,11 @@ const GoalOracle = () => {
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState('');
 
+  // Lifted from Dashboard/Leagues — survives Firestore re-renders
+  const [dashLeagueFilter, setDashLeagueFilter] = useState('all');
+  const [expandedLeagues, setExpandedLeagues] = useState({});
+  const [leagueRanks, setLeagueRanks] = useState({});
+
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const nav = useCallback((v, l) => {
     if (l) { setSelLeague(l); setDetailTab('predictions'); setDetailWeek('week1'); setDetailStage('all'); }
@@ -929,63 +934,322 @@ const GoalOracle = () => {
 
   const Dash = () => {
     const ml = leagues.length > 0 ? leagues : [{ id: 'global', name: 'Global League', type: 'free', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } }];
+    const defaultPS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
+    const ps = ml[0]?.pointsSystem || defaultPS;
+
+    // Computed stats
     const { streak, bestStreak } = useMemo(() => calculateStreak(preds, results), [preds, results]);
     const streakBadge = getStreakBadge(streak);
-    const bestBadge = getStreakBadge(bestStreak);
+    const totalStats = useMemo(() => calculateTotalPoints(preds, results, ps), [preds, results, ps]);
     const xpTotal = useMemo(() => calculateXP(preds, results, leagues.length), [preds, results, leagues.length]);
     const lvl = useMemo(() => getLevelInfo(xpTotal), [xpTotal]);
+    const totalCompleted = useMemo(() => Object.entries(preds).filter(([id]) => results[id]?.completed).length, [preds, results]);
+    const accuracy = totalCompleted > 0 ? Math.round((totalStats.correctResults / totalCompleted) * 100) : 0;
+
+    // Matches needing prediction
+    const needsPrediction = useMemo(() =>
+      WORLD_CUP_MATCHES.filter(m => getMatchStatus(m.date, m.time) === 'open' && !results[m.id]?.completed && !preds[m.id]?.result).slice(0, 4),
+    [preds, results]);
+
+    // Recent completed results
+    const recentResults = useMemo(() =>
+      WORLD_CUP_MATCHES.filter(m => results[m.id]?.completed).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+    [results]);
+
+    // Streak dots — last 10 completed matches in chronological order
+    const streakDots = useMemo(() => {
+      const completed = [];
+      for (const [matchId, pred] of Object.entries(preds)) {
+        const res = results[matchId];
+        if (!res?.completed || !pred?.result) continue;
+        let actual;
+        if (res.homeScore > res.awayScore) actual = 'home';
+        else if (res.homeScore < res.awayScore) actual = 'away';
+        else actual = 'draw';
+        completed.push({ matchId, correct: pred.result === actual });
+      }
+      const toNum = id => { if (id.startsWith('gs')) return parseInt(id.slice(2)); if (id.startsWith('r32-')) return 100 + parseInt(id.slice(4)); if (id.startsWith('r16-')) return 200 + parseInt(id.slice(4)); if (id.startsWith('qf-')) return 300 + parseInt(id.slice(3)); if (id.startsWith('sf-')) return 400 + parseInt(id.slice(3)); if (id === '3rd') return 500; if (id === 'final') return 501; return 999; };
+      completed.sort((a, b) => toNum(a.matchId) - toNum(b.matchId));
+      return completed.slice(-10);
+    }, [preds, results]);
+
+    // Fetch league ranks on mount
+    useEffect(() => {
+      if (!uData?.id || ml.length === 0) return;
+      let cancelled = false;
+      (async () => {
+        for (const league of ml.slice(0, 5)) {
+          if (leagueRanks[league.id] || cancelled) continue;
+          try {
+            const { leaderboard: bu, userNames } = await getLeagueLeaderboard(league.id);
+            const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || defaultPS) }));
+            const sorted = sortLeaderboard(entries);
+            const myIdx = sorted.findIndex(e => e.userId === uData.id);
+            if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0 } }));
+          } catch {}
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [uData?.id, ml.length, results]);
+
+    // Greeting
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+    // Countdown helper
+    const Countdown = ({ match }) => {
+      const [ct, setCt] = useState('');
+      useEffect(() => {
+        const [hh, mm] = (match.time || '15:00').split(':').map(Number);
+        const kick = new Date(`${match.date}T00:00:00Z`);
+        kick.setUTCHours(hh + 4, mm, 0, 0);
+        const lockMs = kick.getTime() - 5 * 60 * 1000;
+        const tick = () => {
+          const diff = lockMs - Date.now();
+          if (diff <= 0) { setCt('LOCKED'); return; }
+          const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), mi = Math.floor((diff % 3600000) / 60000);
+          setCt(d > 0 ? `${d}d ${h}h` : `${h}h ${mi}m`);
+        };
+        tick();
+        const iv = setInterval(tick, 60000);
+        return () => clearInterval(iv);
+      }, [match.date, match.time]);
+      return <span className="dv2-countdown">{ct === 'LOCKED' ? <><Lock size={10} /> Locked</> : <><Clock size={10} /> Closes in {ct}</>}</span>;
+    };
+
     return (
-      <div className="dashboard">
-        <div className="dashboard-header">
-          <div><h1>Your Leagues</h1><p>Welcome back, {uData?.displayName || 'Player'}</p></div>
-          <div className="dashboard-actions">
-            <button className="btn btn-secondary" onClick={() => nav('browse')}><Search size={18} /> Browse</button>
-            <button className="btn btn-primary" onClick={() => nav('create')}><Plus size={20} /> Create League</button>
+      <div className="dashboard-v2">
+        {/* Greeting */}
+        <div className="dv2-header">
+          <div>
+            <h1 className="dv2-greeting">{greeting}, <span className="dv2-name">{uData?.displayName || 'Player'}</span></h1>
+            <p className="dv2-sub">{needsPrediction.length > 0 ? <>{needsPrediction.length} prediction{needsPrediction.length > 1 ? 's' : ''} due before kickoff</> : <>You&rsquo;re all caught up</>} &middot; <span className="dv2-level"><Star size={12} /> Level {lvl.level} &mdash; {lvl.title}</span></p>
+          </div>
+          <div className="dv2-actions">
+            <button className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={16} /> Browse</button>
+            <button className="btn btn-primary btn-sm" onClick={() => nav('create')}><Plus size={16} /> Create</button>
           </div>
         </div>
-        {/* XP + Streak row */}
-        <div className="dash-stats-row">
-          {/* XP / Level card */}
-          <div className="xp-card">
-            <div className="xp-card-top">
-              <div className="xp-level-badge"><Star size={14} /> Level {lvl.level}</div>
-              <span className="xp-title">{lvl.title}</span>
-            </div>
-            <div className="xp-bar-wrap">
-              <div className="xp-bar"><div className="xp-bar-fill" style={{width: `${lvl.progress * 100}%`}}></div></div>
-              <div className="xp-bar-labels">
-                <span>{lvl.totalXP.toLocaleString()} XP</span>
-                <span>{lvl.isMaxLevel ? 'MAX' : `${lvl.nextLevelXP.toLocaleString()} XP`}</span>
-              </div>
-            </div>
-            {!lvl.isMaxLevel && <div className="xp-to-next">{lvl.xpToNext.toLocaleString()} XP to Level {lvl.level + 1}</div>}
+
+        {/* 3 Stat Cards */}
+        <div className="dv2-stats">
+          <div className="dv2-stat-card dv2-anim-1">
+            <span className="dv2-stat-label">Total Points</span>
+            <span className="dv2-stat-value"><AnimatedCounter value={totalStats.totalPoints} /></span>
+            <span className="dv2-stat-sub">{totalStats.correctResults} correct result{totalStats.correctResults !== 1 ? 's' : ''}</span>
           </div>
-          {/* Streak card */}
-          <div className="streak-banner">
-            <div className="streak-banner-main">
-              <Flame size={20} className="streak-flame" />
-              <span className="streak-banner-num">{streak}</span>
-              <span className="streak-banner-label">Current Streak</span>
-              {streakBadge && <span className={`streak-badge streak-badge-${streakBadge.tier}`}>{streakBadge.emoji} {streakBadge.name}</span>}
-            </div>
-            <div className="streak-banner-best">
-              <span>Best: {bestStreak}</span>
-              {bestBadge && <span className={`streak-badge streak-badge-${bestBadge.tier}`}>{bestBadge.emoji}</span>}
+          <div className="dv2-stat-card dv2-anim-2">
+            <span className="dv2-stat-label">Accuracy</span>
+            <span className="dv2-stat-value"><AnimatedCounter value={accuracy} suffix="%" /></span>
+            <span className="dv2-stat-sub">{totalCompleted} match{totalCompleted !== 1 ? 'es' : ''} completed</span>
+          </div>
+          <div className="dv2-stat-card dv2-anim-3">
+            <span className="dv2-stat-label">Best Rank</span>
+            <span className="dv2-stat-value">{(() => { const best = Object.values(leagueRanks).reduce((b, r) => (!b || r.rank < b.rank) ? r : b, null); return best ? `#${best.rank}` : '—'; })()}</span>
+            <span className="dv2-stat-sub">{(() => { const bestL = ml.find(l => leagueRanks[l.id] && Object.values(leagueRanks).every(r => leagueRanks[l.id].rank <= r.rank)); return bestL?.name || 'Loading...'; })()}</span>
           </div>
         </div>
-        </div>
-        <div className="leagues-grid">{ml.map(l => (
-          <div key={l.id} className="league-card" onClick={() => nav('detail', l)}>
-            <div className="league-header"><div className="league-title"><Trophy size={24} /><h3>{l.name}</h3></div>
-              <div style={{display:'flex', gap:'0.35rem', alignItems:'center'}}>
-                {l.visibility === 'private' && <span className="badge badge-private"><EyeOff size={12} /></span>}
-                {l.type === 'paid' ? <span className="badge badge-premium"><Coins size={14} /> {l.entryFee} {l.currency || 'USDC'}</span> : <span className="badge badge-free">Free</span>}
-              </div>
+
+        {/* Needs Prediction */}
+        {needsPrediction.length > 0 ? (
+          <div className="dv2-section">
+            <h3 className="dv2-section-title">Needs Your Prediction</h3>
+            <div className="dv2-action-cards">
+              {needsPrediction.map(m => (
+                <div key={m.id} className="dv2-action-card" onClick={() => nav('detail', ml[0])}>
+                  <div className="dv2-ac-teams">
+                    <span className="dv2-ac-flag">{m.homeFlag}</span>
+                    <span className="dv2-ac-name">{m.home}</span>
+                    <span className="dv2-ac-vs">vs</span>
+                    <span className="dv2-ac-name">{m.away}</span>
+                    <span className="dv2-ac-flag">{m.awayFlag}</span>
+                  </div>
+                  <Countdown match={m} />
+                </div>
+              ))}
             </div>
-            <div className="league-stats"><div className="league-stat"><Users size={18} /><span>{(l.memberCount || l.members?.length || 0).toLocaleString()} players</span></div></div>
-            <div className="league-footer"><span className="view-league">View League</span><ChevronRight size={18} /></div>
           </div>
-        ))}</div>
+        ) : (
+          <div className="dv2-section"><div className="dv2-caught-up"><CheckCircle size={18} /> All caught up for this round</div></div>
+        )}
+
+        {/* Recent Results */}
+        {recentResults.length > 0 && (
+          <div className="dv2-section">
+            <h3 className="dv2-section-title">Recent Results</h3>
+            <div className="dv2-results">
+              {recentResults.map(m => {
+                const res = results[m.id];
+                const pred = preds[m.id];
+                const pts = pred ? calculatePoints(pred, res, ps) : 0;
+                return (
+                  <div key={m.id} className="dv2-result-card">
+                    <div className="dv2-rc-top">
+                      <span className="dv2-rc-date">{new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      <span className={`dv2-rc-pts ${pts > 0 ? 'dv2-pts-pos' : 'dv2-pts-zero'}`}>+{pts} pts</span>
+                    </div>
+                    <div className="dv2-rc-score">
+                      <span>{m.homeFlag} {m.home}</span>
+                      <strong>{res.homeScore} – {res.awayScore}</strong>
+                      <span>{m.away} {m.awayFlag}</span>
+                    </div>
+                    {pred?.result && <div className="dv2-rc-pred">Your pick: {pred.result === 'home' ? m.home : pred.result === 'away' ? m.away : 'Draw'} {pts > 0 ? <span className="dv2-correct">correct</span> : <span className="dv2-wrong">wrong</span>}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Streak Dots */}
+        <div className="dv2-section">
+          <h3 className="dv2-section-title"><Flame size={16} /> Streak: {streak} {streakBadge && <span className={`streak-badge streak-badge-${streakBadge.tier}`}>{streakBadge.emoji} {streakBadge.name}</span>}</h3>
+          <div className="dv2-streak-dots">
+            {[...Array(10)].map((_, i) => {
+              const dot = streakDots[i];
+              return <div key={i} className={`dv2-dot ${dot ? (dot.correct ? 'dv2-dot-win' : 'dv2-dot-loss') : 'dv2-dot-pending'}`} />;
+            })}
+          </div>
+          <span className="dv2-streak-caption">Last {streakDots.length} prediction{streakDots.length !== 1 ? 's' : ''} &middot; Best: {bestStreak}</span>
+        </div>
+
+        {/* League Snapshot */}
+        <div className="dv2-section">
+          <div className="dv2-section-head"><h3 className="dv2-section-title">Your Leagues</h3><a className="dv2-view-all" onClick={() => nav('leagues')}>View all <ChevronRight size={14} /></a></div>
+          <div className="dv2-league-snap">
+            {ml.slice(0, 3).map(l => {
+              const rk = leagueRanks[l.id];
+              return (
+                <div key={l.id} className="dv2-league-row" onClick={() => nav('detail', l)}>
+                  <div className="dv2-lr-info">
+                    <span className="dv2-lr-name">{l.name}</span>
+                    <span className="dv2-lr-members"><Users size={12} /> {(l.memberCount || l.members?.length || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="dv2-lr-rank">{rk ? `#${rk.rank}` : '—'}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* XP Progress */}
+        <div className="dv2-xp-strip">
+          <Star size={14} /> Level {lvl.level} &mdash; {lvl.title}
+          <div className="dv2-xp-bar"><div className="dv2-xp-fill" style={{width:`${lvl.progress*100}%`}} /></div>
+          <span className="dv2-xp-num">{lvl.totalXP.toLocaleString()} / {lvl.isMaxLevel ? 'MAX' : lvl.nextLevelXP.toLocaleString()} XP</span>
+        </div>
+      </div>
+    );
+  };
+
+  const LeaguesList = () => {
+    const ml = leagues.length > 0 ? leagues : [{ id: 'global', name: 'Global League', type: 'free', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } }];
+    const defaultPS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
+    const [lbCache, setLbCache] = useState({});
+
+    const filtered = useMemo(() => {
+      if (dashLeagueFilter === 'all') return ml;
+      return ml.filter(l => {
+        const hasCompleted = Object.keys(results).length > 0;
+        if (dashLeagueFilter === 'ended') return hasCompleted;
+        return !hasCompleted || dashLeagueFilter === 'active';
+      });
+    }, [ml, dashLeagueFilter, results]);
+
+    const toggleExpand = (id) => setExpandedLeagues(prev => ({ ...prev, [id]: !prev[id] }));
+
+    const fetchLb = async (league) => {
+      if (lbCache[league.id]) return;
+      try {
+        const { leaderboard: bu, userNames } = await getLeagueLeaderboard(league.id);
+        const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, displayName: userNames[uid] || uid.slice(0, 8), ...calculateTotalPoints(pr, results, league.pointsSystem || defaultPS) }));
+        const sorted = sortLeaderboard(entries);
+        setLbCache(prev => ({ ...prev, [league.id]: sorted }));
+      } catch {}
+    };
+
+    return (
+      <div className="leagues-v2">
+        <div className="lv2-header">
+          <div><button className="btn-back" onClick={() => nav('dashboard')}>&larr; Back</button><h1 className="lv2-title">Your Leagues</h1><span className="lv2-count">{ml.length} league{ml.length !== 1 ? 's' : ''}</span></div>
+          <div className="dv2-actions">
+            <button className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={16} /> Browse</button>
+            <button className="btn btn-primary btn-sm" onClick={() => nav('create')}><Plus size={16} /> Create</button>
+          </div>
+        </div>
+
+        <div className="lv2-filters">
+          {['all', 'active', 'ended'].map(f => (
+            <button key={f} className={`lv2-pill ${dashLeagueFilter === f ? 'lv2-pill-active' : ''}`} onClick={() => setDashLeagueFilter(f)}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
+          ))}
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="lv2-empty"><Trophy size={32} /><p>No leagues match this filter</p><button className="btn btn-primary btn-sm" onClick={() => setDashLeagueFilter('all')}>Show all</button></div>
+        ) : (
+          <div className="lv2-list">
+            {filtered.map(l => {
+              const rk = leagueRanks[l.id];
+              const expanded = expandedLeagues[l.id];
+              const lb = lbCache[l.id];
+              if (expanded && !lb) fetchLb(l);
+
+              // Mini leaderboard: 5 rows centered on user
+              let miniRows = [];
+              if (lb && uData?.id) {
+                const myIdx = lb.findIndex(e => e.userId === uData.id);
+                let start = Math.max(0, myIdx - 2);
+                if (start + 5 > lb.length) start = Math.max(0, lb.length - 5);
+                miniRows = lb.slice(start, start + 5).map((e, i) => ({ ...e, pos: start + i + 1 }));
+              }
+
+              const leaderPts = lb?.[0]?.totalPoints || rk?.leaderPts || 0;
+              const myPts = rk?.myPts || 0;
+              const gapPct = leaderPts > 0 ? Math.min((myPts / leaderPts) * 100, 100) : 0;
+
+              return (
+                <div key={l.id} className="lv2-row">
+                  <div className="lv2-row-top" onClick={() => toggleExpand(l.id)}>
+                    <div className="lv2-row-info">
+                      <h3 className="lv2-row-name">{l.name}</h3>
+                      <span className="lv2-row-meta"><Users size={12} /> {(l.memberCount || l.members?.length || 0).toLocaleString()} members</span>
+                    </div>
+                    <div className="lv2-row-rank-area">
+                      {rk ? <><span className="lv2-rank-num">#{rk.rank}</span><span className="lv2-rank-label">your rank</span></> : <span className="lv2-rank-num">&mdash;</span>}
+                    </div>
+                    <ChevronDown size={16} className={`lv2-chevron ${expanded ? 'lv2-chevron-open' : ''}`} />
+                  </div>
+
+                  <div className={`lv2-row-expand ${expanded ? 'lv2-row-expanded' : ''}`}>
+                    {expanded && (
+                      <>
+                        {lb ? (
+                          <div className="lv2-mini-lb">
+                            {miniRows.map(e => (
+                              <div key={e.userId} className={`lv2-mini-row ${e.userId === uData?.id ? 'lv2-mini-you' : ''}`}>
+                                <span className="lv2-mini-pos">{e.pos}</span>
+                                <span className="lv2-mini-name">{e.displayName} {e.userId === uData?.id && <span className="lv2-you-pill">YOU</span>}</span>
+                                <span className="lv2-mini-pts">{e.totalPoints}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="lv2-mini-loading"><RefreshCw size={16} className="spin" /> Loading leaderboard...</div>
+                        )}
+                        <div className="lv2-gap-bar-wrap">
+                          <span className="lv2-gap-label">Gap to 1st</span>
+                          <div className="lv2-gap-track"><div className="lv2-gap-fill" style={{width: `${gapPct}%`}} /></div>
+                          <span className="lv2-gap-text">{myPts >= leaderPts ? 'Leading' : `${leaderPts - myPts} pts back`}</span>
+                        </div>
+                        <button className="btn btn-primary btn-sm lv2-enter-btn" onClick={() => nav('detail', l)}>Enter League <ChevronRight size={14} /></button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -2415,7 +2679,8 @@ const GoalOracle = () => {
         <a className="nav-link" onClick={() => nav('landing')}><Home size={14} /><span>Home</span></a>
         {authenticated && <>
           <a className="nav-link" onClick={() => nav('dashboard')}><Trophy size={14} /><span>Dashboard</span></a>
-          <a className="nav-link" onClick={() => nav('browse')}><Search size={14} /><span>Leagues</span></a>
+          <a className="nav-link" onClick={() => nav('leagues')}><Users size={14} /><span>My Leagues</span></a>
+          <a className="nav-link" onClick={() => nav('browse')}><Search size={14} /><span>Browse</span></a>
           {(role === 'superadmin' || role === 'admin') && <a className="nav-link" onClick={() => nav('admin')}><Shield size={14} /><span>Admin</span></a>}
         </>}
         <a className="nav-link" onClick={() => nav('faq')}><HelpCircle size={14} /><span>FAQ</span></a>
@@ -2476,6 +2741,7 @@ const GoalOracle = () => {
 
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && <Dash />}
+      {view === 'leagues' && <LeaguesList />}
       {view === 'browse' && <Browse key="browse" />}
       {view === 'create' && <Create key="create" />}
       {view === 'detail' && <Detail key={selLeague?.id || 'detail'} />}
