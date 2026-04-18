@@ -311,6 +311,7 @@ const GoalOracle = () => {
   const [leagueRanks, setLeagueRanks] = useState({});
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
+  const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
   const nav = useCallback((v, l) => {
     if (l) { setSelLeague(l); setDetailTab('predictions'); setDetailWeek('week1'); setDetailStage('all'); }
     if (v === 'browse') loadAllLeagues();
@@ -379,7 +380,6 @@ const GoalOracle = () => {
     return () => { stopped = true; clearTimeout(first); clearInterval(interval); };
   }, [ready, authenticated, getTokenSafe]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
-  const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
   useEffect(loadAllLeagues, [loadAllLeagues]);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
   useEffect(() => {
