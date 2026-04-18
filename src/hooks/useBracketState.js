@@ -43,7 +43,6 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  // Hydrate once
   useEffect(() => {
     if (hydratedRef.current) return;
     if (knockoutPredictions) {

@@ -31,14 +31,48 @@ const SAVED_INDICATOR_MS = 2000;
 
 export default function SimplePrediction({ userId, league, onExit, embedded = false }) {
   const { data, loading, saving, savedAt, error, save } = useSimplePrediction(userId);
+
+  if (loading) {
+    return (
+      <div className="simple-page">
+        <div className="simple-skeleton">
+          <div className="simple-skeleton-steps" />
+          <div className="simple-skeleton-grid" />
+        </div>
+      </div>
+    );
+  }
+
+  // Wizard only mounts after the first snapshot arrives. Child hooks
+  // initialize from `data` once, then own their local state — the snapshot
+  // data `data` is never passed in again, so Firestore round-trips can't
+  // clobber in-flight user picks during the 1s save debounce window.
+  return (
+    <SimplePredictionWizard
+      initialData={data}
+      league={league}
+      onExit={onExit}
+      embedded={embedded}
+      saving={saving}
+      savedAt={savedAt}
+      error={error}
+      save={save}
+    />
+  );
+}
+
+function SimplePredictionWizard({ initialData, league, onExit, embedded, saving, savedAt, error, save }) {
   const [step, setStep] = useState(1);
   const [showSaved, setShowSaved] = useState(false);
 
-  const groups = useGroupPredictions(data?.groupPredictions);
-  const bestThird = useBestThird(data?.bestThirdPicks);
+  // Freeze the initial snapshot for hydration. Further snapshots don't
+  // re-hydrate — local state is the source of truth after mount.
+  const frozenInitial = useRef(initialData).current;
+
+  const groups = useGroupPredictions(frozenInitial?.groupPredictions);
+  const bestThird = useBestThird(frozenInitial?.bestThirdPicks);
   const layout = useBracketLayout();
 
-  // Lookup table for kickoff-based locking on knockout matches.
   const matchLookup = useMemo(() => {
     const out = {};
     for (const m of WORLD_CUP_MATCHES) out[m.id] = m;
@@ -54,11 +88,10 @@ export default function SimplePrediction({ userId, league, onExit, embedded = fa
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
-    knockoutPredictions: data?.knockoutPredictions,
+    knockoutPredictions: frozenInitial?.knockoutPredictions,
     onChange: (next) => save({ knockoutPredictions: next }),
   });
 
-  // Briefly flash "Saved ✓" after each successful save
   useEffect(() => {
     if (!savedAt) return;
     setShowSaved(true);
@@ -66,20 +99,21 @@ export default function SimplePrediction({ userId, league, onExit, embedded = fa
     return () => clearTimeout(t);
   }, [savedAt]);
 
+  // Skip the initial fire of these effects (post-hydration) so we don't
+  // re-save the just-loaded data on mount.
   const groupsHydrated = useRef(false);
   const bestThirdHydrated = useRef(false);
 
   useEffect(() => {
-    if (loading || groups.touchedCount === 0) return;
+    if (groups.touchedCount === 0) return;
     if (!groupsHydrated.current) { groupsHydrated.current = true; return; }
     save({ groupPredictions: groups.predictions });
-  }, [groups.predictions, groups.touchedCount, loading, save]);
+  }, [groups.predictions, groups.touchedCount, save]);
 
   useEffect(() => {
-    if (loading) return;
     if (!bestThirdHydrated.current) { bestThirdHydrated.current = true; return; }
     save({ bestThirdPicks: bestThird.picks });
-  }, [bestThird.picks, loading, save]);
+  }, [bestThird.picks, save]);
 
   const step1Complete = groups.allTouched;
   const step2Complete = bestThird.isComplete;
@@ -97,27 +131,15 @@ export default function SimplePrediction({ userId, league, onExit, embedded = fa
   }, []);
 
   const handleStepClick = useCallback((s) => {
-    // Warn if changing group rankings would invalidate downstream knockout picks
-    const hasKnockoutPicks = data?.knockoutPredictions && Object.values(data.knockoutPredictions)
-      .some((arr) => Array.isArray(arr) && arr.length > 0);
+    const hasKnockoutPicks = Object.keys(bracketState.picksByMatchId).length > 0;
     if (s === 1 && step === 3 && hasKnockoutPicks) {
       const ok = window.confirm('Changing group rankings will reset your knockout predictions. Continue?');
       if (!ok) return;
+      bracketState.resetAll();
       save({ knockoutPredictions: emptyKnockoutPredictions() });
     }
     goToStep(s);
-  }, [data, step, save, goToStep]);
-
-  if (loading) {
-    return (
-      <div className="simple-page">
-        <div className="simple-skeleton">
-          <div className="simple-skeleton-steps" />
-          <div className="simple-skeleton-grid" />
-        </div>
-      </div>
-    );
-  }
+  }, [bracketState, step, save, goToStep]);
 
   return (
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
@@ -238,7 +260,10 @@ export default function SimplePrediction({ userId, league, onExit, embedded = fa
               <ArrowLeft size={16} /> Back to best third
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => {
-              if (window.confirm('Reset all knockout predictions?')) bracketState.resetAll();
+              if (window.confirm('Reset all knockout predictions?')) {
+                bracketState.resetAll();
+                save({ knockoutPredictions: emptyKnockoutPredictions() });
+              }
             }}>
               Reset bracket
             </button>

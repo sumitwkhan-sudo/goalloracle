@@ -261,30 +261,17 @@ export async function getSimplePrediction(userId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-const _docExists = new Set();
-
 export async function saveSimplePrediction(userId, partial) {
   if (!userId) throw new Error('Missing userId');
   const ref = doc(db, 'simplePredictions', userId);
 
-  const payload = { updatedAt: serverTimestamp() };
+  const payload = { userId, updatedAt: serverTimestamp() };
   if (partial.groupPredictions !== undefined) payload.groupPredictions = partial.groupPredictions;
   if (partial.bestThirdPicks !== undefined) payload.bestThirdPicks = partial.bestThirdPicks;
   if (partial.knockoutPredictions !== undefined) payload.knockoutPredictions = partial.knockoutPredictions;
   if (partial.isComplete !== undefined) payload.isComplete = partial.isComplete;
 
-  if (_docExists.has(userId)) {
-    await updateDoc(ref, payload);
-  } else {
-    payload.userId = userId;
-    payload.submittedAt = serverTimestamp();
-    await setDoc(ref, payload, { merge: true });
-    _docExists.add(userId);
-  }
-}
-
-export function markSimplePredictionExists(userId) {
-  _docExists.add(userId);
+  await setDoc(ref, payload, { merge: true });
 }
 
 export async function getSimpleLeaderboard(leagueId) {

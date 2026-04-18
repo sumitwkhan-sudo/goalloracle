@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { subscribeToSimplePrediction, saveSimplePrediction, markSimplePredictionExists } from '../utils/db';
+import { subscribeToSimplePrediction, saveSimplePrediction } from '../utils/db';
 
 const SAVE_DEBOUNCE_MS = 1000;
 
@@ -21,7 +21,6 @@ export default function useSimplePrediction(userId) {
     if (!userId) { setLoading(false); return; }
     setLoading(true);
     const unsub = subscribeToSimplePrediction(userId, (doc) => {
-      if (doc) markSimplePredictionExists(userId);
       setData(doc);
       setLoading(false);
     });

@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const leaderboard = members.map(userId => {
       const user = users[userId] || { displayName: userId.slice(0, 8), usernameSet: false };
       const pred = preds[userId];
-      const ts = pred?.submittedAt;
+      const ts = pred?.submittedAt || pred?.updatedAt;
       return {
         userId,
         displayName: user.displayName,
