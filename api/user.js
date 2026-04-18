@@ -97,7 +97,8 @@ export default async function handler(req, res) {
         displayName: email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous'),
         usernameSet: false,
       });
-      // Add to both global leagues' member lists
+      // Add to both global leagues' member lists + subcollection
+      const displayName = email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous');
       await Promise.all([
         db.collection('leagues').doc('global').update({
           members: FieldValue.arrayUnion(userId),
@@ -106,6 +107,14 @@ export default async function handler(req, res) {
         db.collection('leagues').doc('global-simple').update({
           members: FieldValue.arrayUnion(userId),
           memberCount: FieldValue.increment(1),
+        }),
+        db.collection('leagues').doc('global-simple').collection('members').doc(userId).set({
+          userId,
+          displayName,
+          joinedAt: FieldValue.serverTimestamp(),
+          totalAccuracy: 0,
+          submittedAt: null,
+          hasSubmitted: false,
         }),
       ]);
     } else {
@@ -131,6 +140,21 @@ export default async function handler(req, res) {
           }).catch(() => {});
         }
       }
+
+      // Ensure global-simple members subcollection doc exists (backfill)
+      const memberRef = db.collection('leagues').doc('global-simple').collection('members').doc(userId);
+      memberRef.get().then((snap) => {
+        if (!snap.exists) {
+          memberRef.set({
+            userId,
+            displayName: userSnap.data().displayName || 'Anonymous',
+            joinedAt: userSnap.data().createdAt || FieldValue.serverTimestamp(),
+            totalAccuracy: 0,
+            submittedAt: null,
+            hasSubmitted: false,
+          });
+        }
+      }).catch(() => {});
 
       await userRef.update(updates);
     }

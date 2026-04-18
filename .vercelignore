@@ -1,0 +1,28 @@
+# Files Vercel doesn't need — excluded from the deployment upload.
+# Keeps only what's needed to build + run (src/, api/, public/, config files).
+
+# Test files & tooling
+**/*.test.js
+**/*.test.jsx
+**/*.spec.js
+
+# Migration / maintenance scripts
+scripts/
+
+# Smart contract source (not used by the web app)
+contracts/
+
+# Local build output (Vercel rebuilds)
+dist/
+
+# Local env + DS_Store
+.env
+.env.local
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Claude session + scratch
+.claude/
