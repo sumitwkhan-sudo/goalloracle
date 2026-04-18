@@ -11,7 +11,7 @@
  * are allowed — the scoring engine handles them with an adjusted denominator.
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { ArrowLeft, ArrowRight, Check, AlertTriangle } from 'lucide-react';
 import StepProgress from '../components/simple/StepProgress';
 import GroupGrid from '../components/simple/GroupGrid';
@@ -66,15 +66,18 @@ export default function SimplePrediction({ userId, league, onExit, embedded = fa
     return () => clearTimeout(t);
   }, [savedAt]);
 
-  // Debounced autosave on group ranking changes (after any user interaction)
+  const groupsHydrated = useRef(false);
+  const bestThirdHydrated = useRef(false);
+
   useEffect(() => {
     if (loading || groups.touchedCount === 0) return;
+    if (!groupsHydrated.current) { groupsHydrated.current = true; return; }
     save({ groupPredictions: groups.predictions });
   }, [groups.predictions, groups.touchedCount, loading, save]);
 
-  // Autosave best-third selection
   useEffect(() => {
     if (loading) return;
+    if (!bestThirdHydrated.current) { bestThirdHydrated.current = true; return; }
     save({ bestThirdPicks: bestThird.picks });
   }, [bestThird.picks, loading, save]);
 

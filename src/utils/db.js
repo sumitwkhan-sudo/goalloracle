@@ -261,27 +261,30 @@ export async function getSimplePrediction(userId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-/**
- * Merge a partial Simple Mode prediction. Only provided fields are written.
- * Accepts any subset of { groupPredictions, bestThirdPicks, knockoutPredictions, isComplete }.
- * submittedAt is set on first save only.
- */
+const _docExists = new Set();
+
 export async function saveSimplePrediction(userId, partial) {
   if (!userId) throw new Error('Missing userId');
   const ref = doc(db, 'simplePredictions', userId);
-  const existing = await getDoc(ref);
 
-  const payload = { userId, updatedAt: serverTimestamp() };
+  const payload = { updatedAt: serverTimestamp() };
   if (partial.groupPredictions !== undefined) payload.groupPredictions = partial.groupPredictions;
   if (partial.bestThirdPicks !== undefined) payload.bestThirdPicks = partial.bestThirdPicks;
   if (partial.knockoutPredictions !== undefined) payload.knockoutPredictions = partial.knockoutPredictions;
   if (partial.isComplete !== undefined) payload.isComplete = partial.isComplete;
 
-  if (!existing.exists() || !existing.data().submittedAt) {
+  if (_docExists.has(userId)) {
+    await updateDoc(ref, payload);
+  } else {
+    payload.userId = userId;
     payload.submittedAt = serverTimestamp();
+    await setDoc(ref, payload, { merge: true });
+    _docExists.add(userId);
   }
+}
 
-  await setDoc(ref, payload, { merge: true });
+export function markSimplePredictionExists(userId) {
+  _docExists.add(userId);
 }
 
 export async function getSimpleLeaderboard(leagueId) {
