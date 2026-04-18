@@ -26,19 +26,21 @@ function TeamRow({ team, flag, position }) {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    touchAction: 'none',
   };
   const meta = POSITION_META[position];
   return (
-    <div ref={setNodeRef} style={style} className={`group-row ${meta.className} ${isDragging ? 'dragging' : ''}`}>
-      <button
-        type="button"
-        className="group-row-handle"
-        aria-label={`Reorder ${team}`}
-        {...attributes}
-        {...listeners}
-      >
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group-row ${meta.className} ${isDragging ? 'dragging' : ''}`}
+      aria-label={`Reorder ${team}`}
+      {...attributes}
+      {...listeners}
+    >
+      <span className="group-row-handle" aria-hidden="true">
         <GripVertical size={16} />
-      </button>
+      </span>
       <span className="group-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
       <span className="group-row-name">{team}</span>
       <span className={`group-row-badge ${meta.className}`}>
