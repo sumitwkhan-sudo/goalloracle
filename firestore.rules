@@ -31,6 +31,35 @@ service cloud.firestore {
                    && request.resource.data.userId == request.auth.uid;
     }
 
+    // Simple Mode predictions — one doc per user, keyed by userId.
+    // Users can only read/write their own doc; reads are public so leaderboards work.
+    match /simplePredictions/{userId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.userId == userId;
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    // submittedAt is the tiebreaker — never overwrite once set
+                    && (!('submittedAt' in resource.data)
+                        || resource.data.submittedAt == null
+                        || request.resource.data.submittedAt == resource.data.submittedAt);
+
+      // Per-league score docs under /simplePredictions/{userId}/scores/{leagueId}.
+      // Writes come from the server (admin SDK bypasses rules); clients only read.
+      match /scores/{leagueId} {
+        allow read: if true;
+        allow write: if false;
+      }
+    }
+
+    // League members subcollection (used by global-simple for ranking).
+    // Server (admin SDK) handles writes on signup/backfill/score update.
+    match /leagues/{leagueId}/members/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /matchResults/{matchId} {
       allow read: if true;
       allow write: if false;
