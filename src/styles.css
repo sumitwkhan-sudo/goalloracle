@@ -2632,3 +2632,67 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .bracket-desktop-third-slot {
   background: rgba(255,255,255,0.03); border-color: var(--border);
 }
+
+/* ============================================
+   SIMPLE MODE — MODE PICKER + GLOBAL LEAGUE SECTION
+   ============================================ */
+.mode-picker {
+  display: grid; grid-template-columns: 1fr; gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  .mode-picker { grid-template-columns: 1fr 1fr; }
+}
+.mode-card {
+  position: relative; display: flex; flex-direction: column; gap: 0.5rem;
+  padding: 1rem; border-radius: var(--radius-lg);
+  background: var(--bg-card); border: 2px solid var(--border);
+  color: var(--text); text-align: left; cursor: pointer; font: inherit;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.mode-card:hover:not(.selected) { border-color: var(--border-br); }
+.mode-card.selected { border-color: var(--primary); background: var(--primary-soft); }
+.mode-card-header {
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.mode-card-icon { font-size: 1.25rem; display: inline-flex; }
+.mode-card-title { font-weight: 600; font-size: 0.95rem; flex: 1; }
+.mode-card-badge {
+  font-family: var(--mono); font-size: 0.55rem; font-weight: 700;
+  padding: 0.15rem 0.45rem; border-radius: 999px;
+  background: rgba(245,158,11,0.15); color: #F59E0B;
+  letter-spacing: 0.08em;
+}
+.mode-card-desc { margin: 0; font-size: 0.82rem; color: var(--text-sec); line-height: 1.45; }
+.mode-card-meta {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem;
+  margin: 0; padding-top: 0.5rem; border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+}
+.mode-card-meta dt { color: var(--text-dim); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem; }
+.mode-card-meta dd { margin: 0; color: var(--text); font-weight: 500; }
+
+/* Global section on Leagues page */
+.lv2-section-title {
+  font-size: 0.8rem; font-family: var(--mono);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-sec); margin: 1.25rem 0 0.5rem;
+}
+.lv2-list-global { margin-bottom: 0.75rem; }
+.lv2-row-global {
+  position: relative; border-left: 3px solid #F59E0B;
+  background: linear-gradient(90deg, rgba(245,158,11,0.06), transparent 40%);
+}
+.lv2-row-global .lv2-row-top { cursor: pointer; }
+.lv2-global-pill {
+  font-family: var(--mono); font-size: 0.52rem; font-weight: 700;
+  padding: 0.12rem 0.4rem; border-radius: 999px;
+  background: rgba(245,158,11,0.18); color: #F59E0B;
+  letter-spacing: 0.1em; margin-left: 0.35rem; vertical-align: middle;
+}
+.lv2-mode-pill {
+  font-family: var(--mono); font-size: 0.52rem; font-weight: 700;
+  padding: 0.12rem 0.4rem; border-radius: 999px;
+  letter-spacing: 0.1em; margin-left: 0.25rem; vertical-align: middle;
+}
+.lv2-mode-pill.simple { background: rgba(0,230,118,0.14); color: var(--success); }
+.lv2-mode-pill.classic { background: rgba(0,212,255,0.14); color: var(--cyan); }

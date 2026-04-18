@@ -13,6 +13,7 @@ import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
 import SimplePrediction from './pages/SimplePrediction';
+import ModePicker from './components/simple/ModePicker';
 import './styles.css';
 
 // Scroll reveal hook with stadium + code wall parallax + section depth
@@ -165,6 +166,7 @@ const GoalOracle = () => {
   const [createRounds, setCreateRounds] = useState([]);
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState('');
+  const [createMode, setCreateMode] = useState('simple');
 
   // Lifted from Dashboard/Leagues — survives Firestore re-renders
   const [dashLeagueFilter, setDashLeagueFilter] = useState('all');
@@ -1144,18 +1146,24 @@ const GoalOracle = () => {
   };
 
   const LeaguesList = () => {
-    const ml = leagues.length > 0 ? leagues : [{ id: 'global', name: 'Global League', type: 'free', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } }];
+    const allMine = leagues.length > 0 ? leagues : [
+      { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
+      { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
+    ];
+    const isGlobalLeague = (l) => l.id === 'global' || l.id === 'global-simple' || l.isGlobal === true;
+    const globalLeagues = allMine.filter(isGlobalLeague);
+    const privateLeagues = allMine.filter(l => !isGlobalLeague(l));
     const defaultPS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
     const [lbCache, setLbCache] = useState({});
 
     const filtered = useMemo(() => {
-      if (dashLeagueFilter === 'all') return ml;
-      return ml.filter(l => {
+      if (dashLeagueFilter === 'all') return privateLeagues;
+      return privateLeagues.filter(l => {
         const hasCompleted = Object.keys(results).length > 0;
         if (dashLeagueFilter === 'ended') return hasCompleted;
         return !hasCompleted || dashLeagueFilter === 'active';
       });
-    }, [ml, dashLeagueFilter, results]);
+    }, [privateLeagues, dashLeagueFilter, results]);
 
     const toggleExpand = (id) => setExpandedLeagues(prev => ({ ...prev, [id]: !prev[id] }));
 
@@ -1172,12 +1180,42 @@ const GoalOracle = () => {
     return (
       <div className="leagues-v2">
         <div className="lv2-header">
-          <div><button className="btn-back" onClick={() => nav('dashboard')}>&larr; Back</button><h1 className="lv2-title">Your Leagues</h1><span className="lv2-count">{ml.length} league{ml.length !== 1 ? 's' : ''}</span></div>
+          <div><button className="btn-back" onClick={() => nav('dashboard')}>&larr; Back</button><h1 className="lv2-title">Your Leagues</h1><span className="lv2-count">{allMine.length} league{allMine.length !== 1 ? 's' : ''}</span></div>
           <div className="dv2-actions">
             <button className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={16} /> Browse</button>
             <button className="btn btn-primary btn-sm" onClick={() => nav('create')}><Plus size={16} /> Create</button>
           </div>
         </div>
+
+        {globalLeagues.length > 0 && (
+          <>
+            <h2 className="lv2-section-title">Global</h2>
+            <div className="lv2-list lv2-list-global">
+              {globalLeagues.map(gl => {
+                const gRk = leagueRanks[gl.id];
+                return (
+                  <div key={gl.id} className="lv2-row lv2-row-global">
+                    <div className="lv2-row-top" onClick={() => nav('detail', gl)}>
+                      <div className="lv2-row-info">
+                        <h3 className="lv2-row-name">
+                          {gl.name} <span className="lv2-global-pill">GLOBAL</span>
+                          {gl.predictionMode === 'simple' && <span className="lv2-mode-pill simple">SIMPLE</span>}
+                          {gl.predictionMode !== 'simple' && <span className="lv2-mode-pill classic">CLASSIC</span>}
+                        </h3>
+                        <span className="lv2-row-meta"><Users size={12} /> {(gl.memberCount || 0).toLocaleString()} members</span>
+                      </div>
+                      <div className="lv2-row-rank-area">
+                        {gRk ? <><span className="lv2-rank-num">#{gRk.rank.toLocaleString()}</span><span className="lv2-rank-label">of {(gl.memberCount || 0).toLocaleString()}</span></> : <span className="lv2-rank-num">&mdash;</span>}
+                      </div>
+                      <ChevronRight size={16} className="lv2-chevron" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {privateLeagues.length > 0 && <h2 className="lv2-section-title">Your Leagues</h2>}
+          </>
+        )}
 
         <div className="lv2-filters">
           {['all', 'active', 'ended'].map(f => (
@@ -1373,6 +1411,7 @@ const GoalOracle = () => {
       setCreatePs({ correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 });
       setCreateScope('all'); setCreateGroups([]); setCreateRounds([]);
       setCreateBusy(false); setCreateErr('');
+      setCreateMode('simple');
     };
 
     const go = async () => {
@@ -1389,7 +1428,7 @@ const GoalOracle = () => {
         matchScope === 'groups' ? { matchScope: 'groups', selectedGroups: selGroups } :
         { matchScope: 'rounds', selectedRounds: selRounds };
       try {
-        const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: ps, ...scopeData };
+        const leagueData = { name: nm.trim(), type: tp, visibility: vis, passcode: vis === 'private' ? passcode.trim().toUpperCase() : null, entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu, prizeDistribution: tp === 'paid' ? di : null, pointsSystem: createMode === 'simple' ? null : ps, predictionMode: createMode, ...scopeData };
         const lid = await createLeague(leagueData, uData.id);
         const savedName = nm.trim();
         const savedPasscode = vis === 'private' ? passcode.trim().toUpperCase() : null;
@@ -1429,6 +1468,9 @@ const GoalOracle = () => {
         <div className="create-league-form" style={{position:'relative'}}>
           {busy && <div className="create-loading-overlay"><div className="create-loading-inner"><Loader size={32} className="spin" /><p>Creating your league...</p></div></div>}
           {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}
+          <div className="form-section"><label>Prediction Mode</label>
+            <ModePicker value={createMode} onChange={setCreateMode} />
+          </div>
           <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={e => setNm(e.target.value)} className="input-field" /></div>
           <div className="form-section"><label>League Type</label>
             <div className="type-selector">
@@ -1484,7 +1526,9 @@ const GoalOracle = () => {
               ))}</div>
             </div>
           )}
-          <div className="form-section"><label>Points System</label><div className="points-grid">{Object.entries(ps).map(([k,v]) => <div className="point-item" key={k}><label>{k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())}</label><input type="number" value={v} min="0" onChange={e=>setPs({...ps,[k]:parseInt(e.target.value)||0})} className="input-field-sm" /></div>)}</div></div>
+          {createMode !== 'simple' && (
+            <div className="form-section"><label>Points System</label><div className="points-grid">{Object.entries(ps).map(([k,v]) => <div className="point-item" key={k}><label>{k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())}</label><input type="number" value={v} min="0" onChange={e=>setPs({...ps,[k]:parseInt(e.target.value)||0})} className="input-field-sm" /></div>)}</div></div>
+          )}
           <div className="form-actions"><button className="btn btn-secondary" onClick={() => nav('dashboard')}>Cancel</button><button className="btn btn-primary" onClick={go} disabled={busy}>{busy ? <><RefreshCw size={18} className="spin" /> Creating...</> : <>Create League <ChevronRight size={18} /></>}</button></div>
         </div>
       </div>
