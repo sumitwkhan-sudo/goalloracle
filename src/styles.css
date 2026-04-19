@@ -1382,6 +1382,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .pv-result-away { background: rgba(255,184,0,0.12); color: var(--amber); }
 .pv-result-draw { background: rgba(123,97,255,0.14); color: var(--violet); }
 .pv-classic-flag { font-family: var(--mono); font-size: 0.6rem; padding: 0.1rem 0.3rem; background: rgba(255,255,255,0.06); border-radius: 3px; color: var(--text-sec); letter-spacing: 0.05em; }
+
+.guest-prompt { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; padding: 3rem 1.5rem; text-align: center; }
+.guest-prompt p { color: var(--text-sec); font-size: 0.95rem; margin: 0; max-width: 340px; }
 .leaderboard-list { display: flex; flex-direction: column; }
 .leaderboard-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
 .leaderboard-item:hover { background: var(--bg-elev); }

@@ -264,7 +264,7 @@ const _teamFlags = (() => {
   return flags;
 })();
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, initialTab = 'leaderboard' }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, initialTab = 'leaderboard' }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -344,7 +344,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
       <div className="tabs">
         <button className={`tab ${sTab === 'leaderboard' ? 'active' : ''}`} onClick={() => setSTab('leaderboard')}><TrendingUp size={16} /> Leaderboard</button>
-        <button className={`tab ${sTab === 'predictions' ? 'active' : ''}`} onClick={() => setSTab('predictions')}><Target size={16} /> Predictions</button>
+        <button className={`tab ${sTab === 'predictions' ? 'active' : ''}`} onClick={() => { if (!authenticated) { onSignIn && onSignIn(); return; } setSTab('predictions'); }}><Target size={16} /> Predictions</button>
       </div>
 
       {sTab === 'leaderboard' && (
@@ -469,14 +469,21 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       )}
 
       {sTab === 'predictions' && (
-        <SimplePrediction
-          key={`simple-${league?.id}`}
-          userId={userData?.id}
-          league={league}
-          onExit={onBack}
-          onComplete={handleComplete}
-          embedded
-        />
+        authenticated ? (
+          <SimplePrediction
+            key={`simple-${league?.id}`}
+            userId={userData?.id}
+            league={league}
+            onExit={onBack}
+            onComplete={handleComplete}
+            embedded
+          />
+        ) : (
+          <div className="empty-state guest-prompt">
+            <p>Sign in to make your predictions and track your accuracy.</p>
+            <button className="btn btn-primary" onClick={onSignIn}>Sign Up or Log In</button>
+          </div>
+        )
       )}
     </div>
   );
@@ -1351,7 +1358,11 @@ const GoalOracle = () => {
             <div className="lb-panel reveal">
               <div className="lb-panel-head">
                 <h3>Global Leaderboard</h3>
-                <a className="lb-view-all" onClick={() => authenticated ? nav('dashboard') : login()}>View Full Leaderboard <ChevronRight size={14} /></a>
+                <a className="lb-view-all" onClick={() => {
+                  const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true };
+                  nav('detail', gs);
+                  setDetailTab('leaderboard');
+                }}>View Full Leaderboard <ChevronRight size={14} /></a>
               </div>
               <div className="lb-tabs">
                 {['global','country','friends'].map(t => (
@@ -3542,7 +3553,9 @@ const GoalOracle = () => {
           key={`simple-detail-${selLeague.id}`}
           league={selLeague}
           userData={uData}
-          onBack={() => nav('leagues')}
+          authenticated={authenticated}
+          onSignIn={login}
+          onBack={() => nav(authenticated ? 'leagues' : 'landing')}
           onSetUsername={() => setShowUsernamePrompt(true)}
           initialTab={detailTab === 'predictions' ? 'predictions' : 'leaderboard'}
         />
