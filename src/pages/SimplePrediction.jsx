@@ -268,7 +268,23 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
         <section className="simple-step-section">
           <div className="simple-step-intro">
             <h2>Step 1 — Rank each group</h2>
-            <p>Drag teams to order them 1st through 4th in each of the 12 groups.</p>
+            <p>Drag teams to order them 1st through 4th in each of the 12 groups, then tap <strong>Confirm ranking</strong> on each card.</p>
+          </div>
+
+          <div className="simple-step-nav simple-step-nav-top">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => goToStep(2)}
+              disabled={!step1Complete}
+              aria-label={step1Complete
+                ? 'Save and continue to best third-place teams'
+                : `Finish ${GROUPS.length - groups.touchedCount} more group${GROUPS.length - groups.touchedCount === 1 ? '' : 's'} to continue`}
+            >
+              {step1Complete
+                ? <>Save &amp; Continue <ArrowRight size={16} /></>
+                : <>Finish all {GROUPS.length} groups to continue</>}
+            </button>
           </div>
 
           <GroupGrid
@@ -277,6 +293,8 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
             flags={groups.flags}
             touchedCount={groups.touchedCount}
             onReorder={groups.setRanking}
+            onConfirm={groups.confirm}
+            onUnconfirm={groups.unconfirm}
           />
 
           <div className="simple-step-nav">
@@ -297,6 +315,22 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
           <div className="simple-step-intro">
             <h2>Step 2 — Pick best third-place teams</h2>
             <p>Select exactly {BEST_THIRD_REQUIRED} of the 12 third-place teams to advance.</p>
+          </div>
+
+          <div className="simple-step-nav simple-step-nav-top simple-step-nav-split">
+            <button type="button" className="btn btn-secondary" onClick={() => goToStep(1)}>
+              <ArrowLeft size={16} /> Back
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => goToStep(3)}
+              disabled={!step2Complete}
+            >
+              {step2Complete
+                ? <>Save &amp; Continue <ArrowRight size={16} /></>
+                : <>Pick {BEST_THIRD_REQUIRED - bestThird.picks.length} more to continue</>}
+            </button>
           </div>
 
           <BestThirdSelector

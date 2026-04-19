@@ -2950,6 +2950,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  padding: 0 0.75rem; /* keep end pills off the viewport edge on mobile */
+}
+/* On narrow viewports the three pills need to start from the left so the
+   last one is reachable by scroll rather than cropped by centering. */
+@media (max-width: 640px) {
+  .simple-steps { justify-content: flex-start; padding: 0 1rem; }
 }
 .simple-steps::-webkit-scrollbar { display: none; }
 .simple-step {
@@ -3002,14 +3008,47 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 /* Group grid */
 .group-grid-wrap { display: flex; flex-direction: column; gap: 1rem; }
 .group-grid-progress {
-  display: flex; align-items: center; gap: 0.75rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 0.75rem 1rem;
   font-size: 0.85rem; color: var(--text-sec);
+  /* Stay visible while the user scrolls through the 12 groups. */
+  position: sticky; top: 0; z-index: 5;
+  backdrop-filter: saturate(1.2) blur(6px);
+  -webkit-backdrop-filter: saturate(1.2) blur(6px);
+  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.35);
 }
-.group-grid-progress strong { color: var(--text); font-family: var(--mono); font-size: 0.85rem; }
-.group-grid-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; margin-left: 0.25rem; }
+.group-grid-progress-row {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+}
+.group-grid-progress-remaining {
+  margin-left: auto; font-size: 0.78rem; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.group-grid-progress strong { color: var(--text); font-family: var(--mono); font-size: 0.95rem; }
+.group-grid-bar { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
 .group-grid-bar-fill { height: 100%; background: var(--success); transition: width 0.35s ease; }
+
+/* Per-group confirm button */
+.group-card-confirm { padding: 0.6rem 0.75rem 0.75rem; }
+.group-card-confirm-btn {
+  width: 100%; display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.4rem; padding: 0.55rem 0.75rem; border-radius: 999px;
+  background: var(--primary-soft, rgba(124, 92, 255, 0.12));
+  color: var(--primary, #7c5cff); border: 1px solid rgba(124, 92, 255, 0.35);
+  font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.group-card-confirm-btn:hover { background: rgba(124, 92, 255, 0.18); }
+.group-card-confirm-btn:active { transform: translateY(1px); }
+.group-card-confirm-btn.is-confirmed {
+  background: rgba(0, 230, 118, 0.1); color: var(--success);
+  border-color: rgba(0, 230, 118, 0.35);
+}
+.group-card-confirm-btn.is-confirmed:hover { background: rgba(0, 230, 118, 0.18); }
+
+/* Top-of-step nav button (in addition to the bottom one) */
+.simple-step-nav-top { margin-top: -0.25rem; }
 .group-grid {
   display: grid; grid-template-columns: 1fr; gap: 1rem;
 }

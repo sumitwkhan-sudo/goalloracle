@@ -51,7 +51,7 @@ function TeamRow({ team, flag, position }) {
   );
 }
 
-export default function GroupCard({ group, ranking, flags, touched, onReorder }) {
+export default function GroupCard({ group, ranking, flags, touched, onReorder, onConfirm, onUnconfirm }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
@@ -86,6 +86,27 @@ export default function GroupCard({ group, ranking, flags, touched, onReorder })
           </div>
         </SortableContext>
       </DndContext>
+      <div className="group-card-confirm">
+        {touched ? (
+          <button
+            type="button"
+            className="group-card-confirm-btn is-confirmed"
+            onClick={() => onUnconfirm && onUnconfirm(group)}
+            aria-label={`Undo confirmation for Group ${group}`}
+          >
+            <Check size={14} /> Confirmed &mdash; tap to edit
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="group-card-confirm-btn"
+            onClick={() => onConfirm && onConfirm(group)}
+            aria-label={`Confirm ranking for Group ${group}`}
+          >
+            Confirm ranking
+          </button>
+        )}
+      </div>
     </div>
   );
 }

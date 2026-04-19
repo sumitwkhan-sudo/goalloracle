@@ -82,6 +82,22 @@ export default function useGroupPredictions(initialData) {
     });
   }, [defaults]);
 
+  // Explicit "I'm done with this group" confirmation. Lets a user lock in
+  // a ranking even if they left the default order as-is (e.g. alphabetical
+  // happens to be what they wanted).
+  const confirm = useCallback((group) => {
+    setTouched((t) => (t[group] ? t : { ...t, [group]: true }));
+  }, []);
+
+  const unconfirm = useCallback((group) => {
+    setTouched((t) => {
+      if (!t[group]) return t;
+      const next = { ...t };
+      delete next[group];
+      return next;
+    });
+  }, []);
+
   const touchedCount = Object.values(touched).filter(Boolean).length;
   const allTouched = touchedCount === GROUPS.length;
 
@@ -94,6 +110,8 @@ export default function useGroupPredictions(initialData) {
     allTouched,
     reorder,
     setRanking,
+    confirm,
+    unconfirm,
     flags,
   };
 }
