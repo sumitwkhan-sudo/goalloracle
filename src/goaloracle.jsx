@@ -1317,6 +1317,7 @@ const GoalOracle = () => {
             <div className="hero-left">
               <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
               <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
+              <p className="hero-compliance"><Shield size={12} /> Prediction engine compliant with the official FIFA World Cup 26™ rulebook &mdash; group standings, best-third ranking, and Round&nbsp;of&nbsp;32 brackets resolve exactly per FIFA Annexe C.</p>
               <div className="hero-cta">
                 <button className="btn btn-primary btn-lg" onClick={startSimplePredicting}>Start Predicting &mdash; It&rsquo;s Free</button>
                 <button className="btn btn-secondary btn-lg" onClick={() => authenticated ? nav('create') : login()}>Create a League</button>
