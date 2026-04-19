@@ -26,8 +26,8 @@ const _teamFlags = (() => {
   return flags;
 })();
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername }) {
-  const [sTab, setSTab] = useState('leaderboard');
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, initialTab = 'leaderboard' }) {
+  const [sTab, setSTab] = useState(initialTab);
   const [simLb, setSimLb] = useState([]);
   const [simLbl, setSimLbl] = useState(false);
   const [lbKey, setLbKey] = useState(0);
@@ -805,6 +805,16 @@ const GoalOracle = () => {
       nav('detail', globalLeague);
     };
 
+    // "Start Predicting" buttons: route straight to Global Simple predictions flow
+    const startSimplePredicting = () => {
+      if (!authenticated) { login(); return; }
+      const globalSimple = leagues.find(l => l.id === 'global-simple') || {
+        id: 'global-simple', name: 'Global League Simple', type: 'free',
+        predictionMode: 'simple', isGlobal: true,
+      };
+      nav('detail', globalSimple);
+    };
+
     // Mock leaderboard data
     const mockLb = [
       { rank: 1, name: 'LeoM', pts: 78, level: 12 },
@@ -829,7 +839,7 @@ const GoalOracle = () => {
               <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
               <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
               <div className="hero-cta">
-                <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}>Start Predicting &mdash; It&rsquo;s Free</button>
+                <button className="btn btn-primary btn-lg" onClick={startSimplePredicting}>Start Predicting &mdash; It&rsquo;s Free</button>
                 <button className="btn btn-secondary btn-lg" onClick={() => authenticated ? nav('create') : login()}>Create a League</button>
               </div>
               <div className="hero-social-proof">
@@ -1149,7 +1159,7 @@ const GoalOracle = () => {
               <h2>Ready to Become the Oracle?</h2>
               <p>Join thousands of football fans already predicting, competing, and winning.</p>
               <div className="final-cta-btns">
-                <button className="btn btn-primary btn-lg" onClick={() => authenticated ? nav('dashboard') : login()}>Start Predicting &mdash; It&rsquo;s Free</button>
+                <button className="btn btn-primary btn-lg" onClick={startSimplePredicting}>Start Predicting &mdash; It&rsquo;s Free</button>
                 <button className="btn btn-secondary btn-lg" onClick={() => authenticated ? nav('create') : login()}>Create a League</button>
               </div>
             </div>
@@ -3173,6 +3183,7 @@ const GoalOracle = () => {
           userData={uData}
           onBack={() => nav('leagues')}
           onSetUsername={() => setShowUsernamePrompt(true)}
+          initialTab={detailTab === 'predictions' ? 'predictions' : 'leaderboard'}
         />
       )}
       {view === 'detail' && selLeague?.predictionMode !== 'simple' && <Detail key={selLeague?.id || 'detail'} />}

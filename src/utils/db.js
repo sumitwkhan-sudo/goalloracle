@@ -101,6 +101,14 @@ export async function createOrUpdateUser(privyUser) {
   }
   const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
 
+  // Kick off /api/user in the background — server-side backfills global league
+  // membership (leagues/global, leagues/global-simple → members array) which
+  // the client can't write through Firestore rules.
+  apiCall('user', 'POST', {
+    email: emailAddr,
+    walletAddress: walletAddr,
+  }).catch(e => console.warn('[auth] /api/user backfill failed:', e.message));
+
   if (userSnap.exists()) {
     const userData = { id: userSnap.id, ...userSnap.data() };
     console.log('[auth] loaded user from Firestore:', userData.displayName, userData.role);
@@ -133,8 +141,6 @@ export async function createOrUpdateUser(privyUser) {
       displayName,
       usernameSet: false,
     });
-
-    // Global league membership handled by /api/user on background sync
 
     // Read back the created doc
     const fresh = await getDoc(userRef);
