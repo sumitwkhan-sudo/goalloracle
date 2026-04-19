@@ -16,6 +16,154 @@ import SimplePrediction from './pages/SimplePrediction';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import './styles.css';
 
+// Read-only modal that shows another user's Simple Mode picks (group rankings,
+// best-third picks, and knockout bracket winners).
+function PicksViewer({ target, onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!target?.userId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { getSimplePrediction } = await import('./utils/db');
+        const p = await getSimplePrediction(target.userId);
+        if (!cancelled) setData(p);
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || 'Could not load picks');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [target?.userId]);
+
+  const GROUPS_LOCAL = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  const roundOrder = ['roundOf32','roundOf16','quarterFinals','semiFinals','thirdPlace','final'];
+  const roundLabel = {
+    roundOf32: 'Round of 32', roundOf16: 'Round of 16', quarterFinals: 'Quarterfinals',
+    semiFinals: 'Semifinals', thirdPlace: '3rd Place', final: 'Final',
+  };
+
+  const thirdPlace = data?.knockoutPredictions?.thirdPlace?.[0]?.winnerId || null;
+
+  return (
+    <div className="picks-viewer-backdrop" onClick={onClose}>
+      <div className="picks-viewer-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="picks-viewer-header">
+          <div className="picks-viewer-title">
+            <div className="picks-viewer-avatar">{target.displayName?.[0]?.toUpperCase() || '?'}</div>
+            <div>
+              <h3>{target.displayName}&rsquo;s picks</h3>
+              <span className="picks-viewer-sub">Simple Mode predictions</span>
+            </div>
+          </div>
+          <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
+        </div>
+
+        {loading ? (
+          <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading picks...</div>
+        ) : err ? (
+          <div className="empty-state"><AlertTriangle size={20} /><p>{err}</p></div>
+        ) : !data ? (
+          <div className="empty-state"><p>This user hasn&rsquo;t saved any predictions yet.</p></div>
+        ) : (
+          <div className="picks-viewer-body">
+            <div className="picks-viewer-finalists">
+              <div className="picks-viewer-podium">
+                <div className="podium-slot podium-winner">
+                  <Trophy size={20} className="gold" />
+                  <span className="podium-label">Champion</span>
+                  <span className="podium-team">
+                    {target.winner ? <>{_teamFlags[target.winner] || ''} {target.winner}</> : <span className="podium-empty">—</span>}
+                  </span>
+                </div>
+                <div className="podium-slot podium-runner">
+                  <Award size={18} className="silver" />
+                  <span className="podium-label">Runner-up</span>
+                  <span className="podium-team">
+                    {target.runnerUp ? <>{_teamFlags[target.runnerUp] || ''} {target.runnerUp}</> : <span className="podium-empty">—</span>}
+                  </span>
+                </div>
+                <div className="podium-slot podium-third">
+                  <Award size={16} className="bronze" />
+                  <span className="podium-label">3rd place</span>
+                  <span className="podium-team">
+                    {thirdPlace ? <>{_teamFlags[thirdPlace] || ''} {thirdPlace}</> : <span className="podium-empty">—</span>}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="picks-viewer-section">
+              <h4 className="picks-viewer-h">Group stage rankings</h4>
+              <div className="picks-viewer-groups">
+                {GROUPS_LOCAL.map(g => {
+                  const ranking = data.groupPredictions?.[g]?.ranking || [];
+                  if (ranking.length === 0) return null;
+                  return (
+                    <div key={g} className="picks-viewer-group">
+                      <div className="pv-group-title">Group {g}</div>
+                      <ol className="pv-group-list">
+                        {ranking.map((t, i) => (
+                          <li key={`${g}-${t || i}`}><span className="pv-rank">{i + 1}.</span> <span className="pv-flag">{_teamFlags[t] || ''}</span> <span className="pv-team">{t || '—'}</span></li>
+                        ))}
+                      </ol>
+                    </div>
+                  );
+                })}
+                {GROUPS_LOCAL.every(g => !(data.groupPredictions?.[g]?.ranking?.length)) && (
+                  <span className="picks-viewer-muted">No group rankings submitted yet.</span>
+                )}
+              </div>
+            </div>
+
+            <div className="picks-viewer-section">
+              <h4 className="picks-viewer-h">Best 3rd-place picks</h4>
+              {(data.bestThirdPicks || []).length > 0 ? (
+                <div className="picks-viewer-chips">
+                  {data.bestThirdPicks.map(g => (
+                    <span key={g} className="pv-chip">Group {g}</span>
+                  ))}
+                </div>
+              ) : <span className="picks-viewer-muted">Not selected yet.</span>}
+            </div>
+
+            <div className="picks-viewer-section">
+              <h4 className="picks-viewer-h">Knockout bracket</h4>
+              <div className="picks-viewer-rounds">
+                {roundOrder.map(r => {
+                  const picks = data.knockoutPredictions?.[r] || [];
+                  if (picks.length === 0) return null;
+                  return (
+                    <div key={r} className="pv-round">
+                      <div className="pv-round-title">{roundLabel[r]}</div>
+                      <div className="pv-round-picks">
+                        {picks.map(p => (
+                          <span key={p.matchId} className="pv-pick">
+                            <span className="pv-flag">{_teamFlags[p.winnerId] || ''}</span>
+                            <span className="pv-team">{p.winnerId}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {roundOrder.every(r => !(data.knockoutPredictions?.[r]?.length)) && (
+                  <span className="picks-viewer-muted">No knockout picks yet.</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const _teamFlags = (() => {
   const flags = {};
   for (const m of WORLD_CUP_MATCHES) {
@@ -28,12 +176,17 @@ const _teamFlags = (() => {
 
 const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, initialTab = 'leaderboard' }) {
   const [sTab, setSTab] = useState(initialTab);
+  const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
   const [simLbl, setSimLbl] = useState(false);
+  const [classicLb, setClassicLb] = useState([]);
+  const [classicLbl, setClassicLbl] = useState(false);
   const [lbKey, setLbKey] = useState(0);
+  const [viewingPicks, setViewingPicks] = useState(null); // { userId, displayName, winner, runnerUp }
 
+  // Fetch Simple leaderboard
   useEffect(() => {
-    if (sTab !== 'leaderboard' || !league?.id) return;
+    if (sTab !== 'leaderboard' || lbMode !== 'simple' || !league?.id) return;
     let cancelled = false;
     (async () => {
       setSimLbl(true);
@@ -44,7 +197,31 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       finally { if (!cancelled) setSimLbl(false); }
     })();
     return () => { cancelled = true; };
-  }, [sTab, league?.id, lbKey]);
+  }, [sTab, lbMode, league?.id, lbKey]);
+
+  // Fetch Classic leaderboard (from the Global classic league)
+  useEffect(() => {
+    if (sTab !== 'leaderboard' || lbMode !== 'classic') return;
+    let cancelled = false;
+    (async () => {
+      setClassicLbl(true);
+      try {
+        const { leaderboard: bu, userNames } = await getLeagueLeaderboard('global');
+        if (cancelled) return;
+        const entries = Object.entries(bu).map(([uid, preds]) => {
+          const predCount = Object.values(preds || {}).filter(p => p?.result).length;
+          return {
+            userId: uid,
+            displayName: userNames[uid] || uid.slice(0, 8),
+            predictions: predCount,
+          };
+        }).sort((a, b) => b.predictions - a.predictions || a.displayName.localeCompare(b.displayName));
+        setClassicLb(entries);
+      } catch (e) { console.error(e); }
+      finally { if (!cancelled) setClassicLbl(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [sTab, lbMode, lbKey]);
 
   const needsUsername = userData && !userData.usernameSet;
 
@@ -81,15 +258,28 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
       {sTab === 'leaderboard' && (
         <div className="leaderboard">
-          <div className="leaderboard-header"><h3>Rankings</h3></div>
-          {simLbl ? (
+          <div className="leaderboard-header">
+            <h3>Rankings</h3>
+            <div className="lb-mode-toggle">
+              <button type="button" className={`lb-mode-tab ${lbMode === 'simple' ? 'active' : ''}`} onClick={() => setLbMode('simple')}><Target size={13} /> Simple</button>
+              <button type="button" className={`lb-mode-tab ${lbMode === 'classic' ? 'active' : ''}`} onClick={() => setLbMode('classic')}><Trophy size={13} /> Classic</button>
+            </div>
+          </div>
+
+          {lbMode === 'simple' && (simLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
           ) : simLb.length === 0 ? (
             <div className="empty-state"><p>No members yet.</p></div>
           ) : (
             <div className="leaderboard-list">
               {simLb.map((e, i) => (
-                <div key={e.userId} className={`leaderboard-item ${e.userId === userData?.id ? 'is-you' : ''}`}>
+                <div
+                  key={e.userId}
+                  className={`leaderboard-item lb-clickable ${e.userId === userData?.id ? 'is-you' : ''}`}
+                  onClick={() => setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp })}
+                  role="button"
+                  tabIndex={0}
+                >
                   <div className="rank">
                     {i === 0 && <Trophy size={20} className="gold" />}
                     {i === 1 && <Trophy size={20} className="silver" />}
@@ -130,12 +320,54 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                   </div>
                   <div className="player-points">
                     <span className="points">{e.totalAccuracy > 0 ? `${e.totalAccuracy}%` : '—'}</span>
+                    <ChevronRight size={14} className="lb-chevron" />
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          ))}
+
+          {lbMode === 'classic' && (classicLbl ? (
+            <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
+          ) : classicLb.length === 0 ? (
+            <div className="empty-state"><p>No predictions yet in the Classic global league.</p></div>
+          ) : (
+            <div className="leaderboard-list">
+              {classicLb.map((e, i) => (
+                <div key={e.userId} className={`leaderboard-item ${e.userId === userData?.id ? 'is-you' : ''}`}>
+                  <div className="rank">
+                    {i === 0 && <Trophy size={20} className="gold" />}
+                    {i === 1 && <Trophy size={20} className="silver" />}
+                    {i === 2 && <Trophy size={20} className="bronze" />}
+                    {i > 2 && <span>#{i + 1}</span>}
+                  </div>
+                  <div className="player-info">
+                    <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
+                    <div>
+                      <div className="player-name">
+                        {e.displayName}
+                        {e.userId === userData?.id && <span className="you-badge">You</span>}
+                      </div>
+                      <div className="player-sub">
+                        <Target size={11} style={{verticalAlign:'middle', color:'var(--cyan)'}} /> {e.predictions} prediction{e.predictions !== 1 ? 's' : ''} made
+                      </div>
+                    </div>
+                  </div>
+                  <div className="player-points">
+                    <span className="points">—</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
+      )}
+
+      {viewingPicks && (
+        <PicksViewer
+          target={viewingPicks}
+          onClose={() => setViewingPicks(null)}
+        />
       )}
 
       {sTab === 'predictions' && (
@@ -381,6 +613,16 @@ const GoalOracle = () => {
   }, [ready, authenticated, getTokenSafe]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(loadAllLeagues, [loadAllLeagues]);
+
+  // Auto-redirect from landing → dashboard on first successful sign-in
+  // (only once; user can still navigate back to landing via the Home link).
+  const autoRedirectedRef = useRef(false);
+  useEffect(() => {
+    if (!authenticated || !uData?.id) return;
+    if (autoRedirectedRef.current) return;
+    autoRedirectedRef.current = true;
+    setView(prev => (prev === 'landing' ? 'dashboard' : prev));
+  }, [authenticated, uData?.id]);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
   useEffect(() => {
     if (!selLeague?.id) return;
@@ -1315,6 +1557,22 @@ const GoalOracle = () => {
             <span className="dv2-stat-label">Best Rank</span>
             <span className="dv2-stat-value">{(() => { const best = Object.values(leagueRanks).reduce((b, r) => (!b || r.rank < b.rank) ? r : b, null); return best ? `#${best.rank}` : '—'; })()}</span>
             <span className="dv2-stat-sub">{(() => { const bestL = ml.find(l => leagueRanks[l.id] && Object.values(leagueRanks).every(r => leagueRanks[l.id].rank <= r.rank)); return bestL?.name || 'Loading...'; })()}</span>
+          </div>
+        </div>
+
+        {/* Simple Mode CTA — prominent entry point */}
+        <div className="dv2-section">
+          <div className="dv2-simple-cta" onClick={() => {
+            const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true };
+            setDetailTab('predictions');
+            nav('detail', gs);
+          }}>
+            <div className="dv2-simple-cta-icon"><Target size={22} /></div>
+            <div className="dv2-simple-cta-body">
+              <h3>Make your Simple League predictions</h3>
+              <p>Rank every group, pick the best thirds, and call the knockout bracket. One set of picks covers the whole tournament.</p>
+            </div>
+            <div className="dv2-simple-cta-go"><ChevronRight size={20} /></div>
           </div>
         </div>
 
@@ -3087,6 +3345,11 @@ const GoalOracle = () => {
       <button type="button" className="mobile-toggle" onClick={e => { e.stopPropagation(); setMenuOpen(!menuOpen); }}>{menuOpen ? <X size={24} /> : <Menu size={24} />}</button>
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`} onClick={e => e.stopPropagation()}>
         <a className="nav-link" onClick={() => nav('landing')}><Home size={14} /><span>Home</span></a>
+        <a className="nav-link" onClick={() => {
+          const simpleLeague = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true };
+          nav('detail', simpleLeague);
+          setDetailTab('leaderboard');
+        }}><TrendingUp size={14} /><span>Leaderboard</span></a>
         {authenticated && <>
           <a className="nav-link" onClick={() => nav('dashboard')}><Trophy size={14} /><span>Dashboard</span></a>
           <a className="nav-link" onClick={() => nav('leagues')}><Users size={14} /><span>My Leagues</span></a>
