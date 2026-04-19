@@ -13,6 +13,7 @@ import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinL
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
+import HeroPlate from './components/HeroPlate';
 import SimplePrediction from './pages/SimplePrediction';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import './styles.css';
@@ -1311,12 +1312,12 @@ const GoalOracle = () => {
 
         {/* ─── 1. HERO + NEXT MATCH ─── */}
         <section className={`hero hero-split ${heroAnimated ? 'hero-no-anim' : ''}`}>
-          <div className="hero-stadium-bg"></div>
-          <div className="hero-stadium-overlay"></div>
           <div className="hero-split-inner" ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
             <div className="hero-left">
-              <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
-              <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
+              <HeroPlate
+                title={<>Predict the<br/><span className="hero-plate-em">World Cup.</span></>}
+                subtitle="Become the oracle of world football."
+              />
               <div className="hero-cta">
                 <button className="btn btn-primary btn-lg" onClick={startSimplePredicting}>Start Predicting &mdash; It&rsquo;s Free</button>
                 <button className="btn btn-secondary btn-lg" onClick={() => authenticated ? nav('create') : login()}>Create a League</button>
