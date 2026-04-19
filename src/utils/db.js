@@ -185,6 +185,14 @@ export async function deleteLeague(leagueId, userId) {
   await apiCall('leagues', 'POST', { action: 'delete', leagueId });
 }
 
+// Copy Classic-mode predictions from one league to another (current user).
+// Simple-mode leagues share a single /simplePredictions/{userId} doc, so no
+// copy is required — this helper rejects simple-mode requests server-side.
+export async function copyPredictions(sourceLeagueId, targetLeagueId) {
+  const data = await apiCall('copy-predictions', 'POST', { sourceLeagueId, targetLeagueId });
+  return data;
+}
+
 export function subscribeToUserLeagues(userId, callback) {
   const q = query(collection(db, 'leagues'), where('members', 'array-contains', userId));
   return onSnapshot(q, (snap) => {

@@ -8,7 +8,7 @@ import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus,
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -263,6 +263,86 @@ const _teamFlags = (() => {
   }
   return flags;
 })();
+
+// Post-join prompt: offers to copy existing Global predictions into the newly
+// joined league (classic only). Simple leagues share a single prediction doc
+// across all simple leagues, so this just confirms that.
+function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify }) {
+  const [copying, setCopying] = useState(false);
+  const [copied, setCopied] = useState(null);
+  const isSimple = postJoin.mode === 'simple';
+  const sourceLeagueId = isSimple ? 'global-simple' : 'global';
+
+  const handleCopy = async () => {
+    if (isSimple) return;
+    setCopying(true);
+    try {
+      const res = await copyPredictions(sourceLeagueId, postJoin.id);
+      setCopied({ count: res?.copied || 0, skipped: (res?.skippedLocked || 0) + (res?.skippedExisting || 0) });
+      if ((res?.copied || 0) > 0) {
+        notify(`Copied ${res.copied} prediction${res.copied !== 1 ? 's' : ''} from Global Classic`);
+      } else {
+        notify('No Global Classic predictions to copy yet — start fresh.');
+      }
+    } catch (e) {
+      notify(e.message || 'Copy failed', 'error');
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  return (
+    <div className="picks-viewer-backdrop" onClick={onClose}>
+      <div className="picks-viewer-modal join-success-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="picks-viewer-header">
+          <div className="picks-viewer-title">
+            <div className="picks-viewer-avatar"><CheckCircle size={20} style={{color:'var(--success)'}} /></div>
+            <div>
+              <h3>Joined {postJoin.name}</h3>
+              <span className="picks-viewer-sub">{isSimple ? 'Simple Mode' : 'Classic Mode'} league</span>
+            </div>
+          </div>
+          <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
+        </div>
+
+        <div className="picks-viewer-body">
+          <div className="copy-flow-card inline">
+            <div className="copy-flow-head">
+              <Target size={18} />
+              <div>
+                <h3>Every league is predicted separately</h3>
+                <p>{isSimple
+                  ? 'Simple Mode picks apply across every Simple league you join. Your Global Simple picks are already active here.'
+                  : 'Your Global Classic picks are independent from this league. Copy them over to save time, or predict fresh.'}</p>
+              </div>
+            </div>
+            {!isSimple && (
+              <div className="copy-flow-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleCopy}
+                  disabled={copying || !!copied}
+                >
+                  {copying ? (<><RefreshCw size={14} className="spin" /> Copying...</>) :
+                    copied ? (<><CheckCircle size={14} /> Copied {copied.count}</>) :
+                    (<><Copy size={14} /> Copy from Global Classic</>)}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="join-success-actions">
+            <button className="btn btn-primary btn-lg" onClick={onGoToLeague}>
+              Go to {postJoin.name} <ChevronRight size={18} />
+            </button>
+            <button className="btn btn-ghost" onClick={onClose}>Stay here</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, initialTab = 'leaderboard' }) {
   const [sTab, setSTab] = useState(initialTab);
@@ -1669,19 +1749,53 @@ const GoalOracle = () => {
           </div>
         </div>
 
-        {/* Simple Mode CTA — prominent entry point */}
+        {/* Prediction flow explainer — how the two modes work per league */}
         <div className="dv2-section">
-          <div className="dv2-simple-cta" onClick={() => {
-            const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true };
-            setDetailTab('predictions');
-            nav('detail', gs);
-          }}>
-            <div className="dv2-simple-cta-icon"><Target size={22} /></div>
-            <div className="dv2-simple-cta-body">
-              <h3>Make your Simple League predictions</h3>
-              <p>Rank every group, pick the best thirds, and call the knockout bracket. One set of picks covers the whole tournament.</p>
+          <div className="dv2-section-head">
+            <h3 className="dv2-section-title">Your Prediction Flow</h3>
+            <span className="dv2-section-sub">Two modes · One set of picks per league</span>
+          </div>
+          <div className="dv2-flow-grid">
+            <div
+              className="dv2-flow-card dv2-flow-simple"
+              onClick={() => {
+                const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true };
+                setDetailTab('predictions');
+                nav('detail', gs);
+              }}
+            >
+              <div className="dv2-flow-head">
+                <div className="dv2-flow-icon"><Target size={20} /></div>
+                <div className="dv2-flow-title">Simple Mode</div>
+                <span className="dv2-flow-badge">Shared</span>
+              </div>
+              <p className="dv2-flow-desc">
+                Rank each group, pick the best thirds, and call the knockout bracket. <strong>Your picks apply to every Simple league you belong to</strong> — make them once, compete everywhere.
+              </p>
+              <div className="dv2-flow-cta">Continue your Simple picks <ChevronRight size={14} /></div>
             </div>
-            <div className="dv2-simple-cta-go"><ChevronRight size={20} /></div>
+            <div
+              className="dv2-flow-card dv2-flow-classic"
+              onClick={() => {
+                const g = leagues.find(l => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 }, isGlobal: true };
+                setDetailTab('predictions');
+                nav('detail', g);
+              }}
+            >
+              <div className="dv2-flow-head">
+                <div className="dv2-flow-icon dv2-flow-icon-classic"><Trophy size={20} /></div>
+                <div className="dv2-flow-title">Classic Mode</div>
+                <span className="dv2-flow-badge dv2-flow-badge-per-league">Per-league</span>
+              </div>
+              <p className="dv2-flow-desc">
+                Pick the score and result of each fixture. <strong>Each Classic league stores its own set of predictions</strong>. Copy from your Global Classic picks when you create or join a new Classic league.
+              </p>
+              <div className="dv2-flow-cta">Continue your Classic picks <ChevronRight size={14} /></div>
+            </div>
+          </div>
+          <div className="dv2-flow-actions">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={14} /> Browse leagues</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => nav('create')}><Plus size={14} /> Create a league</button>
           </div>
         </div>
 
@@ -1930,6 +2044,7 @@ const GoalOracle = () => {
     const [joiningId, setJoiningId] = useState(null);
     const [passInput, setPassInput] = useState('');
     const [joinErr, setJoinErr] = useState('');
+    const [postJoin, setPostJoin] = useState(null); // { id, name, mode } after successful join
     const publicLeagues = allLeagues.filter(l => l.visibility !== 'private');
     const f = publicLeagues.filter(l => l.name?.toLowerCase().includes(q.toLowerCase()));
 
@@ -1941,6 +2056,7 @@ const GoalOracle = () => {
         notify(`Joined ${league.name}!`);
         setJoiningId(null);
         setPassInput('');
+        setPostJoin({ id: league.id, name: league.name, mode: league.predictionMode || 'classic' });
       } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
     };
 
@@ -1987,6 +2103,19 @@ const GoalOracle = () => {
             <div className="league-footer">{mem ? <button className="btn btn-secondary btn-sm" onClick={() => nav('detail', l)}><Eye size={16} /> View</button> : <button className="btn btn-primary btn-sm" onClick={() => handleJoin(l)}><UserPlus size={16} /> Join</button>}</div>
           </div>);
         })}{f.length === 0 && <div className="empty-state"><p>No public leagues found.</p><button className="btn btn-primary" onClick={() => nav('create')}><Plus size={18} /> Create</button></div>}</div>
+
+        {postJoin && (
+          <JoinSuccessModal
+            postJoin={postJoin}
+            onClose={() => setPostJoin(null)}
+            onGoToLeague={() => {
+              const l = allLeagues.find(x => x.id === postJoin.id) || leagues.find(x => x.id === postJoin.id);
+              setPostJoin(null);
+              if (l) nav('detail', l); else nav('dashboard');
+            }}
+            notify={notify}
+          />
+        )}
       </div>
     );
   };

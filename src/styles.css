@@ -1385,6 +1385,73 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 .guest-prompt { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; padding: 3rem 1.5rem; text-align: center; }
 .guest-prompt p { color: var(--text-sec); font-size: 0.95rem; margin: 0; max-width: 340px; }
+
+/* Copy-predictions flow (shown on create/join success) */
+.copy-flow-card {
+  margin: 1.25rem 0;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(135deg, rgba(0,212,255,0.05), rgba(255,184,0,0.04));
+  border: 1px solid rgba(0,212,255,0.25); border-radius: var(--radius-lg);
+  text-align: left;
+}
+.copy-flow-card.inline { margin: 0; }
+.copy-flow-head { display: flex; gap: 0.9rem; align-items: flex-start; }
+.copy-flow-head > svg { color: var(--cyan); flex-shrink: 0; margin-top: 2px; }
+.copy-flow-head h3 { font-size: 0.95rem; font-weight: 700; margin: 0 0 0.3rem; }
+.copy-flow-head p { font-size: 0.82rem; color: var(--text-sec); margin: 0; line-height: 1.5; }
+.copy-flow-actions {
+  margin-top: 0.85rem;
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+}
+.copy-flow-or { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.08em; }
+
+/* Join-success modal actions row */
+.join-success-modal { max-width: 520px; }
+.join-success-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.join-success-actions .btn-lg { flex: 1; }
+
+/* Dashboard: prediction flow explainer */
+.dv2-section-sub { font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.14em; text-transform: uppercase; }
+.dv2-flow-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 0.75rem; }
+@media (max-width: 720px) { .dv2-flow-grid { grid-template-columns: 1fr; } }
+.dv2-flow-card {
+  position: relative; display: flex; flex-direction: column; gap: 0.75rem;
+  padding: 1.1rem 1.1rem 0.95rem;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  cursor: pointer; transition: transform 0.2s, border-color 0.2s;
+}
+.dv2-flow-card:hover { transform: translateY(-2px); border-color: var(--border-br); }
+.dv2-flow-simple {
+  background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(255,45,135,0.03));
+  border-color: rgba(0,212,255,0.3);
+}
+.dv2-flow-classic {
+  background: linear-gradient(135deg, rgba(255,184,0,0.08), rgba(255,45,135,0.03));
+  border-color: rgba(255,184,0,0.3);
+}
+.dv2-flow-head { display: flex; align-items: center; gap: 0.6rem; }
+.dv2-flow-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyan), var(--magenta)); color: #000;
+}
+.dv2-flow-icon-classic { background: linear-gradient(135deg, var(--amber), var(--magenta)); }
+.dv2-flow-title { font-size: 1rem; font-weight: 700; flex: 1; }
+.dv2-flow-badge {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 999px;
+  background: rgba(0,212,255,0.12); color: var(--cyan);
+}
+.dv2-flow-badge-per-league { background: rgba(255,184,0,0.14); color: var(--amber); }
+.dv2-flow-desc { font-size: 0.85rem; color: var(--text-sec); margin: 0; line-height: 1.5; }
+.dv2-flow-desc strong { color: var(--text); font-weight: 600; }
+.dv2-flow-cta {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--primary);
+  letter-spacing: 0.06em; padding-top: 0.4rem;
+  border-top: 1px dashed var(--border);
+}
+.dv2-flow-actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
 .leaderboard-list { display: flex; flex-direction: column; }
 .leaderboard-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
 .leaderboard-item:hover { background: var(--bg-elev); }

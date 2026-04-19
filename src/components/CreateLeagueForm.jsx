@@ -8,18 +8,96 @@
  * DOM and the focused input across re-renders.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AlertTriangle, CheckCircle, Key, Unlock, Lock, Eye, EyeOff,
-  RefreshCw, ChevronRight, Loader,
+  RefreshCw, ChevronRight, Loader, Copy, Target,
 } from 'lucide-react';
 import ModePicker from './simple/ModePicker';
+import { copyPredictions } from '../utils/db';
 
 function generatePasscode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let c = '';
   for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
   return c;
+}
+
+function CreateSuccessPanel({ createSuccess, leagues, nav, notify, setCreateSuccess }) {
+  const [copying, setCopying] = useState(false);
+  const [copied, setCopied] = useState(null); // { count, skipped } | null
+  const isSimple = createSuccess.mode === 'simple';
+  const sourceLeagueId = isSimple ? 'global-simple' : 'global';
+
+  const goToDetail = () => {
+    const l = leagues.find((x) => x.id === createSuccess.id);
+    setCreateSuccess(null);
+    if (l) nav('detail', l); else nav('dashboard');
+  };
+
+  const handleCopy = async () => {
+    if (isSimple) return; // simple predictions are shared; no copy needed
+    setCopying(true);
+    try {
+      const res = await copyPredictions(sourceLeagueId, createSuccess.id);
+      setCopied({ count: res?.copied || 0, skipped: (res?.skippedLocked || 0) + (res?.skippedExisting || 0) });
+      if ((res?.copied || 0) > 0) {
+        notify(`Copied ${res.copied} prediction${res.copied !== 1 ? 's' : ''} from Global`);
+      } else {
+        notify('No Classic Global predictions to copy yet — start fresh in your new league.');
+      }
+    } catch (e) {
+      notify(e.message || 'Copy failed', 'error');
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  return (
+    <div className="create-success">
+      <CheckCircle size={56} className="create-success-icon" />
+      <h2>League Created!</h2>
+      <p className="create-success-name">{createSuccess.name}</p>
+      {createSuccess.passcode && <div className="create-success-code"><Key size={16} /> Invite code: <strong>{createSuccess.passcode}</strong></div>}
+
+      <div className="copy-flow-card">
+        <div className="copy-flow-head">
+          <Target size={18} />
+          <div>
+            <h3>Every league is predicted separately</h3>
+            <p>{isSimple
+              ? 'Simple Mode picks apply across every Simple league you belong to. Your Global Simple picks are already active in this league.'
+              : 'Your Classic Global picks are independent from any other league. Copy them over to save time, or predict fresh.'}</p>
+          </div>
+        </div>
+        {!isSimple && (
+          <div className="copy-flow-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleCopy}
+              disabled={copying || !!copied}
+            >
+              {copying ? (<><RefreshCw size={14} className="spin" /> Copying...</>) :
+                copied ? (<><CheckCircle size={14} /> Copied {copied.count}</>) :
+                (<><Copy size={14} /> Copy from Global Classic</>)}
+            </button>
+            <span className="copy-flow-or">or predict fresh below</span>
+          </div>
+        )}
+      </div>
+
+      <div className="create-success-actions">
+        <button className="btn btn-primary btn-lg" onClick={goToDetail}>
+          Start Predicting <ChevronRight size={18} />
+        </button>
+        <button className="btn btn-secondary" onClick={() => { setCreateSuccess(null); nav('dashboard'); }}>
+          Go to Dashboard
+        </button>
+      </div>
+      {createSuccess.passcode && <p className="create-success-hint">Share the invite code with friends so they can join your league.</p>}
+    </div>
+  );
 }
 
 export default function CreateLeagueForm({
@@ -88,8 +166,9 @@ export default function CreateLeagueForm({
       const lid = await createLeague(leagueData, uData.id);
       const savedName = nm.trim();
       const savedPasscode = vis === 'private' ? passcode.trim().toUpperCase() : null;
+      const savedMode = createMode;
       resetForm();
-      setCreateSuccess({ name: savedName, id: lid, passcode: savedPasscode });
+      setCreateSuccess({ name: savedName, id: lid, passcode: savedPasscode, mode: savedMode });
     } catch (e) {
       console.error('[create] FAILED:', e);
       setBusy(false);
@@ -100,21 +179,13 @@ export default function CreateLeagueForm({
 
   if (createSuccess) return (
     <div className="create-league">
-      <div className="create-success">
-        <CheckCircle size={56} className="create-success-icon" />
-        <h2>League Created!</h2>
-        <p className="create-success-name">{createSuccess.name}</p>
-        {createSuccess.passcode && <div className="create-success-code"><Key size={16} /> Invite code: <strong>{createSuccess.passcode}</strong></div>}
-        <div className="create-success-actions">
-          <button className="btn btn-primary btn-lg" onClick={() => { const l = leagues.find((x) => x.id === createSuccess.id); setCreateSuccess(null); if (l) nav('detail', l); else nav('dashboard'); }}>
-            Start Predicting <ChevronRight size={18} />
-          </button>
-          <button className="btn btn-secondary" onClick={() => { setCreateSuccess(null); nav('dashboard'); }}>
-            Go to Dashboard
-          </button>
-        </div>
-        {createSuccess.passcode && <p className="create-success-hint">Share the invite code with friends so they can join your league.</p>}
-      </div>
+      <CreateSuccessPanel
+        createSuccess={createSuccess}
+        leagues={leagues}
+        nav={nav}
+        notify={notify}
+        setCreateSuccess={setCreateSuccess}
+      />
     </div>
   );
 
