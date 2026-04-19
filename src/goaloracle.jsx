@@ -17,14 +17,16 @@ import CreateLeagueForm from './components/CreateLeagueForm';
 import './styles.css';
 
 // Read-only modal that shows another user's Simple Mode picks (group rankings,
-// best-third picks, and knockout bracket winners).
+// best-third picks, and knockout bracket winners) OR their Classic Mode
+// match-by-match predictions.
 function PicksViewer({ target, onClose }) {
+  const isClassic = target?.mode === 'classic';
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isClassic); // classic data comes pre-loaded via target
   const [err, setErr] = useState('');
 
   useEffect(() => {
-    if (!target?.userId) return;
+    if (!target?.userId || isClassic) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -39,7 +41,7 @@ function PicksViewer({ target, onClose }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [target?.userId]);
+  }, [target?.userId, isClassic]);
 
   const GROUPS_LOCAL = ['A','B','C','D','E','F','G','H','I','J','K','L'];
   const roundOrder = ['roundOf32','roundOf16','quarterFinals','semiFinals','thirdPlace','final'];
@@ -49,6 +51,94 @@ function PicksViewer({ target, onClose }) {
   };
 
   const thirdPlace = data?.knockoutPredictions?.thirdPlace?.[0]?.winnerId || null;
+
+  // Classic mode: build a list of match predictions grouped by stage, ordered by date.
+  const classicByStage = useMemo(() => {
+    if (!isClassic) return null;
+    const picks = target.classicPredictions || {};
+    const matchesById = {};
+    for (const m of WORLD_CUP_MATCHES) matchesById[m.id] = m;
+    const grouped = {};
+    for (const [matchId, pick] of Object.entries(picks)) {
+      if (!pick?.result) continue;
+      const m = matchesById[matchId];
+      if (!m) continue;
+      const stage = m.stage || 'Other';
+      if (!grouped[stage]) grouped[stage] = [];
+      grouped[stage].push({ match: m, pick });
+    }
+    for (const s of Object.keys(grouped)) {
+      grouped[s].sort((a, b) => a.match.date.localeCompare(b.match.date) || (a.match.time || '').localeCompare(b.match.time || ''));
+    }
+    const stageOrder = [
+      ...Array.from({ length: 12 }, (_, i) => `Group ${String.fromCharCode(65 + i)}`),
+      'Round of 32', 'Round of 16', 'Quarterfinal', 'Semifinal', '3rd Place', 'Final',
+    ];
+    const orderedStages = stageOrder.filter(s => grouped[s]).concat(
+      Object.keys(grouped).filter(s => !stageOrder.includes(s))
+    );
+    return { orderedStages, grouped };
+  }, [isClassic, target]);
+
+  // Classic-mode render path: skips the fetch, shows match-by-match picks.
+  if (isClassic) {
+    const hasPicks = classicByStage && classicByStage.orderedStages.length > 0;
+    return (
+      <div className="picks-viewer-backdrop" onClick={onClose}>
+        <div className="picks-viewer-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="picks-viewer-header">
+            <div className="picks-viewer-title">
+              <div className="picks-viewer-avatar">{target.displayName?.[0]?.toUpperCase() || '?'}</div>
+              <div>
+                <h3>{target.displayName}&rsquo;s picks</h3>
+                <span className="picks-viewer-sub">Classic Mode · {target.predCount || 0} prediction{target.predCount !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
+          </div>
+
+          {!hasPicks ? (
+            <div className="empty-state"><p>This user hasn&rsquo;t saved any Classic predictions yet.</p></div>
+          ) : (
+            <div className="picks-viewer-body">
+              {classicByStage.orderedStages.map((stage) => (
+                <div key={stage} className="picks-viewer-section">
+                  <h4 className="picks-viewer-h">{stage}</h4>
+                  <div className="pv-classic-list">
+                    {classicByStage.grouped[stage].map(({ match, pick }) => {
+                      const resultLabel = pick.result === 'home' ? `${match.home} win` : pick.result === 'away' ? `${match.away} win` : 'Draw';
+                      const scoreHome = pick.score?.home ?? '';
+                      const scoreAway = pick.score?.away ?? '';
+                      const hasScore = scoreHome !== '' && scoreAway !== '';
+                      return (
+                        <div key={match.id} className="pv-classic-row">
+                          <div className="pv-classic-teams">
+                            <span className="pv-flag">{match.homeFlag}</span>
+                            <span className="pv-team">{match.home}</span>
+                            <span className="pv-vs">vs</span>
+                            <span className="pv-flag">{match.awayFlag}</span>
+                            <span className="pv-team">{match.away}</span>
+                          </div>
+                          <div className="pv-classic-pick">
+                            {hasScore && (
+                              <span className="pv-classic-score">{scoreHome}&ndash;{scoreAway}</span>
+                            )}
+                            <span className={`pv-classic-result pv-result-${pick.result}`}>{resultLabel}</span>
+                            {pick.extraTime && <span className="pv-classic-flag">ET</span>}
+                            {pick.penalties && <span className="pv-classic-flag">PK</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="picks-viewer-backdrop" onClick={onClose}>
@@ -214,6 +304,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             userId: uid,
             displayName: userNames[uid] || uid.slice(0, 8),
             predictions: predCount,
+            rawPredictions: preds || {},
           };
         }).sort((a, b) => b.predictions - a.predictions || a.displayName.localeCompare(b.displayName));
         setClassicLb(entries);
@@ -334,7 +425,13 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           ) : (
             <div className="leaderboard-list">
               {classicLb.map((e, i) => (
-                <div key={e.userId} className={`leaderboard-item ${e.userId === userData?.id ? 'is-you' : ''}`}>
+                <div
+                  key={e.userId}
+                  className={`leaderboard-item lb-clickable ${e.userId === userData?.id ? 'is-you' : ''}`}
+                  onClick={() => setViewingPicks({ mode: 'classic', userId: e.userId, displayName: e.displayName, classicPredictions: e.rawPredictions, predCount: e.predictions })}
+                  role="button"
+                  tabIndex={0}
+                >
                   <div className="rank">
                     {i === 0 && <Trophy size={20} className="gold" />}
                     {i === 1 && <Trophy size={20} className="silver" />}
@@ -355,6 +452,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                   </div>
                   <div className="player-points">
                     <span className="points">—</span>
+                    <ChevronRight size={14} className="lb-chevron" />
                   </div>
                 </div>
               ))}

@@ -1364,6 +1364,24 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .pv-round-title { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.5rem; }
 .pv-round-picks { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .pv-pick { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.6rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 999px; font-size: 0.78rem; }
+
+/* Classic picks — match-by-match list */
+.pv-classic-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.pv-classic-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 0.75rem; align-items: center;
+  padding: 0.55rem 0.75rem; background: var(--bg-elev);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.pv-classic-teams { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; flex-wrap: wrap; min-width: 0; }
+.pv-classic-teams .pv-team { font-weight: 500; }
+.pv-classic-teams .pv-vs { color: var(--text-dim); font-size: 0.7rem; font-family: var(--mono); margin: 0 0.2rem; }
+.pv-classic-pick { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--mono); font-size: 0.75rem; flex-shrink: 0; }
+.pv-classic-score { font-weight: 700; color: var(--primary); padding: 0.1rem 0.45rem; background: var(--primary-soft); border-radius: 4px; }
+.pv-classic-result { padding: 0.1rem 0.45rem; border-radius: 4px; font-weight: 600; font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.pv-result-home { background: rgba(0,230,118,0.12); color: var(--success); }
+.pv-result-away { background: rgba(255,184,0,0.12); color: var(--amber); }
+.pv-result-draw { background: rgba(123,97,255,0.14); color: var(--violet); }
+.pv-classic-flag { font-family: var(--mono); font-size: 0.6rem; padding: 0.1rem 0.3rem; background: rgba(255,255,255,0.06); border-radius: 3px; color: var(--text-sec); letter-spacing: 0.05em; }
 .leaderboard-list { display: flex; flex-direction: column; }
 .leaderboard-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
 .leaderboard-item:hover { background: var(--bg-elev); }
