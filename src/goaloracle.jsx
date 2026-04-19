@@ -92,14 +92,14 @@ function PicksViewer({ target, onClose }) {
               <div className="picks-viewer-avatar">{target.displayName?.[0]?.toUpperCase() || '?'}</div>
               <div>
                 <h3>{target.displayName}&rsquo;s picks</h3>
-                <span className="picks-viewer-sub">Classic Mode · {target.predCount || 0} prediction{target.predCount !== 1 ? 's' : ''}</span>
+                <span className="picks-viewer-sub">Classic Predictions · {target.predCount || 0} prediction{target.predCount !== 1 ? 's' : ''}</span>
               </div>
             </div>
             <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
           </div>
 
           {!hasPicks ? (
-            <div className="empty-state"><p>This user hasn&rsquo;t saved any Classic predictions yet.</p></div>
+            <div className="empty-state"><p>This user hasn&rsquo;t saved any Classic Predictions yet.</p></div>
           ) : (
             <div className="picks-viewer-body">
               {classicByStage.orderedStages.map((stage) => (
@@ -149,7 +149,7 @@ function PicksViewer({ target, onClose }) {
             <div className="picks-viewer-avatar">{target.displayName?.[0]?.toUpperCase() || '?'}</div>
             <div>
               <h3>{target.displayName}&rsquo;s picks</h3>
-              <span className="picks-viewer-sub">Simple Mode predictions</span>
+              <span className="picks-viewer-sub">Quick Picks</span>
             </div>
           </div>
           <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
@@ -273,7 +273,7 @@ function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify, userId }) {
   const [copied, setCopied] = useState(null);
   const isSimple = postJoin.mode === 'simple';
   const sourceLeagueId = isSimple ? 'global-simple' : 'global';
-  const sourceLabel = isSimple ? 'Global Simple' : 'Global Classic';
+  const sourceLabel = isSimple ? 'Global Quick Picks' : 'Global Classic Predictions';
 
   const handleCopy = async () => {
     setCopying(true);
@@ -312,7 +312,7 @@ function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify, userId }) {
             <div className="picks-viewer-avatar"><CheckCircle size={20} style={{color:'var(--success)'}} /></div>
             <div>
               <h3>Joined {postJoin.name}</h3>
-              <span className="picks-viewer-sub">{isSimple ? 'Simple Mode' : 'Classic Mode'} league</span>
+              <span className="picks-viewer-sub">{isSimple ? 'Quick Picks' : 'Classic Predictions'} league</span>
             </div>
           </div>
           <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
@@ -452,7 +452,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           <h1 className="phc-title">{title}</h1>
           <div className="phc-meta">
             <span><Users size={14} /> {(league?.memberCount || league?.members?.length || 0).toLocaleString()} members</span>
-            <span className="lv2-mode-pill simple">SIMPLE</span>
+            <span className="lv2-mode-pill simple">QUICK PICKS</span>
           </div>
         </div>
       </div>
@@ -489,7 +489,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
               <button type="button" className="predict-cta-option" onClick={() => goToPredictions('classic')}>
                 <span className="predict-cta-option-icon classic"><Trophy size={16} /></span>
                 <div className="predict-cta-option-text">
-                  <strong>Classic mode</strong>
+                  <strong>Classic Predictions</strong>
                   <span>Score &amp; result for every fixture</span>
                 </div>
                 <ChevronRight size={14} />
@@ -497,7 +497,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
               <button type="button" className="predict-cta-option" onClick={() => goToPredictions('simple')}>
                 <span className="predict-cta-option-icon simple"><Target size={16} /></span>
                 <div className="predict-cta-option-text">
-                  <strong>Simple mode</strong>
+                  <strong>Quick Picks</strong>
                   <span>Group rankings + knockout bracket</span>
                 </div>
                 <ChevronRight size={14} />
@@ -512,7 +512,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSTab('leaderboard')}>
             &larr; Back to leaderboard
           </button>
-          <span className="predict-inline-title"><Target size={14} /> Simple mode predictions</span>
+          <span className="predict-inline-title"><Target size={14} /> Quick Picks</span>
         </div>
       )}
 
@@ -522,7 +522,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             <h3>Rankings</h3>
             {isGlobalView && (
               <div className="lb-mode-toggle">
-                <button type="button" className={`lb-mode-tab ${lbMode === 'simple' ? 'active' : ''}`} onClick={() => setLbMode('simple')}><Target size={13} /> Simple</button>
+                <button type="button" className={`lb-mode-tab ${lbMode === 'simple' ? 'active' : ''}`} onClick={() => setLbMode('simple')}><Target size={13} /> Quick Picks</button>
                 <button type="button" className={`lb-mode-tab ${lbMode === 'classic' ? 'active' : ''}`} onClick={() => setLbMode('classic')}><Trophy size={13} /> Classic</button>
               </div>
             )}
@@ -593,7 +593,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           {isGlobalView && lbMode === 'classic' && (classicLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
           ) : classicLb.length === 0 ? (
-            <div className="empty-state"><p>No predictions yet in the Classic global league.</p></div>
+            <div className="empty-state"><p>No Classic Predictions yet in the global league.</p></div>
           ) : (
             <div className="leaderboard-list">
               {classicLb.map((e, i) => (
@@ -1284,11 +1284,11 @@ const GoalOracle = () => {
       nav('detail', globalLeague);
     };
 
-    // "Start Predicting" buttons: route straight to Global Simple predictions flow
+    // "Start Predicting" buttons: route straight to Global Quick Picks flow
     const startSimplePredicting = () => {
       if (!authenticated) { login(); return; }
       const globalSimple = leagues.find(l => l.id === 'global-simple') || {
-        id: 'global-simple', name: 'Global League Simple', type: 'free',
+        id: 'global-simple', name: 'Global Quick Picks', type: 'free',
         predictionMode: 'simple', isGlobal: true,
       };
       nav('detail', globalSimple);
@@ -1415,7 +1415,7 @@ const GoalOracle = () => {
           <div className="editorial-head reveal">
             <div className="editorial-eyebrow">The Ledger</div>
             <h2 className="editorial-title">Seventy-six points.<br/><span className="editorial-em">One tournament.</span></h2>
-            <div className="editorial-num">Simple mode scoring</div>
+            <div className="editorial-num">Quick Picks scoring</div>
           </div>
           <div className="ledger-grid">
             <article className="ledger-card reveal-float stagger-1">
@@ -1491,7 +1491,7 @@ const GoalOracle = () => {
               <div className="lb-panel-head">
                 <h3>Global Leaderboard</h3>
                 <a className="lb-view-all" onClick={() => {
-                  const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true };
+                  const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
                   nav('detail', gs);
                   setDetailTab('leaderboard');
                 }}>View Full Leaderboard <ChevronRight size={14} /></a>
@@ -1620,7 +1620,7 @@ const GoalOracle = () => {
   const Dash = () => {
     const ml = leagues.length > 0 ? leagues : [
       { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
-      { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', memberCount: stats.totalPlayers },
+      { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', memberCount: stats.totalPlayers },
     ];
     const defaultPS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
     const ps = ml[0]?.pointsSystem || defaultPS;
@@ -1635,10 +1635,48 @@ const GoalOracle = () => {
     const accuracy = totalCompleted > 0 ? Math.round((totalStats.correctResults / totalCompleted) * 100) : 0;
     const isFirstTime = Object.keys(preds).length === 0 && totalCompleted === 0;
 
-    // Matches needing prediction
+    // Matches needing prediction (Classic)
     const needsPrediction = useMemo(() =>
       WORLD_CUP_MATCHES.filter(m => getMatchStatus(m.date, m.time) === 'open' && !results[m.id]?.completed && !preds[m.id]?.result).slice(0, 4),
     [preds, results]);
+
+    // User's Quick Picks leagues (shared across all simple leagues — one pick doc)
+    const simpleLeagues = useMemo(() => ml.filter(l => l.predictionMode === 'simple'), [ml]);
+
+    // Quick Picks completion summary — fetched once from the user's global-simple doc
+    const [quickPicks, setQuickPicks] = useState(null);
+    useEffect(() => {
+      if (!uData?.id) { setQuickPicks(null); return; }
+      let cancelled = false;
+      (async () => {
+        try {
+          const { getSimplePrediction } = await import('./utils/db');
+          const docData = await getSimplePrediction(uData.id, 'global-simple');
+          if (cancelled) return;
+          const groups = docData?.groupPredictions || {};
+          const thirds = Array.isArray(docData?.bestThirdPicks) ? docData.bestThirdPicks : [];
+          const ko = docData?.knockoutPredictions || {};
+          const groupsDone = Object.values(groups).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
+          const BRACKET_ROUNDS = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['final', 1], ['thirdPlace', 1]];
+          let bracketFilled = 0, bracketTotal = 0;
+          for (const [k, size] of BRACKET_ROUNDS) {
+            bracketTotal += size;
+            bracketFilled += (ko[k] || []).filter(Boolean).length;
+          }
+          const groupsRemaining = Math.max(0, 12 - groupsDone);
+          const thirdsRemaining = Math.max(0, 8 - thirds.filter(Boolean).length);
+          const bracketRemaining = Math.max(0, bracketTotal - bracketFilled);
+          const totalRemaining = groupsRemaining + thirdsRemaining + bracketRemaining;
+          setQuickPicks({ groupsRemaining, thirdsRemaining, bracketRemaining, totalRemaining, isComplete: totalRemaining === 0 });
+        } catch {
+          if (!cancelled) setQuickPicks(null);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [uData?.id]);
+
+    const quickPicksIncomplete = !!quickPicks && !quickPicks.isComplete && simpleLeagues.length > 0;
+    const firstMatch = useMemo(() => WORLD_CUP_MATCHES.find(m => getMatchStatus(m.date, m.time) === 'open') || WORLD_CUP_MATCHES[0], []);
 
     // Recent completed results
     const recentResults = useMemo(() =>
@@ -1719,7 +1757,12 @@ const GoalOracle = () => {
         <div className="dv2-header">
           <div>
             <h1 className="dv2-greeting">{greeting}, <span className="dv2-name">{uData?.displayName || 'Player'}</span></h1>
-            <p className="dv2-sub">{needsPrediction.length > 0 ? <>{needsPrediction.length} prediction{needsPrediction.length > 1 ? 's' : ''} due before kickoff</> : <>You&rsquo;re all caught up</>} &middot; <span className="dv2-level"><Star size={12} /> Level {lvl.level} &mdash; {lvl.title}</span></p>
+            <p className="dv2-sub">{(needsPrediction.length + (quickPicksIncomplete ? 1 : 0)) > 0 ? (() => {
+              const bits = [];
+              if (needsPrediction.length > 0) bits.push(`${needsPrediction.length} match pick${needsPrediction.length > 1 ? 's' : ''}`);
+              if (quickPicksIncomplete) bits.push(`${quickPicks.totalRemaining} Quick Picks left`);
+              return <>{bits.join(' · ')} due before kickoff</>;
+            })() : <>You&rsquo;re all caught up</>} &middot; <span className="dv2-level"><Star size={12} /> Level {lvl.level} &mdash; {lvl.title}</span></p>
           </div>
           <div className="dv2-actions">
             <button className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={16} /> Browse</button>
@@ -1773,20 +1816,20 @@ const GoalOracle = () => {
             <div
               className="dv2-flow-card dv2-flow-simple"
               onClick={() => {
-                const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true };
+                const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
                 setDetailTab('predictions');
                 nav('detail', gs);
               }}
             >
               <div className="dv2-flow-head">
                 <div className="dv2-flow-icon"><Target size={20} /></div>
-                <div className="dv2-flow-title">Simple Mode</div>
+                <div className="dv2-flow-title">Quick Picks</div>
                 <span className="dv2-flow-badge">Shared</span>
               </div>
               <p className="dv2-flow-desc">
-                Rank each group, pick the best thirds, and call the knockout bracket. <strong>Your picks apply to every Simple league you belong to</strong> — make them once, compete everywhere.
+                Rank each group, pick the best thirds, and call the knockout bracket. <strong>Your picks apply to every Quick Picks league you belong to</strong> — make them once, compete everywhere.
               </p>
-              <div className="dv2-flow-cta">Continue your Simple picks <ChevronRight size={14} /></div>
+              <div className="dv2-flow-cta">Continue your Quick Picks <ChevronRight size={14} /></div>
             </div>
             <div
               className="dv2-flow-card dv2-flow-classic"
@@ -1798,13 +1841,13 @@ const GoalOracle = () => {
             >
               <div className="dv2-flow-head">
                 <div className="dv2-flow-icon dv2-flow-icon-classic"><Trophy size={20} /></div>
-                <div className="dv2-flow-title">Classic Mode</div>
+                <div className="dv2-flow-title">Classic Predictions</div>
                 <span className="dv2-flow-badge dv2-flow-badge-per-league">Per-league</span>
               </div>
               <p className="dv2-flow-desc">
-                Pick the score and result of each fixture. <strong>Each Classic league stores its own set of predictions</strong>. Copy from your Global Classic picks when you create or join a new Classic league.
+                Pick the score and result of each fixture. <strong>Each Classic Predictions league stores its own set of picks</strong>. Copy from your Global Classic Predictions when you create or join a new one.
               </p>
-              <div className="dv2-flow-cta">Continue your Classic picks <ChevronRight size={14} /></div>
+              <div className="dv2-flow-cta">Continue your Classic Predictions <ChevronRight size={14} /></div>
             </div>
             <div
               className="dv2-flow-card dv2-flow-join"
@@ -1827,22 +1870,56 @@ const GoalOracle = () => {
         </div>
 
         {/* Needs Prediction */}
-        {needsPrediction.length > 0 ? (
+        {(needsPrediction.length > 0 || quickPicksIncomplete) ? (
           <div className="dv2-section">
             <h3 className="dv2-section-title">Needs Your Prediction</h3>
             <div className="dv2-action-cards">
-              {needsPrediction.map(m => (
-                <div key={m.id} className="dv2-action-card" onClick={() => nav('detail', ml[0])}>
-                  <div className="dv2-ac-teams">
-                    <span className="dv2-ac-flag">{m.homeFlag}</span>
-                    <span className="dv2-ac-name">{m.home}</span>
-                    <span className="dv2-ac-vs">vs</span>
-                    <span className="dv2-ac-name">{m.away}</span>
-                    <span className="dv2-ac-flag">{m.awayFlag}</span>
+              {quickPicksIncomplete && (() => {
+                const qpLeague = simpleLeagues[0];
+                const remainingBits = [];
+                if (quickPicks.groupsRemaining > 0) remainingBits.push(`${quickPicks.groupsRemaining} group${quickPicks.groupsRemaining > 1 ? 's' : ''}`);
+                if (quickPicks.thirdsRemaining > 0) remainingBits.push(`${quickPicks.thirdsRemaining} best-third${quickPicks.thirdsRemaining > 1 ? 's' : ''}`);
+                if (quickPicks.bracketRemaining > 0) remainingBits.push(`${quickPicks.bracketRemaining} bracket winner${quickPicks.bracketRemaining > 1 ? 's' : ''}`);
+                const summary = remainingBits.length > 0 ? remainingBits.join(' · ') : 'Finish your picks';
+                return (
+                  <div className="dv2-action-card dv2-action-card-qp" onClick={() => { setDetailTab('predictions'); nav('detail', qpLeague); }}>
+                    <div className="dv2-ac-body">
+                      <div className="dv2-ac-tags">
+                        <span className="dv2-ac-tag dv2-ac-tag-qp"><Target size={10} /> Quick Picks</span>
+                        {simpleLeagues.slice(0, 3).map(l => (
+                          <span key={l.id} className="dv2-ac-league">{l.name}</span>
+                        ))}
+                        {simpleLeagues.length > 3 && (
+                          <span className="dv2-ac-league">+{simpleLeagues.length - 3} more</span>
+                        )}
+                      </div>
+                      <div className="dv2-ac-summary">{summary}</div>
+                    </div>
+                    {firstMatch && <Countdown match={firstMatch} />}
                   </div>
-                  <Countdown match={m} />
-                </div>
-              ))}
+                );
+              })()}
+              {needsPrediction.map(m => {
+                const classicLeague = ml.find(l => l.predictionMode === 'classic') || ml[0];
+                return (
+                  <div key={m.id} className="dv2-action-card" onClick={() => nav('detail', classicLeague)}>
+                    <div className="dv2-ac-body">
+                      <div className="dv2-ac-tags">
+                        <span className="dv2-ac-tag dv2-ac-tag-cl"><Trophy size={10} /> Classic Predictions</span>
+                        {classicLeague?.name && <span className="dv2-ac-league">{classicLeague.name}</span>}
+                      </div>
+                      <div className="dv2-ac-teams">
+                        <span className="dv2-ac-flag">{m.homeFlag}</span>
+                        <span className="dv2-ac-name">{m.home}</span>
+                        <span className="dv2-ac-vs">vs</span>
+                        <span className="dv2-ac-name">{m.away}</span>
+                        <span className="dv2-ac-flag">{m.awayFlag}</span>
+                      </div>
+                    </div>
+                    <Countdown match={m} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (
@@ -1921,7 +1998,7 @@ const GoalOracle = () => {
   const LeaguesList = () => {
     const allMine = leagues.length > 0 ? leagues : [
       { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
-      { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
+      { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
     ];
     const isGlobalLeague = (l) => l.id === 'global' || l.id === 'global-simple' || l.isGlobal === true;
     const globalLeagues = allMine.filter(isGlobalLeague);
@@ -1972,7 +2049,7 @@ const GoalOracle = () => {
                       <div className="lv2-row-info">
                         <h3 className="lv2-row-name">
                           {gl.name} <span className="lv2-global-pill">GLOBAL</span>
-                          {gl.predictionMode === 'simple' && <span className="lv2-mode-pill simple">SIMPLE</span>}
+                          {gl.predictionMode === 'simple' && <span className="lv2-mode-pill simple">QUICK PICKS</span>}
                           {gl.predictionMode !== 'simple' && <span className="lv2-mode-pill classic">CLASSIC</span>}
                         </h3>
                         <span className="lv2-row-meta"><Users size={12} /> {(gl.memberCount || 0).toLocaleString()} members</span>
@@ -3613,7 +3690,7 @@ const GoalOracle = () => {
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`} onClick={e => e.stopPropagation()}>
         <a className="nav-link" onClick={() => nav('landing')}><Home size={14} /><span>Home</span></a>
         <a className="nav-link" onClick={() => {
-          const simpleLeague = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League Simple', type: 'free', predictionMode: 'simple', isGlobal: true };
+          const simpleLeague = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
           nav('detail', simpleLeague);
           setDetailTab('leaderboard');
         }}><TrendingUp size={14} /><span>Leaderboard</span></a>
