@@ -160,48 +160,7 @@ const useScrollReveal = () => {
     }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
     document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale, .reveal-float, .section-zoom').forEach(el => obs.observe(el));
 
-    const onScroll = () => {
-      const y = window.scrollY;
-      const vh = window.innerHeight;
-      // Stadium hero parallax + subtle zoom
-      const bg = document.querySelector('.hero-stadium-bg');
-      if (bg) bg.style.transform = `scale(${1.05 + y * 0.0002}) translateY(${y * 0.3}px)`;
-      // Hero content counter-parallax (moves up slightly slower)
-      const hc = document.querySelector('.hero-content');
-      if (hc) hc.style.transform = `translateY(${y * 0.08}px)`;
-      // Hero overlay opacity shift
-      const ho = document.querySelector('.hero-stadium-overlay');
-      if (ho) ho.style.opacity = Math.min(1, 0.85 + y * 0.0005);
-      // Code wall columns — different speeds per column
-      document.querySelectorAll('.code-col').forEach((col, i) => {
-        const speeds = [0.07, -0.05, 0.09, -0.06, 0.08, -0.04];
-        col.style.transform = `translateY(${y * speeds[i]}px)`;
-      });
-      // Atmosphere section bg parallax
-      const abg = document.querySelector('.atmosphere-bg');
-      if (abg) {
-        const rect = abg.parentElement.getBoundingClientRect();
-        const offset = (rect.top - vh) * -0.15;
-        abg.style.transform = `translateY(${offset}px) scale(1.1)`;
-      }
-      // Floating depth on feature cards
-      document.querySelectorAll('.feature-card').forEach((card, i) => {
-        const rect = card.getBoundingClientRect();
-        const center = rect.top + rect.height / 2;
-        const dist = (center - vh / 2) / vh;
-        card.style.transform = `translateY(${dist * -8}px) scale(${1 - Math.abs(dist) * 0.015})`;
-      });
-      // Legacy cards subtle float
-      document.querySelectorAll('.legacy-card').forEach((card, i) => {
-        const rect = card.getBoundingClientRect();
-        if (rect.top < vh && rect.bottom > 0) {
-          const progress = 1 - rect.top / vh;
-          card.style.transform = `translateY(${(1 - progress) * 12}px)`;
-        }
-      });
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => { obs.disconnect(); window.removeEventListener('scroll', onScroll); };
+    return () => { obs.disconnect(); };
   }, []);
 };
 
