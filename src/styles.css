@@ -1497,7 +1497,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* Dashboard: prediction flow explainer */
 .dv2-section-sub { font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.14em; text-transform: uppercase; }
-.dv2-flow-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 0.75rem; }
+.dv2-flow-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 0.75rem; }
+@media (max-width: 1000px) { .dv2-flow-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 720px) { .dv2-flow-grid { grid-template-columns: 1fr; } }
 .dv2-flow-card {
   position: relative; display: flex; flex-direction: column; gap: 0.75rem;
@@ -1514,6 +1515,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: linear-gradient(135deg, rgba(255,184,0,0.08), rgba(255,45,135,0.03));
   border-color: rgba(255,184,0,0.3);
 }
+.dv2-flow-join {
+  background: linear-gradient(135deg, rgba(123,97,255,0.08), rgba(0,212,255,0.04));
+  border-color: rgba(123,97,255,0.3);
+}
 .dv2-flow-head { display: flex; align-items: center; gap: 0.6rem; }
 .dv2-flow-icon {
   width: 36px; height: 36px; border-radius: 50%;
@@ -1521,6 +1526,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: linear-gradient(135deg, var(--cyan), var(--magenta)); color: #000;
 }
 .dv2-flow-icon-classic { background: linear-gradient(135deg, var(--amber), var(--magenta)); }
+.dv2-flow-icon-join { background: linear-gradient(135deg, var(--violet), var(--cyan)); color: #fff; }
 .dv2-flow-title { font-size: 1rem; font-weight: 700; flex: 1; }
 .dv2-flow-badge {
   font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em;
@@ -1528,6 +1534,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: rgba(0,212,255,0.12); color: var(--cyan);
 }
 .dv2-flow-badge-per-league { background: rgba(255,184,0,0.14); color: var(--amber); }
+.dv2-flow-badge-join { background: rgba(123,97,255,0.16); color: var(--violet); }
 .dv2-flow-desc { font-size: 0.85rem; color: var(--text-sec); margin: 0; line-height: 1.5; }
 .dv2-flow-desc strong { color: var(--text); font-weight: 600; }
 .dv2-flow-cta {

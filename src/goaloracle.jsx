@@ -1806,9 +1806,22 @@ const GoalOracle = () => {
               </p>
               <div className="dv2-flow-cta">Continue your Classic picks <ChevronRight size={14} /></div>
             </div>
+            <div
+              className="dv2-flow-card dv2-flow-join"
+              onClick={() => nav('browse')}
+            >
+              <div className="dv2-flow-head">
+                <div className="dv2-flow-icon dv2-flow-icon-join"><Users size={20} /></div>
+                <div className="dv2-flow-title">Join a League</div>
+                <span className="dv2-flow-badge dv2-flow-badge-join">Public + code</span>
+              </div>
+              <p className="dv2-flow-desc">
+                Browse public leagues to find one that fits, or <strong>enter a private passcode from a friend</strong> to jump straight in. One click takes you both places.
+              </p>
+              <div className="dv2-flow-cta">Browse or enter a code <ChevronRight size={14} /></div>
+            </div>
           </div>
           <div className="dv2-flow-actions">
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={14} /> Browse leagues</button>
             <button type="button" className="btn btn-primary btn-sm" onClick={() => nav('create')}><Plus size={14} /> Create a league</button>
           </div>
         </div>
