@@ -126,20 +126,37 @@ export default async function handler(req, res) {
       if (displayName && displayName.trim()) updates.displayName = displayName.trim();
       if (usernameSet === true) updates.usernameSet = true;
 
-      // Ensure user is in both global leagues (backfill for old accounts)
+      // Ensure user's leagues array includes both globals (idempotent)
       const userLeagues = userSnap.data().leagues || [];
-      const leaguesToAdd = [];
-      if (!userLeagues.includes('global')) leaguesToAdd.push('global');
-      if (!userLeagues.includes('global-simple')) leaguesToAdd.push('global-simple');
-      if (leaguesToAdd.length > 0) {
-        updates.leagues = FieldValue.arrayUnion(...leaguesToAdd);
-        for (const leagueId of leaguesToAdd) {
-          db.collection('leagues').doc(leagueId).update({
-            members: FieldValue.arrayUnion(userId),
-            memberCount: FieldValue.increment(1),
-          }).catch(() => {});
-        }
+      const missingFromUser = [];
+      if (!userLeagues.includes('global')) missingFromUser.push('global');
+      if (!userLeagues.includes('global-simple')) missingFromUser.push('global-simple');
+      if (missingFromUser.length > 0) {
+        updates.leagues = FieldValue.arrayUnion(...missingFromUser);
       }
+
+      // Authoritative backfill: check each global LEAGUE's members array and
+      // add the user if missing. This runs regardless of what the user doc
+      // says, fixing the drift where memberCount was incremented but the
+      // members array was never populated.
+      const [globalSnap, globalSimpleSnap] = await Promise.all([
+        db.collection('leagues').doc('global').get(),
+        db.collection('leagues').doc('global-simple').get(),
+      ]);
+      const ensureMember = (snap, leagueId) => {
+        if (!snap.exists) return null;
+        const members = snap.data().members || [];
+        if (members.includes(userId)) return null;
+        return db.collection('leagues').doc(leagueId).update({
+          members: FieldValue.arrayUnion(userId),
+          memberCount: FieldValue.increment(1),
+        }).catch(e => console.warn(`[user] failed to add ${userId} to ${leagueId}.members:`, e.message));
+      };
+      const leaguePromises = [
+        ensureMember(globalSnap, 'global'),
+        ensureMember(globalSimpleSnap, 'global-simple'),
+      ].filter(Boolean);
+      if (leaguePromises.length > 0) await Promise.all(leaguePromises);
 
       // Ensure global-simple members subcollection doc exists (backfill)
       const memberRef = db.collection('leagues').doc('global-simple').collection('members').doc(userId);
