@@ -58,6 +58,7 @@
   box-shadow: 0 4px 20px rgba(2,185,6,0.3);
 }
 [data-theme="fifa2026"] .btn-primary:hover { box-shadow: 0 8px 30px rgba(2,185,6,0.4); }
+[data-theme="fifa2026"] .hero-stadium-bg { filter: saturate(0.2) brightness(0.25) sepia(0.3); }
 [data-theme="fifa2026"] .hero-text-panel {
   background: rgba(0,0,0,0.3); border-color: rgba(255,219,0,0.08);
 }
@@ -211,8 +212,23 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- HERO ---- */
+/* ---- HERO WITH STADIUM ---- */
 .hero { position: relative; min-height: 100vh; display: flex; align-items: center; z-index: 2; overflow: hidden; }
+.hero-stadium-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background: url('https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80') center center / cover no-repeat;
+  filter: saturate(0.35) brightness(0.35); transform: scale(1.05);
+}
+[data-theme="light"] .hero-stadium-bg { filter: saturate(0.5) brightness(0.65); }
+.hero-stadium-overlay {
+  position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(180deg, rgba(5,5,8,0.35) 0%, rgba(5,5,8,0.5) 40%, rgba(5,5,8,0.88) 80%, var(--bg) 100%),
+    radial-gradient(ellipse at 30% 20%, rgba(0,212,255,0.1) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 60%, rgba(255,45,135,0.08) 0%, transparent 50%);
+}
+[data-theme="light"] .hero-stadium-overlay {
+  background: linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.15) 30%, rgba(245,245,248,0.7) 70%, var(--bg) 100%);
+}
 .hero-content {
   position: relative; z-index: 5; max-width: 780px; margin: 0 auto; padding: 2rem; text-align: center;
 }
@@ -396,190 +412,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* ─── SPLIT HERO ─── */
 .hero-split { min-height: auto; padding-bottom: 0; }
+.hero-split .hero-stadium-overlay { background: linear-gradient(135deg, rgba(5,5,8,0.92) 50%, rgba(5,5,8,0.7)); }
+[data-theme="light"] .hero-split .hero-stadium-overlay { background: linear-gradient(135deg, rgba(0,0,0,0.82) 50%, rgba(0,0,0,0.5)); }
 .hero-split-inner {
   position: relative; z-index: 3; max-width: 1200px; margin: 0 auto;
   display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem;
   align-items: center; padding: 8rem 2rem 4rem;
-}
-
-/* ─── HERO PLATE (3D tilt card) ─── */
-.hero-plate {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  max-height: 70vh;
-  margin: 0 0 2rem;
-  perspective: 1400px;
-  --mx: 0.5;
-  --my: 0.5;
-  --hover: 0;
-  --hero-plate-image: url('https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80');
-  --hero-plate-radius: 20px;
-}
-.hero-plate-inner {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  border-radius: var(--hero-plate-radius);
-  overflow: hidden;
-  transform-style: preserve-3d;
-  transform:
-    rotateX(calc((0.5 - var(--my)) * 7deg))
-    rotateY(calc((var(--mx) - 0.5) * 9deg));
-  transition:
-    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.5s ease;
-  background: #0a0a10;
-  box-shadow:
-    0 20px 50px rgba(0, 0, 0, 0.55),
-    0 calc(40px + var(--hover) * 40px) calc(90px + var(--hover) * 60px) rgba(0, 0, 0, calc(0.35 + var(--hover) * 0.35)),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  will-change: transform;
-}
-.hero-plate-image {
-  position: absolute;
-  inset: -7%;
-  background: var(--hero-plate-image) center center / cover no-repeat;
-  filter: saturate(0.7) brightness(0.55) contrast(1.08);
-  transform:
-    translate(
-      calc((var(--mx) - 0.5) * -22px),
-      calc((var(--my) - 0.5) * -18px)
-    ) scale(1.06);
-  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform;
-}
-[data-theme="light"] .hero-plate-image { filter: saturate(0.85) brightness(0.72) contrast(1.05); }
-[data-theme="fifa2026"] .hero-plate-image { filter: saturate(0.3) brightness(0.3) sepia(0.3); }
-.hero-plate-overlay {
-  position: absolute; inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(110deg, rgba(6, 8, 16, 0.68) 0%, rgba(6, 8, 16, 0.22) 55%, rgba(6, 8, 16, 0.55) 100%),
-    linear-gradient(180deg, transparent 45%, rgba(6, 8, 16, 0.5) 100%);
-}
-/* Iridescent sheen sweep — continuous, subtle, screen blend */
-.hero-plate-sheen {
-  position: absolute; inset: -25%;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  opacity: 0.28;
-  background: linear-gradient(
-    115deg,
-    transparent 20%,
-    rgba(120, 200, 255, 0.22) 38%,
-    rgba(225, 170, 255, 0.3) 46%,
-    rgba(255, 215, 175, 0.28) 54%,
-    rgba(190, 255, 225, 0.2) 62%,
-    transparent 80%
-  );
-  background-size: 250% 250%;
-  animation: hero-plate-sheen-sweep 7s linear infinite;
-}
-@keyframes hero-plate-sheen-sweep {
-  0%   { background-position: -60% 120%; }
-  100% { background-position: 160% -40%; }
-}
-/* Broader warm gleam, follows cursor, overlay blend */
-.hero-plate-gleam {
-  position: absolute; inset: 0;
-  pointer-events: none;
-  mix-blend-mode: overlay;
-  background: radial-gradient(
-    ellipse 55% 45% at calc(var(--mx) * 100%) calc(var(--my) * 100%),
-    rgba(255, 200, 130, 0.42) 0%,
-    rgba(255, 170, 80, 0.2) 35%,
-    transparent 70%
-  );
-  transition: opacity 0.25s ease;
-  opacity: calc(0.55 + var(--hover) * 0.45);
-}
-/* Small traveling specular hotspot, screen blend */
-.hero-plate-specular {
-  position: absolute; inset: 0;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  background: radial-gradient(
-    circle 180px at calc(var(--mx) * 100%) calc(var(--my) * 100%),
-    rgba(255, 250, 230, 0.52) 0%,
-    rgba(255, 250, 230, 0.18) 35%,
-    transparent 65%
-  );
-  transition: opacity 0.25s ease;
-  opacity: calc(0.45 + var(--hover) * 0.5);
-}
-/* Text content pops forward on the plate */
-.hero-plate-content {
-  position: relative;
-  z-index: 5;
-  height: 100%;
-  padding: clamp(1.5rem, 4vw, 3rem) clamp(1.5rem, 5vw, 3.25rem);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  transform: translateZ(48px);
-}
-.hero-plate-title {
-  font-family: var(--font-display, var(--font));
-  font-size: clamp(2.3rem, 5.2vw, 4.4rem);
-  line-height: 1.02;
-  font-weight: 700;
-  margin: 0 0 0.4rem;
-  color: #f7f4ee;
-  letter-spacing: -0.02em;
-  text-shadow: 0 6px 30px rgba(0, 0, 0, 0.55);
-}
-.hero-plate-em {
-  font-style: italic;
-  background: linear-gradient(135deg, #FFE9B6 0%, #F9B267 45%, #FFD27A 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: none;
-}
-.hero-plate-subtitle {
-  margin: 0.75rem 0 0;
-  font-family: var(--font);
-  font-style: italic;
-  font-size: clamp(0.95rem, 1.3vw, 1.15rem);
-  color: rgba(255, 255, 255, 0.88);
-  max-width: 40ch;
-  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.7);
-}
-
-/* Gold halo — soft outer glow, fades in on hover */
-.hero-plate::after {
-  content: '';
-  position: absolute;
-  inset: -26px;
-  border-radius: calc(var(--hero-plate-radius) + 14px);
-  background: radial-gradient(
-    ellipse 70% 55% at 50% 55%,
-    rgba(255, 205, 125, 0.42) 0%,
-    rgba(255, 155, 60, 0.2) 38%,
-    transparent 75%
-  );
-  filter: blur(22px);
-  opacity: var(--hover);
-  transition: opacity 0.45s ease;
-  pointer-events: none;
-  z-index: 0;
-}
-
-@media (max-width: 900px) {
-  .hero-plate { aspect-ratio: 4/3; max-height: none; }
-}
-@media (max-width: 600px) {
-  .hero-plate { aspect-ratio: 3/2.2; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-plate-inner,
-  .hero-plate-image { transform: none !important; transition: none !important; }
-  .hero-plate-sheen { animation: none; }
-  .hero-plate::after { transition: none; }
 }
 .hero-left .hero-title { text-align: left; font-size: 3.2rem; }
 .hero-left .hero-subtitle { text-align: left; max-width: 480px; }
