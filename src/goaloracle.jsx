@@ -353,7 +353,7 @@ function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify, userId }) {
   );
 }
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, initialTab = 'leaderboard' }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard' }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -404,18 +404,32 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   }, [sTab, lbMode, lbKey]);
 
   const needsUsername = userData && !userData.usernameSet;
+  const isGlobalView = league?.id === 'global' || league?.id === 'global-simple' || league?.isGlobal === true;
+  const title = isGlobalView ? 'Global Leaderboard' : (league?.name || 'Leaderboard');
+  const [predMenuOpen, setPredMenuOpen] = useState(false);
 
   const handleComplete = useCallback(() => {
     setSTab('leaderboard');
     setLbKey(k => k + 1);
   }, []);
 
+  const goToPredictions = useCallback((mode) => {
+    setPredMenuOpen(false);
+    if (!authenticated) { onSignIn && onSignIn(); return; }
+    if (mode === 'simple') {
+      // Keep Simple predictions inline inside this detail view.
+      setSTab('predictions');
+    } else if (onOpenClassic) {
+      onOpenClassic();
+    }
+  }, [authenticated, onSignIn, onOpenClassic]);
+
   return (
     <div className="league-detail">
       <div className="page-header-compact">
         <div className="phc-left">
           <button className="btn-back-sm" onClick={onBack}>&larr;</button>
-          <h1 className="phc-title">{league?.name}</h1>
+          <h1 className="phc-title">{title}</h1>
           <div className="phc-meta">
             <span><Users size={14} /> {(league?.memberCount || league?.members?.length || 0).toLocaleString()} members</span>
             <span className="lv2-mode-pill simple">SIMPLE</span>
@@ -431,10 +445,52 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         </div>
       )}
 
-      <div className="tabs">
-        <button className={`tab ${sTab === 'leaderboard' ? 'active' : ''}`} onClick={() => setSTab('leaderboard')}><TrendingUp size={16} /> Leaderboard</button>
-        <button className={`tab ${sTab === 'predictions' ? 'active' : ''}`} onClick={() => { if (!authenticated) { onSignIn && onSignIn(); return; } setSTab('predictions'); }}><Target size={16} /> Predictions</button>
-      </div>
+      {sTab !== 'predictions' && (
+        <div className="predict-cta-wrap">
+          <button
+            type="button"
+            className="predict-cta"
+            onClick={() => {
+              if (!authenticated) { onSignIn && onSignIn(); return; }
+              setPredMenuOpen((v) => !v);
+            }}
+            aria-expanded={predMenuOpen}
+          >
+            <Target size={16} />
+            <span>Change your predictions</span>
+            <ChevronDown size={14} className={`predict-cta-chev ${predMenuOpen ? 'open' : ''}`} />
+          </button>
+          {predMenuOpen && (
+            <div className="predict-cta-menu" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="predict-cta-option" onClick={() => goToPredictions('classic')}>
+                <span className="predict-cta-option-icon classic"><Trophy size={16} /></span>
+                <div className="predict-cta-option-text">
+                  <strong>Classic mode</strong>
+                  <span>Score &amp; result for every fixture</span>
+                </div>
+                <ChevronRight size={14} />
+              </button>
+              <button type="button" className="predict-cta-option" onClick={() => goToPredictions('simple')}>
+                <span className="predict-cta-option-icon simple"><Target size={16} /></span>
+                <div className="predict-cta-option-text">
+                  <strong>Simple mode</strong>
+                  <span>Group rankings + knockout bracket</span>
+                </div>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {sTab === 'predictions' && (
+        <div className="predict-inline-header">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSTab('leaderboard')}>
+            &larr; Back to leaderboard
+          </button>
+          <span className="predict-inline-title"><Target size={14} /> Simple mode predictions</span>
+        </div>
+      )}
 
       {sTab === 'leaderboard' && (
         <div className="leaderboard">
@@ -3696,6 +3752,11 @@ const GoalOracle = () => {
           onSignIn={login}
           onBack={() => nav(authenticated ? 'leagues' : 'landing')}
           onSetUsername={() => setShowUsernamePrompt(true)}
+          onOpenClassic={() => {
+            const classic = leagues.find((l) => l.id === 'global') || allLeagues.find((l) => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } };
+            setDetailTab('predictions');
+            nav('detail', classic);
+          }}
           initialTab={detailTab === 'predictions' ? 'predictions' : 'leaderboard'}
         />
       )}
