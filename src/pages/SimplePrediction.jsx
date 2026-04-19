@@ -34,6 +34,10 @@ const GLOBAL_SIMPLE_ID = 'global-simple';
 
 export default function SimplePrediction({ userId, league, onExit, onComplete, embedded = false }) {
   const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId, league?.id);
+  // Bumping this key remounts the wizard so its frozen-initial hooks
+  // rehydrate from the latest subscription data (used after copy / reset).
+  const [rehydrateKey, setRehydrateKey] = useState(0);
+  const triggerRehydrate = useCallback(() => setRehydrateKey(k => k + 1), []);
 
   if (loading) {
     return (
@@ -48,7 +52,7 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
 
   return (
     <SimplePredictionWizard
-      key={league?.id || 'no-league'}
+      key={`${league?.id || 'no-league'}:${rehydrateKey}`}
       initialData={data}
       userId={userId}
       league={league}
@@ -60,11 +64,12 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
       error={error}
       save={save}
       saveNow={saveNow}
+      onRehydrate={triggerRehydrate}
     />
   );
 }
 
-function SimplePredictionWizard({ initialData, userId, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow }) {
+function SimplePredictionWizard({ initialData, userId, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
   const [step, setStep] = useState(1);
   const [showSaved, setShowSaved] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
@@ -167,15 +172,16 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
       }
       await copySimplePrediction(userId, GLOBAL_SIMPLE_ID, league.id);
       setCopyBanner('success');
-      // Reload the page after a short delay so every hook rehydrates from the
-      // freshly copied doc (groups, best third, bracket state).
-      setTimeout(() => window.location.reload(), 400);
+      // Wait briefly for the Firestore subscription to deliver the freshly
+      // copied doc, then remount the wizard so every hook rehydrates from
+      // the latest data. Avoids a full-page reload.
+      setTimeout(() => onRehydrate && onRehydrate(), 400);
     } catch (e) {
       window.alert(e?.message || 'Copy failed');
     } finally {
       setCopyBusy(false);
     }
-  }, [userId, league?.id]);
+  }, [userId, league?.id, onRehydrate]);
 
   const handleResetAll = useCallback(async () => {
     if (!userId || !league?.id) return;
@@ -184,13 +190,13 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
     try {
       await resetSimplePrediction(userId, league.id);
       setCopyBanner('prompt');
-      setTimeout(() => window.location.reload(), 400);
+      setTimeout(() => onRehydrate && onRehydrate(), 400);
     } catch (e) {
       window.alert(e?.message || 'Reset failed');
     } finally {
       setCopyBusy(false);
     }
-  }, [userId, league?.id, league?.name]);
+  }, [userId, league?.id, league?.name, onRehydrate]);
 
   return (
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
@@ -320,7 +326,20 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
       {step === 3 && (
         <section className="simple-step-section">
           <div className="simple-step-intro">
-            <h2>Step 3 — Knockout bracket</h2>
+            <div className="simple-step-intro-head">
+              <h2>Step 3 — Knockout bracket</h2>
+              <span className="simple-bracket-save-pill" aria-live="polite">
+                {error ? (
+                  <><AlertTriangle size={14} /> Save failed</>
+                ) : saving ? (
+                  <>Saving…</>
+                ) : savedAt ? (
+                  <><Check size={14} /> All picks saved</>
+                ) : (
+                  <>Picks auto-save</>
+                )}
+              </span>
+            </div>
             <p>Pick the winner of each match. The bracket fills forward as you go.</p>
           </div>
 

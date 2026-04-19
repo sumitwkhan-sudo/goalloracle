@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, Gift, MapPin, Calendar } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
-import { getPedigree, FINALS, CHAMPIONS } from './utils/pedigree';
+import { getPedigree } from './utils/pedigree';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
+import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
@@ -353,13 +354,22 @@ function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify, userId }) {
   );
 }
 
+const RankDelta = ({ delta }) => {
+  if (delta === undefined || delta === null) return <span className="rank-delta rank-delta-new" title="New this round">—</span>;
+  if (delta > 0) return <span className="rank-delta rank-delta-up" title={`Up ${delta}`}>&uarr;{delta}</span>;
+  if (delta < 0) return <span className="rank-delta rank-delta-down" title={`Down ${-delta}`}>&darr;{-delta}</span>;
+  return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
+};
+
 const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard' }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
   const [simLbl, setSimLbl] = useState(false);
+  const [simDeltas, setSimDeltas] = useState({});
   const [classicLb, setClassicLb] = useState([]);
   const [classicLbl, setClassicLbl] = useState(false);
+  const [classicDeltas, setClassicDeltas] = useState({});
   const [lbKey, setLbKey] = useState(0);
   const [viewingPicks, setViewingPicks] = useState(null); // { userId, displayName, winner, runnerUp }
 
@@ -371,7 +381,11 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       setSimLbl(true);
       try {
         const data = await getSimpleLeaderboard(league.id);
-        if (!cancelled) setSimLb(data.leaderboard || []);
+        if (!cancelled) {
+          const entries = data.leaderboard || [];
+          setSimLb(entries);
+          setSimDeltas(computeRankDeltas(`simple:${league.id}`, entries));
+        }
       } catch (e) { console.error(e); }
       finally { if (!cancelled) setSimLbl(false); }
     })();
@@ -402,6 +416,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           };
         }).sort((a, b) => b.predictions - a.predictions || a.displayName.localeCompare(b.displayName));
         setClassicLb(entries);
+        setClassicDeltas(computeRankDeltas('classic:global', entries));
       } catch (e) { console.error(e); }
       finally { if (!cancelled) setClassicLbl(false); }
     })();
@@ -532,6 +547,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                     {i === 1 && <Trophy size={20} className="silver" />}
                     {i === 2 && <Trophy size={20} className="bronze" />}
                     {i > 2 && <span>#{i + 1}</span>}
+                    <RankDelta delta={simDeltas[e.userId]} />
                   </div>
                   <div className="player-info">
                     <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
@@ -593,6 +609,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                     {i === 1 && <Trophy size={20} className="silver" />}
                     {i === 2 && <Trophy size={20} className="bronze" />}
                     {i > 2 && <span>#{i + 1}</span>}
+                    <RankDelta delta={classicDeltas[e.userId]} />
                   </div>
                   <div className="player-info">
                     <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
@@ -1332,8 +1349,8 @@ const GoalOracle = () => {
                     <span>&middot;</span>
                     <span><MapPin size={12} /> {nextMatch.venue}</span>
                   </div>
-                  <button className={`btn ${isLocked ? 'btn-secondary' : 'btn-primary'} nmc-btn`} onClick={goToPredict} disabled={isLocked}>
-                    {isLocked ? <><Lock size={16} /> Predictions Locked</> : 'Make Your Prediction'}
+                  <button className="btn btn-secondary nmc-btn" onClick={goToPredict} disabled={isLocked}>
+                    {isLocked ? <><Lock size={16} /> Predictions Locked</> : <>Preview this match <ChevronRight size={14} /></>}
                   </button>
                 </div>
               ) : (
@@ -1566,68 +1583,12 @@ const GoalOracle = () => {
           </div>
         </div></section>
 
-        {/* ─── 4b. THE PEDIGREE — CHAMPIONS STRIP ─── */}
-        <section className="pedigree-section"><div className="container">
-          <div className="editorial-head reveal">
-            <div className="editorial-eyebrow">The Pedigree</div>
-            <h2 className="editorial-title">Twenty-two finals.<br/><span className="editorial-em">Eight victors.</span></h2>
-            <div className="editorial-num">1930 &mdash; 2022</div>
-          </div>
-          <div className="pedigree-strip-ro">
-            <div className="pedigree-track-ro">
-              {FINALS.map((f, idx) => (
-                <div
-                  key={f.yr}
-                  className={`pedigree-f ${idx === FINALS.length - 1 ? 'pedigree-f-future' : ''} ${idx === FINALS.length - 2 ? 'pedigree-f-current' : ''}`}
-                  data-champ={f.win}
-                >
-                  <span className="pedigree-yr">{f.yr}</span>
-                  <span className="pedigree-ch">{f.win}</span>
-                  <span className="pedigree-sc">{f.score}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="pedigree-tally-ro">
-            {CHAMPIONS.map(c => (
-              <span key={c.name} className="pedigree-tally-item">
-                <span className="pedigree-tally-flag">{c.flagAlt || c.flag}</span>
-                <strong>{c.count}×</strong>
-                <span className="pedigree-tally-name">{c.name}</span>
-              </span>
-            ))}
-          </div>
-        </div></section>
-
-        {/* ─── 5. REWARDS & LEVELS ─── */}
-        <section className="rewards-section"><div className="container">
-          <h2 className="rewards-title reveal">Rewards &amp; Levels</h2>
-          <div className="rewards-grid">
-            {[
-              { icon: <TrendingUp size={28} />, title: 'XP & Levels', sub: 'Climb from Fan to Legend' },
-              { icon: <Gift size={28} />, title: 'Jerseys', sub: 'Win signed jerseys' },
-              { icon: <Award size={28} />, title: 'Badges', sub: 'Show off your achievements' },
-              { icon: <Trophy size={28} />, title: 'Tournaments', sub: 'Invite-only competitions' },
-            ].map((r, i) => (
-              <div key={i} className={`reward-card reveal-float stagger-${i+1} glow-hover`}>
-                <div className="reward-icon">{r.icon}</div>
-                <h4>{r.title}</h4>
-                <p>{r.sub}</p>
-              </div>
-            ))}
-          </div>
-        </div></section>
-
-        {/* ─── 6. FINAL CTA ─── */}
-        <section className="final-cta-section">
+        {/* ─── 5. FINAL CTA STRIP (compact, footer-adjacent) ─── */}
+        <section className="final-cta-strip">
           <div className="container">
-            <div className="final-cta reveal">
-              <h2>Ready to Become the Oracle?</h2>
-              <p>Join thousands of football fans already predicting, competing, and winning.</p>
-              <div className="final-cta-btns">
-                <button className="btn btn-primary btn-lg" onClick={startSimplePredicting}>Start Predicting &mdash; It&rsquo;s Free</button>
-                <button className="btn btn-secondary btn-lg" onClick={() => authenticated ? nav('create') : login()}>Create a League</button>
-              </div>
+            <div className="final-cta-strip-inner reveal">
+              <span className="final-cta-strip-text">Ready to predict?</span>
+              <button className="btn btn-primary" onClick={startSimplePredicting}>Start Predicting &mdash; It&rsquo;s Free</button>
             </div>
           </div>
         </section>
@@ -1672,6 +1633,7 @@ const GoalOracle = () => {
     const lvl = useMemo(() => getLevelInfo(xpTotal), [xpTotal]);
     const totalCompleted = useMemo(() => Object.entries(preds).filter(([id]) => results[id]?.completed).length, [preds, results]);
     const accuracy = totalCompleted > 0 ? Math.round((totalStats.correctResults / totalCompleted) * 100) : 0;
+    const isFirstTime = Object.keys(preds).length === 0 && totalCompleted === 0;
 
     // Matches needing prediction
     const needsPrediction = useMemo(() =>
@@ -1765,24 +1727,41 @@ const GoalOracle = () => {
           </div>
         </div>
 
-        {/* 3 Stat Cards */}
-        <div className="dv2-stats">
-          <div className="dv2-stat-card dv2-anim-1">
-            <span className="dv2-stat-label">Total Points</span>
-            <span className="dv2-stat-value"><AnimatedCounter value={totalStats.totalPoints} /></span>
-            <span className="dv2-stat-sub">{totalStats.correctResults} correct result{totalStats.correctResults !== 1 ? 's' : ''}</span>
+        {/* Onboarding card (first-time) or 3 Stat Cards */}
+        {isFirstTime ? (
+          <div className="dv2-onboard">
+            <div className="dv2-onboard-inner">
+              <div className="dv2-onboard-text">
+                <h2>Make your first pick</h2>
+                <p>Takes about 3 minutes. Rank the groups, pick your best thirds, fill the bracket. Your picks auto-save as you go.</p>
+              </div>
+              <button className="btn btn-primary btn-lg" onClick={() => {
+                const simpleL = ml.find(l => l.predictionMode === 'simple') || ml[0];
+                nav('detail', simpleL);
+              }}>
+                Start predicting <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
-          <div className="dv2-stat-card dv2-anim-2">
-            <span className="dv2-stat-label">Accuracy</span>
-            <span className="dv2-stat-value"><AnimatedCounter value={accuracy} suffix="%" /></span>
-            <span className="dv2-stat-sub">{totalCompleted} match{totalCompleted !== 1 ? 'es' : ''} completed</span>
+        ) : (
+          <div className="dv2-stats">
+            <div className="dv2-stat-card dv2-anim-1">
+              <span className="dv2-stat-label">Total Points</span>
+              <span className="dv2-stat-value"><AnimatedCounter value={totalStats.totalPoints} /></span>
+              <span className="dv2-stat-sub">{totalStats.correctResults} correct result{totalStats.correctResults !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="dv2-stat-card dv2-anim-2">
+              <span className="dv2-stat-label">Accuracy</span>
+              <span className="dv2-stat-value"><AnimatedCounter value={accuracy} suffix="%" /></span>
+              <span className="dv2-stat-sub">{totalCompleted} match{totalCompleted !== 1 ? 'es' : ''} completed</span>
+            </div>
+            <div className="dv2-stat-card dv2-anim-3">
+              <span className="dv2-stat-label">Best Rank</span>
+              <span className="dv2-stat-value">{(() => { const best = Object.values(leagueRanks).reduce((b, r) => (!b || r.rank < b.rank) ? r : b, null); return best ? `#${best.rank}` : '—'; })()}</span>
+              <span className="dv2-stat-sub">{(() => { const bestL = ml.find(l => leagueRanks[l.id] && Object.values(leagueRanks).every(r => leagueRanks[l.id].rank <= r.rank)); return bestL?.name || 'Loading...'; })()}</span>
+            </div>
           </div>
-          <div className="dv2-stat-card dv2-anim-3">
-            <span className="dv2-stat-label">Best Rank</span>
-            <span className="dv2-stat-value">{(() => { const best = Object.values(leagueRanks).reduce((b, r) => (!b || r.rank < b.rank) ? r : b, null); return best ? `#${best.rank}` : '—'; })()}</span>
-            <span className="dv2-stat-sub">{(() => { const bestL = ml.find(l => leagueRanks[l.id] && Object.values(leagueRanks).every(r => leagueRanks[l.id].rank <= r.rank)); return bestL?.name || 'Loading...'; })()}</span>
-          </div>
-        </div>
+        )}
 
         {/* Prediction flow explainer — how the two modes work per league */}
         <div className="dv2-section">
@@ -2163,6 +2142,7 @@ const GoalOracle = () => {
     const stageFilter = detailStage, setStageFilter = setDetailStage;
     const [lb, setLb] = useState([]);
     const [lbl, setLbl] = useState(false);
+    const [lbDeltas, setLbDeltas] = useState({});
     const [lbSort, setLbSort] = useState('points'); // 'points' | 'xp' | 'streak'
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
@@ -2182,7 +2162,7 @@ const GoalOracle = () => {
     const isPrivate = selLeague?.visibility === 'private';
     const isMember = selLeague?.members?.includes(uData?.id);
 
-    useEffect(() => { if (tab !== 'leaderboard' || !selLeague?.id) return; (async () => { setLbl(true); try { const { leaderboard: bu, userNames } = await getLeagueLeaderboard(selLeague.id); const p = selLeague.pointsSystem || {}; const e = Object.entries(bu).map(([uid, pr]) => { const stats = calculateTotalPoints(pr, results, p); const xp = calculateXP(pr, results, 1); return { userId: uid, displayName: userNames[uid] || uid.slice(0, 8), ...stats, xp, levelInfo: getLevelInfo(xp) }; }); setLb(sortLeaderboard(e)); } catch(e){console.error(e);} finally{setLbl(false);} })(); }, [tab, selLeague?.id, results]);
+    useEffect(() => { if (tab !== 'leaderboard' || !selLeague?.id) return; (async () => { setLbl(true); try { const { leaderboard: bu, userNames } = await getLeagueLeaderboard(selLeague.id); const p = selLeague.pointsSystem || {}; const e = Object.entries(bu).map(([uid, pr]) => { const stats = calculateTotalPoints(pr, results, p); const xp = calculateXP(pr, results, 1); return { userId: uid, displayName: userNames[uid] || uid.slice(0, 8), ...stats, xp, levelInfo: getLevelInfo(xp) }; }); const sorted = sortLeaderboard(e); setLb(sorted); setLbDeltas(computeRankDeltas(`classic:${selLeague.id}`, sorted)); } catch(e){console.error(e);} finally{setLbl(false);} })(); }, [tab, selLeague?.id, results]);
 
     const handleDelete = async () => {
       try { await deleteLeague(selLeague.id, uData.id); notify(`"${selLeague.name}" deleted`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
@@ -2508,7 +2488,7 @@ const GoalOracle = () => {
             : lb.length === 0 ? <div className="empty-state"><p>No predictions yet.</p></div>
             : <div className="leaderboard-list">{[...lb].sort((a, b) => lbSort === 'xp' ? (b.xp || 0) - (a.xp || 0) : lbSort === 'streak' ? (b.streak || 0) - (a.streak || 0) : 0).map((e, i) => (
               <div key={e.userId} className={`leaderboard-item ${e.userId === uData?.id ? 'is-you' : ''}`}>
-                <div className="rank">{i === 0 && <Trophy size={20} className="gold" />}{i === 1 && <Trophy size={20} className="silver" />}{i === 2 && <Trophy size={20} className="bronze" />}{i > 2 && <span>#{i+1}</span>}</div>
+                <div className="rank">{i === 0 && <Trophy size={20} className="gold" />}{i === 1 && <Trophy size={20} className="silver" />}{i === 2 && <Trophy size={20} className="bronze" />}{i > 2 && <span>#{i+1}</span>}{lbSort === 'points' && <RankDelta delta={lbDeltas[e.userId]} />}</div>
                 <div className="player-info"><div className="player-avatar">{e.displayName[0]?.toUpperCase()}</div><div><div className="player-name">{e.displayName} {e.userId === uData?.id && <span className="you-badge">You</span>}</div><div className="player-sub">{e.correctResults} correct • {e.exactScores} exact{e.streak > 0 && <> • <Flame size={11} style={{verticalAlign:'middle',color:'var(--amber)'}} /> {e.streak}</>}</div></div></div>
                 <div className="player-points">
                   {lbSort === 'xp' ? <span className="points">{(e.xp || 0).toLocaleString()} XP</span> : lbSort === 'streak' ? <span className="points"><Flame size={14} style={{color:'var(--amber)'}} /> {e.streak || 0}</span> : <span className="points">{e.totalPoints} pts</span>}
@@ -3653,17 +3633,18 @@ const GoalOracle = () => {
             )}
           </div>
           <div className="theme-switcher" onClick={e => e.stopPropagation()}>
-            {[
-              { id: 'light', icon: <Sun size={13} />, label: 'Light' },
-              { id: 'dark', icon: <Moon size={13} />, label: 'Dark' },
-              { id: 'fifa2026', icon: <Sparkles size={13} />, label: '2026' },
-            ].map(t => (
-              <button key={t.id} type="button" className={`theme-opt ${theme === t.id ? 'active' : ''}`}
-                title={theme === t.id ? `Current: ${t.label}` : `Switch to ${t.label}`}
-                onClick={() => { setTheme(t.id); document.documentElement.setAttribute('data-theme', t.id); if (t.id === 'fifa2026') { setConfetti(true); setTimeout(() => setConfetti(false), 3000); } }}>
-                {t.icon}<span className="theme-label">{t.label}</span>
-              </button>
-            ))}
+            {(() => {
+              const themes = { light: { icon: <Sun size={14} />, label: 'Light' }, dark: { icon: <Moon size={14} />, label: 'Dark' }, fifa2026: { icon: <Sparkles size={14} />, label: '2026' } };
+              const order = ['dark', 'light', 'fifa2026'];
+              const nextId = order[(order.indexOf(theme) + 1) % order.length];
+              const cur = themes[theme] || themes.light;
+              const nxt = themes[nextId];
+              return (
+                <button type="button" className="theme-opt theme-cycle active" title={`Theme: ${cur.label} — click for ${nxt.label}`} aria-label={`Theme: ${cur.label}. Click to switch to ${nxt.label}`} onClick={cycleTheme}>
+                  {cur.icon}
+                </button>
+              );
+            })()}
           </div>
         </div>
       </div>

@@ -171,7 +171,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .nav-actions { display: flex; align-items: center; gap: 0.5rem; }
 .mobile-toggle { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 0.25rem; }
 .theme-switcher {
-  display: flex; align-items: center; gap: 2px;
+  display: flex; align-items: center;
   background: var(--card); border: 1px solid var(--border); border-radius: 20px;
   padding: 2px;
 }
@@ -190,6 +190,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: rgba(0, 212, 255, 0.12); color: var(--accent);
   border-color: rgba(0, 212, 255, 0.25); opacity: 1;
 }
+/* Single-button theme cycle: icon-only circle */
+.theme-opt.theme-cycle { width: 30px; height: 30px; padding: 0; border-radius: 50%; }
+.theme-opt.theme-cycle:hover { transform: rotate(12deg); opacity: 1; }
 [data-theme="light"] .theme-opt.active { background: rgba(0,0,0,0.08); color: #333; border-color: rgba(0,0,0,0.15); }
 
 /* ---- BUTTONS ---- */
@@ -857,29 +860,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .editorial-title { font-size: 1.5rem; }
 }
 
-/* ─── REWARDS ─── */
-.rewards-section { padding: 4rem 2rem; position: relative; z-index: 2; }
-.rewards-title { text-align: center; font-family: var(--font-display); font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; margin-bottom: 2rem; letter-spacing: -0.01em; }
-.rewards-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-.reward-card {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 1.5rem; text-align: center; transition: all 0.3s;
-}
-.reward-card:hover { border-color: var(--border-br); }
-.reward-icon { color: var(--primary); margin-bottom: 0.75rem; }
-.reward-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.25rem; }
-.reward-card p { font-size: 0.75rem; color: var(--text-sec); }
-
-/* ─── FINAL CTA ─── */
-.final-cta-section { padding: 3rem 2rem 4rem; position: relative; z-index: 2; }
-.final-cta {
-  text-align: center; padding: 3.5rem 2rem;
+/* ─── FINAL CTA STRIP (compact, footer-adjacent) ─── */
+.final-cta-strip { padding: 2rem 2rem 2.5rem; position: relative; z-index: 2; }
+.final-cta-strip-inner {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  padding: 1.25rem 1.75rem;
   background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(255,45,135,0.05));
   border: 1px solid var(--border-br); border-radius: var(--radius-lg);
+  flex-wrap: wrap;
 }
-.final-cta h2 { font-family: var(--font-display); font-size: clamp(1.8rem, 3.5vw, 2.4rem); font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.01em; }
-.final-cta p { color: var(--text-sec); font-size: 0.95rem; margin-bottom: 1.75rem; }
-.final-cta-btns { display: flex; justify-content: center; gap: 0.75rem; }
+.final-cta-strip-text { font-size: 1.1rem; font-weight: 700; color: var(--text); }
 
 /* Footer additions */
 .footer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -900,9 +890,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .share-grid { grid-template-columns: 1fr; }
   .share-left { grid-template-columns: 1fr; }
   .share-card-preview { width: 100%; }
-  .rewards-grid { grid-template-columns: repeat(2, 1fr); }
-  .final-cta h2 { font-size: 1.5rem; }
-  .final-cta-btns { flex-direction: column; align-items: center; }
+  .final-cta-strip-inner { flex-direction: column; gap: 0.75rem; padding: 1.25rem 1rem; }
+  .final-cta-strip-text { font-size: 1rem; }
   .footer-top { flex-direction: column; gap: 0.5rem; }
 }
 
@@ -1552,8 +1541,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .leaderboard-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
 .leaderboard-item:hover { background: var(--bg-elev); }
 .leaderboard-item.is-you { background: var(--primary-soft); }
-.rank { min-width: 40px; text-align: center; }
+.rank { min-width: 40px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .rank span { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); }
+.rank-delta { font-family: var(--mono); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1; }
+.rank-delta-up { color: var(--success, #02B906); }
+.rank-delta-down { color: var(--danger, #FF3B5C); }
+.rank-delta-flat, .rank-delta-new { color: var(--text-dim); opacity: 0.6; }
 .gold { color: var(--amber); }
 .silver { color: #C0C0C0; }
 .bronze { color: #CD7F32; }
@@ -2269,6 +2262,34 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .type-selector { grid-template-columns: 1fr; }
   .type-selector.triple { grid-template-columns: 1fr; }
   .group-selector { grid-template-columns: repeat(4, 1fr); }
+
+  /* Leaderboard rows — stack player-info above player-points and tighten spacing */
+  .leaderboard-item {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    align-items: flex-start;
+  }
+  .leaderboard-item .rank { min-width: 28px; }
+  .leaderboard-item .player-info { gap: 0.5rem; min-width: 0; flex: 1 1 auto; }
+  .leaderboard-item .player-info > div { min-width: 0; }
+  .leaderboard-item .player-avatar { width: 28px; height: 28px; font-size: 0.72rem; flex-shrink: 0; }
+  .leaderboard-item .player-name { font-size: 0.82rem; line-height: 1.25; word-break: break-word; }
+  .leaderboard-item .player-sub { font-size: 0.58rem; }
+  .leaderboard-item .player-picks { gap: 0.25rem; margin-top: 0.3rem; }
+  .leaderboard-item .player-pick { font-size: 0.55rem; padding: 0.08rem 0.32rem; }
+  .leaderboard-item .player-points {
+    margin-left: auto;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+    flex-shrink: 0;
+  }
+  .leaderboard-item .points { font-size: 0.82rem; }
+  .leaderboard-item .lb-level-tag,
+  .leaderboard-item .lb-streak-badge { font-size: 0.55rem; }
 }
 
 /* ─── Match Scope / Custom League ─── */
@@ -2681,6 +2702,19 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .dv2-level { color: var(--amber); }
 .dv2-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
 
+/* ─── Onboarding card (first-time user) ─── */
+.dv2-onboard {
+  margin-bottom: 1.75rem;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.10), rgba(255, 45, 135, 0.06));
+  border: 1px solid var(--border-br, rgba(0, 212, 255, 0.25));
+  border-radius: 14px;
+  padding: 1.5rem 1.5rem;
+  animation: fadeUp 0.4s both;
+}
+.dv2-onboard-inner { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; flex-wrap: wrap; }
+.dv2-onboard-text h2 { font-size: 1.35rem; font-weight: 700; margin: 0 0 0.35rem; }
+.dv2-onboard-text p { font-size: 0.9rem; color: var(--text-sec); margin: 0; max-width: 48ch; line-height: 1.5; }
+
 /* ─── Stat Cards ─── */
 .dv2-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.85rem; margin-bottom: 1.75rem; }
 .dv2-stat-card {
@@ -2909,6 +2943,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .simple-step-intro { text-align: center; }
 .simple-step-intro h2 { font-size: 1.1rem; margin: 0 0 0.25rem; }
 .simple-step-intro p { margin: 0; color: var(--text-sec); font-size: 0.88rem; }
+.simple-step-intro-head { display: flex; align-items: center; justify-content: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.25rem; }
+.simple-step-intro-head h2 { margin: 0; }
+.simple-bracket-save-pill {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.25rem 0.7rem; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 600;
+  background: rgba(0, 212, 255, 0.08); border: 1px solid rgba(0, 212, 255, 0.2);
+  color: var(--text-sec);
+}
 .simple-step-nav { display: flex; justify-content: center; padding-top: 0.5rem; }
 .simple-step-nav-split { justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 
