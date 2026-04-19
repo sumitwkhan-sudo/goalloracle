@@ -234,7 +234,7 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
           <div className="copy-banner-actions">
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCopyBanner(null)}>Predict fresh</button>
             <button type="button" className="btn btn-primary btn-sm" onClick={handleCopyFromGlobal} disabled={copyBusy}>
-              {copyBusy ? <><RefreshCw size={14} className="spin" /> Copying...</> : <><Copy size={14} /> Copy my existing Global picks</>}
+              {copyBusy ? <><RefreshCw size={14} className="spin" /> Copying...</> : <><Copy size={14} /> Copy Global picks</>}
             </button>
           </div>
         </div>
@@ -250,7 +250,7 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
           </div>
           <div className="copy-banner-actions">
             <button type="button" className="btn btn-ghost btn-sm" onClick={handleResetAll} disabled={copyBusy}>
-              {copyBusy ? <><RefreshCw size={14} className="spin" /> Resetting...</> : <><RotateCcw size={14} /> Cancel, let me reset my predictions</>}
+              {copyBusy ? <><RefreshCw size={14} className="spin" /> Resetting...</> : <><RotateCcw size={14} /> Reset my picks</>}
             </button>
           </div>
         </div>
