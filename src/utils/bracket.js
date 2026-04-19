@@ -12,6 +12,7 @@
  */
 
 import WORLD_CUP_MATCHES from '../data/matches';
+import { resolveThirdPlaceSlots } from './fifaThirdPlaceRules';
 
 const GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
@@ -155,147 +156,6 @@ export function roundComplete(predictions, prefix) {
   });
 }
 
-// ─── FIFA Annex C: Third-place bracket mapping ───
-// Each R32 match slot that takes a 3rd-place team has a set of possible source groups.
-// The correct assignment depends on WHICH 8 groups produce the qualifying 3rd-place teams.
-// Key = sorted string of 8 qualifying group letters (e.g. "CDEFGHIJ")
-// Value = { matchId: groupLetter } mapping for each R32 3rd-place slot
-//
-// R32 slots that take 3rd-place teams (from match data):
-// r32-03: 1st E vs 3rd ABCDF  → possible groups for the 3rd
-// r32-06: 1st I vs 3rd CDFGH
-// r32-07: 1st A vs 3rd CEFHI
-// r32-08: 1st L vs 3rd EHIJK
-// r32-09: 1st B vs 3rd AEGIJ
-// r32-10: 1st G vs 3rd AEHIJ
-// r32-16: 1st K vs 3rd DEIJL
-// (Match 81/r32-09 from Wikipedia has 1st D vs 3rd BEFIJ but our data says 1st B vs 3rd AEGIJ)
-//
-// We use the Wikipedia Annex C table. The columns are:
-// Qualifying groups → [1A vs, 1B vs, 1D vs, 1E vs, 1G vs, 1I vs, 1K vs, 1L vs]
-// These correspond to: r32-07, r32-09, r32-??, r32-03, r32-10, r32-06, r32-16, r32-08
-
-const THIRD_PLACE_MAP = buildThirdPlaceMap();
-
-function buildThirdPlaceMap() {
-  // From Wikipedia Annex C — all 495 combinations
-  // Format: [qualifyingGroups, [3rd vs 1A, 3rd vs 1B, 3rd vs 1D, 3rd vs 1E, 3rd vs 1G, 3rd vs 1I, 3rd vs 1K, 3rd vs 1L]]
-  // We encode the most common scenarios. For a prediction game, the user picks 8 groups.
-  // The mapping tells us which 3rd-place team plays which group winner.
-  //
-  // Slot mapping: the R32 matches involving 3rd-place teams are:
-  // r32-03: away = 3rd place assigned to play 1st Group E
-  // r32-06: away = 3rd place assigned to play 1st Group I
-  // r32-07: away = 3rd place assigned to play 1st Group A
-  // r32-08: away = 3rd place assigned to play 1st Group L
-  // r32-09: away = 3rd place assigned to play 1st Group B
-  // r32-10: away = 3rd place assigned to play 1st Group G
-  // r32-16: away = 3rd place assigned to play 1st Group K
-
-  // We'll encode a simplified lookup: for each combination of 8 qualifying groups,
-  // return which group's 3rd place goes to which R32 slot.
-  // The full 495 entries from Annex C. For brevity, we encode the first ~50 most likely
-  // scenarios and fall back to a heuristic for others.
-
-  // Each entry: key = sorted qualifying group string, value = {r32MatchId: group}
-  // From the Wikipedia table rows:
-  const raw = [
-    // Row 1: EFGHIJKL
-    ['EFGHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'F', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
-    // Row 2: DFGHIJKL
-    ['DFGHIJKL', {r32_07:'H', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 3: DEGHIJKL
-    ['DEGHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
-    // Row 4: DEFHIJKL
-    ['DEFHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 5: DEFGIJKL
-    ['DEFGIJKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 6: DEFGHJKL
-    ['DEFGHJKL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 7: DEFGHIKL
-    ['DEFGHIKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 8: DEFGHIJL
-    ['DEFGHIJL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
-    // Row 9: DEFGHIJK
-    ['DEFGHIJK', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
-    // Row 10: CFGHIJKL
-    ['CFGHIJKL', {r32_07:'H', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 11: CEGHIJKL
-    ['CEGHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'G', r32_16:'L', r32_08:'K'}],
-    // Row 12: CEFHIJKL
-    ['CEFHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 13: CEFGIJKL
-    ['CEFGIJKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 14: CEFGHJKL
-    ['CEFGHJKL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 15: CEFGHIKL
-    ['CEFGHIKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 16: CEFGHIJL
-    ['CEFGHIJL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
-    // Row 17: CEFGHIJK
-    ['CEFGHIJK', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
-    // Row 18: CDGHIJKL
-    ['CDGHIJKL', {r32_07:'H', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'J', r32_06:'D', r32_16:'L', r32_08:'K'}],
-    // Row 19: CDFHIJKL
-    ['CDFHIJKL', {r32_07:'C', r32_14:'J', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 20: CDFGIJKL
-    ['CDFGIJKL', {r32_07:'C', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 21: CDFGHJKL
-    ['CDFGHJKL', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 22: CDFGHIKL
-    ['CDFGHIKL', {r32_07:'C', r32_14:'G', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 23: CDFGHIJL
-    ['CDFGHIJL', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
-    // Row 24: CDFGHIJK
-    ['CDFGHIJK', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
-    // Row 25: CDEHIJKL
-    ['CDEHIJKL', {r32_07:'E', r32_14:'J', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
-    // Row 26: CDEGIJKL
-    ['CDEGIJKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'J', r32_06:'D', r32_16:'L', r32_08:'K'}],
-    // Row 27: CDEGHJKL
-    ['CDEGHJKL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
-    // Row 28: CDEGHIKL
-    ['CDEGHIKL', {r32_07:'E', r32_14:'G', r32_09:'I', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'K'}],
-    // Row 29: CDEGHIJL
-    ['CDEGHIJL', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'L', r32_08:'I'}],
-    // Row 30: CDEGHIJK
-    ['CDEGHIJK', {r32_07:'E', r32_14:'G', r32_09:'J', r32_03:'C', r32_10:'H', r32_06:'D', r32_16:'I', r32_08:'K'}],
-    // Row 31: CDEFIJKL
-    ['CDEFIJKL', {r32_07:'C', r32_14:'J', r32_09:'E', r32_03:'D', r32_10:'I', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 32: CDEFHJKL
-    ['CDEFHJKL', {r32_07:'C', r32_14:'J', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 33: CDEFHIKL
-    ['CDEFHIKL', {r32_07:'C', r32_14:'E', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 34: CDEFHIJL
-    ['CDEFHIJL', {r32_07:'C', r32_14:'J', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'I'}],
-    // Row 35: CDEFHIJK
-    ['CDEFHIJK', {r32_07:'C', r32_14:'J', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'I', r32_08:'K'}],
-    // Row 36: CDEFGJKL
-    ['CDEFGJKL', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 37: CDEFGIKL
-    ['CDEFGIKL', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'I', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 38: CDEFGIJL
-    ['CDEFGIJL', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'L', r32_08:'I'}],
-    // Row 39: CDEFGIJK
-    ['CDEFGIJK', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'J', r32_06:'F', r32_16:'I', r32_08:'K'}],
-    // Row 40: CDEFGHKL
-    ['CDEFGHKL', {r32_07:'C', r32_14:'G', r32_09:'E', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'K'}],
-    // Row 41: CDEFGHJL
-    ['CDEFGHJL', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'E'}],
-    // Row 42: CDEFGHJK
-    ['CDEFGHJK', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'E', r32_08:'K'}],
-    // Row 43: CDEFGHIL
-    ['CDEFGHIL', {r32_07:'C', r32_14:'E', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'L', r32_08:'G'}],
-    // Row 44: CDEFGHIK
-    ['CDEFGHIK', {r32_07:'C', r32_14:'E', r32_09:'I', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'G', r32_08:'K'}],
-    // Row 45: CDEFGHIJ
-    ['CDEFGHIJ', {r32_07:'C', r32_14:'G', r32_09:'J', r32_03:'D', r32_10:'H', r32_06:'F', r32_16:'E', r32_08:'I'}],
-  ];
-
-  const map = {};
-  raw.forEach(([key, val]) => { map[key] = val; });
-  return map;
-}
 
 // ─── Resolve the full knockout bracket from predictions ───
 export function resolveBracket(predictions, selectedThirdGroups) {
@@ -327,8 +187,17 @@ export function resolveBracket(predictions, selectedThirdGroups) {
     qualifyingThirds = ranked.slice(0, 8).map(t => t.group).sort().join('');
   }
 
-  // Get the mapping for this combination
-  const thirdMap = THIRD_PLACE_MAP[qualifyingThirds] || fallbackThirdMap(qualifyingThirds);
+  // Get the mapping for this combination via the shared resolver, which
+  // sources from annexe-c.json (canonical FIFA Annexe C). There is no
+  // algorithmic fallback: unknown combinations (e.g. partial predictions
+  // with < 8 thirds) leave the contingent R32 slots unresolved rather
+  // than silently producing wrong brackets.
+  let thirdMap = {};
+  try {
+    thirdMap = resolveThirdPlaceSlots(qualifyingThirds.split(''));
+  } catch {
+    // Partial predictions or unknown combo — leave contingent slots blank.
+  }
 
   // Build resolved names for R32 matches
   const resolved = {}; // matchId → { home, away, homeFlag, awayFlag }
@@ -483,40 +352,6 @@ export function resolveBracket(predictions, selectedThirdGroups) {
   return { standings, resolved, qualifyingThirds, thirdMap };
 }
 
-// Fallback for unmapped third-place combos
-function fallbackThirdMap(qualGroups) {
-  // Simple heuristic: assign in alphabetical order to slots
-  const groups = qualGroups.split('');
-  const slots = ['r32_07','r32_09','r32_03','r32_10','r32_06','r32_14','r32_16','r32_08'];
-  const map = {};
-  // Try to match each slot's possible groups with available thirds
-  const available = [...groups];
-
-  // Slot preferences (from match data — each slot lists which groups are valid)
-  const slotPrefs = {
-    r32_03: 'ABCDF', r32_06: 'CDFGH', r32_07: 'CEFHI',
-    r32_08: 'EHIJK', r32_09: 'BEFIJ', r32_10: 'AEHIJ',
-    r32_14: 'EFGIJ', r32_16: 'DEIJL',
-  };
-
-  slots.forEach(slot => {
-    const prefs = slotPrefs[slot] || '';
-    const match = available.find(g => prefs.includes(g));
-    if (match) {
-      map[slot] = match;
-      available.splice(available.indexOf(match), 1);
-    }
-  });
-
-  // Assign any remaining
-  slots.forEach(slot => {
-    if (!map[slot] && available.length > 0) {
-      map[slot] = available.shift();
-    }
-  });
-
-  return map;
-}
 
 export default {
   calcGroupStandings,

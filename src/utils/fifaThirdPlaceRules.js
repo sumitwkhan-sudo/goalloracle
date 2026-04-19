@@ -89,8 +89,42 @@ export const THIRD_PLACE_ANNEX_C = {
   CDEFGHIJ: { r32_07: 'C', r32_14: 'G', r32_09: 'J', r32_03: 'D', r32_10: 'H', r32_06: 'F', r32_16: 'E', r32_08: 'I' },
 };
 
+import annexeC from '../data/annexe-c.json';
+
+// Map from Annexe C match IDs (FIFA source format, e.g. "M74") to our
+// internal slot IDs (e.g. "r32_03"). Used to translate the authoritative
+// annexe-c.json routing into the legacy slot-name format used elsewhere.
+const MATCH_TO_SLOT = {
+  M74: 'r32_03', M77: 'r32_06', M79: 'r32_07', M80: 'r32_08',
+  M81: 'r32_09', M82: 'r32_10', M85: 'r32_14', M87: 'r32_16',
+};
+
+// Transform the JSON lookup once at module load.
+const JSON_LOOKUP = (() => {
+  const out = {};
+  const raw = annexeC?.lookup || {};
+  for (const [key, routing] of Object.entries(raw)) {
+    const slots = {};
+    for (const [matchId, val] of Object.entries(routing)) {
+      const slotId = MATCH_TO_SLOT[matchId];
+      if (slotId && typeof val === 'string' && val.length >= 2) {
+        slots[slotId] = val[1]; // "3X" → "X"
+      }
+    }
+    if (Object.keys(slots).length === 8) out[key] = slots;
+  }
+  return out;
+})();
+
 /**
  * Resolve which 3rd-place group fills each R32 third-place slot.
+ *
+ * Lookups come from annexe-c.json (preferred, 495-row canonical FIFA source)
+ * or the legacy 45-entry THIRD_PLACE_ANNEX_C table above as a transitional
+ * backstop. There is intentionally NO algorithmic fallback — FIFA does not
+ * publish the derivation algorithm, and a hand-rolled approximation will
+ * disagree with the official routing in edge cases. Unknown combinations
+ * throw loudly rather than silently returning wrong brackets.
  *
  * @param {string[]} qualifyingGroups  exactly 8 group letters
  * @returns {Object}                   { slotId: groupLetter } for all 8 slots
@@ -100,39 +134,9 @@ export function resolveThirdPlaceSlots(qualifyingGroups) {
     throw new Error('resolveThirdPlaceSlots expects exactly 8 qualifying groups');
   }
   const key = [...qualifyingGroups].sort().join('');
+  if (JSON_LOOKUP[key]) return { ...JSON_LOOKUP[key] };
   if (THIRD_PLACE_ANNEX_C[key]) return { ...THIRD_PLACE_ANNEX_C[key] };
-
-  return greedyAssignSlots(qualifyingGroups);
-}
-
-function greedyAssignSlots(qualifyingGroups) {
-  const available = [...qualifyingGroups];
-  const assignment = {};
-
-  // Assign slots in order of fewest remaining eligible options (most constrained first)
-  const slotsByConstraint = [...THIRD_PLACE_SLOT_IDS].sort((a, b) => {
-    const eligibleA = available.filter((g) => THIRD_PLACE_SLOT_ELIGIBILITY[a].includes(g)).length;
-    const eligibleB = available.filter((g) => THIRD_PLACE_SLOT_ELIGIBILITY[b].includes(g)).length;
-    return eligibleA - eligibleB;
-  });
-
-  for (const slot of slotsByConstraint) {
-    const prefs = THIRD_PLACE_SLOT_ELIGIBILITY[slot];
-    const pick = available.find((g) => prefs.includes(g));
-    if (pick) {
-      assignment[slot] = pick;
-      available.splice(available.indexOf(pick), 1);
-    }
-  }
-
-  // Any slots still unassigned get the remaining groups in order
-  for (const slot of THIRD_PLACE_SLOT_IDS) {
-    if (!assignment[slot] && available.length > 0) {
-      assignment[slot] = available.shift();
-    }
-  }
-
-  return assignment;
+  throw new Error(`No Annexe C routing for advancing groups: ${key}`);
 }
 
 // ─── User-facing copy ────────────────────────────────────────────────

@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "source": "FIFA World Cup 26 Regulations, Annexe C (approved 19 March 2026)",
+  "description": "Round-of-32 routing for the 8 best third-placed teams. PLACEHOLDER — replace this file with the full 495-entry Annexe C data. The current lookup is empty; thirdPlaceAllocation.allocateThirdsToBrackets() will throw loudly on any advancing-groups key until the full table is provided.",
+  "column_to_match": {
+    "1A": "M79", "1B": "M85", "1D": "M81", "1E": "M74",
+    "1G": "M82", "1I": "M77", "1K": "M87", "1L": "M80"
+  },
+  "pools": {
+    "1A": ["C","E","F","H","I"],
+    "1B": ["E","F","G","I","J"],
+    "1D": ["B","E","F","I","J"],
+    "1E": ["A","B","C","D","F"],
+    "1G": ["A","E","H","I","J"],
+    "1I": ["C","D","F","G","H"],
+    "1K": ["D","E","I","J","L"],
+    "1L": ["E","H","I","J","K"]
+  },
+  "match_descriptions": {
+    "M74": "Winner E vs Best 3rd of ABCDF",
+    "M77": "Winner I vs Best 3rd of CDFGH",
+    "M79": "Winner A vs Best 3rd of CEFHI",
+    "M80": "Winner L vs Best 3rd of EHIJK",
+    "M81": "Winner D vs Best 3rd of BEFIJ",
+    "M82": "Winner G vs Best 3rd of AEHIJ",
+    "M85": "Winner B vs Best 3rd of EFGIJ",
+    "M87": "Winner K vs Best 3rd of DEIJL"
+  },
+  "usage": "Given the 8 third-placed teams that advance, sort their group letters into an 8-character uppercase string (e.g. 'ABCDEFGH') and look it up in the 'lookup' dict. The returned object maps match IDs (M74, M77, M79, M80, M81, M82, M85, M87) to the third-placed team assigned to that match (e.g. '3F' means 'third-placed team from Group F').",
+  "lookup": {}
+}

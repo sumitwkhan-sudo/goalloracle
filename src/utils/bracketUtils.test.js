@@ -187,11 +187,17 @@ describe('resolveThirdPlaceSlots', () => {
     expect(Object.keys(out)).toHaveLength(8);
   });
 
-  it('falls back to greedy assignment for combinations not in the table', () => {
-    const out = resolveThirdPlaceSlots(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
-    expect(Object.keys(out)).toHaveLength(8);
-    const assigned = Object.values(out).sort().join('');
-    expect(assigned).toBe('ABCDEFGH');
+  it('throws loudly for a combination missing from the lookup (no greedy fallback)', () => {
+    // Any combo absent from both annexe-c.json and the legacy 45-entry table
+    // must throw. This prevents silently producing an approximate bracket that
+    // disagrees with FIFA's official routing in edge cases.
+    let threw = false;
+    try {
+      resolveThirdPlaceSlots(['Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z']);
+    } catch (e) {
+      threw = /No Annexe C routing/i.test(e.message);
+    }
+    expect(threw).toBe(true);
   });
 
   it('throws when given anything other than 8 groups', () => {
