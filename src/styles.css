@@ -2751,6 +2751,23 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;
 }
 .dv2-action-card:hover { border-color: var(--primary); background: var(--bg-elev); }
+.dv2-action-card-qp { border-left-color: var(--accent-green, #00e676); }
+.dv2-ac-body { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; flex: 1; }
+.dv2-ac-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.dv2-ac-tag {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem; border-radius: 4px;
+  background: rgba(99, 102, 241, 0.12); color: var(--primary);
+}
+.dv2-ac-tag-qp { background: rgba(0, 230, 118, 0.12); color: var(--accent-green, #00e676); }
+.dv2-ac-tag-cl { background: rgba(255, 171, 0, 0.14); color: var(--accent-amber, #ffab00); }
+.dv2-ac-league {
+  font-size: 0.65rem; color: var(--text-sec); font-weight: 500;
+  padding: 0.1rem 0.4rem; border-radius: 4px; background: var(--bg-elev); border: 1px solid var(--border-subtle);
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dv2-ac-summary { font-size: 0.78rem; color: var(--text-sec); font-weight: 500; }
 .dv2-ac-teams { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.82rem; }
 .dv2-ac-flag { font-size: 1.1rem; }
 .dv2-ac-name { font-family: var(--font-display); }
