@@ -1405,6 +1405,30 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .copy-flow-or { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.08em; }
 
+/* Copy-from-Global banner inside the Simple prediction wizard */
+.copy-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-lg);
+  margin: 0 0 1rem;
+}
+.copy-banner-prompt {
+  background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(255,184,0,0.06));
+  border: 1px solid rgba(0,212,255,0.3);
+}
+.copy-banner-success {
+  background: linear-gradient(135deg, rgba(0,230,118,0.12), rgba(0,212,255,0.06));
+  border: 1px solid rgba(0,230,118,0.35);
+}
+.copy-banner-body { display: flex; gap: 0.7rem; align-items: center; flex: 1; min-width: 0; }
+.copy-banner-body > svg { color: var(--cyan); flex-shrink: 0; }
+.copy-banner-success .copy-banner-body > svg { color: var(--success); }
+.copy-banner-body > div { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.copy-banner-body strong { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+.copy-banner-body span { font-size: 0.78rem; color: var(--text-sec); line-height: 1.35; }
+.copy-banner-actions { display: flex; gap: 0.5rem; flex-shrink: 0; flex-wrap: wrap; }
+
 /* Join-success modal actions row */
 .join-success-modal { max-width: 520px; }
 .join-success-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }

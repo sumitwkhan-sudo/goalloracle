@@ -32,14 +32,35 @@ export default async function handler(req, res) {
       });
     }
 
-    // Fetch simple predictions only for league members (batched, max 30 per query)
+    // Fetch simple predictions for this specific league. Each doc lives at
+    // /simplePredictions/{userId}__{leagueId}. Batched 'in' queries, max 30.
     const preds = {};
-    for (let i = 0; i < members.length; i += 30) {
-      const batch = members.slice(i, i + 30);
+    const compositeIds = members.map(uid => `${uid}__${leagueId}`);
+    for (let i = 0; i < compositeIds.length; i += 30) {
+      const batch = compositeIds.slice(i, i + 30);
       const predsSnap = await db.collection('simplePredictions')
         .where(admin.firestore.FieldPath.documentId(), 'in', batch)
         .get();
-      predsSnap.docs.forEach(d => { preds[d.id] = d.data(); });
+      predsSnap.docs.forEach(d => {
+        const data = d.data();
+        if (data?.userId) preds[data.userId] = data;
+      });
+    }
+
+    // Backward compat: for the Global Simple league, any member who doesn't
+    // yet have a composite doc falls back to the legacy single-doc path
+    // /simplePredictions/{userId}.
+    if (leagueId === 'global-simple') {
+      const missing = members.filter(uid => !preds[uid]);
+      for (let i = 0; i < missing.length; i += 30) {
+        const batch = missing.slice(i, i + 30);
+        const legacySnap = await db.collection('simplePredictions')
+          .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+          .get();
+        legacySnap.docs.forEach(d => {
+          if (!preds[d.id]) preds[d.id] = d.data();
+        });
+      }
     }
 
     const leaderboard = members.map(userId => {

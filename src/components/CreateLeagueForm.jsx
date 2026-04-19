@@ -14,7 +14,7 @@ import {
   RefreshCw, ChevronRight, Loader, Copy, Target,
 } from 'lucide-react';
 import ModePicker from './simple/ModePicker';
-import { copyPredictions } from '../utils/db';
+import { copyPredictions, copySimplePrediction } from '../utils/db';
 
 function generatePasscode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -23,11 +23,12 @@ function generatePasscode() {
   return c;
 }
 
-function CreateSuccessPanel({ createSuccess, leagues, nav, notify, setCreateSuccess }) {
+function CreateSuccessPanel({ createSuccess, leagues, nav, notify, setCreateSuccess, userId }) {
   const [copying, setCopying] = useState(false);
   const [copied, setCopied] = useState(null); // { count, skipped } | null
   const isSimple = createSuccess.mode === 'simple';
   const sourceLeagueId = isSimple ? 'global-simple' : 'global';
+  const sourceLabel = isSimple ? 'Global Simple' : 'Global Classic';
 
   const goToDetail = () => {
     const l = leagues.find((x) => x.id === createSuccess.id);
@@ -36,15 +37,26 @@ function CreateSuccessPanel({ createSuccess, leagues, nav, notify, setCreateSucc
   };
 
   const handleCopy = async () => {
-    if (isSimple) return; // simple predictions are shared; no copy needed
     setCopying(true);
     try {
-      const res = await copyPredictions(sourceLeagueId, createSuccess.id);
-      setCopied({ count: res?.copied || 0, skipped: (res?.skippedLocked || 0) + (res?.skippedExisting || 0) });
-      if ((res?.copied || 0) > 0) {
-        notify(`Copied ${res.copied} prediction${res.copied !== 1 ? 's' : ''} from Global`);
+      if (isSimple) {
+        if (!userId) throw new Error('Sign in required');
+        const res = await copySimplePrediction(userId, sourceLeagueId, createSuccess.id);
+        if (res?.copied) {
+          setCopied({ count: 1 });
+          notify(`Predictions submitted for ${createSuccess.name}`);
+        } else {
+          setCopied({ count: 0 });
+          notify(`No ${sourceLabel} picks to copy yet — start fresh in your new league.`);
+        }
       } else {
-        notify('No Classic Global predictions to copy yet — start fresh in your new league.');
+        const res = await copyPredictions(sourceLeagueId, createSuccess.id);
+        setCopied({ count: res?.copied || 0, skipped: (res?.skippedLocked || 0) + (res?.skippedExisting || 0) });
+        if ((res?.copied || 0) > 0) {
+          notify(`Predictions submitted for ${createSuccess.name} (${res.copied} pick${res.copied !== 1 ? 's' : ''} copied)`);
+        } else {
+          notify(`No ${sourceLabel} predictions to copy yet — start fresh in your new league.`);
+        }
       }
     } catch (e) {
       notify(e.message || 'Copy failed', 'error');
@@ -65,26 +77,22 @@ function CreateSuccessPanel({ createSuccess, leagues, nav, notify, setCreateSucc
           <Target size={18} />
           <div>
             <h3>Every league is predicted separately</h3>
-            <p>{isSimple
-              ? 'Simple Mode picks apply across every Simple league you belong to. Your Global Simple picks are already active in this league.'
-              : 'Your Classic Global picks are independent from any other league. Copy them over to save time, or predict fresh.'}</p>
+            <p>Your {sourceLabel} picks don&rsquo;t auto-apply here. Copy them in one click, or predict fresh.</p>
           </div>
         </div>
-        {!isSimple && (
-          <div className="copy-flow-actions">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleCopy}
-              disabled={copying || !!copied}
-            >
-              {copying ? (<><RefreshCw size={14} className="spin" /> Copying...</>) :
-                copied ? (<><CheckCircle size={14} /> Copied {copied.count}</>) :
-                (<><Copy size={14} /> Copy from Global Classic</>)}
-            </button>
-            <span className="copy-flow-or">or predict fresh below</span>
-          </div>
-        )}
+        <div className="copy-flow-actions">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleCopy}
+            disabled={copying || !!copied}
+          >
+            {copying ? (<><RefreshCw size={14} className="spin" /> Copying...</>) :
+              copied ? (<><CheckCircle size={14} /> {copied.count > 0 ? `Copied ${copied.count}` : 'Nothing to copy'}</>) :
+              (<><Copy size={14} /> Copy my existing {sourceLabel} picks</>)}
+          </button>
+          <span className="copy-flow-or">or predict fresh below</span>
+        </div>
       </div>
 
       <div className="create-success-actions">
@@ -185,6 +193,7 @@ export default function CreateLeagueForm({
         nav={nav}
         notify={notify}
         setCreateSuccess={setCreateSuccess}
+        userId={uData?.id}
       />
     </div>
   );

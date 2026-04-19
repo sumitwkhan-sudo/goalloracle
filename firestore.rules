@@ -31,21 +31,28 @@ service cloud.firestore {
                    && request.resource.data.userId == request.auth.uid;
     }
 
-    // Simple Mode predictions — one doc per user, keyed by userId.
-    // Users can only read/write their own doc; reads are public so leaderboards work.
-    match /simplePredictions/{userId} {
+    // Simple Mode predictions — one doc per (user, league) pair with composite
+    // doc ID `${userId}__${leagueId}`. Legacy docs with doc ID == userId
+    // (pre-per-league refactor) represent the user's Global Simple picks and
+    // are still writable by that user.
+    // Reads are public so leaderboards work.
+    match /simplePredictions/{docId} {
       allow read: if true;
+      // Create / update: the auth'd user must own the doc (resource.data.userId
+      // matches their uid). The legacy path (docId == userId) is still supported.
       allow create: if request.auth != null
-                    && request.auth.uid == userId
-                    && request.resource.data.userId == userId;
+                    && request.resource.data.userId == request.auth.uid
+                    && (docId == request.auth.uid
+                        || docId.matches('^' + request.auth.uid + '__.+'));
       allow update: if request.auth != null
-                    && request.auth.uid == userId
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == request.auth.uid
                     // submittedAt is the tiebreaker — never overwrite once set
                     && (!('submittedAt' in resource.data)
                         || resource.data.submittedAt == null
                         || request.resource.data.submittedAt == resource.data.submittedAt);
 
-      // Per-league score docs under /simplePredictions/{userId}/scores/{leagueId}.
+      // Per-league score docs under the prediction doc.
       // Writes come from the server (admin SDK bypasses rules); clients only read.
       match /scores/{leagueId} {
         allow read: if true;

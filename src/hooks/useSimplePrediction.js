@@ -3,7 +3,7 @@ import { subscribeToSimplePrediction, saveSimplePrediction } from '../utils/db';
 
 const SAVE_DEBOUNCE_MS = 1000;
 
-export default function useSimplePrediction(userId) {
+export default function useSimplePrediction(userId, leagueId) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -13,14 +13,16 @@ export default function useSimplePrediction(userId) {
   const pendingRef = useRef({});
   const timerRef = useRef(null);
   const userIdRef = useRef(userId);
+  const leagueIdRef = useRef(leagueId);
   const mountedRef = useRef(true);
   userIdRef.current = userId;
+  leagueIdRef.current = leagueId;
 
   useEffect(() => {
     mountedRef.current = true;
-    if (!userId) { setLoading(false); return; }
+    if (!userId || !leagueId) { setLoading(false); return; }
     setLoading(true);
-    const unsub = subscribeToSimplePrediction(userId, (doc) => {
+    const unsub = subscribeToSimplePrediction(userId, leagueId, (doc) => {
       setData(doc);
       setLoading(false);
     });
@@ -33,21 +35,22 @@ export default function useSimplePrediction(userId) {
       }
       const pending = pendingRef.current;
       pendingRef.current = {};
-      if (userId && Object.keys(pending).length > 0) {
-        saveSimplePrediction(userId, pending).catch(() => {});
+      if (userId && leagueId && Object.keys(pending).length > 0) {
+        saveSimplePrediction(userId, leagueId, pending).catch(() => {});
       }
     };
-  }, [userId]);
+  }, [userId, leagueId]);
 
   const flush = useCallback(async () => {
     const uid = userIdRef.current;
-    if (!uid) return;
+    const lid = leagueIdRef.current;
+    if (!uid || !lid) return;
     const payload = pendingRef.current;
     pendingRef.current = {};
     if (Object.keys(payload).length === 0) return;
     if (mountedRef.current) { setSaving(true); setError(null); }
     try {
-      await saveSimplePrediction(uid, payload);
+      await saveSimplePrediction(uid, lid, payload);
       if (mountedRef.current) setSavedAt(Date.now());
     } catch (e) {
       if (mountedRef.current) setError(e.message || 'Failed to save');

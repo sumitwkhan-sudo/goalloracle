@@ -8,7 +8,7 @@ import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus,
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -32,7 +32,7 @@ function PicksViewer({ target, onClose }) {
       setLoading(true);
       try {
         const { getSimplePrediction } = await import('./utils/db');
-        const p = await getSimplePrediction(target.userId);
+        const p = await getSimplePrediction(target.userId, target.leagueId || 'global-simple');
         if (!cancelled) setData(p);
       } catch (e) {
         if (!cancelled) setErr(e?.message || 'Could not load picks');
@@ -267,22 +267,34 @@ const _teamFlags = (() => {
 // Post-join prompt: offers to copy existing Global predictions into the newly
 // joined league (classic only). Simple leagues share a single prediction doc
 // across all simple leagues, so this just confirms that.
-function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify }) {
+function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify, userId }) {
   const [copying, setCopying] = useState(false);
   const [copied, setCopied] = useState(null);
   const isSimple = postJoin.mode === 'simple';
   const sourceLeagueId = isSimple ? 'global-simple' : 'global';
+  const sourceLabel = isSimple ? 'Global Simple' : 'Global Classic';
 
   const handleCopy = async () => {
-    if (isSimple) return;
     setCopying(true);
     try {
-      const res = await copyPredictions(sourceLeagueId, postJoin.id);
-      setCopied({ count: res?.copied || 0, skipped: (res?.skippedLocked || 0) + (res?.skippedExisting || 0) });
-      if ((res?.copied || 0) > 0) {
-        notify(`Copied ${res.copied} prediction${res.copied !== 1 ? 's' : ''} from Global Classic`);
+      if (isSimple) {
+        if (!userId) throw new Error('Sign in required');
+        const res = await copySimplePrediction(userId, sourceLeagueId, postJoin.id);
+        if (res?.copied) {
+          setCopied({ count: 1 });
+          notify(`Predictions submitted for ${postJoin.name}`);
+        } else {
+          setCopied({ count: 0 });
+          notify(`No ${sourceLabel} picks to copy yet — start fresh.`);
+        }
       } else {
-        notify('No Global Classic predictions to copy yet — start fresh.');
+        const res = await copyPredictions(sourceLeagueId, postJoin.id);
+        setCopied({ count: res?.copied || 0, skipped: (res?.skippedLocked || 0) + (res?.skippedExisting || 0) });
+        if ((res?.copied || 0) > 0) {
+          notify(`Predictions submitted for ${postJoin.name} (${res.copied} pick${res.copied !== 1 ? 's' : ''} copied)`);
+        } else {
+          notify(`No ${sourceLabel} predictions to copy yet — start fresh.`);
+        }
       }
     } catch (e) {
       notify(e.message || 'Copy failed', 'error');
@@ -311,25 +323,22 @@ function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify }) {
               <Target size={18} />
               <div>
                 <h3>Every league is predicted separately</h3>
-                <p>{isSimple
-                  ? 'Simple Mode picks apply across every Simple league you join. Your Global Simple picks are already active here.'
-                  : 'Your Global Classic picks are independent from this league. Copy them over to save time, or predict fresh.'}</p>
+                <p>Your {sourceLabel} picks don&rsquo;t auto-apply here. Copy them in one click, or start fresh.</p>
               </div>
             </div>
-            {!isSimple && (
-              <div className="copy-flow-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleCopy}
-                  disabled={copying || !!copied}
-                >
-                  {copying ? (<><RefreshCw size={14} className="spin" /> Copying...</>) :
-                    copied ? (<><CheckCircle size={14} /> Copied {copied.count}</>) :
-                    (<><Copy size={14} /> Copy from Global Classic</>)}
-                </button>
-              </div>
-            )}
+            <div className="copy-flow-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCopy}
+                disabled={copying || !!copied}
+              >
+                {copying ? (<><RefreshCw size={14} className="spin" /> Copying...</>) :
+                  copied ? (<><CheckCircle size={14} /> {copied.count > 0 ? `Copied ${copied.count}` : 'Nothing to copy'}</>) :
+                  (<><Copy size={14} /> Copy my existing {sourceLabel} picks</>)}
+              </button>
+              <span className="copy-flow-or">or predict fresh in the league</span>
+            </div>
           </div>
 
           <div className="join-success-actions">
@@ -447,7 +456,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                 <div
                   key={e.userId}
                   className={`leaderboard-item lb-clickable ${e.userId === userData?.id ? 'is-you' : ''}`}
-                  onClick={() => setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp })}
+                  onClick={() => setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp, leagueId: league?.id || 'global-simple' })}
                   role="button"
                   tabIndex={0}
                 >
@@ -2107,6 +2116,7 @@ const GoalOracle = () => {
         {postJoin && (
           <JoinSuccessModal
             postJoin={postJoin}
+            userId={uData?.id}
             onClose={() => setPostJoin(null)}
             onGoToLeague={() => {
               const l = allLeagues.find(x => x.id === postJoin.id) || leagues.find(x => x.id === postJoin.id);

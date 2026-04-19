@@ -257,27 +257,65 @@ export async function getLeagueLeaderboard(leagueId) {
 }
 
 // ---- SIMPLE MODE PREDICTIONS (direct Firestore writes) ----
-// Data lives under /simplePredictions/{userId} — one document per user covering
-// all leagues. Per-league scores live in /simplePredictions/{userId}/scores/{leagueId}.
-// submittedAt is set once, on first save, and never updated — it's the tiebreaker.
+// Per-league predictions. Doc ID is a composite `${userId}__${leagueId}` so
+// every league a user participates in keeps its own unique set of picks.
+// submittedAt is set once, on first save, and never updated — it's the
+// tiebreaker for the leaderboard.
+//
+// Backward compat: historical predictions for everyone's "Global Simple"
+// league live at the legacy path `/simplePredictions/{userId}` (no leagueId
+// suffix). Reads for `global-simple` fall back to that legacy doc when the
+// composite doc doesn't exist; writes always go to the composite doc and
+// migrate the legacy data across on first write.
 
-export function subscribeToSimplePrediction(userId, callback) {
-  const ref = doc(db, 'simplePredictions', userId);
-  return onSnapshot(ref, (snap) => {
-    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+const SIMPLE_LEAGUE_SEPARATOR = '__';
+function simplePredDocId(userId, leagueId) {
+  return `${userId}${SIMPLE_LEAGUE_SEPARATOR}${leagueId}`;
+}
+
+export function subscribeToSimplePrediction(userId, leagueId, callback) {
+  if (!userId || !leagueId) { callback(null); return () => {}; }
+  const compositeRef = doc(db, 'simplePredictions', simplePredDocId(userId, leagueId));
+  let legacyChecked = false;
+  return onSnapshot(compositeRef, async (snap) => {
+    if (snap.exists()) {
+      callback({ id: snap.id, userId, leagueId, ...snap.data() });
+      legacyChecked = true;
+      return;
+    }
+    // Composite doc doesn't exist. For global-simple, check the legacy
+    // single-doc-per-user path so users don't lose their existing picks.
+    if (!legacyChecked && leagueId === 'global-simple') {
+      legacyChecked = true;
+      try {
+        const legacySnap = await getDoc(doc(db, 'simplePredictions', userId));
+        if (legacySnap.exists()) {
+          callback({ id: legacySnap.id, userId, leagueId, ...legacySnap.data() });
+          return;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    callback(null);
   }, (err) => { console.error('[db] simplePrediction error:', err.message); callback(null); });
 }
 
-export async function getSimplePrediction(userId) {
-  const snap = await getDoc(doc(db, 'simplePredictions', userId));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+export async function getSimplePrediction(userId, leagueId) {
+  if (!userId || !leagueId) return null;
+  const compositeSnap = await getDoc(doc(db, 'simplePredictions', simplePredDocId(userId, leagueId)));
+  if (compositeSnap.exists()) return { id: compositeSnap.id, userId, leagueId, ...compositeSnap.data() };
+  if (leagueId === 'global-simple') {
+    const legacySnap = await getDoc(doc(db, 'simplePredictions', userId));
+    if (legacySnap.exists()) return { id: legacySnap.id, userId, leagueId, ...legacySnap.data() };
+  }
+  return null;
 }
 
-export async function saveSimplePrediction(userId, partial) {
+export async function saveSimplePrediction(userId, leagueId, partial) {
   if (!userId) throw new Error('Missing userId');
-  const ref = doc(db, 'simplePredictions', userId);
+  if (!leagueId) throw new Error('Missing leagueId');
+  const ref = doc(db, 'simplePredictions', simplePredDocId(userId, leagueId));
 
-  const payload = { userId, updatedAt: serverTimestamp() };
+  const payload = { userId, leagueId, updatedAt: serverTimestamp() };
   if (partial.groupPredictions !== undefined) payload.groupPredictions = partial.groupPredictions;
   if (partial.bestThirdPicks !== undefined) payload.bestThirdPicks = partial.bestThirdPicks;
   if (partial.knockoutPredictions !== undefined) payload.knockoutPredictions = partial.knockoutPredictions;
@@ -286,13 +324,42 @@ export async function saveSimplePrediction(userId, partial) {
   await setDoc(ref, payload, { merge: true });
 }
 
+// Replace the current user's simple prediction for a league with the payload
+// from another league (typically their Global Simple picks). Overwrites
+// groupPredictions / bestThirdPicks / knockoutPredictions / isComplete.
+export async function copySimplePrediction(userId, sourceLeagueId, targetLeagueId) {
+  if (!userId) throw new Error('Missing userId');
+  if (!sourceLeagueId || !targetLeagueId) throw new Error('Missing sourceLeagueId or targetLeagueId');
+  if (sourceLeagueId === targetLeagueId) throw new Error('Source and target must differ');
+  const source = await getSimplePrediction(userId, sourceLeagueId);
+  if (!source) return { copied: 0 };
+  await saveSimplePrediction(userId, targetLeagueId, {
+    groupPredictions: source.groupPredictions || {},
+    bestThirdPicks: source.bestThirdPicks || [],
+    knockoutPredictions: source.knockoutPredictions || {},
+    isComplete: !!source.isComplete,
+  });
+  return { copied: 1 };
+}
+
+// Clear a user's simple prediction for a specific league (resets the doc).
+export async function resetSimplePrediction(userId, leagueId) {
+  if (!userId || !leagueId) return;
+  await saveSimplePrediction(userId, leagueId, {
+    groupPredictions: {},
+    bestThirdPicks: [],
+    knockoutPredictions: { roundOf32: [], roundOf16: [], quarterFinals: [], semiFinals: [], thirdPlace: [], final: [] },
+    isComplete: false,
+  });
+}
+
 export async function getSimpleLeaderboard(leagueId) {
   const data = await apiCall(`simple-leaderboard?leagueId=${leagueId}`);
   return data;
 }
 
 export function subscribeToSimpleScore(userId, leagueId, callback) {
-  const ref = doc(db, 'simplePredictions', userId, 'scores', leagueId);
+  const ref = doc(db, 'simplePredictions', simplePredDocId(userId, leagueId), 'scores', leagueId);
   return onSnapshot(ref, (snap) => {
     callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
   }, () => callback(null));

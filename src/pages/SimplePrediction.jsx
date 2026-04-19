@@ -1,18 +1,19 @@
 /**
  * SimplePrediction
  *
- * Wizard page for Simple Mode predictions. Steps:
+ * Wizard page for Simple Mode predictions, per league. Steps:
  *   1. Group stage — rank 4 teams in each of 12 groups via drag-and-drop
  *   2. Best third — pick 8 of 12 third-place teams to advance
- *   3. Bracket — pick winners round by round (Phase 3)
+ *   3. Bracket — pick winners round by round
  *
- * Autosaves to /simplePredictions/{userId} with 1s debounce. A "Saved ✓"
- * indicator briefly appears after each successful save. Partial submissions
- * are allowed — the scoring engine handles them with an adjusted denominator.
+ * Each league keeps its own independent picks at
+ * /simplePredictions/{userId}__{leagueId}. The "Copy my existing predictions
+ * from the Global League" button clones the user's global-simple picks
+ * wholesale into the current league.
  */
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { ArrowLeft, ArrowRight, Check, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, AlertTriangle, Copy, RotateCcw, RefreshCw } from 'lucide-react';
 import StepProgress from '../components/simple/StepProgress';
 import GroupGrid from '../components/simple/GroupGrid';
 import BestThirdSelector from '../components/simple/BestThirdSelector';
@@ -26,11 +27,13 @@ import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isPredictionLocked } from '../utils/points';
+import { copySimplePrediction, resetSimplePrediction, getSimplePrediction } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
+const GLOBAL_SIMPLE_ID = 'global-simple';
 
 export default function SimplePrediction({ userId, league, onExit, onComplete, embedded = false }) {
-  const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId);
+  const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId, league?.id);
 
   if (loading) {
     return (
@@ -45,7 +48,9 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
 
   return (
     <SimplePredictionWizard
+      key={league?.id || 'no-league'}
       initialData={data}
+      userId={userId}
       league={league}
       onExit={onExit}
       onComplete={onComplete}
@@ -59,9 +64,20 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
   );
 }
 
-function SimplePredictionWizard({ initialData, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow }) {
+function SimplePredictionWizard({ initialData, userId, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow }) {
   const [step, setStep] = useState(1);
   const [showSaved, setShowSaved] = useState(false);
+  const [copyBusy, setCopyBusy] = useState(false);
+  // Copy banner: 'prompt' (offer to copy), 'success' (just copied, show reset), null.
+  const isGlobalSimple = league?.id === GLOBAL_SIMPLE_ID;
+  const hasLocalPicks = !!(initialData && (
+    (initialData.groupPredictions && Object.keys(initialData.groupPredictions).length) ||
+    (initialData.bestThirdPicks && initialData.bestThirdPicks.length) ||
+    (initialData.knockoutPredictions && Object.values(initialData.knockoutPredictions).some(a => Array.isArray(a) && a.length))
+  ));
+  const [copyBanner, setCopyBanner] = useState(
+    !isGlobalSimple && !hasLocalPicks ? 'prompt' : null,
+  );
 
   // Freeze the initial snapshot for hydration. Further snapshots don't
   // re-hydrate — local state is the source of truth after mount.
@@ -139,6 +155,43 @@ function SimplePredictionWizard({ initialData, league, onExit, onComplete, embed
     goToStep(s);
   }, [bracketState, step, save, goToStep]);
 
+  const handleCopyFromGlobal = useCallback(async () => {
+    if (!userId || !league?.id || league.id === GLOBAL_SIMPLE_ID) return;
+    setCopyBusy(true);
+    try {
+      const globalSnap = await getSimplePrediction(userId, GLOBAL_SIMPLE_ID);
+      if (!globalSnap) {
+        setCopyBanner(null);
+        window.alert('You haven\u2019t made any Global Simple picks yet. Start predicting here to seed your first set.');
+        return;
+      }
+      await copySimplePrediction(userId, GLOBAL_SIMPLE_ID, league.id);
+      setCopyBanner('success');
+      // Reload the page after a short delay so every hook rehydrates from the
+      // freshly copied doc (groups, best third, bracket state).
+      setTimeout(() => window.location.reload(), 400);
+    } catch (e) {
+      window.alert(e?.message || 'Copy failed');
+    } finally {
+      setCopyBusy(false);
+    }
+  }, [userId, league?.id]);
+
+  const handleResetAll = useCallback(async () => {
+    if (!userId || !league?.id) return;
+    if (!window.confirm(`Reset all predictions for ${league.name || 'this league'}? This can't be undone.`)) return;
+    setCopyBusy(true);
+    try {
+      await resetSimplePrediction(userId, league.id);
+      setCopyBanner('prompt');
+      setTimeout(() => window.location.reload(), 400);
+    } catch (e) {
+      window.alert(e?.message || 'Reset failed');
+    } finally {
+      setCopyBusy(false);
+    }
+  }, [userId, league?.id, league?.name]);
+
   return (
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
       {!embedded && (
@@ -166,6 +219,40 @@ function SimplePredictionWizard({ initialData, league, onExit, onComplete, embed
           {!error && !saving && showSaved && (
             <span className="simple-page-saved"><Check size={14} /> Saved</span>
           )}
+        </div>
+      )}
+
+      {!isGlobalSimple && copyBanner === 'prompt' && (
+        <div className="copy-banner copy-banner-prompt">
+          <div className="copy-banner-body">
+            <Copy size={16} />
+            <div>
+              <strong>Start fresh or copy your Global picks?</strong>
+              <span>Every league keeps its own predictions. Pull in what you already submitted in the Global League to save time.</span>
+            </div>
+          </div>
+          <div className="copy-banner-actions">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCopyBanner(null)}>Predict fresh</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={handleCopyFromGlobal} disabled={copyBusy}>
+              {copyBusy ? <><RefreshCw size={14} className="spin" /> Copying...</> : <><Copy size={14} /> Copy my existing Global picks</>}
+            </button>
+          </div>
+        </div>
+      )}
+      {!isGlobalSimple && copyBanner === 'success' && (
+        <div className="copy-banner copy-banner-success">
+          <div className="copy-banner-body">
+            <Check size={16} />
+            <div>
+              <strong>Predictions submitted for {league?.name || 'this league'}</strong>
+              <span>Copied from your Global Simple picks. You can still edit any step below.</span>
+            </div>
+          </div>
+          <div className="copy-banner-actions">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={handleResetAll} disabled={copyBusy}>
+              {copyBusy ? <><RefreshCw size={14} className="spin" /> Resetting...</> : <><RotateCcw size={14} /> Cancel, let me reset my predictions</>}
+            </button>
+          </div>
         </div>
       )}
 
