@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { PrivyProvider } from '@privy-io/react-auth';
 import { polygon, base, arbitrum, optimism, mainnet } from 'viem/chains';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import GoalOracle from './goaloracle';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     >
       <GoalOracle />
       <Analytics />
+      <SpeedInsights />
     </PrivyProvider>
   </React.StrictMode>
 );
