@@ -378,9 +378,14 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
     return () => { cancelled = true; };
   }, [sTab, lbMode, league?.id, lbKey]);
 
-  // Fetch Classic leaderboard (from the Global classic league)
+  // Fetch Classic leaderboard (from the Global classic league) — only
+  // relevant when this view is showing the Global Leaderboard. For
+  // user-created leagues (single mode), the Classic toggle is hidden
+  // and this effect is a no-op.
   useEffect(() => {
     if (sTab !== 'leaderboard' || lbMode !== 'classic') return;
+    const isGlobal = league?.id === 'global' || league?.id === 'global-simple' || league?.isGlobal === true;
+    if (!isGlobal) return;
     let cancelled = false;
     (async () => {
       setClassicLbl(true);
@@ -401,7 +406,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       finally { if (!cancelled) setClassicLbl(false); }
     })();
     return () => { cancelled = true; };
-  }, [sTab, lbMode, lbKey]);
+  }, [sTab, lbMode, lbKey, league?.id, league?.isGlobal]);
 
   const needsUsername = userData && !userData.usernameSet;
   const isGlobalView = league?.id === 'global' || league?.id === 'global-simple' || league?.isGlobal === true;
@@ -452,15 +457,19 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             className="predict-cta"
             onClick={() => {
               if (!authenticated) { onSignIn && onSignIn(); return; }
+              // Non-global leagues have a single mode — go straight into it
+              // instead of showing a menu that only has one option.
+              if (!isGlobalView) { goToPredictions('simple'); return; }
               setPredMenuOpen((v) => !v);
             }}
-            aria-expanded={predMenuOpen}
+            aria-expanded={isGlobalView ? predMenuOpen : undefined}
           >
             <Target size={16} />
             <span>Change your predictions</span>
-            <ChevronDown size={14} className={`predict-cta-chev ${predMenuOpen ? 'open' : ''}`} />
+            {isGlobalView && <ChevronDown size={14} className={`predict-cta-chev ${predMenuOpen ? 'open' : ''}`} />}
+            {!isGlobalView && <ChevronRight size={14} />}
           </button>
-          {predMenuOpen && (
+          {isGlobalView && predMenuOpen && (
             <div className="predict-cta-menu" onClick={(e) => e.stopPropagation()}>
               <button type="button" className="predict-cta-option" onClick={() => goToPredictions('classic')}>
                 <span className="predict-cta-option-icon classic"><Trophy size={16} /></span>
@@ -496,13 +505,15 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         <div className="leaderboard">
           <div className="leaderboard-header">
             <h3>Rankings</h3>
-            <div className="lb-mode-toggle">
-              <button type="button" className={`lb-mode-tab ${lbMode === 'simple' ? 'active' : ''}`} onClick={() => setLbMode('simple')}><Target size={13} /> Simple</button>
-              <button type="button" className={`lb-mode-tab ${lbMode === 'classic' ? 'active' : ''}`} onClick={() => setLbMode('classic')}><Trophy size={13} /> Classic</button>
-            </div>
+            {isGlobalView && (
+              <div className="lb-mode-toggle">
+                <button type="button" className={`lb-mode-tab ${lbMode === 'simple' ? 'active' : ''}`} onClick={() => setLbMode('simple')}><Target size={13} /> Simple</button>
+                <button type="button" className={`lb-mode-tab ${lbMode === 'classic' ? 'active' : ''}`} onClick={() => setLbMode('classic')}><Trophy size={13} /> Classic</button>
+              </div>
+            )}
           </div>
 
-          {lbMode === 'simple' && (simLbl ? (
+          {(!isGlobalView || lbMode === 'simple') && (simLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
           ) : simLb.length === 0 ? (
             <div className="empty-state"><p>No members yet.</p></div>
@@ -563,7 +574,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             </div>
           ))}
 
-          {lbMode === 'classic' && (classicLbl ? (
+          {isGlobalView && lbMode === 'classic' && (classicLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
           ) : classicLb.length === 0 ? (
             <div className="empty-state"><p>No predictions yet in the Classic global league.</p></div>
