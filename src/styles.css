@@ -3536,3 +3536,181 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .dropdown-item:disabled {
   opacity: 0.4; cursor: not-allowed; pointer-events: none;
 }
+
+/* ─── Browse Leagues table ──────────────────────────────── */
+.leagues-table-wrap {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; margin-top: 1rem;
+}
+.leagues-table {
+  width: 100%; border-collapse: collapse; font-size: 0.9rem;
+}
+.leagues-table thead th {
+  text-align: left; padding: 0.65rem 0.9rem;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  font-weight: 600; color: var(--text-muted);
+  background: var(--bg-elev); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.leagues-table tbody td {
+  padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.leagues-table tbody tr:last-child td { border-bottom: 0; }
+.leagues-table tbody tr:hover { background: var(--bg-elev); }
+.lt-name { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+.lt-name svg { color: var(--primary); flex-shrink: 0; }
+.lt-mode-pill {
+  display: inline-block; font-size: 0.7rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem; border-radius: 4px;
+}
+.lt-mode-pill.is-simple { background: rgba(0,230,118,0.12); color: var(--success); }
+.lt-mode-pill.is-classic { background: rgba(255,171,0,0.14); color: var(--accent-amber, #ffab00); }
+.lt-members { display: inline-flex; align-items: center; gap: 0.3rem; font-variant-numeric: tabular-nums; color: var(--text-sec); }
+.lt-col-action { text-align: right; white-space: nowrap; }
+@media (max-width: 640px) {
+  .leagues-table thead { display: none; }
+  .leagues-table, .leagues-table tbody, .leagues-table tr, .leagues-table td { display: block; width: 100%; }
+  .leagues-table tbody tr { padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--border); }
+  .leagues-table tbody tr:last-child { border-bottom: 0; }
+  .leagues-table tbody td { padding: 0.25rem 0; border-bottom: 0; }
+  .lt-col-action { padding-top: 0.6rem !important; text-align: left; }
+  .lt-col-mode, .lt-col-members, .lt-col-entry { display: inline-block !important; width: auto !important; margin-right: 0.6rem; }
+}
+
+/* ─── World Cup kick-off countdown (under nav) ──────────── */
+.wc-countdown {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.5rem; padding: 0.55rem 1rem;
+  background: linear-gradient(90deg, rgba(124,92,255,0.08), rgba(0,212,255,0.08));
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem; color: var(--text);
+  position: sticky; top: 0; z-index: 40;
+  backdrop-filter: saturate(1.2) blur(8px);
+  -webkit-backdrop-filter: saturate(1.2) blur(8px);
+}
+.wc-countdown-pulse {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #ff2d87;
+  box-shadow: 0 0 0 0 rgba(255,45,135,0.7);
+  animation: wc-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  flex-shrink: 0;
+}
+@keyframes wc-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,45,135,0.75); transform: scale(1); }
+  70% { box-shadow: 0 0 0 10px rgba(255,45,135,0); transform: scale(1.15); }
+  100% { box-shadow: 0 0 0 0 rgba(255,45,135,0); transform: scale(1); }
+}
+.wc-countdown-label { color: var(--text-sec); letter-spacing: 0.01em; }
+.wc-countdown-value {
+  color: var(--primary, #7c5cff); font-weight: 600;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+}
+.wc-countdown-value strong { color: var(--text); font-weight: 700; }
+@media (max-width: 480px) {
+  .wc-countdown { font-size: 0.75rem; padding: 0.45rem 0.75rem; gap: 0.4rem; flex-wrap: wrap; }
+  .wc-countdown-label { display: none; }
+}
+
+/* ─── Leaderboard header: left-aligned + clearer league tabs ──── */
+.leaderboard-header.leaderboard-header-tabs-left { justify-content: flex-start; gap: 0.5rem; }
+.lb-mode-toggle.lb-mode-toggle-big {
+  flex-wrap: wrap; padding: 0.25rem; gap: 0.3rem;
+}
+.lb-mode-toggle.lb-mode-toggle-big .lb-mode-tab {
+  font-size: 0.82rem; padding: 0.4rem 0.85rem; font-weight: 600;
+  border-radius: 999px;
+}
+.lb-mode-toggle.lb-mode-toggle-big .lb-mode-tab.active {
+  box-shadow: 0 0 0 1px var(--primary);
+}
+@media (max-width: 640px) {
+  .lb-mode-toggle.lb-mode-toggle-big { width: 100%; }
+  .lb-mode-toggle.lb-mode-toggle-big .lb-mode-tab { flex: 1; justify-content: center; font-size: 0.72rem; padding: 0.4rem 0.5rem; }
+}
+
+/* ─── Bracket Share modal ─────────────────────────────── */
+.phc-share { margin-left: auto; flex-shrink: 0; }
+@media (max-width: 640px) {
+  .phc-share { margin-left: 0; margin-top: 0.5rem; }
+}
+.bracket-share-modal {
+  position: relative; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 14px); padding: 1.25rem;
+  max-width: 420px; width: calc(100% - 2rem); max-height: 92vh; overflow-y: auto;
+  box-shadow: 0 20px 60px -20px rgba(0,0,0,0.6);
+}
+.bracket-share-card {
+  background: linear-gradient(135deg, rgba(124,92,255,0.18), rgba(0,212,255,0.08) 60%, rgba(255,45,135,0.12));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px; padding: 1rem 1.1rem; margin-top: 0.5rem;
+  color: var(--text);
+}
+.bsc-brand {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.7); margin-bottom: 0.6rem;
+}
+.bsc-brand-name { font-weight: 700; color: var(--primary, #7c5cff); }
+.bsc-brand-dot { opacity: 0.5; }
+.bsc-heading { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; line-height: 1.3; }
+.bsc-author { color: var(--text-sec); font-weight: 500; }
+.bsc-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.55rem 0.7rem; background: rgba(0,0,0,0.2);
+  border-radius: 10px; margin-bottom: 0.4rem;
+}
+.bsc-row-winner { border-left: 3px solid #ffab00; }
+.bsc-row-runner { border-left: 3px solid rgba(255,255,255,0.4); }
+.bsc-row-third { border-left: 3px solid #cd7f32; }
+.bsc-row-icon { color: var(--primary, #7c5cff); flex-shrink: 0; }
+.bsc-row-winner .bsc-row-icon { color: #ffab00; }
+.bsc-row-third .bsc-row-icon { color: #cd7f32; }
+.bsc-row-main { flex: 1; min-width: 0; }
+.bsc-row-label {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.55); margin-bottom: 0.1rem;
+}
+.bsc-row-team { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.95rem; }
+.bsc-flag { font-size: 1.25rem; }
+.bsc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bsc-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 0.75rem; padding-top: 0.6rem;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 0.78rem; color: var(--text-sec);
+}
+.bsc-footer strong { color: var(--primary, #7c5cff); font-weight: 700; }
+.bsc-tags { font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 0.3rem; }
+
+.bracket-share-hint {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  font-size: 0.78rem; color: var(--text-sec); line-height: 1.45;
+  margin: 1rem 0 0.75rem; padding: 0;
+}
+.bracket-share-hint svg { flex-shrink: 0; margin-top: 2px; color: var(--primary, #7c5cff); }
+
+.bracket-share-actions {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;
+}
+.bracket-share-actions .share-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.55rem 0.75rem; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--bg-elev); color: var(--text);
+  font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  transition: transform 0.1s, border-color 0.15s, background 0.15s;
+}
+.bracket-share-actions .share-btn:hover { border-color: var(--primary); }
+.bracket-share-actions .share-btn:active { transform: translateY(1px); }
+.bracket-share-actions .share-btn-x { background: #000; color: #fff; border-color: #222; }
+.bracket-share-actions .share-btn-fb { background: #1877f2; color: #fff; border-color: #1464cf; }
+.bracket-share-actions .share-btn-ig {
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  color: #fff; border: none;
+}
+.bracket-share-actions .share-btn-native { grid-column: 1 / -1; }
+@media (max-width: 420px) {
+  .bracket-share-actions { grid-template-columns: 1fr; }
+  .bracket-share-actions .share-btn-native { grid-column: auto; }
+}

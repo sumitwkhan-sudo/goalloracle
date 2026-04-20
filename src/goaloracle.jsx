@@ -14,6 +14,7 @@ import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
 import SimplePrediction from './pages/SimplePrediction';
+import BracketShareModal from './components/BracketShareModal';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import './styles.css';
 
@@ -361,7 +362,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard' }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -372,6 +373,34 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   const [classicDeltas, setClassicDeltas] = useState({});
   const [lbKey, setLbKey] = useState(0);
   const [viewingPicks, setViewingPicks] = useState(null); // { userId, displayName, winner, runnerUp }
+  const [shareBracket, setShareBracket] = useState(null); // null | { winner, runnerUp, thirdPlace }
+
+  const openShareBracket = useCallback(async () => {
+    if (!userData?.id || !league?.id) return;
+    try {
+      const { getSimplePrediction } = await import('./utils/db');
+      const { getTeamFlags } = await import('./utils/bracketUtils');
+      const doc = await getSimplePrediction(userData.id, league.id);
+      const flags = getTeamFlags();
+      const ko = doc?.knockoutPredictions || {};
+      const finalPick = (ko.final || []).find((p) => p?.matchId === 'final');
+      const thirdPick = (ko.thirdPlace || []).find((p) => p?.matchId === '3rd');
+      const winnerName = finalPick?.winnerId || null;
+      const runnerUpName = finalPick?.loserId || null;
+      const thirdName = thirdPick?.winnerId || null;
+      if (!winnerName && !runnerUpName && !thirdName) {
+        if (notify) notify('Finish your bracket first — no picks to share yet', 'error');
+        return;
+      }
+      setShareBracket({
+        winner: winnerName ? { name: winnerName, flag: flags[winnerName] || '🏳️' } : null,
+        runnerUp: runnerUpName ? { name: runnerUpName, flag: flags[runnerUpName] || '🏳️' } : null,
+        thirdPlace: thirdName ? { name: thirdName, flag: flags[thirdName] || '🏳️' } : null,
+      });
+    } catch (e) {
+      if (notify) notify(e?.message || 'Failed to load bracket', 'error');
+    }
+  }, [userData?.id, league?.id, notify]);
 
   // Fetch Simple leaderboard
   useEffect(() => {
@@ -455,6 +484,16 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             <span className="lv2-mode-pill simple">QUICK PICKS</span>
           </div>
         </div>
+        {authenticated && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm phc-share"
+            onClick={openShareBracket}
+            aria-label="Share my bracket"
+          >
+            <Share2 size={14} /> Share my bracket
+          </button>
+        )}
       </div>
 
       {needsUsername && (
@@ -518,13 +557,30 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
       {sTab === 'leaderboard' && (
         <div className="leaderboard">
-          <div className="leaderboard-header">
-            <h3>Rankings</h3>
-            {isGlobalView && (
-              <div className="lb-mode-toggle">
-                <button type="button" className={`lb-mode-tab ${lbMode === 'simple' ? 'active' : ''}`} onClick={() => setLbMode('simple')}><Target size={13} /> Quick Picks</button>
-                <button type="button" className={`lb-mode-tab ${lbMode === 'classic' ? 'active' : ''}`} onClick={() => setLbMode('classic')}><Trophy size={13} /> Classic</button>
+          <div className="leaderboard-header leaderboard-header-tabs-left">
+            {isGlobalView ? (
+              <div className="lb-mode-toggle lb-mode-toggle-big" role="tablist" aria-label="Leaderboard view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={lbMode === 'simple'}
+                  className={`lb-mode-tab ${lbMode === 'simple' ? 'active' : ''}`}
+                  onClick={() => setLbMode('simple')}
+                >
+                  <Target size={14} /> Quick Picks Leaderboard
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={lbMode === 'classic'}
+                  className={`lb-mode-tab ${lbMode === 'classic' ? 'active' : ''}`}
+                  onClick={() => setLbMode('classic')}
+                >
+                  <Trophy size={14} /> Classic Predictions Leaderboard
+                </button>
               </div>
+            ) : (
+              <h3>Rankings</h3>
             )}
           </div>
 
@@ -658,6 +714,17 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           </div>
         )
       )}
+
+      <BracketShareModal
+        open={!!shareBracket}
+        onClose={() => setShareBracket(null)}
+        displayName={userData?.displayName}
+        leagueName={league?.name}
+        winner={shareBracket?.winner}
+        runnerUp={shareBracket?.runnerUp}
+        thirdPlace={shareBracket?.thirdPlace}
+        notify={notify}
+      />
     </div>
   );
 });
@@ -2190,24 +2257,57 @@ const GoalOracle = () => {
         </div>
 
         <div className="search-bar"><Search size={20} /><input type="text" placeholder="Search public leagues..." value={q} onChange={e => setQ(e.target.value)} /></div>
-        <div className="leagues-grid">{f.map(l => {
-          const mem = l.members?.includes(uData?.id);
-          return (<div key={l.id} className="league-card">
-            <div className="league-header">
-              <div className="league-title"><Trophy size={24} /><h3>{l.name}</h3></div>
-              <div style={{display:'flex', gap:'0.35rem', alignItems:'center'}}>
-                {l.type === 'paid' ? <span className="badge badge-premium"><Coins size={14} /> {l.entryFee} {l.currency}</span> : <span className="badge badge-free">Free</span>}
-              </div>
-            </div>
-            <div className="league-stats">
-              <div className="league-stat"><Users size={18} /><span>{l.memberCount || 0} players</span></div>
-              {l.matchScope && l.matchScope !== 'all' && (
-                <div className="league-stat"><Target size={16} /><span>{l.matchScope === 'groups' ? `Groups ${(l.selectedGroups||[]).join(',')}` : `${(l.selectedRounds||[]).length} rounds`}</span></div>
-              )}
-            </div>
-            <div className="league-footer">{mem ? <button className="btn btn-secondary btn-sm" onClick={() => nav('detail', l)}><Eye size={16} /> View</button> : <button className="btn btn-primary btn-sm" onClick={() => handleJoin(l)}><UserPlus size={16} /> Join</button>}</div>
-          </div>);
-        })}{f.length === 0 && <div className="empty-state"><p>No public leagues found.</p><button className="btn btn-primary" onClick={() => nav('create')}><Plus size={18} /> Create</button></div>}</div>
+        {f.length === 0 ? (
+          <div className="empty-state"><p>No public leagues found.</p><button className="btn btn-primary" onClick={() => nav('create')}><Plus size={18} /> Create</button></div>
+        ) : (
+          <div className="leagues-table-wrap">
+            <table className="leagues-table">
+              <thead>
+                <tr>
+                  <th>League</th>
+                  <th className="lt-col-mode">Mode</th>
+                  <th className="lt-col-members">Members</th>
+                  <th className="lt-col-entry">Entry</th>
+                  <th className="lt-col-action" aria-label="Action" />
+                </tr>
+              </thead>
+              <tbody>
+                {f.map((l) => {
+                  const mem = l.members?.includes(uData?.id);
+                  const isQuickPicks = l.predictionMode === 'simple';
+                  return (
+                    <tr key={l.id} className="leagues-row">
+                      <td>
+                        <div className="lt-name">
+                          <Trophy size={14} />
+                          <span>{l.name}</span>
+                        </div>
+                      </td>
+                      <td className="lt-col-mode">
+                        <span className={`lt-mode-pill ${isQuickPicks ? 'is-simple' : 'is-classic'}`}>
+                          {isQuickPicks ? 'Quick Picks' : 'Classic'}
+                        </span>
+                      </td>
+                      <td className="lt-col-members">
+                        <span className="lt-members"><Users size={12} /> {l.memberCount || 0}</span>
+                      </td>
+                      <td className="lt-col-entry">
+                        {l.type === 'paid'
+                          ? <span className="badge badge-premium"><Coins size={12} /> {l.entryFee} {l.currency}</span>
+                          : <span className="badge badge-free">Free</span>}
+                      </td>
+                      <td className="lt-col-action">
+                        {mem
+                          ? <button className="btn btn-secondary btn-sm" onClick={() => nav('detail', l)}><Eye size={14} /> View</button>
+                          : <button className="btn btn-primary btn-sm" onClick={() => handleJoin(l)}><UserPlus size={14} /> Join</button>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {postJoin && (
           <JoinSuccessModal
@@ -3684,6 +3784,35 @@ const GoalOracle = () => {
     </svg>
   );
 
+  const WorldCupCountdown = () => {
+    // Kick-off of the opening match (Mexico vs South Africa): 11 June 2026, 15:00 ET.
+    // ET (EDT) during June = UTC−4, so 15:00 ET = 19:00 UTC.
+    const KICKOFF_MS = Date.UTC(2026, 5, 11, 19, 0, 0);
+    const compute = () => {
+      const diff = KICKOFF_MS - Date.now();
+      if (diff <= 0) return null;
+      const days = Math.floor(diff / 86400000);
+      const hours = Math.floor((diff % 86400000) / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      return { days, hours, minutes };
+    };
+    const [t, setT] = useState(compute);
+    useEffect(() => {
+      const id = setInterval(() => setT(compute()), 30000);
+      return () => clearInterval(id);
+    }, []);
+    if (!t) return null;
+    return (
+      <div className="wc-countdown" role="status" aria-live="polite">
+        <span className="wc-countdown-pulse" aria-hidden="true" />
+        <span className="wc-countdown-label">World Cup kicks off in</span>
+        <span className="wc-countdown-value">
+          <strong>{t.days}</strong>d <strong>{t.hours}</strong>h <strong>{t.minutes}</strong>m
+        </span>
+      </div>
+    );
+  };
+
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
       <div className="nav-brand" onClick={() => nav('landing')}><GoalOracleLogo size={26} /><span className="gt">GoalOracle</span></div>
@@ -3698,7 +3827,6 @@ const GoalOracle = () => {
         {authenticated && <>
           <a className="nav-link" onClick={() => nav('dashboard')}><Trophy size={14} /><span>Dashboard</span></a>
           <a className="nav-link" onClick={() => nav('leagues')}><Users size={14} /><span>My Leagues</span></a>
-          <a className="nav-link" onClick={() => nav('browse')}><Search size={14} /><span>Browse</span></a>
           {(role === 'superadmin' || role === 'admin') && <a className="nav-link" onClick={() => nav('admin')}><Shield size={14} /><span>Admin</span></a>}
         </>}
         <a className="nav-link" onClick={() => nav('faq')}><HelpCircle size={14} /><span>FAQ</span></a>
@@ -3757,6 +3885,7 @@ const GoalOracle = () => {
         }} />
       ))}</div>}
       <Nav />
+      <WorldCupCountdown />
 
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && <Dash />}
@@ -3794,6 +3923,7 @@ const GoalOracle = () => {
           onSignIn={login}
           onBack={() => nav(authenticated ? 'leagues' : 'landing')}
           onSetUsername={() => setShowUsernamePrompt(true)}
+          notify={notify}
           onOpenClassic={() => {
             const classic = leagues.find((l) => l.id === 'global') || allLeagues.find((l) => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } };
             setDetailTab('predictions');
