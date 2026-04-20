@@ -27,7 +27,6 @@ async function fetchLeague(origin, id) {
   try {
     const r = await fetch(`${origin}/api/public?type=league&id=${encodeURIComponent(id)}`, {
       headers: { accept: 'application/json' },
-      cf: { cacheTtl: 300 },
     });
     if (!r.ok) return null;
     return await r.json();
