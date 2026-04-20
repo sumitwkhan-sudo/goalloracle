@@ -1141,6 +1141,34 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   padding: 0.2rem 0.6rem; border-radius: 6px;
   background: var(--primary-soft); color: var(--primary); border: 1px solid var(--border-br);
 }
+/* World Cup Final — Winner / Runner-up stacked layout */
+.spc-final-stack {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  padding: 0.75rem 0.5rem; margin-bottom: 0.6rem;
+}
+.spc-final-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.55rem 0.75rem; border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+}
+.spc-final-winner {
+  background: linear-gradient(90deg, rgba(255,184,0,0.14), rgba(255,184,0,0.04));
+  border-color: rgba(255,184,0,0.4);
+}
+.spc-final-runner {
+  background: var(--bg-elev);
+}
+.spc-final-role {
+  font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-dim); min-width: 5rem;
+}
+.spc-final-winner .spc-final-role { color: var(--amber, #ffb800); }
+.spc-final-score {
+  text-align: center; font-family: var(--mono);
+  font-size: 1.2rem; font-weight: 800; color: var(--primary);
+  margin-top: 0.15rem;
+}
 .spc-streak {
   display: flex; align-items: center; gap: 0.35rem;
   font-size: 0.75rem; color: var(--amber); margin-bottom: 0.6rem;

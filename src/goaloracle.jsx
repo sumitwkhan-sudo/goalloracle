@@ -2673,11 +2673,22 @@ const GoalOracle = () => {
             <span className="pib-auto">{saving ? <><RefreshCw size={10} className="spin" /> Saving</> : <><CheckCircle size={10} /> Auto-saves</>}</span>
             {viewPredicted > 0 && (
               <button type="button" className="btn btn-share-preds" onClick={() => {
-                const predEntries = Object.entries(preds).filter(([, p]) => p.result);
-                if (predEntries.length === 0) return;
-                const [mId, p] = predEntries[predEntries.length - 1];
-                const match = augmentedMatches.find(m => m.id === mId);
-                if (match) setShareCard({ matchId: mId, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result, stage: match.stage });
+                // Prefer the highest-stage predicted match so clicking Share
+                // on the Finals tab actually surfaces the Final, not whatever
+                // happens to be the last entry in Object.entries(preds).
+                // Ranking: Final > 3rd Place > SF > QF > R16 > R32 > Group.
+                const stageRank = (s) => s === 'Final' ? 7 : s === '3rd Place' ? 6 : s === 'Semifinal' ? 5 : s === 'Quarterfinal' ? 4 : s === 'Round of 16' ? 3 : s === 'Round of 32' ? 2 : 1;
+                let best = null;
+                for (const [mId, p] of Object.entries(preds)) {
+                  if (!p?.result) continue;
+                  const match = augmentedMatches.find(m => m.id === mId);
+                  if (!match) continue;
+                  const rank = stageRank(match.stage);
+                  if (!best || rank > best.rank) best = { mId, p, match, rank };
+                }
+                if (!best) return;
+                const { mId, p, match } = best;
+                setShareCard({ matchId: mId, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result, stage: match.stage });
               }}>
                 <Share2 size={13} /> Share
               </button>
@@ -3597,9 +3608,21 @@ const GoalOracle = () => {
     const bothTBD = home === 'TBD' && away === 'TBD';
     const stageLabel = stage || 'My Prediction';
 
-    const shareText = bothTBD
-      ? `My ${stageLabel} pick: ${hasScore ? `${homeScore}–${awayScore}` : resultLabel}${streak > 0 ? ` | 🔥 Streak: ${streak}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCup`
-      : `${homeFlag} ${home} ${hasScore ? `${homeScore}–${awayScore}` : resultLabel} ${awayFlag} ${away}${streak > 0 ? ` | 🔥 Streak: ${streak}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCup`;
+    // Final match gets a tailored Winner / Runner-up framing.
+    const isFinal = matchId === 'final';
+    const winner = isFinal ? (result === 'home' ? home : result === 'away' ? away : null) : null;
+    const runnerUp = isFinal ? (result === 'home' ? away : result === 'away' ? home : null) : null;
+    const winnerFlag = isFinal ? (result === 'home' ? homeFlag : result === 'away' ? awayFlag : '') : '';
+    const runnerFlag = isFinal ? (result === 'home' ? awayFlag : result === 'away' ? homeFlag : '') : '';
+    const finalScore = isFinal && hasScore
+      ? (result === 'home' ? `${homeScore}–${awayScore}` : result === 'away' ? `${awayScore}–${homeScore}` : `${homeScore}–${awayScore}`)
+      : '';
+
+    const shareText = isFinal && winner && runnerUp && !bothTBD
+      ? `🏆 My World Cup 26 Final prediction: ${winnerFlag} ${winner} beats ${runnerFlag} ${runnerUp}${finalScore ? ` ${finalScore}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCupFinal`
+      : bothTBD
+        ? `My ${stageLabel} pick: ${hasScore ? `${homeScore}–${awayScore}` : resultLabel}${streak > 0 ? ` | 🔥 Streak: ${streak}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCup`
+        : `${homeFlag} ${home} ${hasScore ? `${homeScore}–${awayScore}` : resultLabel} ${awayFlag} ${away}${streak > 0 ? ` | 🔥 Streak: ${streak}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCup`;
 
     const shareTwitter = () => { window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank'); };
     const shareWhatsApp = () => { window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank'); };
@@ -3612,8 +3635,22 @@ const GoalOracle = () => {
           {/* Preview card */}
           <div className="share-preview-card" id="share-card">
             <div className="spc-brand"><span className="gt">GoalOracle</span> <span>⚽</span></div>
-            <div className="spc-label">My Prediction{stage ? ` · ${stage}` : ''}</div>
-            {bothTBD ? (
+            <div className="spc-label">
+              {isFinal ? '🏆 World Cup 26 Final' : `My Prediction${stage ? ` · ${stage}` : ''}`}
+            </div>
+            {isFinal && winner && !bothTBD ? (
+              <div className="spc-final-stack">
+                <div className="spc-final-row spc-final-winner">
+                  <span className="spc-final-role">Winner</span>
+                  <div className="spc-team">{winnerFlag && <span className="spc-flag">{winnerFlag}</span>}<span>{winner}</span></div>
+                </div>
+                <div className="spc-final-row spc-final-runner">
+                  <span className="spc-final-role">Runner-up</span>
+                  <div className="spc-team">{runnerFlag && <span className="spc-flag">{runnerFlag}</span>}<span>{runnerUp}</span></div>
+                </div>
+                {hasScore && <div className="spc-final-score">{finalScore}</div>}
+              </div>
+            ) : bothTBD ? (
               <div className="spc-match-row spc-match-tbd">
                 {hasScore ? (
                   <div className="spc-score">{homeScore} – {awayScore}</div>
