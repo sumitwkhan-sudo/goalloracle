@@ -3,5 +3,36 @@
     "api/**/*.js": {
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
+    { "source": "/llms.txt", "destination": "/llms.txt" },
+    { "source": "/manifest.json", "destination": "/manifest.json" },
+    { "source": "/logo.svg", "destination": "/logo.svg" },
+    { "source": "/og-default.png", "destination": "/og-default.png" },
+    { "source": "/og-square.png", "destination": "/og-square.png" },
+    { "source": "/apple-touch-icon.png", "destination": "/apple-touch-icon.png" },
+    { "source": "/favicon-32.png", "destination": "/favicon-32.png" },
+    { "source": "/icon-192.png", "destination": "/icon-192.png" },
+    { "source": "/icon-512.png", "destination": "/icon-512.png" },
+    { "source": "/icon-512-maskable.png", "destination": "/icon-512-maskable.png" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(robots.txt|sitemap.xml|llms.txt|manifest.json)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600, s-maxage=86400" }
+      ]
+    },
+    {
+      "source": "/(og-default.png|og-square.png|apple-touch-icon.png|favicon-32.png|icon-192.png|icon-512.png|icon-512-maskable.png|logo.svg)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, s-maxage=604800" }
+      ]
+    }
+  ]
 }

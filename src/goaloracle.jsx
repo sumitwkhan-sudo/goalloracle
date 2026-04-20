@@ -57,6 +57,38 @@ function ViewMeta({ view }) {
   );
 }
 
+// URL <-> view mapping. Top-level views get a 1:1 path; detail/simplePredict
+// append the league id. We use history.pushState (not react-router) to keep
+// view state as the single source of truth and avoid refactoring ~3800 lines
+// of conditional rendering. Query string is always preserved so Privy OAuth
+// callback params (e.g. ?privy_oauth_code=) survive.
+const PATH_TO_VIEW = {
+  '/': 'landing',
+  '/faq': 'faq',
+  '/dashboard': 'dashboard',
+  '/leagues': 'leagues',
+  '/browse': 'browse',
+  '/create': 'create',
+  '/admin': 'admin',
+  '/feedback': 'feedback',
+};
+const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
+
+function pathForView(view, league) {
+  if (view === 'detail' && league?.id) return `/league/${encodeURIComponent(league.id)}`;
+  if (view === 'simplePredict' && league?.id) return `/quick-picks/${encodeURIComponent(league.id)}`;
+  if (view === 'simplePredict') return '/quick-picks';
+  return VIEW_TO_PATH[view] || '/';
+}
+
+function parseRoute() {
+  if (typeof window === 'undefined') return { view: 'landing', leagueId: null };
+  const p = window.location.pathname;
+  if (p.startsWith('/league/')) return { view: 'landing', leagueId: decodeURIComponent(p.slice(8)) || null, deepLinkView: 'detail' };
+  if (p.startsWith('/quick-picks/')) return { view: 'landing', leagueId: decodeURIComponent(p.slice(13)) || null, deepLinkView: 'simplePredict' };
+  return { view: PATH_TO_VIEW[p] || 'landing', leagueId: null };
+}
+
 // Read-only modal that shows another user's Simple Mode picks (group rankings,
 // best-third picks, and knockout bracket winners) OR their Classic Mode
 // match-by-match predictions.
@@ -816,6 +848,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         onClose={() => setShareBracket(null)}
         displayName={userData?.displayName}
         leagueName={league?.name}
+        leagueId={league?.id}
         winner={shareBracket?.winner}
         runnerUp={shareBracket?.runnerUp}
         thirdPlace={shareBracket?.thirdPlace}
@@ -853,7 +886,13 @@ const CITY_CODES = {
 const GoalOracle = () => {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
-  const [view, setView] = useState('landing');
+  const initialRouteRef = useRef(parseRoute());
+  const [view, setView] = useState(initialRouteRef.current.view);
+  const [pendingDeepLink, setPendingDeepLink] = useState(
+    initialRouteRef.current.leagueId
+      ? { leagueId: initialRouteRef.current.leagueId, targetView: initialRouteRef.current.deepLinkView }
+      : null
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [confetti, setConfetti] = useState(false);
@@ -988,7 +1027,34 @@ const GoalOracle = () => {
     setView(prev => prev === v && !l ? prev : v);
     setMenuOpen(false);
     window.scrollTo(0, 0);
+    // Sync URL. Preserve query/hash so Privy OAuth callbacks survive nav().
+    try {
+      const nextPath = pathForView(v, l);
+      const search = window.location.search || '';
+      const hash = window.location.hash || '';
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState({ view: v, leagueId: l?.id || null }, '', nextPath + search + hash);
+      }
+    } catch { /* no-op — SSR or sandboxed contexts */ }
   }, [loadAllLeagues]);
+
+  // Back/forward button handling — mirror URL into view state. Deep-link to
+  // /league/:id or /quick-picks/:id is deferred to the leagues-loaded effect
+  // below since we need the league object to render the detail view.
+  useEffect(() => {
+    const onPopState = () => {
+      const route = parseRoute();
+      if (route.leagueId) {
+        setPendingDeepLink({ leagueId: route.leagueId, targetView: route.deepLinkView });
+        setView('landing');
+      } else {
+        setView(route.view);
+      }
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   useEffect(() => { fetchPlatformStats().then(setStats).catch(() => {}); }, []);
   useEffect(() => subscribeToMatchResults(setResults), []);
@@ -1091,6 +1157,35 @@ const GoalOracle = () => {
       setSelLeague(fresh);
     }
   }, [leagues, allLeagues]);
+
+  // Resolve /league/:id or /quick-picks/:id deep links once leagues data arrives.
+  // Runs after auth completes and leagues/allLeagues populate; navigates to the
+  // matching league and clears the pending marker. If the id doesn't resolve
+  // (private league, unauth user, or bad id), the user stays on whatever view
+  // the auto-redirect placed them on — URL cleanup happens when they nav next.
+  useEffect(() => {
+    if (!pendingDeepLink) return;
+    const all = [...(leagues || []), ...(allLeagues || [])];
+    if (all.length === 0) return;
+    const match = all.find(l => l?.id === pendingDeepLink.leagueId);
+    if (!match) {
+      // Only give up after we've had a chance to load everything; keep trying
+      // while leagues stream in. If we've tried browse and still no match,
+      // drop the pending marker to avoid loops.
+      if (allLeagues.length > 0 && leagues.length >= 0) {
+        setPendingDeepLink(null);
+      }
+      return;
+    }
+    setPendingDeepLink(null);
+    nav(pendingDeepLink.targetView || 'detail', match);
+  }, [pendingDeepLink, leagues, allLeagues, nav]);
+
+  // Kick off a public-league fetch so deep links to listed leagues resolve
+  // even when the visitor hasn't logged in.
+  useEffect(() => {
+    if (pendingDeepLink && allLeagues.length === 0) loadAllLeagues();
+  }, [pendingDeepLink, allLeagues.length, loadAllLeagues]);
   useEffect(() => { if (!uData?.id || !selLeague?.id) return; return subscribeToUserPredictions(uData.id, selLeague.id, setPreds); }, [uData?.id, selLeague?.id]);
   // Don't auto-redirect — users can stay on landing while logged in and navigate via nav
 

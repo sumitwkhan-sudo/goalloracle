@@ -12,7 +12,16 @@ import { X, Copy, Check, Trophy, Award, Camera, Share2 } from 'lucide-react';
 
 const SITE_URL = 'https://goaloracle.io';
 
-function buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace }) {
+// Build a share URL that deep-links to the specific league so unfurls
+// (Phase 4 middleware will inject per-league OG tags for crawlers) and clicks
+// drop the recipient straight into the league detail view rather than the
+// generic landing page.
+function buildShareUrl(leagueId) {
+  if (!leagueId) return SITE_URL;
+  return `${SITE_URL}/league/${encodeURIComponent(leagueId)}`;
+}
+
+function buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl }) {
   const you = displayName || 'I';
   const lg = leagueName ? ` (${leagueName})` : '';
   const lines = [
@@ -21,7 +30,7 @@ function buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace })
     `Runner-up: ${runnerUp?.flag || ''} ${runnerUp?.name || 'TBD'}`.trim(),
   ];
   if (thirdPlace?.name) lines.push(`Third: ${thirdPlace.flag || ''} ${thirdPlace.name}`.trim());
-  lines.push('', `Beat ${you === 'I' ? 'me' : you}: ${SITE_URL}`, '#GoalOracle #WorldCup26');
+  lines.push('', `Beat ${you === 'I' ? 'me' : you}: ${shareUrl || SITE_URL}`, '#GoalOracle #WorldCup26');
   return lines.join('\n');
 }
 
@@ -30,6 +39,7 @@ export default function BracketShareModal({
   onClose,
   displayName,
   leagueName,
+  leagueId,     // optional — when provided, share URLs deep-link to the league
   winner,       // { name, flag }
   runnerUp,     // { name, flag }
   thirdPlace,   // { name, flag } — optional
@@ -38,7 +48,8 @@ export default function BracketShareModal({
   const [copied, setCopied] = useState(false);
   if (!open) return null;
 
-  const caption = buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace });
+  const shareUrl = buildShareUrl(leagueId);
+  const caption = buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl });
   const encoded = encodeURIComponent(caption);
 
   const openX = () => {
@@ -47,7 +58,7 @@ export default function BracketShareModal({
   const openFacebook = () => {
     // FB sharer reads og: tags from the URL; caption goes as a quote.
     window.open(
-      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SITE_URL)}&quote=${encoded}`,
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encoded}`,
       '_blank', 'noopener,noreferrer',
     );
   };
@@ -76,7 +87,7 @@ export default function BracketShareModal({
   const nativeShare = async () => {
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
-        await navigator.share({ title: 'My GoalOracle bracket', text: caption, url: SITE_URL });
+        await navigator.share({ title: 'My GoalOracle bracket', text: caption, url: shareUrl });
       } catch {
         // user cancelled — no-op
       }
