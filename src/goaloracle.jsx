@@ -591,13 +591,20 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             <div className="empty-state"><p>No members yet.</p></div>
           ) : (
             <div className="leaderboard-list">
-              {simLb.map((e, i) => (
+              {simLb.map((e, i) => {
+                const isYou = e.userId === userData?.id;
+                const rowClick = () => {
+                  if (isYou) setSTab('predictions');
+                  else setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp, leagueId: league?.id || 'global-simple' });
+                };
+                return (
                 <div
                   key={e.userId}
-                  className={`leaderboard-item lb-clickable ${e.userId === userData?.id ? 'is-you' : ''}`}
-                  onClick={() => setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp, leagueId: league?.id || 'global-simple' })}
+                  className={`leaderboard-item lb-clickable ${isYou ? 'is-you' : ''}`}
+                  onClick={rowClick}
                   role="button"
                   tabIndex={0}
+                  title={isYou ? 'Edit your picks' : `View ${e.displayName}'s picks`}
                 >
                   <div className="rank">
                     {i === 0 && <Trophy size={20} className="gold" />}
@@ -611,7 +618,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                     <div>
                       <div className="player-name">
                         {e.displayName}
-                        {e.userId === userData?.id && <span className="you-badge">You</span>}
+                        {isYou && <span className="you-badge">You</span>}
                       </div>
                       <div className="player-sub">
                         {e.isComplete ? (
@@ -640,10 +647,24 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                   </div>
                   <div className="player-points">
                     <span className="points">{e.totalAccuracy > 0 ? `${e.totalAccuracy}%` : '—'}</span>
-                    <ChevronRight size={14} className="lb-chevron" />
+                    <div className="lb-row-actions">
+                      {isYou ? (
+                        <>
+                          <button type="button" className="lb-row-btn lb-row-btn-primary" onClick={(ev) => { ev.stopPropagation(); setSTab('predictions'); }}>
+                            <Target size={11} /> Edit
+                          </button>
+                          <button type="button" className="lb-row-btn" onClick={(ev) => { ev.stopPropagation(); setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp, leagueId: league?.id || 'global-simple' }); }}>
+                            <Eye size={11} /> View
+                          </button>
+                        </>
+                      ) : (
+                        <span className="lb-row-btn lb-row-btn-view"><Eye size={11} /> View picks</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))}
 
@@ -653,13 +674,21 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             <div className="empty-state"><p>No Classic Predictions yet in the global league.</p></div>
           ) : (
             <div className="leaderboard-list">
-              {classicLb.map((e, i) => (
+              {classicLb.map((e, i) => {
+                const isYou = e.userId === userData?.id;
+                const openView = () => setViewingPicks({ mode: 'classic', userId: e.userId, displayName: e.displayName, classicPredictions: e.rawPredictions, predCount: e.predictions });
+                const rowClick = () => {
+                  if (isYou && onOpenClassic) onOpenClassic();
+                  else openView();
+                };
+                return (
                 <div
                   key={e.userId}
-                  className={`leaderboard-item lb-clickable ${e.userId === userData?.id ? 'is-you' : ''}`}
-                  onClick={() => setViewingPicks({ mode: 'classic', userId: e.userId, displayName: e.displayName, classicPredictions: e.rawPredictions, predCount: e.predictions })}
+                  className={`leaderboard-item lb-clickable ${isYou ? 'is-you' : ''}`}
+                  onClick={rowClick}
                   role="button"
                   tabIndex={0}
+                  title={isYou ? 'Edit your Classic predictions' : `View ${e.displayName}'s picks`}
                 >
                   <div className="rank">
                     {i === 0 && <Trophy size={20} className="gold" />}
@@ -673,7 +702,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                     <div>
                       <div className="player-name">
                         {e.displayName}
-                        {e.userId === userData?.id && <span className="you-badge">You</span>}
+                        {isYou && <span className="you-badge">You</span>}
                       </div>
                       <div className="player-sub">
                         <Target size={11} style={{verticalAlign:'middle', color:'var(--cyan)'}} /> {e.predictions} prediction{e.predictions !== 1 ? 's' : ''} made
@@ -682,10 +711,26 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                   </div>
                   <div className="player-points">
                     <span className="points">—</span>
-                    <ChevronRight size={14} className="lb-chevron" />
+                    <div className="lb-row-actions">
+                      {isYou ? (
+                        <>
+                          {onOpenClassic && (
+                            <button type="button" className="lb-row-btn lb-row-btn-primary" onClick={(ev) => { ev.stopPropagation(); onOpenClassic(); }}>
+                              <Target size={11} /> Edit
+                            </button>
+                          )}
+                          <button type="button" className="lb-row-btn" onClick={(ev) => { ev.stopPropagation(); openView(); }}>
+                            <Eye size={11} /> View
+                          </button>
+                        </>
+                      ) : (
+                        <span className="lb-row-btn lb-row-btn-view"><Eye size={11} /> View picks</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
@@ -2755,21 +2800,6 @@ const GoalOracle = () => {
           </div>
         </div>}
 
-        {tab === 'predictions' && selLeague?.predictionMode !== 'simple' && (
-          <>
-            <LiveStandingsToggle
-              open={standingsOpen}
-              onToggle={() => setStandingsOpen(v => !v)}
-              count={filledCount}
-            />
-            <LiveStandingsDrawer
-              open={standingsOpen}
-              onClose={() => setStandingsOpen(false)}
-              predictions={preds}
-            />
-          </>
-        )}
-
         {tab === 'leaderboard' && <div className="leaderboard">
           {uData && !uData.usernameSet && (
             <div className="username-nudge" onClick={() => setShowUsernamePrompt(true)}>
@@ -4184,6 +4214,23 @@ const GoalOracle = () => {
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
       {showEmailPrompt && !showUsernamePrompt && authenticated && uData && <EmailPrompt />}
       <ShareCardModal />
+      {/* Live Standings drawer — rendered at App root so it survives Detail's
+          re-mount cycle (every preds update re-creates the Detail function,
+          which would otherwise destroy the drawer's DOM and reset its scroll
+          position). Toggle is visible only on Classic leagues' predictions
+          tab; drawer can always render (hidden off-canvas when closed). */}
+      {view === 'detail' && selLeague?.predictionMode !== 'simple' && detailTab === 'predictions' && (
+        <LiveStandingsToggle
+          open={standingsOpen}
+          onToggle={() => setStandingsOpen(v => !v)}
+          count={Object.values(preds).filter(p => p?.result).length}
+        />
+      )}
+      <LiveStandingsDrawer
+        open={standingsOpen && view === 'detail' && selLeague?.predictionMode !== 'simple'}
+        onClose={() => setStandingsOpen(false)}
+        predictions={preds}
+      />
     </div>
   );
 };

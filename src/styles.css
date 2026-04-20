@@ -1302,6 +1302,39 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .leaderboard-item.lb-clickable:hover { background: var(--bg-elev); }
 .lb-chevron { color: var(--text-dim); margin-left: 0.25rem; opacity: 0.6; }
 .leaderboard-item.lb-clickable:hover .lb-chevron { opacity: 1; color: var(--primary); }
+/* Per-row action pills: "View picks" on others, "Edit" + "View" on your own */
+.lb-row-actions { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.lb-row-btn {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-family: var(--font-data, var(--mono));
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 0.3rem 0.55rem; border-radius: 6px;
+  border: 1px solid var(--border-subtle, var(--border));
+  background: transparent; color: var(--text-sec);
+  cursor: pointer; transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.lb-row-btn:hover { background: var(--bg-elev); color: var(--text); border-color: var(--border-br); }
+.lb-row-btn-primary {
+  background: var(--primary-soft, rgba(0,212,255,0.14));
+  color: var(--primary, #00d4ff);
+  border-color: var(--border-br, rgba(0,212,255,0.3));
+}
+.lb-row-btn-primary:hover {
+  background: var(--primary, #00d4ff); color: #081018;
+}
+.lb-row-btn-view {
+  /* Non-button pill used for "View picks" on other users' rows — the whole
+     row is clickable, so this is a visual affordance, not an extra target. */
+  pointer-events: none;
+  background: var(--bg-elev);
+  color: var(--text-sec);
+  border-color: var(--border-subtle);
+}
+.leaderboard-item.lb-clickable:hover .lb-row-btn-view {
+  background: var(--primary-soft, rgba(0,212,255,0.14));
+  color: var(--primary, #00d4ff);
+  border-color: var(--border-br, rgba(0,212,255,0.3));
+}
 
 /* Dashboard Simple CTA */
 .dv2-simple-cta {
