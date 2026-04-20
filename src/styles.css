@@ -2932,6 +2932,24 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .lv2-row-info { flex: 1; }
 .lv2-row-name { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; margin: 0; }
 .lv2-row-meta { font-family: var(--font-data); font-size: 0.65rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; margin-top: 0.15rem; }
+/* Prediction status pill on league rows */
+.lv2-pred-status {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-family: var(--font-data); font-size: 0.68rem; font-weight: 600;
+  padding: 0.2rem 0.5rem; border-radius: 999px;
+  margin-top: 0.4rem; width: fit-content;
+}
+.lv2-pred-open {
+  background: var(--primary-soft, rgba(0,212,255,0.12));
+  color: var(--primary, #00d4ff);
+  border: 1px solid var(--border-br, rgba(0,212,255,0.28));
+}
+.lv2-pred-done {
+  background: rgba(0, 200, 83, 0.12);
+  color: var(--success, #00c853);
+  border: 1px solid rgba(0, 200, 83, 0.3);
+}
+.dv2-ac-eta { color: var(--text-muted); font-weight: 400; margin-left: 0.15rem; }
 .lv2-row-rank-area { text-align: center; }
 .lv2-rank-num { font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--text); display: block; line-height: 1; }
 .lv2-rank-label { font-family: var(--font-data); font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }

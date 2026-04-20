@@ -893,6 +893,42 @@ const GoalOracle = () => {
   const [dashLeagueFilter, setDashLeagueFilter] = useState('all');
   const [expandedLeagues, setExpandedLeagues] = useState({});
   const [leagueRanks, setLeagueRanks] = useState({});
+  // Quick Picks completion summary — lives at App level so Dashboard AND
+  // LeaguesList can both read it (Quick Picks share one pick doc across
+  // every QP league).
+  const [quickPicks, setQuickPicks] = useState(null);
+
+  // Fetch once per user. Max totalRemaining is 12 groups + 8 thirds + 32
+  // bracket winners = 52 (sentinel for brand-new users in Dashboard).
+  useEffect(() => {
+    if (!uData?.id) { setQuickPicks(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getSimplePrediction } = await import('./utils/db');
+        const docData = await getSimplePrediction(uData.id, 'global-simple');
+        if (cancelled) return;
+        const groups = docData?.groupPredictions || {};
+        const thirds = Array.isArray(docData?.bestThirdPicks) ? docData.bestThirdPicks : [];
+        const ko = docData?.knockoutPredictions || {};
+        const groupsDone = Object.values(groups).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
+        const BRACKET_ROUNDS = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['final', 1], ['thirdPlace', 1]];
+        let bracketFilled = 0, bracketTotal = 0;
+        for (const [k, size] of BRACKET_ROUNDS) {
+          bracketTotal += size;
+          bracketFilled += (ko[k] || []).filter(Boolean).length;
+        }
+        const groupsRemaining = Math.max(0, 12 - groupsDone);
+        const thirdsRemaining = Math.max(0, 8 - thirds.filter(Boolean).length);
+        const bracketRemaining = Math.max(0, bracketTotal - bracketFilled);
+        const totalRemaining = groupsRemaining + thirdsRemaining + bracketRemaining;
+        setQuickPicks({ groupsRemaining, thirdsRemaining, bracketRemaining, totalRemaining, isComplete: totalRemaining === 0 });
+      } catch {
+        if (!cancelled) setQuickPicks(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [uData?.id]);
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
@@ -1763,47 +1799,15 @@ const GoalOracle = () => {
     // User's Quick Picks leagues (shared across all simple leagues — one pick doc)
     const simpleLeagues = useMemo(() => ml.filter(l => l.predictionMode === 'simple'), [ml]);
 
-    // Quick Picks completion summary — fetched once from the user's global-simple doc
-    const [quickPicks, setQuickPicks] = useState(null);
-
     // Don't flag "first time" until the Quick Picks fetch has resolved once —
     // otherwise returning users briefly see the onboard banner flash before
     // their picks arrive from Firestore, then watch it get replaced by stats.
-    // The `quickPicks === null` sentinel means "not loaded yet"; max value of
-    // totalRemaining is 12 groups + 8 thirds + 32 bracket winners = 52.
+    // `quickPicks === null` means "not loaded yet"; max totalRemaining is
+    // 12 groups + 8 thirds + 32 bracket winners = 52. State lives on App.
     const isFirstTime = quickPicks !== null
       && quickPicks.totalRemaining === 52
       && Object.keys(preds).length === 0
       && totalCompleted === 0;
-    useEffect(() => {
-      if (!uData?.id) { setQuickPicks(null); return; }
-      let cancelled = false;
-      (async () => {
-        try {
-          const { getSimplePrediction } = await import('./utils/db');
-          const docData = await getSimplePrediction(uData.id, 'global-simple');
-          if (cancelled) return;
-          const groups = docData?.groupPredictions || {};
-          const thirds = Array.isArray(docData?.bestThirdPicks) ? docData.bestThirdPicks : [];
-          const ko = docData?.knockoutPredictions || {};
-          const groupsDone = Object.values(groups).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
-          const BRACKET_ROUNDS = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['final', 1], ['thirdPlace', 1]];
-          let bracketFilled = 0, bracketTotal = 0;
-          for (const [k, size] of BRACKET_ROUNDS) {
-            bracketTotal += size;
-            bracketFilled += (ko[k] || []).filter(Boolean).length;
-          }
-          const groupsRemaining = Math.max(0, 12 - groupsDone);
-          const thirdsRemaining = Math.max(0, 8 - thirds.filter(Boolean).length);
-          const bracketRemaining = Math.max(0, bracketTotal - bracketFilled);
-          const totalRemaining = groupsRemaining + thirdsRemaining + bracketRemaining;
-          setQuickPicks({ groupsRemaining, thirdsRemaining, bracketRemaining, totalRemaining, isComplete: totalRemaining === 0 });
-        } catch {
-          if (!cancelled) setQuickPicks(null);
-        }
-      })();
-      return () => { cancelled = true; };
-    }, [uData?.id]);
 
     const quickPicksIncomplete = !!quickPicks && !quickPicks.isComplete && simpleLeagues.length > 0;
     const firstMatch = useMemo(() => WORLD_CUP_MATCHES.find(m => getMatchStatus(m.date, m.time) === 'open') || WORLD_CUP_MATCHES[0], []);
@@ -1835,7 +1839,7 @@ const GoalOracle = () => {
       if (!uData?.id || ml.length === 0) return;
       let cancelled = false;
       (async () => {
-        for (const league of ml.slice(0, 6)) {
+        for (const league of ml.slice(0, 20)) {
           if (leagueRanks[league.id] || cancelled) continue;
           try {
             if (league.predictionMode === 'simple') {
@@ -1848,7 +1852,11 @@ const GoalOracle = () => {
               const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || defaultPS) }));
               const sorted = sortLeaderboard(entries);
               const myIdx = sorted.findIndex(e => e.userId === uData.id);
-              if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0 } }));
+              // Count my own predictions for this league so the Your Leagues
+              // page can show a "X picks left · ~Y min" status line.
+              const myPreds = bu[uData.id] || {};
+              const myPredCount = Object.values(myPreds).filter(p => p?.result).length;
+              if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0, myPredCount } }));
             }
           } catch {}
         }
@@ -2036,31 +2044,31 @@ const GoalOracle = () => {
           <div className="dv2-section">
             <h3 className="dv2-section-title">Needs Your Prediction</h3>
             <div className="dv2-action-cards">
-              {quickPicksIncomplete && (() => {
-                const qpLeague = simpleLeagues[0];
+              {/* One Quick Picks card per league the user is in. All QP
+                  leagues share the same /simplePredictions doc, so the
+                  remaining count is the same on every card — but the
+                  user asked for each league to have its own row so they
+                  can jump directly to that league. */}
+              {quickPicksIncomplete && simpleLeagues.map(qpLeague => {
                 const remainingBits = [];
                 if (quickPicks.groupsRemaining > 0) remainingBits.push(`${quickPicks.groupsRemaining} group${quickPicks.groupsRemaining > 1 ? 's' : ''}`);
                 if (quickPicks.thirdsRemaining > 0) remainingBits.push(`${quickPicks.thirdsRemaining} best-third${quickPicks.thirdsRemaining > 1 ? 's' : ''}`);
                 if (quickPicks.bracketRemaining > 0) remainingBits.push(`${quickPicks.bracketRemaining} bracket winner${quickPicks.bracketRemaining > 1 ? 's' : ''}`);
                 const summary = remainingBits.length > 0 ? remainingBits.join(' · ') : 'Finish your picks';
+                const estMin = Math.max(1, Math.round(quickPicks.totalRemaining * 8 / 60));
                 return (
-                  <div className="dv2-action-card dv2-action-card-qp" onClick={() => { setDetailTab('predictions'); nav('detail', qpLeague); }}>
+                  <div key={qpLeague.id} className="dv2-action-card dv2-action-card-qp" onClick={() => { setDetailTab('predictions'); nav('detail', qpLeague); }}>
                     <div className="dv2-ac-body">
                       <div className="dv2-ac-tags">
                         <span className="dv2-ac-tag dv2-ac-tag-qp"><Target size={10} /> Quick Picks</span>
-                        {simpleLeagues.slice(0, 3).map(l => (
-                          <span key={l.id} className="dv2-ac-league">{l.name}</span>
-                        ))}
-                        {simpleLeagues.length > 3 && (
-                          <span className="dv2-ac-league">+{simpleLeagues.length - 3} more</span>
-                        )}
+                        <span className="dv2-ac-league">{qpLeague.name}</span>
                       </div>
-                      <div className="dv2-ac-summary">{summary}</div>
+                      <div className="dv2-ac-summary">{summary} <span className="dv2-ac-eta">· ~{estMin} min</span></div>
                     </div>
                     {firstMatch && <Countdown match={firstMatch} />}
                   </div>
                 );
-              })()}
+              })}
               {needsPrediction.map(m => {
                 const classicLeague = ml.find(l => l.predictionMode === 'classic') || ml[0];
                 return (
@@ -2179,6 +2187,26 @@ const GoalOracle = () => {
 
     const toggleExpand = (id) => setExpandedLeagues(prev => ({ ...prev, [id]: !prev[id] }));
 
+    // Returns { done, remaining, etaMin, text } or null if data isn't loaded yet.
+    // Quick Picks share one pick doc across all QP leagues, so every QP row
+    // shows the same status. Classic leagues use per-league myPredCount from
+    // the leagueRanks fetch.
+    const predStatus = (league) => {
+      if (league.predictionMode === 'simple') {
+        if (!quickPicks) return null;
+        if (quickPicks.isComplete) return { done: true, remaining: 0, text: 'All picks in' };
+        const etaMin = Math.max(1, Math.round(quickPicks.totalRemaining * 8 / 60));
+        return { done: false, remaining: quickPicks.totalRemaining, etaMin, text: `${quickPicks.totalRemaining} picks left · ~${etaMin} min` };
+      }
+      const rk = leagueRanks[league.id];
+      if (!rk || typeof rk.myPredCount !== 'number') return null;
+      const total = WORLD_CUP_MATCHES.length;
+      const remaining = Math.max(0, total - rk.myPredCount);
+      if (remaining === 0) return { done: true, remaining: 0, text: `All ${total} picks in` };
+      const etaMin = Math.max(1, Math.round(remaining * 20 / 60));
+      return { done: false, remaining, etaMin, text: `${remaining} pick${remaining !== 1 ? 's' : ''} left · ~${etaMin} min` };
+    };
+
     const fetchLb = async (league) => {
       if (lbCache[league.id]) return;
       try {
@@ -2205,6 +2233,7 @@ const GoalOracle = () => {
             <div className="lv2-list lv2-list-global">
               {globalLeagues.map(gl => {
                 const gRk = leagueRanks[gl.id];
+                const gStatus = predStatus(gl);
                 return (
                   <div key={gl.id} className="lv2-row lv2-row-global">
                     <div className="lv2-row-top" onClick={() => nav('detail', gl)}>
@@ -2215,6 +2244,11 @@ const GoalOracle = () => {
                           {gl.predictionMode !== 'simple' && <span className="lv2-mode-pill classic">CLASSIC</span>}
                         </h3>
                         <span className="lv2-row-meta"><Users size={12} /> {(gl.memberCount || 0).toLocaleString()} members</span>
+                        {gStatus && (
+                          <span className={`lv2-pred-status ${gStatus.done ? 'lv2-pred-done' : 'lv2-pred-open'}`}>
+                            {gStatus.done ? <CheckCircle size={12} /> : <Target size={12} />} {gStatus.text}
+                          </span>
+                        )}
                       </div>
                       <div className="lv2-row-rank-area">
                         {gRk ? <><span className="lv2-rank-num">#{gRk.rank.toLocaleString()}</span><span className="lv2-rank-label">of {(gl.memberCount || 0).toLocaleString()}</span></> : <span className="lv2-rank-num">&mdash;</span>}
@@ -2258,12 +2292,22 @@ const GoalOracle = () => {
               const myPts = rk?.myPts || 0;
               const gapPct = leaderPts > 0 ? Math.min((myPts / leaderPts) * 100, 100) : 0;
 
+              const pStatus = predStatus(l);
               return (
                 <div key={l.id} className="lv2-row">
                   <div className="lv2-row-top" onClick={() => toggleExpand(l.id)}>
                     <div className="lv2-row-info">
-                      <h3 className="lv2-row-name">{l.name}</h3>
+                      <h3 className="lv2-row-name">
+                        {l.name}
+                        {l.predictionMode === 'simple' && <span className="lv2-mode-pill simple">QUICK PICKS</span>}
+                        {l.predictionMode !== 'simple' && <span className="lv2-mode-pill classic">CLASSIC</span>}
+                      </h3>
                       <span className="lv2-row-meta"><Users size={12} /> {(l.memberCount || l.members?.length || 0).toLocaleString()} members</span>
+                      {pStatus && (
+                        <span className={`lv2-pred-status ${pStatus.done ? 'lv2-pred-done' : 'lv2-pred-open'}`}>
+                          {pStatus.done ? <CheckCircle size={12} /> : <Target size={12} />} {pStatus.text}
+                        </span>
+                      )}
                     </div>
                     <div className="lv2-row-rank-area">
                       {rk ? <><span className="lv2-rank-num">#{rk.rank}</span><span className="lv2-rank-label">your rank</span></> : <span className="lv2-rank-num">&mdash;</span>}
