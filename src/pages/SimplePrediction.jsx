@@ -185,7 +185,13 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
 
   const handleResetAll = useCallback(async () => {
     if (!userId || !league?.id) return;
-    if (!window.confirm(`Reset all predictions for ${league.name || 'this league'}? This can't be undone.`)) return;
+    const leagueLabel = league.name || 'this league';
+    const ok = window.confirm(
+      `Reset ALL your picks for "${leagueLabel}"?\n\n`
+      + `This will clear your group rankings, best-third selections, and full knockout bracket.\n\n`
+      + `This can't be undone.`,
+    );
+    if (!ok) return;
     setCopyBusy(true);
     try {
       await resetSimplePrediction(userId, league.id);
@@ -215,6 +221,15 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
             {!error && !saving && showSaved && (
               <span className="simple-page-saved"><Check size={14} /> Saved</span>
             )}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm simple-page-reset"
+              onClick={handleResetAll}
+              disabled={copyBusy}
+              title="Reset all of my predictions for this league"
+            >
+              {copyBusy ? <RefreshCw size={13} className="spin" /> : <RotateCcw size={13} />} Reset my picks
+            </button>
           </div>
         </div>
       )}
@@ -225,6 +240,15 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
           {!error && !saving && showSaved && (
             <span className="simple-page-saved"><Check size={14} /> Saved</span>
           )}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm simple-page-reset"
+            onClick={handleResetAll}
+            disabled={copyBusy}
+            title="Reset all of my predictions for this league"
+          >
+            {copyBusy ? <RefreshCw size={13} className="spin" /> : <RotateCcw size={13} />} Reset my picks
+          </button>
         </div>
       )}
 

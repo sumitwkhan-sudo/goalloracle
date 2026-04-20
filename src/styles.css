@@ -3745,3 +3745,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   flex: 1; min-width: 0; max-width: 320px;
   padding: 0.3rem 0.55rem; font-size: 0.95rem; font-weight: 600;
 }
+
+/* Reset-my-picks buttons */
+.simple-page-reset { margin-left: 0.5rem; color: var(--danger, #ff3b5c); border-color: transparent; }
+.simple-page-reset:hover:not(:disabled) { background: rgba(255,59,92,0.08); border-color: rgba(255,59,92,0.25); }
+.pib-reset { color: var(--danger, #ff3b5c); }
+.pib-reset:hover:not(:disabled) { background: rgba(255,59,92,0.08); }

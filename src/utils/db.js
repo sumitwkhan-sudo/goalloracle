@@ -207,6 +207,14 @@ export async function fetchAllLeagues() {
 }
 
 // ---- PREDICTIONS (direct Firestore writes with client-side lock check) ----
+// Reset (delete) all of the current user's classic predictions for a league.
+// Goes through the API so we can batch-delete server-side (the Firestore rules
+// don't allow client-side deletes on the predictions collection).
+export async function resetClassicPredictions(leagueId) {
+  if (!leagueId) throw new Error('Missing leagueId');
+  return await apiCall('predictions', 'DELETE', { leagueId });
+}
+
 export async function saveBatchPredictions(userId, leagueId, predictions) {
   if (!leagueId || !predictions) throw new Error('Missing leagueId or predictions');
 

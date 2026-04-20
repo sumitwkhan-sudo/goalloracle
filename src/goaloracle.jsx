@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
@@ -9,7 +9,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -2348,7 +2348,32 @@ const GoalOracle = () => {
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
+    const [resettingPicks, setResettingPicks] = useState(false);
     const weekCelebratedRef = useRef({});
+
+    const handleResetClassicPicks = async () => {
+      if (!uData?.id || !selLeague?.id) return;
+      const leagueLabel = selLeague.name || 'this league';
+      const ok = window.confirm(
+        `Reset ALL your Classic Predictions for "${leagueLabel}"?\n\n`
+        + `Every score + result you've picked in this league will be deleted. `
+        + `Match results that have already been played and graded stay on the leaderboard.\n\n`
+        + `This can't be undone.`,
+      );
+      if (!ok) return;
+      setResettingPicks(true);
+      try {
+        const out = await resetClassicPredictions(selLeague.id);
+        // Clear local state — the subscription will reconcile, but update
+        // optimistically so the UI jumps to zero immediately.
+        setPreds({});
+        notify(`Cleared ${out?.deleted ?? 0} prediction${out?.deleted === 1 ? '' : 's'}`);
+      } catch (e) {
+        notify(e?.message || 'Reset failed', 'error');
+      } finally {
+        setResettingPicks(false);
+      }
+    };
     const predView = detailPredView, setPredView = setDetailPredView;
     const predsLoadedRef = useRef(false);
     // Load celebrated state from localStorage when league changes
@@ -2625,6 +2650,17 @@ const GoalOracle = () => {
             )}
             {viewPredicted > 0 && viewRemaining > 0 && (
               <label className="pib-hide"><input type="checkbox" checked={hidePredicted} onChange={e => { const on = e.target.checked; setHidePredicted(on); if (on) { setFrozenUnpredictedIds(new Set(filteredMatches.filter(m => !preds[m.id]?.result).map(m => m.id))); } else { setFrozenUnpredictedIds(null); } }} /><span>Unpredicted only</span></label>
+            )}
+            {Object.keys(preds).length > 0 && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs pib-reset"
+                onClick={handleResetClassicPicks}
+                disabled={resettingPicks}
+                title="Reset all of my Classic Predictions for this league"
+              >
+                {resettingPicks ? <RefreshCw size={11} className="spin" /> : <RotateCcw size={11} />} Reset my picks
+              </button>
             )}
             <div className="pib-view-toggle">
               <button className={`pvt-btn ${predView === 'rows' ? 'active' : ''}`} onClick={() => setPredView('rows')} title="Compact rows"><List size={14} /></button>

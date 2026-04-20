@@ -98,6 +98,41 @@ export default async function handler(req, res) {
     }
   }
 
+  // DELETE: reset all of the caller's classic predictions for a league.
+  // Body: { leagueId }
+  if (req.method === 'DELETE') {
+    const delClaims = await verifyAuth(req);
+    if (!delClaims) return res.status(401).json({ error: 'Unauthorized' });
+    const delUserId = delClaims.userId;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const { leagueId: delLeagueId } = body;
+    if (!delLeagueId) return res.status(400).json({ error: 'Missing leagueId' });
+
+    try {
+      const snap = await db.collection('predictions')
+        .where('userId', '==', delUserId)
+        .where('leagueId', '==', delLeagueId)
+        .get();
+
+      const docs = snap.docs;
+      if (docs.length === 0) return res.status(200).json({ success: true, deleted: 0 });
+
+      // Batch deletes in chunks of 500 (Firestore batch limit).
+      let deleted = 0;
+      for (let i = 0; i < docs.length; i += 500) {
+        const batch = db.batch();
+        docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        deleted += Math.min(500, docs.length - i);
+      }
+
+      return res.status(200).json({ success: true, deleted });
+    } catch (e) {
+      console.error('[predictions] reset error:', e);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // POST: save predictions (authenticated)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
