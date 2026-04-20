@@ -16,6 +16,7 @@ import AdminDashboard from './components/AdminDashboard';
 import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
 import CreateLeagueForm from './components/CreateLeagueForm';
+import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import './styles.css';
 
 // Read-only modal that shows another user's Simple Mode picks (group rankings,
@@ -2375,6 +2376,7 @@ const GoalOracle = () => {
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
+    const [standingsOpen, setStandingsOpen] = useState(false);
     const [resettingPicks, setResettingPicks] = useState(false);
     const weekCelebratedRef = useRef({});
 
@@ -2731,6 +2733,21 @@ const GoalOracle = () => {
             )}
           </div>
         </div>}
+
+        {tab === 'predictions' && selLeague?.predictionMode !== 'simple' && (
+          <>
+            <LiveStandingsToggle
+              open={standingsOpen}
+              onToggle={() => setStandingsOpen(v => !v)}
+              count={filledCount}
+            />
+            <LiveStandingsDrawer
+              open={standingsOpen}
+              onClose={() => setStandingsOpen(false)}
+              predictions={preds}
+            />
+          </>
+        )}
 
         {tab === 'leaderboard' && <div className="leaderboard">
           {uData && !uData.usernameSet && (
