@@ -816,6 +816,7 @@ const GoalOracle = () => {
   const [notif, setNotif] = useState(null);
   const [stats, setStats] = useState({ totalPlayers: 0, totalPrizePools: 0, activeLeagues: 0 });
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
+  const [showEmailPrompt, setShowEmailPrompt] = useState(false);
   const [shareCard, setShareCard] = useState(null); // { matchId, home, away, homeFlag, awayFlag, homeScore, awayScore, result }
   // Lifted from Detail — survives Firestore re-renders
   const [detailTab, setDetailTab] = useState('predictions');
@@ -905,6 +906,10 @@ const GoalOracle = () => {
       setUData(u);
       setRole(u.role || 'user');
       if (!u.usernameSet) setShowUsernamePrompt(true);
+      // Wallet-only sign-ups have no email on file. Prompt them for one so we
+      // can send reminders + result notifications. Respect emailSkipped if
+      // they've already dismissed it once.
+      else if (!u.email && !u.emailSkipped) setShowEmailPrompt(true);
     };
 
     // Delay first attempt 1s to let Privy wallet iframe initialize
@@ -1128,7 +1133,7 @@ const GoalOracle = () => {
           <span className="pred-date">{dateStr}</span>
           {locked && <span className="lock-badge"><Lock size={10} /></span>}
           {pts !== null && <span className="points-badge">+{pts}</span>}
-          {p.result && (locked || res?.completed) && <button type="button" className="pred-share-btn-sm" title="Share prediction" onClick={() => setShareCard({ matchId: match.id, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result })}><Share2 size={12} /></button>}
+          {p.result && (locked || res?.completed) && <button type="button" className="pred-share-btn-sm" title="Share prediction" onClick={() => setShareCard({ matchId: match.id, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result, stage: match.stage })}><Share2 size={12} /></button>}
         </div>
         {/* Venue & local time */}
         <div className="pred-venue-row">
@@ -1178,7 +1183,7 @@ const GoalOracle = () => {
             <button type="button" className={`pred-pick ${p.result === 'home' ? 'active home-pick' : ''}`} onClick={() => upd('result', 'home')}>{getCode(match.home)}</button>
             <button type="button" className={`pred-pick ${p.result === 'draw' ? 'active draw-pick' : ''} ${match.isKnockout ? 'disabled-pick' : ''}`} onClick={() => !match.isKnockout && upd('result', 'draw')}>Draw</button>
             <button type="button" className={`pred-pick ${p.result === 'away' ? 'active away-pick' : ''}`} onClick={() => upd('result', 'away')}>{getCode(match.away)}</button>
-            {p.result && <button type="button" className="pred-share-btn" title="Share this prediction" onClick={() => setShareCard({ matchId: match.id, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result })}><Share2 size={14} /></button>}
+            {p.result && <button type="button" className="pred-share-btn" title="Share this prediction" onClick={() => setShareCard({ matchId: match.id, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result, stage: match.stage })}><Share2 size={14} /></button>}
           </div>
         )}
 
@@ -1809,22 +1814,23 @@ const GoalOracle = () => {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
-    // Countdown helper
+    // Countdown helper — compute initial value synchronously so the card
+    // doesn't flash an empty string between mount and the first tick.
+    const computeCountdown = (match) => {
+      const [hh, mm] = (match.time || '15:00').split(':').map(Number);
+      const kick = new Date(`${match.date}T00:00:00Z`);
+      kick.setUTCHours(hh + 4, mm, 0, 0);
+      const lockMs = kick.getTime() - 5 * 60 * 1000;
+      const diff = lockMs - Date.now();
+      if (diff <= 0) return 'LOCKED';
+      const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), mi = Math.floor((diff % 3600000) / 60000);
+      return d > 0 ? `${d}d ${h}h` : `${h}h ${mi}m`;
+    };
     const Countdown = ({ match }) => {
-      const [ct, setCt] = useState('');
+      const [ct, setCt] = useState(() => computeCountdown(match));
       useEffect(() => {
-        const [hh, mm] = (match.time || '15:00').split(':').map(Number);
-        const kick = new Date(`${match.date}T00:00:00Z`);
-        kick.setUTCHours(hh + 4, mm, 0, 0);
-        const lockMs = kick.getTime() - 5 * 60 * 1000;
-        const tick = () => {
-          const diff = lockMs - Date.now();
-          if (diff <= 0) { setCt('LOCKED'); return; }
-          const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), mi = Math.floor((diff % 3600000) / 60000);
-          setCt(d > 0 ? `${d}d ${h}h` : `${h}h ${mi}m`);
-        };
-        tick();
-        const iv = setInterval(tick, 60000);
+        setCt(computeCountdown(match));
+        const iv = setInterval(() => setCt(computeCountdown(match)), 60000);
         return () => clearInterval(iv);
       }, [match.date, match.time]);
       return <span className="dv2-countdown">{ct === 'LOCKED' ? <><Lock size={10} /> Locked</> : <><Clock size={10} /> Closes in {ct}</>}</span>;
@@ -1975,8 +1981,12 @@ const GoalOracle = () => {
           </div>
         </div>
 
-        {/* Needs Prediction */}
-        {(needsPrediction.length > 0 || quickPicksIncomplete) ? (
+        {/* Needs Prediction — only render once quickPicks has loaded so the
+            section doesn't flicker between "All caught up" and the action
+            cards as the QP fetch resolves. */}
+        {quickPicks === null ? (
+          <div className="dv2-section"><div className="dv2-section-placeholder" aria-hidden="true" /></div>
+        ) : (needsPrediction.length > 0 || quickPicksIncomplete) ? (
           <div className="dv2-section">
             <h3 className="dv2-section-title">Needs Your Prediction</h3>
             <div className="dv2-action-cards">
@@ -2666,8 +2676,8 @@ const GoalOracle = () => {
                 const predEntries = Object.entries(preds).filter(([, p]) => p.result);
                 if (predEntries.length === 0) return;
                 const [mId, p] = predEntries[predEntries.length - 1];
-                const match = WORLD_CUP_MATCHES.find(m => m.id === mId);
-                if (match) setShareCard({ matchId: mId, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result });
+                const match = augmentedMatches.find(m => m.id === mId);
+                if (match) setShareCard({ matchId: mId, home: match.home, away: match.away, homeFlag: match.homeFlag, awayFlag: match.awayFlag, homeScore: p.score?.home, awayScore: p.score?.away, result: p.result, stage: match.stage });
               }}>
                 <Share2 size={13} /> Share
               </button>
@@ -3559,14 +3569,37 @@ const GoalOracle = () => {
   // ─── Share Card Modal ───
   const ShareCardModal = () => {
     if (!shareCard) return null;
-    const { home, away, homeFlag, awayFlag, homeScore, awayScore, result } = shareCard;
+    const { matchId, homeScore, awayScore, result, stage } = shareCard;
+    let { home, away, homeFlag, awayFlag } = shareCard;
+
+    // The match in shareCard was captured at click time. If the user hasn't
+    // predicted earlier rounds yet, knockout matches store placeholders like
+    // "W QF-03" / flag '🏳️'. Re-resolve using the current preds state in case
+    // enough picks have been made in the meantime.
+    try {
+      const { resolved } = resolveBracket(preds);
+      const r = matchId && resolved?.[matchId];
+      if (r) { home = r.home; away = r.away; homeFlag = r.homeFlag; awayFlag = r.awayFlag; }
+    } catch {}
+
+    // If a knockout name is still a placeholder (e.g. "W QF-03", "L SF-01"),
+    // fall back to a friendlier stage label so the share card doesn't expose
+    // our internal bracket IDs to the audience.
+    const isPlaceholder = (n) => /^[WL]\s+[A-Z]+-\d+$/i.test(n || '');
+    if (isPlaceholder(home)) { home = 'TBD'; homeFlag = ''; }
+    if (isPlaceholder(away)) { away = 'TBD'; awayFlag = ''; }
+
     const { streak } = calculateStreak(preds, results);
     const streakBadge = getStreakBadge(streak);
     const displayName = uData?.displayName || 'Player';
     const hasScore = homeScore !== '' && awayScore !== '' && homeScore != null && awayScore != null;
     const resultLabel = result === 'home' ? `${home} Win` : result === 'away' ? `${away} Win` : 'Draw';
+    const bothTBD = home === 'TBD' && away === 'TBD';
+    const stageLabel = stage || 'My Prediction';
 
-    const shareText = `${homeFlag} ${home} ${hasScore ? `${homeScore}–${awayScore}` : resultLabel} ${awayFlag} ${away}${streak > 0 ? ` | 🔥 Streak: ${streak}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCup`;
+    const shareText = bothTBD
+      ? `My ${stageLabel} pick: ${hasScore ? `${homeScore}–${awayScore}` : resultLabel}${streak > 0 ? ` | 🔥 Streak: ${streak}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCup`
+      : `${homeFlag} ${home} ${hasScore ? `${homeScore}–${awayScore}` : resultLabel} ${awayFlag} ${away}${streak > 0 ? ` | 🔥 Streak: ${streak}` : ''}\n\nCan you beat me? goaloracle.io\n#GoalOracle #WorldCup`;
 
     const shareTwitter = () => { window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank'); };
     const shareWhatsApp = () => { window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank'); };
@@ -3579,16 +3612,26 @@ const GoalOracle = () => {
           {/* Preview card */}
           <div className="share-preview-card" id="share-card">
             <div className="spc-brand"><span className="gt">GoalOracle</span> <span>⚽</span></div>
-            <div className="spc-label">My Prediction</div>
-            <div className="spc-match-row">
-              <div className="spc-team"><span className="spc-flag">{homeFlag}</span><span>{home}</span></div>
-              {hasScore ? (
-                <div className="spc-score">{homeScore} – {awayScore}</div>
-              ) : (
-                <div className="spc-result-tag">{resultLabel}</div>
-              )}
-              <div className="spc-team"><span>{away}</span><span className="spc-flag">{awayFlag}</span></div>
-            </div>
+            <div className="spc-label">My Prediction{stage ? ` · ${stage}` : ''}</div>
+            {bothTBD ? (
+              <div className="spc-match-row spc-match-tbd">
+                {hasScore ? (
+                  <div className="spc-score">{homeScore} – {awayScore}</div>
+                ) : (
+                  <div className="spc-result-tag">{resultLabel}</div>
+                )}
+              </div>
+            ) : (
+              <div className="spc-match-row">
+                <div className="spc-team">{homeFlag && <span className="spc-flag">{homeFlag}</span>}<span>{home}</span></div>
+                {hasScore ? (
+                  <div className="spc-score">{homeScore} – {awayScore}</div>
+                ) : (
+                  <div className="spc-result-tag">{resultLabel}</div>
+                )}
+                <div className="spc-team"><span>{away}</span>{awayFlag && <span className="spc-flag">{awayFlag}</span>}</div>
+              </div>
+            )}
             {streak > 0 && (
               <div className="spc-streak">
                 <Flame size={14} /> Streak: {streak} Correct
@@ -3807,6 +3850,7 @@ const GoalOracle = () => {
         const updated = await updateUserProfile(uData.id, { displayName: trimmed, usernameSet: true });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
+        if (updated && !updated.email && !updated.emailSkipped) setShowEmailPrompt(true);
         notify(`Welcome, ${trimmed}!`);
       } catch(e) { setErr(e.message); } finally { setBusy(false); }
     };
@@ -3818,6 +3862,7 @@ const GoalOracle = () => {
         const updated = await updateUserProfile(uData.id, { displayName: emailPrefix, usernameSet: true });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
+        if (updated && !updated.email && !updated.emailSkipped) setShowEmailPrompt(true);
         notify(`Welcome, ${emailPrefix}!`);
       } catch(e) { setErr(e.message); } finally { setBusy(false); }
     };
@@ -3854,6 +3899,68 @@ const GoalOracle = () => {
               Use <strong>{emailPrefix}</strong> as my username
             </button>
           )}
+        </div>
+      </div>
+    );
+  };
+
+  // ================================
+  // EMAIL PROMPT (shown once to wallet-only users — we need an email so we
+  // can send match reminders + result notifications)
+  // ================================
+  const EmailPrompt = () => {
+    const [email, setEmail] = useState('');
+    const [err, setErr] = useState('');
+    const [busy, setBusy] = useState(false);
+
+    const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
+    const handleSave = async () => {
+      const trimmed = email.trim();
+      if (!validEmail(trimmed)) { setErr('Please enter a valid email address.'); return; }
+      setBusy(true); setErr('');
+      try {
+        const updated = await updateUserProfile(uData.id, { email: trimmed });
+        if (updated) setUData(updated);
+        setShowEmailPrompt(false);
+        notify('Email saved — we\'ll send you match reminders.');
+      } catch(e) { setErr(e.message); } finally { setBusy(false); }
+    };
+
+    const handleSkip = async () => {
+      setBusy(true); setErr('');
+      try {
+        const updated = await updateUserProfile(uData.id, { emailSkipped: true });
+        if (updated) setUData(updated);
+        setShowEmailPrompt(false);
+      } catch(e) { setErr(e.message); } finally { setBusy(false); }
+    };
+
+    return (
+      <div className="modal-overlay" style={{zIndex: 2000}}>
+        <div className="username-modal">
+          <div className="username-modal-icon">✉️</div>
+          <h2 className="username-modal-title">Add your email</h2>
+          <p className="username-modal-desc">We&rsquo;ll only use it to send match reminders before kickoff and result notifications after. No spam — you can unsubscribe anytime.</p>
+
+          <div className="username-input-wrap">
+            <input
+              type="email" value={email}
+              onChange={e => { setEmail(e.target.value); setErr(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              className="username-input" placeholder="you@example.com"
+              maxLength={120} autoFocus
+            />
+          </div>
+          {err && <div className="username-error"><AlertTriangle size={14} /> {err}</div>}
+
+          <button type="button" className="btn btn-primary btn-lg username-submit" onClick={handleSave} disabled={busy || !email.trim()}>
+            {busy ? <><RefreshCw size={16} className="spin" /> Saving...</> : <>Save email <ChevronRight size={16} /></>}
+          </button>
+
+          <button type="button" className="btn btn-ghost username-email-btn" onClick={handleSkip} disabled={busy}>
+            Skip for now
+          </button>
         </div>
       </div>
     );
@@ -4038,6 +4145,7 @@ const GoalOracle = () => {
       {fundModal && <AddFundsModal />}
       {sendModal && <SendModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
+      {showEmailPrompt && !showUsernamePrompt && authenticated && uData && <EmailPrompt />}
       <ShareCardModal />
     </div>
   );

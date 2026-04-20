@@ -157,6 +157,7 @@ export async function updateUserProfile(userId, updates) {
   if (updates.displayName && updates.displayName.trim()) safeUpdates.displayName = updates.displayName.trim();
   if (updates.usernameSet === true) safeUpdates.usernameSet = true;
   if (updates.email) safeUpdates.email = updates.email;
+  if (updates.emailSkipped === true) safeUpdates.emailSkipped = true;
   if (updates.walletAddress) safeUpdates.walletAddress = updates.walletAddress;
   await updateDoc(userRef, safeUpdates);
   const fresh = await getDoc(userRef);

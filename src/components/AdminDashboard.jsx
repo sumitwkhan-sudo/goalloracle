@@ -283,7 +283,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               <div key={u.id} className="admin-list-card">
                 <div className="admin-list-left">
                   <div>
-                    <div className="admin-user-name">{u.displayName || u.id.slice(0, 12)}</div>
+                    <div className="admin-user-name">
+                      {u.displayName || u.id.slice(0, 12)}
+                      {!u.email && <span className="admin-user-noemail" title="No email on file — user can't be reached for reminders">no email</span>}
+                    </div>
                     {u.email && <div className="admin-user-email">{u.email}</div>}
                     {u.walletAddress && <div className="admin-user-email" style={{fontSize:'0.7rem',opacity:0.6}}>{u.walletAddress.slice(0, 10)}...{u.walletAddress.slice(-6)}</div>}
                     {!u.email && !u.walletAddress && <div className="admin-user-email">{u.id.slice(0, 20)}...</div>}

@@ -1283,7 +1283,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   border: 1px solid rgba(0,212,255,0.3); border-radius: var(--radius-lg);
   cursor: pointer; transition: transform 0.2s, border-color 0.2s;
 }
-.dv2-simple-cta:hover { transform: translateY(-1px); border-color: var(--primary); }
+.dv2-simple-cta:hover { border-color: var(--primary); }
 .dv2-simple-cta-icon {
   display: flex; align-items: center; justify-content: center;
   width: 44px; height: 44px; border-radius: 50%;
@@ -1520,7 +1520,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
   cursor: pointer; transition: transform 0.2s, border-color 0.2s;
 }
-.dv2-flow-card:hover { transform: translateY(-2px); border-color: var(--border-br); }
+.dv2-flow-card:hover { border-color: var(--border-br); }
 .dv2-flow-simple {
   background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(255,45,135,0.03));
   border-color: rgba(0,212,255,0.3);
@@ -2143,8 +2143,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .admin-form-btns { display: flex; gap: 0.5rem; }
 
 /* User items */
-.admin-user-name { font-size: 0.82rem; font-weight: 600; }
+.admin-user-name { font-size: 0.82rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 .admin-user-email { font-size: 0.6rem; color: var(--text-dim); font-family: var(--mono); }
+.admin-user-noemail {
+  font-size: 0.55rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 0.1rem 0.35rem; border-radius: 4px;
+  background: rgba(255, 184, 0, 0.14); color: var(--amber, #ffb800);
+}
 .admin-role-badge {
   font-family: var(--mono); font-size: 0.55rem; font-weight: 600; padding: 0.15rem 0.5rem;
   border-radius: 20px; letter-spacing: 0.04em;
@@ -2741,11 +2746,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .dv2-stat-card {
   background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 12px;
   padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.15rem;
-  animation: fadeUp 0.4s both;
 }
-.dv2-anim-1 { animation-delay: 0ms; }
-.dv2-anim-2 { animation-delay: 80ms; }
-.dv2-anim-3 { animation-delay: 160ms; }
+.dv2-anim-1, .dv2-anim-2, .dv2-anim-3 { animation: none; }
 .dv2-stat-label { font-family: var(--font-data); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
 .dv2-stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--text); line-height: 1.1; }
 .dv2-stat-sub { font-size: 0.7rem; color: var(--text-sec); }
@@ -3753,22 +3755,21 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .pib-reset:hover:not(:disabled) { background: rgba(255,59,92,0.08); }
 
 /* Dashboard: hide async-dependent chunks until data resolves so the header
-   doesn't flicker between loading and final states on every page load. */
+   doesn't flicker between loading and final states on every page load.
+   Skeletons are STATIC (no pulse) — any animation here is perceived as
+   flicker on each navigation. */
 .dv2-sub-loading {
   display: inline-block; min-width: 14rem; min-height: 1em;
-  background: var(--bg-elev); border-radius: 4px;
-  animation: dv2-shimmer 1.2s ease-in-out infinite;
+  background: var(--bg-elev); border-radius: 4px; opacity: 0.55;
 }
 .dv2-stat-skeleton {
   display: inline-block; min-width: 3rem; min-height: 1em;
-  background: var(--bg-elev); border-radius: 4px;
-  animation: dv2-shimmer 1.2s ease-in-out infinite;
+  background: var(--bg-elev); border-radius: 4px; opacity: 0.55;
 }
 .dv2-stat-skeleton-sm { min-width: 6rem; min-height: 0.8em; margin-top: 0.3rem; }
-@keyframes dv2-shimmer {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 0.85; }
-}
+/* Reserves vertical space for the Needs-Your-Prediction section while the
+   Quick Picks fetch resolves, so the layout doesn't jump when cards appear. */
+.dv2-section-placeholder { min-height: 4.5rem; }
 
 /* ───────────────────────────────────────────────────────────
    Live Standings Drawer (Classic Predictions)
