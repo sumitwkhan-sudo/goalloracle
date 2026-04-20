@@ -3729,3 +3729,19 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .bracket-share-actions { grid-template-columns: 1fr; }
   .bracket-share-actions .share-btn-native { grid-column: auto; }
 }
+
+/* Admin: inline league rename */
+.admin-league-rename-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 0.4rem; padding: 0.15rem 0.35rem;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 4px; cursor: pointer;
+  color: var(--text-sec); vertical-align: middle;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.admin-league-rename-btn:hover { color: var(--primary); border-color: rgba(124,92,255,0.35); background: rgba(124,92,255,0.08); }
+.admin-league-edit-row { display: flex; align-items: center; gap: 0.4rem; }
+.admin-league-name-input {
+  flex: 1; min-width: 0; max-width: 320px;
+  padding: 0.3rem 0.55rem; font-size: 0.95rem; font-weight: 600;
+}

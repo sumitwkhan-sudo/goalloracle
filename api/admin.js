@@ -124,6 +124,31 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, deleted: leagueId });
     }
 
+    if (action === 'renameLeague') {
+      const { leagueId, name } = req.body;
+      if (!leagueId) return res.status(400).json({ error: 'Missing leagueId' });
+      const trimmed = (name || '').trim();
+      if (!trimmed) return res.status(400).json({ error: 'Name is required' });
+      if (trimmed.length > 60) return res.status(400).json({ error: 'Name too long (max 60 chars)' });
+
+      const leagueSnap = await db.collection('leagues').doc(leagueId).get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+      const prevName = leagueSnap.data().name || null;
+      if (prevName === trimmed) return res.status(200).json({ success: true, name: trimmed, unchanged: true });
+
+      await db.collection('leagues').doc(leagueId).update({ name: trimmed });
+      await db.collection('adminLogs').add({
+        action: 'rename_league',
+        leagueId,
+        previousName: prevName,
+        newName: trimmed,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+
+      return res.status(200).json({ success: true, name: trimmed });
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
   } catch (e) {
     console.error('Admin error:', e);

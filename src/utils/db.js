@@ -416,6 +416,10 @@ export async function adminDeleteLeague(leagueId) {
   await apiCall('admin', 'POST', { action: 'deleteLeague', leagueId });
 }
 
+export async function adminRenameLeague(leagueId, name) {
+  return await apiCall('admin', 'POST', { action: 'renameLeague', leagueId, name });
+}
+
 export async function setUserRole(userId, role, adminId) {
   await apiCall('admin', 'POST', { action: 'setRole', targetUserId: userId, newRole: role });
 }

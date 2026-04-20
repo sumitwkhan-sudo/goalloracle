@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap } from 'lucide-react';
+import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, checkOracleHealth } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, checkOracleHealth } from '../utils/db';
 
 const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify }) => {
   const [tab, setTab] = useState('results');
@@ -12,6 +12,38 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [userSearch, setUserSearch] = useState('');
   const [matchFilter, setMatchFilter] = useState('pending'); // pending | verified | all
   const [deleting, setDeleting] = useState(null);
+  const [editingLeagueId, setEditingLeagueId] = useState(null);
+  const [editingLeagueName, setEditingLeagueName] = useState('');
+  const [savingLeagueId, setSavingLeagueId] = useState(null);
+
+  const startRename = (league) => {
+    setEditingLeagueId(league.id);
+    setEditingLeagueName(league.name || '');
+  };
+  const cancelRename = () => {
+    setEditingLeagueId(null);
+    setEditingLeagueName('');
+  };
+  const saveRename = async (league) => {
+    const trimmed = editingLeagueName.trim();
+    if (!trimmed) { notify('Name is required', 'error'); return; }
+    if (trimmed === (league.name || '')) { cancelRename(); return; }
+    if (trimmed.length > 60) { notify('Name too long (max 60 chars)', 'error'); return; }
+    setSavingLeagueId(league.id);
+    try {
+      await adminRenameLeague(league.id, trimmed);
+      // Update the in-memory list so the new name shows immediately.
+      // allLeagues is a prop; the parent will refetch on next mount, but for
+      // this session we mutate the prop entry for a snappy UX.
+      league.name = trimmed;
+      notify(`Renamed to "${trimmed}"`);
+      cancelRename();
+    } catch (e) {
+      notify(e.message || 'Rename failed', 'error');
+    } finally {
+      setSavingLeagueId(null);
+    }
+  };
   const [health, setHealth] = useState(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState(null);
@@ -283,30 +315,69 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
 
           <div className="admin-card-list admin-scroll">
             {(allLeagues || []).length === 0 && <div className="admin-empty">No leagues found.</div>}
-            {(allLeagues || []).map(l => (
-              <div key={l.id} className="admin-list-card">
-                <div className="admin-list-left">
-                  <div>
-                    <div className="admin-user-name">{l.visibility === 'private' ? '🔒 ' : ''}{l.name || l.id}</div>
-                    <div className="admin-user-email">
-                      Created by {l.createdBy?.slice(0, 10) || 'system'} · {l.visibility || 'public'}
-                      {l.passcode ? ` · ${l.passcode}` : ''}
+            {(allLeagues || []).map(l => {
+              const isEditing = editingLeagueId === l.id;
+              const isSaving = savingLeagueId === l.id;
+              return (
+                <div key={l.id} className="admin-list-card">
+                  <div className="admin-list-left">
+                    <div style={{minWidth:0, flex:1}}>
+                      {isEditing ? (
+                        <div className="admin-league-edit-row">
+                          <input
+                            type="text"
+                            className="input-field admin-league-name-input"
+                            value={editingLeagueName}
+                            onChange={(e) => setEditingLeagueName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveRename(l);
+                              else if (e.key === 'Escape') cancelRename();
+                            }}
+                            maxLength={60}
+                            autoFocus
+                            disabled={isSaving}
+                          />
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => saveRename(l)} disabled={isSaving} title="Save">
+                            {isSaving ? <RefreshCw size={12} className="spin" /> : <Check size={14} />}
+                          </button>
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={cancelRename} disabled={isSaving} title="Cancel">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="admin-user-name">
+                          {l.visibility === 'private' ? '🔒 ' : ''}{l.name || l.id}
+                          <button
+                            type="button"
+                            className="admin-league-rename-btn"
+                            onClick={() => startRename(l)}
+                            title="Rename league"
+                            aria-label={`Rename ${l.name || l.id}`}
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        </div>
+                      )}
+                      <div className="admin-user-email">
+                        Created by {l.createdBy?.slice(0, 10) || 'system'} · {l.visibility || 'public'}
+                        {l.passcode ? ` · ${l.passcode}` : ''}
+                      </div>
                     </div>
                   </div>
+                  <div className="admin-list-right">
+                    <span className={`admin-league-type ${l.type === 'paid' ? 'paid' : 'free'}`}>
+                      {l.type === 'paid' ? `PAID · ${l.entryFee} ${l.currency || 'USDC'}` : 'FREE'}
+                    </span>
+                    <span className="admin-league-members">{l.memberCount || l.members?.length || 0} members</span>
+                    {l.id !== 'global' && !isEditing && (
+                      <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteLeague(l.id, l.name)} disabled={deleting === l.id}>
+                        {deleting === l.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />} Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="admin-list-right">
-                  <span className={`admin-league-type ${l.type === 'paid' ? 'paid' : 'free'}`}>
-                    {l.type === 'paid' ? `PAID · ${l.entryFee} ${l.currency || 'USDC'}` : 'FREE'}
-                  </span>
-                  <span className="admin-league-members">{l.memberCount || l.members?.length || 0} members</span>
-                  {l.id !== 'global' && (
-                    <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteLeague(l.id, l.name)} disabled={deleting === l.id}>
-                      {deleting === l.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />} Delete
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
