@@ -1702,7 +1702,6 @@ const GoalOracle = () => {
     const lvl = useMemo(() => getLevelInfo(xpTotal), [xpTotal]);
     const totalCompleted = useMemo(() => Object.entries(preds).filter(([id]) => results[id]?.completed).length, [preds, results]);
     const accuracy = totalCompleted > 0 ? Math.round((totalStats.correctResults / totalCompleted) * 100) : 0;
-    const isFirstTime = Object.keys(preds).length === 0 && totalCompleted === 0;
 
     // Matches needing prediction (Classic)
     const needsPrediction = useMemo(() =>
@@ -1714,6 +1713,16 @@ const GoalOracle = () => {
 
     // Quick Picks completion summary — fetched once from the user's global-simple doc
     const [quickPicks, setQuickPicks] = useState(null);
+
+    // Don't flag "first time" until the Quick Picks fetch has resolved once —
+    // otherwise returning users briefly see the onboard banner flash before
+    // their picks arrive from Firestore, then watch it get replaced by stats.
+    // The `quickPicks === null` sentinel means "not loaded yet"; max value of
+    // totalRemaining is 12 groups + 8 thirds + 32 bracket winners = 52.
+    const isFirstTime = quickPicks !== null
+      && quickPicks.totalRemaining === 52
+      && Object.keys(preds).length === 0
+      && totalCompleted === 0;
     useEffect(() => {
       if (!uData?.id) { setQuickPicks(null); return; }
       let cancelled = false;
