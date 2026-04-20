@@ -822,6 +822,7 @@ const GoalOracle = () => {
   const [detailTab, setDetailTab] = useState('predictions');
   const [detailWeek, setDetailWeek] = useState('week1');
   const [detailStage, setDetailStage] = useState('all');
+  const [standingsOpen, setStandingsOpen] = useState(false);
   const [detailPredView, setDetailPredView] = useState(() => {
     // Default to 'rows' on mobile, 'rows' on desktop (user can toggle)
     // But on desktop, rows will render in 2 columns via CSS
@@ -2386,7 +2387,6 @@ const GoalOracle = () => {
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
-    const [standingsOpen, setStandingsOpen] = useState(false);
     const [resettingPicks, setResettingPicks] = useState(false);
     const weekCelebratedRef = useRef({});
 
