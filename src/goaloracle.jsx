@@ -3803,12 +3803,14 @@ const GoalOracle = () => {
     }, []);
     if (!t) return null;
     return (
-      <div className="wc-countdown" role="status" aria-live="polite">
-        <span className="wc-countdown-pulse" aria-hidden="true" />
-        <span className="wc-countdown-label">World Cup kicks off in</span>
-        <span className="wc-countdown-value">
-          <strong>{t.days}</strong>d <strong>{t.hours}</strong>h <strong>{t.minutes}</strong>m
-        </span>
+      <div className="wc-countdown-wrap">
+        <div className="wc-countdown" role="status" aria-live="polite">
+          <span className="wc-countdown-pulse" aria-hidden="true" />
+          <span className="wc-countdown-label">World Cup kicks off in</span>
+          <span className="wc-countdown-value">
+            <strong>{t.days}</strong>d <strong>{t.hours}</strong>h <strong>{t.minutes}</strong>m
+          </span>
+        </div>
       </div>
     );
   };
