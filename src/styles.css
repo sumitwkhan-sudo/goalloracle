@@ -217,12 +217,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .hero-stadium-bg {
   position: absolute; inset: 0; z-index: 0;
   background: url('https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80') center center / cover no-repeat;
-  filter: saturate(0.35) brightness(0.35); transform: scale(1.05);
+  /* Brightened from 0.35 → 0.55 so the stadium is actually visible in dark mode. */
+  filter: saturate(0.55) brightness(0.55); transform: scale(1.05);
 }
 [data-theme="light"] .hero-stadium-bg { filter: saturate(0.5) brightness(0.65); }
 .hero-stadium-overlay {
   position: absolute; inset: 0; z-index: 1;
-  background: linear-gradient(180deg, rgba(5,5,8,0.35) 0%, rgba(5,5,8,0.5) 40%, rgba(5,5,8,0.88) 80%, var(--bg) 100%),
+  /* Top is now more translucent so the stadium reads through; bottom still
+     fades to --bg so downstream sections blend cleanly. */
+  background: linear-gradient(180deg, rgba(5,5,8,0.18) 0%, rgba(5,5,8,0.32) 40%, rgba(5,5,8,0.82) 80%, var(--bg) 100%),
     radial-gradient(ellipse at 30% 20%, rgba(0,212,255,0.1) 0%, transparent 60%),
     radial-gradient(ellipse at 70% 60%, rgba(255,45,135,0.08) 0%, transparent 50%);
 }
@@ -423,8 +426,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* ─── SPLIT HERO ─── */
 .hero-split { min-height: auto; padding-bottom: 0; }
-.hero-split .hero-stadium-overlay { background: linear-gradient(135deg, rgba(5,5,8,0.92) 50%, rgba(5,5,8,0.7)); }
-[data-theme="light"] .hero-split .hero-stadium-overlay { background: linear-gradient(135deg, rgba(0,0,0,0.82) 50%, rgba(0,0,0,0.5)); }
+.hero-split .hero-stadium-overlay { background: linear-gradient(135deg, rgba(5,5,8,0.72) 50%, rgba(5,5,8,0.45)); }
+[data-theme="light"] .hero-split .hero-stadium-overlay { background: linear-gradient(135deg, rgba(0,0,0,0.65) 50%, rgba(0,0,0,0.35)); }
 .hero-split-inner {
   position: relative; z-index: 3; max-width: 1200px; margin: 0 auto;
   display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem;
@@ -3579,42 +3582,49 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .lt-col-mode, .lt-col-members, .lt-col-entry { display: inline-block !important; width: auto !important; margin-right: 0.6rem; }
 }
 
-/* ─── World Cup kick-off countdown (gold pill under nav) ── */
+/* ─── World Cup kick-off countdown (gold pill on hero) ──── */
+/* Sits absolutely positioned over the stadium background, legible in
+   both dark and light themes thanks to its own dark backdrop. */
 .wc-countdown-wrap {
+  position: absolute; top: 1rem; left: 0; right: 0;
   display: flex; justify-content: center;
-  padding: 0.7rem 1rem 0.4rem;
-  pointer-events: none; /* only the pill itself catches clicks */
+  padding: 0 1rem;
+  z-index: 3; /* above stadium-bg + overlay, below hero content */
+  pointer-events: none; /* side padding is click-through */
 }
 .wc-countdown {
   pointer-events: auto;
   display: inline-flex; align-items: center; gap: 0.5rem;
   padding: 0.4rem 0.95rem; border-radius: 999px;
-  background: rgba(255, 183, 0, 0.1);
-  border: 1px solid rgba(255, 183, 0, 0.4);
-  color: #ffd700; /* gold body text */
-  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.01em;
-  box-shadow: 0 2px 12px -4px rgba(255, 183, 0, 0.35);
+  background: rgba(12, 8, 0, 0.72); /* dark glass so gold reads on light theme too */
+  border: 1px solid rgba(255, 215, 0, 0.55);
+  color: #ffd700;
+  font-size: 0.82rem; font-weight: 600; letter-spacing: 0.01em;
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 215, 0, 0.1);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
 }
 .wc-countdown-pulse {
   width: 7px; height: 7px; border-radius: 50%;
   background: #ffd700;
-  box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.75);
+  box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.8);
   animation: wc-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   flex-shrink: 0;
 }
 @keyframes wc-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.75); transform: scale(1); }
+  0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.85); transform: scale(1); }
   70% { box-shadow: 0 0 0 8px rgba(255, 215, 0, 0); transform: scale(1.2); }
   100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); transform: scale(1); }
 }
-.wc-countdown-label { color: #ffb800; font-weight: 500; opacity: 0.9; }
+.wc-countdown-label { color: #ffcb3c; font-weight: 500; }
 .wc-countdown-value {
   font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: #ffd700;
 }
-.wc-countdown-value strong { color: #fff59a; font-weight: 700; }
+.wc-countdown-value strong { color: #fff2a8; font-weight: 700; }
 @media (max-width: 480px) {
-  .wc-countdown-wrap { padding: 0.55rem 0.75rem 0.3rem; }
-  .wc-countdown { font-size: 0.72rem; padding: 0.35rem 0.8rem; gap: 0.4rem; }
+  .wc-countdown-wrap { top: 0.6rem; }
+  .wc-countdown { font-size: 0.74rem; padding: 0.35rem 0.8rem; gap: 0.4rem; }
   .wc-countdown-label { display: none; }
 }
 

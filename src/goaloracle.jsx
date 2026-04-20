@@ -1380,6 +1380,7 @@ const GoalOracle = () => {
         <section className={`hero hero-split ${heroAnimated ? 'hero-no-anim' : ''}`}>
           <div className="hero-stadium-bg"></div>
           <div className="hero-stadium-overlay"></div>
+          <WorldCupCountdown />
           <div className="hero-split-inner" ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
             <div className="hero-left">
               <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
@@ -3887,7 +3888,6 @@ const GoalOracle = () => {
         }} />
       ))}</div>}
       <Nav />
-      <WorldCupCountdown />
 
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && <Dash />}
