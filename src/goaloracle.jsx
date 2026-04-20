@@ -3454,9 +3454,20 @@ const GoalOracle = () => {
     const [activeChain, setActiveChain] = useState(CHAINS[0]);
     const [editingName, setEditingName] = useState(false);
     const [newName, setNewName] = useState('');
+    const [editingCountry, setEditingCountry] = useState(false);
+    const [newCountry, setNewCountry] = useState(uData?.country || '');
+    const [savingCountry, setSavingCountry] = useState(false);
+    const [countriesList, setCountriesList] = useState([]);
     const walletAddr = walletAddress;
     const displayEmail = uData?.email || '';
     const displayName = uData?.displayName || displayEmail?.split('@')[0] || 'Player';
+    const userCountryCode = uData?.country || '';
+    const userCountryFlag = _countryFlag(userCountryCode);
+
+    useEffect(() => {
+      if (!editingCountry || countriesList.length > 0) return;
+      import('./utils/countries').then(mod => setCountriesList(mod.default || []));
+    }, [editingCountry]);
 
     const copyAddress = () => {
       if (!walletAddr) return;
@@ -3473,6 +3484,18 @@ const GoalOracle = () => {
         setEditingName(false);
         notify('Display name updated!');
       } catch(e) { notify('Failed to update name', 'error'); }
+    };
+
+    const saveCountry = async () => {
+      if (!newCountry || newCountry === userCountryCode) { setEditingCountry(false); return; }
+      setSavingCountry(true);
+      try {
+        const updated = await updateUserProfile(uData.id, { country: newCountry });
+        if (updated) setUData(updated);
+        setEditingCountry(false);
+        notify('Country updated!');
+      } catch(e) { notify('Failed to update country', 'error'); }
+      finally { setSavingCountry(false); }
     };
 
     return (
@@ -3496,6 +3519,29 @@ const GoalOracle = () => {
                   <input type="text" value={newName} onChange={e => setNewName(e.target.value)} className="edit-name-input" maxLength={24} placeholder="Display name" onKeyDown={e => e.key === 'Enter' && saveName()} autoFocus />
                   <button type="button" className="btn btn-primary btn-sm" onClick={saveName} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>Save</button>
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingName(false)} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>✕</button>
+                </div>
+              )}
+              {!editingCountry ? (
+                <div className="dropdown-name-row dropdown-country-row">
+                  <div className="dropdown-country">
+                    {userCountryCode ? (
+                      <><span className="dropdown-country-flag">{userCountryFlag}</span><span className="dropdown-country-code">{userCountryCode}</span></>
+                    ) : (
+                      <span className="dropdown-country-empty">No country set</span>
+                    )}
+                  </div>
+                  <button type="button" className="edit-name-btn" onClick={() => { setNewCountry(userCountryCode); setEditingCountry(true); }} title="Edit home country">✏️</button>
+                </div>
+              ) : (
+                <div className="edit-name-row">
+                  <select className="edit-name-input" value={newCountry} onChange={e => setNewCountry(e.target.value)} autoFocus disabled={savingCountry} style={{flex:1}}>
+                    <option value="">Select country…</option>
+                    {countriesList.map(c => (
+                      <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                    ))}
+                  </select>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={saveCountry} disabled={savingCountry || !newCountry} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>Save</button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingCountry(false)} disabled={savingCountry} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>✕</button>
                 </div>
               )}
               {displayEmail && <div className="dropdown-email">{displayEmail}</div>}

@@ -149,6 +149,44 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, name: trimmed });
     }
 
+    if (action === 'backfillCountries') {
+      // One-shot: walk every user and assign a country if they don't have
+      // one. Product-directed override map wins; everyone else defaults to
+      // US (we can't geolocate server-side per-user after the fact).
+      const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
+      const usersSnap = await db.collection('users').get();
+      let updated = 0;
+      let skipped = 0;
+      const overrideHits = [];
+      const docs = usersSnap.docs;
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = db.batch();
+        let batchCount = 0;
+        docs.slice(i, i + 400).forEach(d => {
+          const u = d.data();
+          if (u.country) { skipped++; return; }
+          const override = OVERRIDES[u.displayName];
+          const country = override || 'US';
+          if (override) overrideHits.push({ displayName: u.displayName, country });
+          batch.update(d.ref, { country });
+          batchCount++;
+        });
+        if (batchCount > 0) {
+          await batch.commit();
+          updated += batchCount;
+        }
+      }
+      await db.collection('adminLogs').add({
+        action: 'backfill_countries',
+        adminId: userId,
+        updated,
+        skipped,
+        overrides: overrideHits,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, updated, skipped, overrides: overrideHits });
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
   } catch (e) {
     console.error('Admin error:', e);

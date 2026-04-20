@@ -430,6 +430,10 @@ export async function adminRenameLeague(leagueId, name) {
   return await apiCall('admin', 'POST', { action: 'renameLeague', leagueId, name });
 }
 
+export async function adminBackfillCountries() {
+  return await apiCall('admin', 'POST', { action: 'backfillCountries' });
+}
+
 export async function setUserRole(userId, role, adminId) {
   await apiCall('admin', 'POST', { action: 'setRole', targetUserId: userId, newRole: role });
 }

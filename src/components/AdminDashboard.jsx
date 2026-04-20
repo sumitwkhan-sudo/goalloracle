@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, checkOracleHealth } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, checkOracleHealth } from '../utils/db';
+
+function _countryFlagFromCode(code) {
+  if (!code || typeof code !== 'string' || code.length !== 2) return '';
+  const A = 0x1F1E6;
+  const base = 'A'.charCodeAt(0);
+  const cc = code.toUpperCase();
+  return String.fromCodePoint(A + (cc.charCodeAt(0) - base), A + (cc.charCodeAt(1) - base));
+}
 
 const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify }) => {
   const [tab, setTab] = useState('results');
@@ -15,6 +23,23 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [editingLeagueId, setEditingLeagueId] = useState(null);
   const [editingLeagueName, setEditingLeagueName] = useState('');
   const [savingLeagueId, setSavingLeagueId] = useState(null);
+  const [backfillingCountries, setBackfillingCountries] = useState(false);
+
+  const runBackfillCountries = async () => {
+    if (!window.confirm('Backfill country for every user that does not already have one? Sumit → BD, lebida2352 → PK, everyone else → US.')) return;
+    setBackfillingCountries(true);
+    try {
+      const res = await adminBackfillCountries();
+      notify(`Country backfill: updated ${res.updated}, skipped ${res.skipped}`);
+      // Refresh the user list so the new country codes show up.
+      const fresh = await getAllUsers();
+      setUsers(fresh);
+    } catch (e) {
+      notify('Backfill failed: ' + e.message, 'error');
+    } finally {
+      setBackfillingCountries(false);
+    }
+  };
 
   const startRename = (league) => {
     setEditingLeagueId(league.id);
@@ -274,6 +299,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             <div className="admin-search-wrap">
               <Search size={14} />
               <input type="text" placeholder="Search users..." value={userSearch} onChange={e => setUserSearch(e.target.value)} className="admin-search" />
+              <button type="button" className="btn btn-secondary btn-sm" onClick={runBackfillCountries} disabled={backfillingCountries} title="Assign country to every user missing one (Sumit→BD, lebida2352→PK, everyone else→US)">
+                {backfillingCountries ? <><RefreshCw size={12} className="spin" /> Backfilling…</> : <>Backfill countries</>}
+              </button>
             </div>
           </div>
 
@@ -284,8 +312,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 <div className="admin-list-left">
                   <div>
                     <div className="admin-user-name">
+                      {u.country && <span className="admin-user-flag" title={u.country}>{_countryFlagFromCode(u.country)}</span>}
                       {u.displayName || u.id.slice(0, 12)}
                       {!u.email && <span className="admin-user-noemail" title="No email on file — user can't be reached for reminders">no email</span>}
+                      {!u.country && <span className="admin-user-noemail" title="No country on file">no country</span>}
                     </div>
                     {u.email && <div className="admin-user-email">{u.email}</div>}
                     {u.walletAddress && <div className="admin-user-email" style={{fontSize:'0.7rem',opacity:0.6}}>{u.walletAddress.slice(0, 10)}...{u.walletAddress.slice(-6)}</div>}
