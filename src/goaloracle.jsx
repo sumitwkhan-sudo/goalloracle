@@ -267,6 +267,15 @@ const _teamFlags = (() => {
   return flags;
 })();
 
+// Country flag emoji from ISO-2 code. Falls back to empty string.
+function _countryFlag(code) {
+  if (!code || typeof code !== 'string' || code.length !== 2) return '';
+  const A = 0x1F1E6;
+  const base = 'A'.charCodeAt(0);
+  const cc = code.toUpperCase();
+  return String.fromCodePoint(A + (cc.charCodeAt(0) - base), A + (cc.charCodeAt(1) - base));
+}
+
 // Post-join prompt: offers to copy existing Global predictions into the newly
 // joined league (classic only). Simple leagues share a single prediction doc
 // across all simple leagues, so this just confirms that.
@@ -434,13 +443,14 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
     (async () => {
       setClassicLbl(true);
       try {
-        const { leaderboard: bu, userNames } = await getLeagueLeaderboard('global');
+        const { leaderboard: bu, userNames, userCountries } = await getLeagueLeaderboard('global');
         if (cancelled) return;
         const entries = Object.entries(bu).map(([uid, preds]) => {
           const predCount = Object.values(preds || {}).filter(p => p?.result).length;
           return {
             userId: uid,
             displayName: userNames[uid] || uid.slice(0, 8),
+            country: userCountries?.[uid] || null,
             predictions: predCount,
             rawPredictions: preds || {},
           };
@@ -617,6 +627,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                     <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
                     <div>
                       <div className="player-name">
+                        {e.country && <span className="player-country-flag" title={e.country}>{_countryFlag(e.country)}</span>}
                         {e.displayName}
                         {isYou && <span className="you-badge">You</span>}
                       </div>
@@ -701,6 +712,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                     <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
                     <div>
                       <div className="player-name">
+                        {e.country && <span className="player-country-flag" title={e.country}>{_countryFlag(e.country)}</span>}
                         {e.displayName}
                         {isYou && <span className="you-badge">You</span>}
                       </div>
@@ -992,6 +1004,24 @@ const GoalOracle = () => {
       // can send reminders + result notifications. Respect emailSkipped if
       // they've already dismissed it once.
       else if (!u.email && !u.emailSkipped) setShowEmailPrompt(true);
+
+      // Backfill country for existing users who signed up before we required
+      // it. Product directive: known overrides go first, then IP geolocation,
+      // then default to US so the leaderboard flag is never blank.
+      if (u.usernameSet && !u.country) {
+        (async () => {
+          try {
+            const { detectCountryByIP } = await import('./utils/countries');
+            const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
+            const hardcoded = OVERRIDES[u.displayName];
+            const detected = hardcoded || (await detectCountryByIP()) || 'US';
+            const updated = await updateUserProfile(u.id, { country: detected });
+            if (updated) setUData(updated);
+          } catch (e) {
+            console.warn('[auth] country backfill failed:', e.message);
+          }
+        })();
+      }
     };
 
     // Delay first attempt 1s to let Privy wallet iframe initialize
@@ -3947,18 +3977,40 @@ const GoalOracle = () => {
   // ================================
   const UsernamePrompt = () => {
     const [username, setUsername] = useState('');
+    const [country, setCountry] = useState('');
     const [err, setErr] = useState('');
     const [busy, setBusy] = useState(false);
     const email = uData?.email || '';
     const emailPrefix = email?.split('@')[0] || '';
 
-    const handleSubmit = async (chosenName) => {
+    // Pre-fill the country dropdown with the user's IP-detected country so
+    // they usually only need to confirm, not hunt through a 160-row list.
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const { detectCountryByIP } = await import('./utils/countries');
+          const detected = await detectCountryByIP();
+          if (!cancelled && detected && !country) setCountry(detected);
+        } catch {}
+      })();
+      return () => { cancelled = true; };
+    }, []);
+
+    const saveBoth = async (chosenName) => {
       const trimmed = chosenName.trim();
       const validErr = validateUsername(trimmed);
       if (validErr) { setErr(validErr); return; }
+      if (!country) { setErr('Please select your home country.'); return; }
       setBusy(true); setErr('');
       try {
-        const updated = await updateUserProfile(uData.id, { displayName: trimmed, usernameSet: true });
+        // Manual override: if the entered name matches one of the product
+        // directives for legacy test users, honor the override instead of
+        // their picker choice. Keeps Sumit → BD / lebida2352 → PK stable
+        // even if the account is recreated via the sign-up flow.
+        const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
+        const finalCountry = OVERRIDES[trimmed] || country;
+        const updated = await updateUserProfile(uData.id, { displayName: trimmed, usernameSet: true, country: finalCountry });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
         if (updated && !updated.email && !updated.emailSkipped) setShowEmailPrompt(true);
@@ -3966,39 +4018,52 @@ const GoalOracle = () => {
       } catch(e) { setErr(e.message); } finally { setBusy(false); }
     };
 
-    const handleUseEmail = async () => {
-      if (!emailPrefix) return;
-      setBusy(true); setErr('');
-      try {
-        const updated = await updateUserProfile(uData.id, { displayName: emailPrefix, usernameSet: true });
-        if (updated) setUData(updated);
-        setShowUsernamePrompt(false);
-        if (updated && !updated.email && !updated.emailSkipped) setShowEmailPrompt(true);
-        notify(`Welcome, ${emailPrefix}!`);
-      } catch(e) { setErr(e.message); } finally { setBusy(false); }
-    };
+    const handleSubmit = (chosenName) => saveBoth(chosenName);
+    const handleUseEmail = () => { if (emailPrefix) saveBoth(emailPrefix); };
+
+    // Lazy-load the countries list so the first-paint bundle stays small.
+    const [countries, setCountries] = useState([]);
+    useEffect(() => {
+      import('./utils/countries').then(mod => setCountries(mod.default || []));
+    }, []);
 
     return (
       <div className="modal-overlay" style={{zIndex: 2000}}>
         <div className="username-modal">
           <div className="username-modal-icon">👋</div>
-          <h2 className="username-modal-title">Choose Your Username</h2>
-          <p className="username-modal-desc">This is how you'll appear on leaderboards and to other players. Pick something memorable!</p>
+          <h2 className="username-modal-title">Welcome to GoalOracle</h2>
+          <p className="username-modal-desc">Pick a username and your home country — both show up on the leaderboard.</p>
 
           <div className="username-input-wrap">
             <User size={16} className="username-input-icon" />
             <input
               type="text" value={username}
               onChange={e => { setUsername(e.target.value); setErr(''); }}
-              onKeyDown={e => e.key === 'Enter' && username.trim() && handleSubmit(username)}
+              onKeyDown={e => e.key === 'Enter' && username.trim() && country && handleSubmit(username)}
               className="username-input" placeholder="e.g., GoalKing99"
               maxLength={20} autoFocus
             />
           </div>
           <div className="username-rules">3–20 characters · Letters, numbers, _ . - only</div>
+
+          <div className="username-country-wrap">
+            <label className="username-country-label" htmlFor="home-country">Home country</label>
+            <select
+              id="home-country"
+              className="username-country-select"
+              value={country}
+              onChange={e => { setCountry(e.target.value); setErr(''); }}
+            >
+              <option value="">Select your country…</option>
+              {countries.map(c => (
+                <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+              ))}
+            </select>
+          </div>
+
           {err && <div className="username-error"><AlertTriangle size={14} /> {err}</div>}
 
-          <button type="button" className="btn btn-primary btn-lg username-submit" onClick={() => handleSubmit(username)} disabled={busy || !username.trim()}>
+          <button type="button" className="btn btn-primary btn-lg username-submit" onClick={() => handleSubmit(username)} disabled={busy || !username.trim() || !country}>
             {busy ? <><RefreshCw size={16} className="spin" /> Setting up...</> : <>Set Username <ChevronRight size={16} /></>}
           </button>
 
@@ -4006,7 +4071,7 @@ const GoalOracle = () => {
             <div className="username-divider"><span>or</span></div>
           )}
           {emailPrefix && (
-            <button type="button" className="btn btn-secondary username-email-btn" onClick={handleUseEmail} disabled={busy}>
+            <button type="button" className="btn btn-secondary username-email-btn" onClick={handleUseEmail} disabled={busy || !country}>
               Use <strong>{emailPrefix}</strong> as my username
             </button>
           )}

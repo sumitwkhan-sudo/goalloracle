@@ -2053,6 +2053,22 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .username-input:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
 .username-input::placeholder { font-weight: 400; color: var(--text-dim); }
 .username-rules { font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); margin-bottom: 1rem; letter-spacing: 0.03em; }
+.username-country-wrap { text-align: left; margin-bottom: 1rem; }
+.username-country-label { display: block; font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.35rem; }
+.username-country-select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.username-country-select:focus { outline: none; border-color: var(--primary); }
+/* Leaderboard row — country flag before display name */
+.player-country-flag { font-size: 1rem; margin-right: 0.4rem; line-height: 1; vertical-align: -1px; }
 .username-error {
   display: flex; align-items: center; justify-content: center; gap: 0.4rem;
   color: var(--danger); font-size: 0.82rem; font-weight: 500;

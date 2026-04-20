@@ -44,9 +44,10 @@ export default async function handler(req, res) {
           byUser[data.userId][data.matchId] = data;
         });
 
-        // Fetch display names for all users in the leaderboard
+        // Fetch display names + countries for all users in the leaderboard
         const userIds = Object.keys(byUser);
         const userNames = {};
+        const userCountries = {};
         // Firestore 'in' queries max 30 per batch
         for (let i = 0; i < userIds.length; i += 30) {
           const batch = userIds.slice(i, i + 30);
@@ -54,6 +55,7 @@ export default async function handler(req, res) {
           usersSnap.docs.forEach(d => {
             const u = d.data();
             userNames[d.id] = u.displayName || u.email?.split('@')[0] || d.id.slice(0, 8);
+            if (u.country) userCountries[d.id] = u.country;
           });
         }
         // Fill in any missing names
@@ -71,6 +73,7 @@ export default async function handler(req, res) {
               usersSnap.docs.forEach(d => {
                 const u = d.data();
                 userNames[d.id] = u.displayName || u.email?.split('@')[0] || d.id.slice(0, 8);
+                if (u.country) userCountries[d.id] = u.country;
               });
             }
             missingIds.forEach(uid => {
@@ -80,7 +83,7 @@ export default async function handler(req, res) {
           }
         }
 
-        return res.status(200).json({ leaderboard: byUser, userNames });
+        return res.status(200).json({ leaderboard: byUser, userNames, userCountries });
 
       } else if (type === 'user' && userId && leagueId) {
         const snap = await db.collection('predictions')

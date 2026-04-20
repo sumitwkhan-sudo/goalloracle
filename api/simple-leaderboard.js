@@ -28,6 +28,7 @@ export default async function handler(req, res) {
         users[d.id] = {
           displayName: u.displayName || u.email?.split('@')[0] || d.id.slice(0, 8),
           usernameSet: u.usernameSet || false,
+          country: u.country || null,
         };
       });
     }
@@ -76,6 +77,7 @@ export default async function handler(req, res) {
         userId,
         displayName: user.displayName,
         usernameSet: user.usernameSet,
+        country: user.country || null,
         hasSubmitted: !!pred,
         isComplete: pred?.isComplete || false,
         submittedAt: ts?._seconds ? ts._seconds * 1000 : ts?.toMillis ? ts.toMillis() : ts || null,

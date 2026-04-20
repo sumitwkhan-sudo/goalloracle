@@ -158,6 +158,7 @@ export async function updateUserProfile(userId, updates) {
   if (updates.usernameSet === true) safeUpdates.usernameSet = true;
   if (updates.email) safeUpdates.email = updates.email;
   if (updates.emailSkipped === true) safeUpdates.emailSkipped = true;
+  if (typeof updates.country === 'string' && updates.country.trim()) safeUpdates.country = updates.country.trim().toUpperCase();
   if (updates.walletAddress) safeUpdates.walletAddress = updates.walletAddress;
   await updateDoc(userRef, safeUpdates);
   const fresh = await getDoc(userRef);
@@ -262,7 +263,7 @@ export function subscribeToUserPredictions(userId, leagueId, callback) {
 
 export async function getLeagueLeaderboard(leagueId) {
   const data = await apiCall(`predictions?type=leaderboard&leagueId=${leagueId}`);
-  return { leaderboard: data.leaderboard, userNames: data.userNames || {} };
+  return { leaderboard: data.leaderboard, userNames: data.userNames || {}, userCountries: data.userCountries || {} };
 }
 
 // ---- SIMPLE MODE PREDICTIONS (direct Firestore writes) ----
