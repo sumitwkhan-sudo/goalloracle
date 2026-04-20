@@ -2,12 +2,177 @@
 <html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/logo.svg" />
-    <link rel="apple-touch-icon" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GoalOracle — Predict. Compete. Dominate.</title>
-    <meta name="description" content="World Cup 2026 prediction platform. Make predictions, compete in leagues, win crypto prizes." />
+    <meta name="theme-color" content="#FF3B30" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+
+    <title>GoalOracle — Free World Cup 2026 Prediction Game &amp; Bracket Maker</title>
+    <meta name="description" content="Free World Cup 2026 prediction game. Build your bracket, join friends in private leagues, predict every match from groups to the final, and climb the leaderboard. No gambling, no entry fees." />
+    <meta name="keywords" content="world cup 2026 prediction, fifa 26 bracket, pick em, world cup prediction game, world cup bracket maker, prediction league, free bracket challenge" />
+    <meta name="author" content="GoalOracle" />
+
+    <link rel="canonical" href="https://goaloracle.io/" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/logo.svg" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="GoalOracle" />
+    <meta property="og:title" content="GoalOracle — Free World Cup 2026 Prediction Game" />
+    <meta property="og:description" content="Build your World Cup 2026 bracket, join leagues, compete with friends. Free. No gambling. FIFA-rules compliant." />
+    <meta property="og:url" content="https://goaloracle.io/" />
+    <meta property="og:image" content="https://goaloracle.io/og-default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="GoalOracle — Predict the World Cup 2026" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="GoalOracle — Free World Cup 2026 Prediction Game" />
+    <meta name="twitter:description" content="Build your bracket, join leagues, predict every match. Free. FIFA-rules compliant." />
+    <meta name="twitter:image" content="https://goaloracle.io/og-default.png" />
+    <meta name="twitter:image:alt" content="GoalOracle — Predict the World Cup 2026" />
+
+    <!-- Crawler directives -->
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <meta name="googlebot" content="index,follow" />
+
+    <!-- JSON-LD: Organization + WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://goaloracle.io/#org",
+          "name": "GoalOracle",
+          "url": "https://goaloracle.io",
+          "logo": "https://goaloracle.io/logo.svg"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://goaloracle.io/#site",
+          "url": "https://goaloracle.io",
+          "name": "GoalOracle",
+          "publisher": { "@id": "https://goaloracle.io/#org" },
+          "inLanguage": "en-US"
+        }
+      ]
+    }
+    </script>
+
+    <!-- JSON-LD: SoftwareApplication (the game itself) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "GoalOracle",
+      "applicationCategory": "GameApplication",
+      "applicationSubCategory": "Sports Prediction",
+      "operatingSystem": "Web",
+      "url": "https://goaloracle.io",
+      "image": "https://goaloracle.io/og-default.png",
+      "description": "Free World Cup 2026 prediction game with a Quick Picks bracket wizard and a Classic Predictions per-match scoring mode.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      }
+    }
+    </script>
+
+    <!-- JSON-LD: SportsEvent (FIFA World Cup 2026) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SportsEvent",
+      "name": "FIFA World Cup 2026",
+      "startDate": "2026-06-11T15:00:00-04:00",
+      "endDate": "2026-07-19T22:00:00-04:00",
+      "eventStatus": "https://schema.org/EventScheduled",
+      "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+      "sport": "Association Football",
+      "location": [
+        { "@type": "Country", "name": "United States" },
+        { "@type": "Country", "name": "Canada" },
+        { "@type": "Country", "name": "Mexico" }
+      ],
+      "organizer": {
+        "@type": "Organization",
+        "name": "FIFA",
+        "url": "https://www.fifa.com"
+      }
+    }
+    </script>
+
+    <!-- JSON-LD: FAQPage (sourced from on-page FAQ) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is GoalOracle free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. GoalOracle is completely free to play. There are no entry fees, no real-money prizes, and no gambling of any kind. You compete for fun and bragging rights only."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "When does the 2026 World Cup start?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The FIFA World Cup 2026 kicks off on 11 June 2026 at 15:00 ET, hosted across the United States, Canada, and Mexico. The final is on 19 July 2026."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is a Quick Pick?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Quick Picks is GoalOracle's simple prediction mode. Instead of predicting every match, you rank the four teams within each group, choose the eight best third-placed teams, and then pick winners through the knockout bracket. The app fills in the rest. Takes about ten minutes."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does scoring work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Classic Predictions awards 3 points for a correct result, 5 points for an exact score, plus 1 point for a correct extra time call and 2 for correct penalty shootout prediction. Quick Picks totals 76 points: 36 from group rankings, 8 from best-thirds selections, and 32 across the knockout rounds."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How are match results verified?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "GoalOracle uses a dual-source oracle. When a match finishes, results are fetched from two independent football data providers (football-data.org and api-football.com). Both sources must agree on the final score before points are awarded. Disputes trigger manual admin review."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need crypto or money to play?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. GoalOracle is completely free. You can sign up with email, Google, or Twitter/X. An embedded wallet is created for future features, but no funds are collected or required."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "When do predictions lock?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Predictions lock five minutes before each match kicks off. You can update your predictions as many times as you want before the lock — they auto-save as you go."
+          }
+        }
+      ]
+    }
+    </script>
 
     <!-- Google Analytics 4 -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
@@ -28,7 +193,75 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!--
+        Pre-hydration SEO shell. Visible to crawlers and AI answer engines
+        that don't execute JavaScript (GPTBot, ClaudeBot, PerplexityBot).
+        React 18's createRoot().render() replaces these children on mount,
+        so there's no hydration mismatch. `hidden` keeps it invisible to
+        human users during the brief pre-hydration window.
+      -->
+      <div id="seo-shell" hidden>
+        <header>
+          <h1>GoalOracle — Free World Cup 2026 Prediction Game</h1>
+          <p>Predict every match of the 2026 FIFA World Cup. Build your bracket, join leagues with friends, and compete on the global leaderboard. Free to play. No gambling. Prediction engine compliant with the official FIFA World Cup 26 rulebook.</p>
+          <nav>
+            <a href="/">Home</a>
+            <a href="/faq">Frequently Asked Questions</a>
+            <a href="/how-it-works">How it works</a>
+            <a href="/leaderboard">Leaderboard</a>
+          </nav>
+        </header>
+
+        <section>
+          <h2>Two ways to play</h2>
+          <article>
+            <h3>Quick Picks</h3>
+            <p>A guided three-step wizard: rank the four teams in each of the twelve groups, select the eight best third-placed teams, and fill in your knockout bracket. Takes about ten minutes. Scoring totals 76 points — 36 for group stage, 8 for best thirds, and 32 across the knockouts.</p>
+          </article>
+          <article>
+            <h3>Classic Predictions</h3>
+            <p>Predict the score and result of every one of the 104 matches, from group stage to the final. Three points for a correct result, five points for an exact score, plus bonuses for correct extra time (1) and penalty shootout (2) calls. League creators can customize these point values.</p>
+          </article>
+        </section>
+
+        <section>
+          <h2>Frequently asked questions</h2>
+          <article>
+            <h3>Is GoalOracle free?</h3>
+            <p>Yes. GoalOracle is completely free to play. There are no entry fees, no real-money prizes, and no gambling of any kind.</p>
+          </article>
+          <article>
+            <h3>When does the 2026 World Cup start?</h3>
+            <p>The FIFA World Cup 2026 kicks off on 11 June 2026 at 15:00 ET, hosted across the United States, Canada, and Mexico. The final is on 19 July 2026.</p>
+          </article>
+          <article>
+            <h3>What is a Quick Pick?</h3>
+            <p>Quick Picks is GoalOracle's simple prediction mode. Rank the four teams within each group, choose the eight best third-placed teams, and pick winners through the knockout bracket. The app fills in the rest.</p>
+          </article>
+          <article>
+            <h3>How does scoring work?</h3>
+            <p>Classic Predictions awards 3 points for a correct result, 5 for an exact score, plus 1 for extra time and 2 for penalty calls. Quick Picks totals 76 points across group rankings, best-thirds picks, and knockouts.</p>
+          </article>
+          <article>
+            <h3>How are match results verified?</h3>
+            <p>GoalOracle uses a dual-source oracle. Both football-data.org and api-football.com must agree on the final score before points are awarded. Disputes trigger manual admin review.</p>
+          </article>
+          <article>
+            <h3>Do I need crypto or money to play?</h3>
+            <p>No. GoalOracle is free. Sign up with email, Google, or Twitter/X. An embedded wallet is created for future features but no funds are collected.</p>
+          </article>
+          <article>
+            <h3>When do predictions lock?</h3>
+            <p>Predictions lock five minutes before each match kicks off. You can update your picks as many times as you want before the lock.</p>
+          </article>
+        </section>
+
+        <footer>
+          <p>GoalOracle is not affiliated with FIFA. All trademarks belong to their respective owners. Prediction engine compliant with the official FIFA World Cup 26 rulebook, including Annexe C third-place routing.</p>
+        </footer>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

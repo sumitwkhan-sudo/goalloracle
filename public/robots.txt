@@ -1,0 +1,47 @@
+# GoalOracle — robots.txt
+# Free World Cup 2026 prediction game. Public pages are fully crawlable.
+
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# AI crawlers and answer engines — explicitly allowed.
+# Many default to restrictive behavior without an explicit Allow directive.
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://goaloracle.io/sitemap.xml

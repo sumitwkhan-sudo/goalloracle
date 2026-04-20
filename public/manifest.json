@@ -1,0 +1,18 @@
+{
+  "name": "GoalOracle — World Cup 2026 Predictions",
+  "short_name": "GoalOracle",
+  "description": "Free World Cup 2026 prediction game. Fill your bracket, join leagues, climb the leaderboard.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#FF3B30",
+  "categories": ["sports", "games", "entertainment"],
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
@@ -18,6 +19,43 @@ import BracketShareModal from './components/BracketShareModal';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import './styles.css';
+
+// Per-view <Helmet> tags. Authenticated views are noindex; public views get
+// tailored titles and canonicals that reinforce the static meta in index.html.
+const VIEW_META = {
+  landing: {
+    title: 'GoalOracle — Free World Cup 2026 Prediction Game & Bracket Maker',
+    description: 'Free World Cup 2026 prediction game. Build your bracket, join leagues, predict every match. No gambling, no entry fees.',
+    path: '/',
+    index: true,
+  },
+  faq: {
+    title: 'FAQ — GoalOracle',
+    description: 'How GoalOracle works: predictions, leagues, scoring, result verification, and our no-gambling policy.',
+    path: '/faq',
+    index: true,
+  },
+  dashboard: { title: 'Dashboard — GoalOracle', path: '/dashboard', index: false },
+  leagues: { title: 'My Leagues — GoalOracle', path: '/leagues', index: false },
+  browse: { title: 'Browse Leagues — GoalOracle', path: '/browse', index: false },
+  create: { title: 'Create a League — GoalOracle', path: '/create', index: false },
+  detail: { title: 'League — GoalOracle', path: '/league', index: false },
+  simplePredict: { title: 'Quick Picks — GoalOracle', path: '/quick-picks', index: false },
+  feedback: { title: 'Feedback — GoalOracle', path: '/feedback', index: false },
+  admin: { title: 'Admin — GoalOracle', path: '/admin', index: false },
+};
+
+function ViewMeta({ view }) {
+  const meta = VIEW_META[view] || VIEW_META.landing;
+  return (
+    <Helmet>
+      <title>{meta.title}</title>
+      {meta.description && <meta name="description" content={meta.description} />}
+      <link rel="canonical" href={`https://goaloracle.io${meta.path}`} />
+      <meta name="robots" content={meta.index ? 'index,follow,max-image-preview:large' : 'noindex,nofollow'} />
+    </Helmet>
+  );
+}
 
 // Read-only modal that shows another user's Simple Mode picks (group rankings,
 // best-third picks, and knockout bracket winners) OR their Classic Mode
@@ -4306,6 +4344,7 @@ const GoalOracle = () => {
         }} />
       ))}</div>}
       <Nav />
+      <ViewMeta view={view} />
 
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && <Dash />}

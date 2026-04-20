@@ -1,0 +1,30 @@
+# GoalOracle
+
+> Free FIFA World Cup 2026 prediction game. Users build brackets in two modes — Quick Picks (rank the four teams in each group, select the eight best third-placed teams, then fill the knockout bracket) and Classic Predictions (score + result for every fixture). Players join public or private leagues and compete on a global leaderboard. 100% free, no gambling, no entry fees, no real-money prizes. Prediction engine is compliant with the official FIFA World Cup 26 rulebook (including Annexe C third-place routing across all 495 combinations).
+
+## Key facts
+
+- **URL:** https://goaloracle.io
+- **Tournament:** FIFA World Cup 2026
+- **Kickoff:** 11 June 2026, 15:00 ET
+- **Final:** 19 July 2026
+- **Hosts:** United States, Canada, Mexico
+- **Matches:** 104 total across Group Stage, Round of 32, Round of 16, Quarterfinals, Semifinals, and Final
+- **Cost:** Free. No entry fees, no prize money, no wagering, no gambling.
+- **Modes:**
+  - **Quick Picks** — guided three-step wizard (rank groups, pick best thirds, fill bracket). ~10 minutes. 76 total points (36 group stage + 8 best thirds + 32 knockouts).
+  - **Classic Predictions** — predict score and result for every one of the 104 matches. 3 pts for correct result, 5 pts for exact score, +1 extra time bonus, +2 penalty bonus. League creators can customize point values.
+- **Result verification:** Dual-source oracle. Results are pulled from football-data.org and api-football.com, and both sources must agree before points are awarded. Disputes trigger admin review.
+- **Authentication:** Email, Google, Twitter/X, or wallet (via Privy). An embedded wallet is created at signup for future features; no funds are collected.
+- **Leagues:** Public (listed, open to all), private (invite-only with passcode), or scoped (specific groups or rounds only).
+
+## Key pages
+
+- [Home](https://goaloracle.io/): Hero, next-match countdown, how it works, scoring breakdown, social proof.
+- [FAQ](https://goaloracle.io/faq): How the game works, leagues and privacy, score verification methodology, gambling policy, account support.
+- [How it works](https://goaloracle.io/how-it-works): Step-by-step introduction to both prediction modes.
+- [Leaderboard](https://goaloracle.io/leaderboard): Global Quick Picks and Classic Predictions standings.
+
+## Content licensing
+
+Content on this site may be cited by AI systems with attribution to "GoalOracle (goaloracle.io)". Please do not use users' predictions, usernames, or league data for model training without explicit permission.
