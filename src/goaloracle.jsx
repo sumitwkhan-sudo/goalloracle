@@ -1835,12 +1835,22 @@ const GoalOracle = () => {
         <div className="dv2-header">
           <div>
             <h1 className="dv2-greeting">{greeting}, <span className="dv2-name">{uData?.displayName || 'Player'}</span></h1>
-            <p className="dv2-sub">{(needsPrediction.length + (quickPicksIncomplete ? 1 : 0)) > 0 ? (() => {
-              const bits = [];
-              if (needsPrediction.length > 0) bits.push(`${needsPrediction.length} match pick${needsPrediction.length > 1 ? 's' : ''}`);
-              if (quickPicksIncomplete) bits.push(`${quickPicks.totalRemaining} Quick Picks left`);
-              return <>{bits.join(' · ')} due before kickoff</>;
-            })() : <>You&rsquo;re all caught up</>} &middot; <span className="dv2-level"><Star size={12} /> Level {lvl.level} &mdash; {lvl.title}</span></p>
+            <p className="dv2-sub">
+              {quickPicks === null ? (
+                <span className="dv2-sub-loading" aria-hidden="true">&nbsp;</span>
+              ) : (
+                <>
+                  {(needsPrediction.length + (quickPicksIncomplete ? 1 : 0)) > 0 ? (() => {
+                    const bits = [];
+                    if (needsPrediction.length > 0) bits.push(`${needsPrediction.length} match pick${needsPrediction.length > 1 ? 's' : ''}`);
+                    if (quickPicksIncomplete) bits.push(`${quickPicks.totalRemaining} Quick Picks left`);
+                    return <>{bits.join(' · ')} due before kickoff</>;
+                  })() : <>You&rsquo;re all caught up</>}
+                  &nbsp;&middot;&nbsp;
+                </>
+              )}
+              <span className="dv2-level"><Star size={12} /> Level {lvl.level} &mdash; {lvl.title}</span>
+            </p>
           </div>
           <div className="dv2-actions">
             <button className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={16} /> Browse</button>
@@ -1878,8 +1888,25 @@ const GoalOracle = () => {
             </div>
             <div className="dv2-stat-card dv2-anim-3">
               <span className="dv2-stat-label">Best Rank</span>
-              <span className="dv2-stat-value">{(() => { const best = Object.values(leagueRanks).reduce((b, r) => (!b || r.rank < b.rank) ? r : b, null); return best ? `#${best.rank}` : '—'; })()}</span>
-              <span className="dv2-stat-sub">{(() => { const bestL = ml.find(l => leagueRanks[l.id] && Object.values(leagueRanks).every(r => leagueRanks[l.id].rank <= r.rank)); return bestL?.name || 'Loading...'; })()}</span>
+              {(() => {
+                const ranksLoaded = Object.keys(leagueRanks).length > 0;
+                if (!ranksLoaded) {
+                  return (
+                    <>
+                      <span className="dv2-stat-value dv2-stat-skeleton" aria-hidden="true">&nbsp;</span>
+                      <span className="dv2-stat-sub dv2-stat-skeleton dv2-stat-skeleton-sm" aria-hidden="true">&nbsp;</span>
+                    </>
+                  );
+                }
+                const best = Object.values(leagueRanks).reduce((b, r) => (!b || r.rank < b.rank) ? r : b, null);
+                const bestL = ml.find(l => leagueRanks[l.id] && Object.values(leagueRanks).every(r => leagueRanks[l.id].rank <= r.rank));
+                return (
+                  <>
+                    <span className="dv2-stat-value">{best ? `#${best.rank}` : '—'}</span>
+                    <span className="dv2-stat-sub">{bestL?.name || ''}</span>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}

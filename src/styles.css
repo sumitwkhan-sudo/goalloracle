@@ -3751,3 +3751,21 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .simple-page-reset:hover:not(:disabled) { background: rgba(255,59,92,0.08); border-color: rgba(255,59,92,0.25); }
 .pib-reset { color: var(--danger, #ff3b5c); }
 .pib-reset:hover:not(:disabled) { background: rgba(255,59,92,0.08); }
+
+/* Dashboard: hide async-dependent chunks until data resolves so the header
+   doesn't flicker between loading and final states on every page load. */
+.dv2-sub-loading {
+  display: inline-block; min-width: 14rem; min-height: 1em;
+  background: var(--bg-elev); border-radius: 4px;
+  animation: dv2-shimmer 1.2s ease-in-out infinite;
+}
+.dv2-stat-skeleton {
+  display: inline-block; min-width: 3rem; min-height: 1em;
+  background: var(--bg-elev); border-radius: 4px;
+  animation: dv2-shimmer 1.2s ease-in-out infinite;
+}
+.dv2-stat-skeleton-sm { min-width: 6rem; min-height: 0.8em; margin-top: 0.3rem; }
+@keyframes dv2-shimmer {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.85; }
+}
