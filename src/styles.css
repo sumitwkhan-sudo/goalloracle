@@ -511,10 +511,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .hiw-conf-bar { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
 .hiw-conf-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--success)); border-radius: 2px; }
 .hiw-league-row { display: flex; align-items: center; gap: 0.75rem; }
-.hiw-league-avatars { display: flex; gap: -4px; font-size: 1.2rem; }
-.hiw-league-avatars span { margin-left: -4px; }
-.hiw-league-avatars span:first-child { margin-left: 0; }
-.hiw-plus-badge { width: 20px; height: 20px; border-radius: 50%; background: var(--primary-soft); border: 1px dashed var(--primary); display: flex; align-items: center; justify-content: center; color: var(--primary); margin-left: -2px; }
+.hiw-league-avatars { display: flex; align-items: center; flex-shrink: 0; font-size: 1.2rem; line-height: 1; }
+.hiw-league-avatars > span { flex-shrink: 0; margin-left: -4px; }
+.hiw-league-avatars > span:first-child { margin-left: 0; }
+.hiw-plus-badge { width: 20px; height: 20px; border-radius: 50%; background: var(--primary-soft); border: 1px dashed var(--primary); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 0.7rem; }
 .hiw-dim { font-size: 0.65rem; color: var(--text-dim); }
 .hiw-level-row { display: flex; flex-direction: column; gap: 0.4rem; }
 .hiw-level-badge { font-family: var(--mono); font-size: 0.7rem; color: var(--amber); display: flex; align-items: center; gap: 0.35rem; }
