@@ -5,6 +5,17 @@
    ============================================ */
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500&family=DM+Mono:wght@400;500&family=Chakra+Petch:wght@400;500;600;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap');
 
+/* Flag-emoji polyfill for Windows (Chrome/Edge/Firefox all fall back to
+   regional-indicator letters like "MX" because Windows ships no flag
+   emoji font). unicode-range keeps browsers that already have flag
+   emojis (macOS, iOS, Android, ChromeOS) from downloading this file. */
+@font-face {
+  font-family: 'Twemoji Country Flags';
+  unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E007F;
+  src: url('https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1/dist/TwemojiCountryFlags.woff2') format('woff2');
+  font-display: swap;
+}
+
 :root {
   --cyan: #00D4FF; --magenta: #FF2D87; --lime: #A6FF00; --violet: #7B61FF; --amber: #FFB800;
   --gold: #C9A86A; --rose: #E8C6B8; --platinum: #D9D4CA;
@@ -17,7 +28,7 @@
   --text: #E8E8EF; --text-sec: #7A7A8E; --text-dim: #3E3E4F;
   --radius: 10px; --radius-lg: 14px;
   --shadow: 0 4px 20px rgba(0,0,0,0.3);
-  --font: 'Space Grotesk', 'Inter Tight', -apple-system, sans-serif;
+  --font: 'Space Grotesk', 'Inter Tight', -apple-system, sans-serif, 'Twemoji Country Flags';
   --font-display: 'Chakra Petch', 'Space Grotesk', system-ui, sans-serif;
   --font-editorial: 'Chakra Petch', 'Space Grotesk', system-ui, sans-serif;
   --mono: 'JetBrains Mono', monospace;
