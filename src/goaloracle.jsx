@@ -1059,6 +1059,12 @@ const GoalOracle = () => {
   useEffect(() => { fetchPlatformStats().then(setStats).catch(() => {}); }, []);
   useEffect(() => subscribeToMatchResults(setResults), []);
   const authInitRef = useRef(false);
+  // Guards against the welcome / email modal flickering when Privy's
+  // `authenticated` signal flaps during token refresh. Once we've decided
+  // whether to prompt for a given reason, don't re-trigger on subsequent
+  // auth reconciliations — let the modal close itself on save / dismiss.
+  const usernamePromptDecidedRef = useRef(false);
+  const emailPromptDecidedRef = useRef(false);
 
   // getAccessToken() hangs forever when Privy wallet iframe isn't ready — wrap with timeout
   const getTokenSafe = useCallback(async (timeoutMs = 5000) => {
@@ -1075,8 +1081,15 @@ const GoalOracle = () => {
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
+      // Once initial auth has completed, Privy occasionally flaps
+      // `authenticated` → false during token refresh / wallet iframe events.
+      // Ignore those transient dips so the welcome modal and app-wide
+      // `uData` gate don't flicker. A genuine logout goes through
+      // Privy's `logout()` which resets `ready` + `authenticated` together.
+      if (authInitRef.current) return;
       setUData(null); setRole('user'); setAuthToken(null); resetFirebaseAuth();
-      authInitRef.current = false;
+      usernamePromptDecidedRef.current = false;
+      emailPromptDecidedRef.current = false;
       return;
     }
     if (authInitRef.current) return;
@@ -1103,11 +1116,21 @@ const GoalOracle = () => {
       authInitRef.current = true;
       setUData(u);
       setRole(u.role || 'user');
-      if (!u.usernameSet) setShowUsernamePrompt(true);
-      // Wallet-only sign-ups have no email on file. Prompt them for one so we
-      // can send reminders + result notifications. Respect emailSkipped if
-      // they've already dismissed it once.
-      else if (!u.email && !u.emailSkipped) setShowEmailPrompt(true);
+      // Only evaluate the prompt conditions once per session. Privy's auth
+      // token refreshes re-run this effect; without the guards the welcome
+      // modal flashes on/off as `authenticated` briefly flaps.
+      if (!usernamePromptDecidedRef.current) {
+        usernamePromptDecidedRef.current = true;
+        if (!u.usernameSet) {
+          setShowUsernamePrompt(true);
+        } else if (!u.email && !u.emailSkipped && !emailPromptDecidedRef.current) {
+          // Wallet-only sign-ups have no email on file. Prompt them for one so
+          // we can send reminders + result notifications. Respect emailSkipped
+          // if they've already dismissed it once.
+          emailPromptDecidedRef.current = true;
+          setShowEmailPrompt(true);
+        }
+      }
 
       // Backfill country for existing users who signed up before we required
       // it. Product directive: known overrides go first, then IP geolocation,
@@ -3731,7 +3754,7 @@ const GoalOracle = () => {
               </div>
             </button>
             <div className="dropdown-divider"></div>
-            <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); logout(); nav('landing'); }}>
+            <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); authInitRef.current = false; logout(); nav('landing'); }}>
               <LogOut size={16} />
               <span>Log Out</span>
             </button>
@@ -4500,8 +4523,14 @@ const GoalOracle = () => {
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
       {fundModal && <AddFundsModal />}
       {sendModal && <SendModal />}
-      {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
-      {showEmailPrompt && !showUsernamePrompt && authenticated && uData && <EmailPrompt />}
+      {/* Gate the welcome / email modals on `uData` alone — `uData` is only
+          populated after a successful auth + Firestore load, so it's our
+          canonical "user fully loaded" sentinel. Coupling this to Privy's
+          `authenticated` signal caused the modal to flash on/off whenever
+          the token refreshed (see CLAUDE.md: "For React conditionals that
+          depend on async state: gate on a loaded sentinel"). */}
+      {showUsernamePrompt && uData && <UsernamePrompt />}
+      {showEmailPrompt && !showUsernamePrompt && uData && <EmailPrompt />}
       <ShareCardModal />
       {/* Live Standings drawer — rendered at App root so it survives Detail's
           re-mount cycle (every preds update re-creates the Detail function,
