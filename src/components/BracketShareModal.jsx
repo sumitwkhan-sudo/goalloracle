@@ -7,8 +7,9 @@
  * looks good as-is on social.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, Trophy, Award, Camera, Share2 } from 'lucide-react';
+import { track } from '../utils/track';
 
 const SITE_URL = 'https://goaloracle.io';
 
@@ -46,6 +47,9 @@ export default function BracketShareModal({
   notify,
 }) {
   const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (open) track('share_opened', { league_id: leagueId || null });
+  }, [open, leagueId]);
   if (!open) return null;
 
   const shareUrl = buildShareUrl(leagueId);
@@ -53,10 +57,12 @@ export default function BracketShareModal({
   const encoded = encodeURIComponent(caption);
 
   const openX = () => {
+    track('share_completed', { channel: 'x', league_id: leagueId || null });
     window.open(`https://x.com/intent/tweet?text=${encoded}`, '_blank', 'noopener,noreferrer');
   };
   const openFacebook = () => {
     // FB sharer reads og: tags from the URL; caption goes as a quote.
+    track('share_completed', { channel: 'facebook', league_id: leagueId || null });
     window.open(
       `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encoded}`,
       '_blank', 'noopener,noreferrer',
@@ -69,6 +75,7 @@ export default function BracketShareModal({
       await navigator.clipboard.writeText(caption);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
+      track('share_completed', { channel: 'instagram', league_id: leagueId || null });
       if (notify) notify('Caption copied — paste into Instagram');
     } catch {
       if (notify) notify('Copy failed', 'error');
@@ -79,6 +86,7 @@ export default function BracketShareModal({
       await navigator.clipboard.writeText(caption);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
+      track('share_completed', { channel: 'copy', league_id: leagueId || null });
       if (notify) notify('Copied to clipboard');
     } catch {
       if (notify) notify('Copy failed', 'error');
@@ -88,6 +96,7 @@ export default function BracketShareModal({
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({ title: 'My GoalOracle bracket', text: caption, url: shareUrl });
+        track('share_completed', { channel: 'native', league_id: leagueId || null });
       } catch {
         // user cancelled — no-op
       }

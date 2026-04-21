@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { track } from './utils/track';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
@@ -1604,6 +1605,7 @@ const GoalOracle = () => {
 
     // "Start Predicting" buttons: route straight to Global Quick Picks flow
     const startSimplePredicting = () => {
+      track('bracket_start', { league_id: 'global-simple', authenticated });
       if (!authenticated) { login(); return; }
       const globalSimple = leagues.find(l => l.id === 'global-simple') || {
         id: 'global-simple', name: 'Global Quick Picks', type: 'free',
