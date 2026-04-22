@@ -443,7 +443,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {} }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -455,6 +455,46 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   const [lbKey, setLbKey] = useState(0);
   const [viewingPicks, setViewingPicks] = useState(null); // { userId, displayName, winner, runnerUp }
   const [shareBracket, setShareBracket] = useState(null); // null | { winner, runnerUp, thirdPlace }
+  const [countriesList, setCountriesList] = useState([]);
+
+  // Lazy-load the countries list only when the filter is first used.
+  useEffect(() => {
+    if (lbScope !== 'country' || countriesList.length > 0) return;
+    import('./utils/countries').then(mod => setCountriesList(mod.default || []));
+  }, [lbScope]);
+
+  // "Friends" = every userId who shares a non-global league with me.
+  const friendIds = useMemo(() => {
+    const ids = new Set();
+    for (const l of myLeagues || []) {
+      if (l.isGlobal || l.id === 'global' || l.id === 'global-simple') continue;
+      for (const mid of (l.members || [])) ids.add(mid);
+    }
+    return ids;
+  }, [myLeagues]);
+
+  // Pick a sensible default country the first time the user flips to Country
+  // scope: their own ISO-2 on file, else the first country that appears in
+  // the leaderboard data. Keeps the filter from rendering an empty list.
+  useEffect(() => {
+    if (lbScope !== 'country' || lbScopeCountry) return;
+    const fallback = userData?.country || simLb.find(e => e.country)?.country || classicLb.find(e => e.country)?.country || '';
+    if (fallback) setLbScopeCountry(fallback);
+  }, [lbScope, lbScopeCountry, userData?.country, simLb, classicLb, setLbScopeCountry]);
+
+  const filterEntries = (entries) => {
+    if (lbScope === 'country') {
+      if (!lbScopeCountry) return entries;
+      return entries.filter(e => (e.country || '').toUpperCase() === lbScopeCountry.toUpperCase());
+    }
+    if (lbScope === 'friends') {
+      // Always include myself for a useful "me vs friends" comparison.
+      return entries.filter(e => friendIds.has(e.userId) || e.userId === userData?.id);
+    }
+    return entries;
+  };
+  const visibleSimLb = useMemo(() => filterEntries(simLb), [simLb, lbScope, lbScopeCountry, friendIds, userData?.id]);
+  const visibleClassicLb = useMemo(() => filterEntries(classicLb), [classicLb, lbScope, lbScopeCountry, friendIds, userData?.id]);
 
   const openShareBracket = useCallback(async () => {
     if (!userData?.id || !league?.id) return;
@@ -666,13 +706,48 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             )}
           </div>
 
+          {isGlobalView && (
+            <div className="lb-scope-bar">
+              <div className="lb-scope-tabs" role="tablist" aria-label="Leaderboard scope">
+                <button type="button" role="tab" aria-selected={lbScope === 'all'} className={`lb-scope-tab ${lbScope === 'all' ? 'active' : ''}`} onClick={() => setLbScope('all')}>
+                  <Globe size={12} /> Global
+                </button>
+                <button type="button" role="tab" aria-selected={lbScope === 'country'} className={`lb-scope-tab ${lbScope === 'country' ? 'active' : ''}`} onClick={() => setLbScope('country')}>
+                  <MapPin size={12} /> Country
+                </button>
+                <button type="button" role="tab" aria-selected={lbScope === 'friends'} className={`lb-scope-tab ${lbScope === 'friends' ? 'active' : ''}`} onClick={() => setLbScope('friends')}>
+                  <Users size={12} /> Friends
+                </button>
+              </div>
+              {lbScope === 'country' && (
+                <select
+                  className="lb-scope-country-select"
+                  value={lbScopeCountry}
+                  onChange={(e) => setLbScopeCountry(e.target.value)}
+                  aria-label="Filter leaderboard by country"
+                >
+                  <option value="">All countries</option>
+                  {countriesList.map(c => (
+                    <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                  ))}
+                </select>
+              )}
+              {lbScope === 'friends' && friendIds.size === 0 && (
+                <span className="lb-scope-hint">Join a private league to see friends here.</span>
+              )}
+            </div>
+          )}
+
           {(!isGlobalView || lbMode === 'simple') && (simLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
-          ) : simLb.length === 0 ? (
-            <div className="empty-state"><p>No members yet.</p></div>
+          ) : visibleSimLb.length === 0 ? (
+            <div className="empty-state"><p>
+              {lbScope === 'country' ? `No players in ${_countryFlag(lbScopeCountry)} ${lbScopeCountry || 'this country'} yet.` :
+                lbScope === 'friends' ? 'No friends found in this league.' : 'No members yet.'}
+            </p></div>
           ) : (
             <div className="leaderboard-list">
-              {simLb.map((e, i) => {
+              {visibleSimLb.map((e, i) => {
                 const isYou = e.userId === userData?.id;
                 const rowClick = () => {
                   if (isYou) setSTab('predictions');
@@ -752,11 +827,14 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
           {isGlobalView && lbMode === 'classic' && (classicLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
-          ) : classicLb.length === 0 ? (
-            <div className="empty-state"><p>No Classic Predictions yet in the global league.</p></div>
+          ) : visibleClassicLb.length === 0 ? (
+            <div className="empty-state"><p>
+              {lbScope === 'country' ? `No Classic Predictions players in ${_countryFlag(lbScopeCountry)} ${lbScopeCountry || 'this country'} yet.` :
+                lbScope === 'friends' ? 'No friends have Classic Predictions yet.' : 'No Classic Predictions yet in the global league.'}
+            </p></div>
           ) : (
             <div className="leaderboard-list">
-              {classicLb.map((e, i) => {
+              {visibleClassicLb.map((e, i) => {
                 const isYou = e.userId === userData?.id;
                 const openView = () => setViewingPicks({ mode: 'classic', userId: e.userId, displayName: e.displayName, classicPredictions: e.rawPredictions, predCount: e.predictions });
                 const rowClick = () => {
@@ -983,6 +1061,12 @@ const GoalOracle = () => {
   const [dashLeagueFilter, setDashLeagueFilter] = useState('all');
   const [expandedLeagues, setExpandedLeagues] = useState({});
   const [leagueRanks, setLeagueRanks] = useState({});
+  // Global Leaderboard scope — 'all' shows every user, 'country' narrows to a
+  // selected ISO-2, 'friends' narrows to the user's private-league members.
+  // Lifted to App so the landing-page preview tabs can preset it before
+  // navigating to the full leaderboard page.
+  const [lbScope, setLbScope] = useState('all');
+  const [lbScopeCountry, setLbScopeCountry] = useState('');
   // Quick Picks completion summary — lives at App level so Dashboard AND
   // LeaguesList can both read it (Quick Picks share one pick doc across
   // every QP league).
@@ -1820,7 +1904,21 @@ const GoalOracle = () => {
               </div>
               <div className="lb-tabs">
                 {['global','country','friends'].map(t => (
-                  <button key={t} className={`lb-tab ${lbTab === t ? 'active' : ''}`} onClick={() => setLbTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>
+                  <button
+                    key={t}
+                    className={`lb-tab ${lbTab === t ? 'active' : ''}`}
+                    onClick={() => {
+                      setLbTab(t);
+                      // Preset the real leaderboard scope + country so the full
+                      // view opens already filtered the way the user asked for.
+                      const scope = t === 'global' ? 'all' : t;
+                      setLbScope(scope);
+                      if (scope === 'country') setLbScopeCountry(uData?.country || '');
+                      const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+                      setDetailTab('leaderboard');
+                      nav('detail', gs);
+                    }}
+                  >{t.charAt(0).toUpperCase() + t.slice(1)}</button>
                 ))}
               </div>
               <div className="lb-rows">
@@ -4486,6 +4584,11 @@ const GoalOracle = () => {
             nav('detail', classic);
           }}
           initialTab={detailTab === 'predictions' ? 'predictions' : 'leaderboard'}
+          myLeagues={leagues}
+          lbScope={lbScope}
+          lbScopeCountry={lbScopeCountry}
+          setLbScope={setLbScope}
+          setLbScopeCountry={setLbScopeCountry}
         />
       )}
       {view === 'detail' && selLeague?.predictionMode !== 'simple' && <Detail key={selLeague?.id || 'detail'} />}

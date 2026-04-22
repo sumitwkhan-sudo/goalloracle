@@ -3760,6 +3760,49 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .lb-mode-toggle.lb-mode-toggle-big .lb-mode-tab { flex: 1; justify-content: center; font-size: 0.72rem; padding: 0.4rem 0.5rem; }
 }
 
+/* Leaderboard scope bar — Global / Country / Friends + country dropdown. */
+.lb-scope-bar {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  padding: 0.6rem 0; margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+.lb-scope-tabs {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  background: var(--bg-elev); border-radius: 999px; padding: 0.2rem;
+}
+.lb-scope-tab {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-family: var(--font-data, var(--mono));
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 0.35rem 0.7rem; border-radius: 999px;
+  border: none; background: transparent; color: var(--text-sec);
+  cursor: pointer;
+}
+.lb-scope-tab:hover { color: var(--text); }
+.lb-scope-tab.active {
+  background: var(--primary-soft, rgba(0,212,255,0.14));
+  color: var(--primary, #00d4ff);
+  box-shadow: 0 0 0 1px var(--border-br, rgba(0,212,255,0.28)) inset;
+}
+.lb-scope-country-select {
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, var(--border));
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 12rem;
+}
+.lb-scope-country-select:focus { outline: none; border-color: var(--primary); }
+.lb-scope-hint { font-size: 0.72rem; color: var(--text-dim); font-style: italic; }
+@media (max-width: 640px) {
+  .lb-scope-bar { gap: 0.4rem; }
+  .lb-scope-tab { font-size: 0.66rem; padding: 0.3rem 0.55rem; }
+  .lb-scope-country-select { flex: 1 1 auto; min-width: 0; font-size: 0.78rem; }
+}
+
 /* ─── Bracket Share modal ─────────────────────────────── */
 .phc-share { margin-left: auto; flex-shrink: 0; }
 @media (max-width: 640px) {
