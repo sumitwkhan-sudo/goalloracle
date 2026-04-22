@@ -1009,11 +1009,12 @@ const GoalOracle = () => {
   }, [teamPickerOpen]);
 
   const cycleTheme = () => {
-    const order = ['dark', 'light', 'fifa2026'];
-    const next = order[(order.indexOf(theme) + 1) % 3];
+    const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     document.documentElement.setAttribute('data-theme', next);
-    if (next === 'fifa2026') {
+    // Fire the celebratory confetti (ported from the retired 2026 theme)
+    // each time the user flips into dark mode.
+    if (next === 'dark') {
       setConfetti(true);
       setTimeout(() => setConfetti(false), 3000);
     }
@@ -2731,7 +2732,7 @@ const GoalOracle = () => {
     const tab = detailTab, setTab = setDetailTab;
     const sf = detailWeek, setSf = setDetailWeek;
     const stageFilter = detailStage, setStageFilter = setDetailStage;
-    const [lb, setLb] = useState([]);
+    const [lbRaw, setLbRaw] = useState(null); // { leagueId, bu, userNames } — raw server data, recomputed into sorted `lb` whenever results or points change
     const [lbl, setLbl] = useState(false);
     const [lbDeltas, setLbDeltas] = useState({});
     const [lbSort, setLbSort] = useState('points'); // 'points' | 'xp' | 'streak'
@@ -2778,7 +2779,45 @@ const GoalOracle = () => {
     const isPrivate = selLeague?.visibility === 'private';
     const isMember = selLeague?.members?.includes(uData?.id);
 
-    useEffect(() => { if (tab !== 'leaderboard' || !selLeague?.id) return; (async () => { setLbl(true); try { const { leaderboard: bu, userNames } = await getLeagueLeaderboard(selLeague.id); const p = selLeague.pointsSystem || {}; const e = Object.entries(bu).map(([uid, pr]) => { const stats = calculateTotalPoints(pr, results, p); const xp = calculateXP(pr, results, 1); return { userId: uid, displayName: userNames[uid] || uid.slice(0, 8), ...stats, xp, levelInfo: getLevelInfo(xp) }; }); const sorted = sortLeaderboard(e); setLb(sorted); setLbDeltas(computeRankDeltas(`classic:${selLeague.id}`, sorted)); } catch(e){console.error(e);} finally{setLbl(false);} })(); }, [tab, selLeague?.id, results]);
+    // Fetch the raw leaderboard once per (tab, league) pair. Previously this
+    // effect also depended on `results`, but the matchResults Firestore
+    // snapshot callback emits a fresh object on every event — including
+    // metadata-only events — which re-ran the fetch in a tight loop and
+    // left the view stuck on "Loading…". Result-driven point recalcs now
+    // live in the useMemo below, so fetch runs exactly once per league.
+    useEffect(() => {
+      if (tab !== 'leaderboard' || !selLeague?.id) return;
+      let cancelled = false;
+      (async () => {
+        setLbl(true);
+        try {
+          const { leaderboard: bu, userNames } = await getLeagueLeaderboard(selLeague.id);
+          if (cancelled) return;
+          setLbRaw({ leagueId: selLeague.id, bu, userNames });
+        } catch (e) { console.error(e); }
+        finally { if (!cancelled) setLbl(false); }
+      })();
+      return () => { cancelled = true; };
+    }, [tab, selLeague?.id]);
+
+    // Derive the sorted leaderboard from raw data + latest results. Cheap
+    // client-side recompute whenever `results` changes — no refetch.
+    const lb = useMemo(() => {
+      if (!lbRaw || !selLeague || lbRaw.leagueId !== selLeague.id) return [];
+      const p = selLeague.pointsSystem || {};
+      const entries = Object.entries(lbRaw.bu).map(([uid, pr]) => {
+        const stats = calculateTotalPoints(pr, results, p);
+        const xp = calculateXP(pr, results, 1);
+        return { userId: uid, displayName: lbRaw.userNames[uid] || uid.slice(0, 8), ...stats, xp, levelInfo: getLevelInfo(xp) };
+      });
+      return sortLeaderboard(entries);
+    }, [lbRaw, results, selLeague]);
+
+    // Rank deltas only update when the sorted order actually changes.
+    useEffect(() => {
+      if (!selLeague?.id || lb.length === 0) return;
+      setLbDeltas(computeRankDeltas(`classic:${selLeague.id}`, lb));
+    }, [lb, selLeague?.id]);
 
     const handleDelete = async () => {
       try { await deleteLeague(selLeague.id, uData.id); notify(`"${selLeague.name}" deleted`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
@@ -4506,9 +4545,8 @@ const GoalOracle = () => {
           </div>
           <div className="theme-switcher" onClick={e => e.stopPropagation()}>
             {(() => {
-              const themes = { light: { icon: <Sun size={14} />, label: 'Light' }, dark: { icon: <Moon size={14} />, label: 'Dark' }, fifa2026: { icon: <Sparkles size={14} />, label: '2026' } };
-              const order = ['dark', 'light', 'fifa2026'];
-              const nextId = order[(order.indexOf(theme) + 1) % order.length];
+              const themes = { light: { icon: <Sun size={14} />, label: 'Light' }, dark: { icon: <Moon size={14} />, label: 'Dark' } };
+              const nextId = theme === 'dark' ? 'light' : 'dark';
               const cur = themes[theme] || themes.light;
               const nxt = themes[nextId];
               return (
