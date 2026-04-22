@@ -899,9 +899,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 /* Footer additions */
 .footer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .footer-proof { font-size: 0.7rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.5rem; }
-.footer-socials { display: flex; gap: 0.5rem; }
-.footer-social-icon { width: 28px; height: 28px; border-radius: 6px; background: var(--bg-elev); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-sec); cursor: pointer; }
-.footer-social-icon:hover { border-color: var(--border-br); color: var(--primary); }
 
 /* ─── RESPONSIVE ─── */
 @media (max-width: 900px) {

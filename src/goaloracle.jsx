@@ -2017,9 +2017,6 @@ const GoalOracle = () => {
           <div className="footer-content">
             <div className="footer-top">
               <div className="footer-proof"><Globe size={14} /> Trusted by football fans in 82 countries &middot; <AnimatedCounter value={stats.totalPlayers ? stats.totalPlayers * 30 : 32000} suffix="+" /> predictions this week</div>
-              <div className="footer-socials">
-                {['X','Instagram','Discord'].map(s => <span key={s} className="footer-social-icon"><Share2 size={14} /></span>)}
-              </div>
             </div>
             <div className="footer-links">
               <a onClick={() => authenticated ? nav('dashboard') : login()}>Predict</a>
