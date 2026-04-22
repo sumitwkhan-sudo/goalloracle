@@ -1106,8 +1106,8 @@ const GoalOracle = () => {
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
-  const nav = useCallback((v, l) => {
-    if (l) { setSelLeague(l); setDetailTab('predictions'); setDetailWeek('week1'); setDetailStage('all'); }
+  const nav = useCallback((v, l, opts = {}) => {
+    if (l) { setSelLeague(l); setDetailTab(opts.tab || 'predictions'); setDetailWeek('week1'); setDetailStage('all'); }
     if (v === 'browse') loadAllLeagues();
     setView(prev => prev === v && !l ? prev : v);
     setMenuOpen(false);
@@ -1915,8 +1915,10 @@ const GoalOracle = () => {
                       setLbScope(scope);
                       if (scope === 'country') setLbScopeCountry(uData?.country || '');
                       const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
-                      setDetailTab('leaderboard');
-                      nav('detail', gs);
+                      // nav() resets detailTab to 'predictions' by default
+                      // — pass tab:'leaderboard' so SimpleDetail opens on the
+                      // leaderboard, not the Quick Picks wizard.
+                      nav('detail', gs, { tab: 'leaderboard' });
                     }}
                   >{t.charAt(0).toUpperCase() + t.slice(1)}</button>
                 ))}
