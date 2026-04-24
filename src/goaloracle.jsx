@@ -2075,6 +2075,80 @@ const GoalOracle = () => {
     const quickPicksIncomplete = !!quickPicks && !quickPicks.isComplete && simpleLeagues.length > 0;
     const firstMatch = useMemo(() => WORLD_CUP_MATCHES.find(m => getMatchStatus(m.date, m.time) === 'open') || WORLD_CUP_MATCHES[0], []);
 
+    // Pick the single highest-priority "do this next" action for the hero
+    // card. Priority order: finish Quick Picks → a Classic match locking
+    // soon → rank teaser (if there's competition) → fallback explore card.
+    // Pre-kickoff (Apr 2026) the Quick Picks branch dominates; as we get
+    // closer to June 11 the match-lock branch takes over.
+    const continueCard = useMemo(() => {
+      if (quickPicks === null) return null; // still loading
+
+      if (quickPicksIncomplete) {
+        const etaMin = Math.max(1, Math.round(quickPicks.totalRemaining * 8 / 60));
+        const qpLeague = simpleLeagues[0];
+        return {
+          kind: 'quickpicks',
+          eyebrow: 'Quick Picks',
+          title: `Finish your bracket — ${quickPicks.totalRemaining} pick${quickPicks.totalRemaining === 1 ? '' : 's'} left`,
+          sub: `About ${etaMin} min · locks when the opener kicks off`,
+          cta: 'Continue picking',
+          onClick: () => { if (qpLeague) { setDetailTab('predictions'); nav('detail', qpLeague); } else { nav('simplePredict'); } },
+        };
+      }
+
+      // Classic match locking within 24h that the user hasn't predicted.
+      const now = Date.now();
+      const LOCK_BUFFER_MS = 5 * 60 * 1000;
+      const SOON_MS = 24 * 60 * 60 * 1000;
+      const soon = needsPrediction.find(m => {
+        const [hh, mm] = (m.time || '15:00').split(':').map(Number);
+        const kick = new Date(`${m.date}T00:00:00Z`);
+        kick.setUTCHours(hh + 4, mm, 0, 0);
+        const diff = kick.getTime() - LOCK_BUFFER_MS - now;
+        return diff > 0 && diff < SOON_MS;
+      });
+      if (soon) {
+        const classicLeague = ml.find(l => l.predictionMode === 'classic') || ml[0];
+        return {
+          kind: 'match',
+          eyebrow: 'Locks soon',
+          title: `${soon.home} vs ${soon.away}`,
+          sub: `Predict before kickoff to keep your streak alive.`,
+          cta: 'Predict match',
+          onClick: () => { if (classicLeague) { setDetailTab('predictions'); nav('detail', classicLeague); } },
+        };
+      }
+
+      // Rank teaser — show Global Quick Picks standing once the user is
+      // done picking. Avoids the empty "0 pts" pre-kickoff bragging.
+      const qpGlobalRk = leagueRanks['global-simple'];
+      if (qpGlobalRk && qpGlobalRk.total > 1) {
+        const leading = qpGlobalRk.rank === 1;
+        return {
+          kind: 'rank',
+          eyebrow: 'Global Quick Picks',
+          title: leading
+            ? `You're #1 of ${qpGlobalRk.total.toLocaleString()}`
+            : `You're #${qpGlobalRk.rank.toLocaleString()} of ${qpGlobalRk.total.toLocaleString()}`,
+          sub: leading ? `Hold the top spot until June 11.` : `See who's ahead of you and why.`,
+          cta: 'Open leaderboard',
+          onClick: () => {
+            const qpLeague = simpleLeagues[0] || leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+            nav('detail', qpLeague, { tab: 'leaderboard' });
+          },
+        };
+      }
+
+      return {
+        kind: 'idle',
+        eyebrow: 'All set',
+        title: `You're all caught up`,
+        sub: `Come back when a match is close to kickoff — or go find a league to join.`,
+        cta: 'Browse leagues',
+        onClick: () => nav('browse'),
+      };
+    }, [quickPicks, quickPicksIncomplete, simpleLeagues, needsPrediction, ml, leagueRanks, leagues]);
+
     // Recent completed results
     const recentResults = useMemo(() =>
       WORLD_CUP_MATCHES.filter(m => results[m.id]?.completed).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
@@ -2199,40 +2273,58 @@ const GoalOracle = () => {
             </div>
           </div>
         ) : (
-          <div className="dv2-stats">
-            <div className="dv2-stat-card dv2-anim-1">
-              <span className="dv2-stat-label">Total Points</span>
-              <span className="dv2-stat-value"><AnimatedCounter value={totalStats.totalPoints} /></span>
-              <span className="dv2-stat-sub">{totalStats.correctResults} correct result{totalStats.correctResults !== 1 ? 's' : ''}</span>
-            </div>
-            <div className="dv2-stat-card dv2-anim-2">
-              <span className="dv2-stat-label">Accuracy</span>
-              <span className="dv2-stat-value"><AnimatedCounter value={accuracy} suffix="%" /></span>
-              <span className="dv2-stat-sub">{totalCompleted} match{totalCompleted !== 1 ? 'es' : ''} completed</span>
-            </div>
-            <div className="dv2-stat-card dv2-anim-3">
-              <span className="dv2-stat-label">Best Rank</span>
-              {(() => {
-                const ranksLoaded = Object.keys(leagueRanks).length > 0;
-                if (!ranksLoaded) {
+          <>
+            {/* Context-aware "Continue" hero — picks the single most useful
+                next action for this user right now. */}
+            {continueCard && (
+              <div
+                className={`dv2-continue dv2-continue-${continueCard.kind}`}
+                onClick={continueCard.onClick}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); continueCard.onClick(); } }}
+              >
+                <div className="dv2-continue-body">
+                  <div className="dv2-continue-eyebrow">{continueCard.eyebrow}</div>
+                  <h2 className="dv2-continue-title">{continueCard.title}</h2>
+                  <p className="dv2-continue-sub">{continueCard.sub}</p>
+                </div>
+                <div className="dv2-continue-cta">
+                  <span>{continueCard.cta}</span>
+                  <ChevronRight size={18} />
+                </div>
+              </div>
+            )}
+
+            {/* Compact stats strip — secondary reference, not the hero. */}
+            <div className="dv2-stats-strip">
+              <div className="dv2-strip-cell">
+                <span className="dv2-strip-label">Points</span>
+                <span className="dv2-strip-val"><AnimatedCounter value={totalStats.totalPoints} /></span>
+                <span className="dv2-strip-sub">{totalStats.correctResults} correct</span>
+              </div>
+              <div className="dv2-strip-cell">
+                <span className="dv2-strip-label">Accuracy</span>
+                <span className="dv2-strip-val"><AnimatedCounter value={accuracy} suffix="%" /></span>
+                <span className="dv2-strip-sub">{totalCompleted} played</span>
+              </div>
+              <div className="dv2-strip-cell">
+                <span className="dv2-strip-label">Best Rank</span>
+                {(() => {
+                  const ranksLoaded = Object.keys(leagueRanks).length > 0;
+                  if (!ranksLoaded) return <span className="dv2-strip-val dv2-stat-skeleton" aria-hidden="true">&nbsp;</span>;
+                  const best = Object.values(leagueRanks).reduce((b, r) => (!b || r.rank < b.rank) ? r : b, null);
+                  const bestL = ml.find(l => leagueRanks[l.id] && Object.values(leagueRanks).every(r => leagueRanks[l.id].rank <= r.rank));
                   return (
                     <>
-                      <span className="dv2-stat-value dv2-stat-skeleton" aria-hidden="true">&nbsp;</span>
-                      <span className="dv2-stat-sub dv2-stat-skeleton dv2-stat-skeleton-sm" aria-hidden="true">&nbsp;</span>
+                      <span className="dv2-strip-val">{best ? `#${best.rank}` : '—'}</span>
+                      <span className="dv2-strip-sub">{bestL?.name || ''}</span>
                     </>
                   );
-                }
-                const best = Object.values(leagueRanks).reduce((b, r) => (!b || r.rank < b.rank) ? r : b, null);
-                const bestL = ml.find(l => leagueRanks[l.id] && Object.values(leagueRanks).every(r => leagueRanks[l.id].rank <= r.rank));
-                return (
-                  <>
-                    <span className="dv2-stat-value">{best ? `#${best.rank}` : '—'}</span>
-                    <span className="dv2-stat-sub">{bestL?.name || ''}</span>
-                  </>
-                );
-              })()}
+                })()}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* Prediction flow explainer — how the two modes work per league */}

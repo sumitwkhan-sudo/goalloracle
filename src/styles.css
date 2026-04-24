@@ -2833,7 +2833,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .dv2-onboard-text h2 { font-size: 1.35rem; font-weight: 700; margin: 0 0 0.35rem; }
 .dv2-onboard-text p { font-size: 0.9rem; color: var(--text-sec); margin: 0; max-width: 48ch; line-height: 1.5; }
 
-/* ─── Stat Cards ─── */
+/* ─── Stat Cards (legacy — retained for onboarding / other surfaces) ─── */
 .dv2-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.85rem; margin-bottom: 1.75rem; }
 .dv2-stat-card {
   background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 12px;
@@ -2843,6 +2843,92 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .dv2-stat-label { font-family: var(--font-data); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
 .dv2-stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--text); line-height: 1.1; }
 .dv2-stat-sub { font-size: 0.7rem; color: var(--text-sec); }
+
+/* ─── Continue hero — context-aware "do this next" card ─── */
+.dv2-continue {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+.dv2-continue::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--primary, #00d4ff);
+}
+.dv2-continue-quickpicks::before { background: var(--accent-green, #00e676); }
+.dv2-continue-match::before { background: var(--amber, #ffb800); }
+.dv2-continue-rank::before { background: var(--violet, #7b61ff); }
+.dv2-continue-idle::before { background: var(--text-muted); }
+.dv2-continue:hover { border-color: var(--border-br); background: var(--bg-elev); }
+.dv2-continue:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.dv2-continue-body { flex: 1 1 auto; min-width: 0; }
+.dv2-continue-eyebrow {
+  font-family: var(--font-data, var(--mono));
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 0.35rem;
+}
+.dv2-continue-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem; font-weight: 700; line-height: 1.2;
+  margin: 0 0 0.3rem; color: var(--text);
+}
+.dv2-continue-sub { font-size: 0.88rem; color: var(--text-sec); margin: 0; line-height: 1.4; }
+.dv2-continue-cta {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  background: var(--primary-soft, rgba(0,212,255,0.14));
+  color: var(--primary, #00d4ff);
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.dv2-continue:hover .dv2-continue-cta {
+  background: var(--primary, #00d4ff); color: #081018;
+}
+@media (max-width: 640px) {
+  .dv2-continue { flex-direction: column; align-items: flex-start; padding: 1rem 1.1rem; }
+  .dv2-continue-title { font-size: 1.15rem; }
+  .dv2-continue-cta { align-self: stretch; justify-content: center; }
+}
+
+/* ─── Stats strip — compact secondary row below the hero ─── */
+.dv2-stats-strip {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+  margin-bottom: 1.75rem;
+}
+.dv2-strip-cell {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 0.55rem 0.85rem;
+  display: flex; flex-direction: column; gap: 0.1rem;
+  min-width: 0;
+}
+.dv2-strip-label {
+  font-family: var(--font-data, var(--mono));
+  font-size: 0.55rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.dv2-strip-val {
+  font-family: var(--font-display);
+  font-size: 1.25rem; font-weight: 700; color: var(--text); line-height: 1.1;
+}
+.dv2-strip-sub {
+  font-size: 0.64rem; color: var(--text-sec);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 480px) {
+  .dv2-stats-strip { grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
+  .dv2-strip-cell { padding: 0.45rem 0.55rem; }
+  .dv2-strip-val { font-size: 1rem; }
+}
 
 /* ─── Sections ─── */
 .dv2-section { margin-bottom: 1.5rem; }
