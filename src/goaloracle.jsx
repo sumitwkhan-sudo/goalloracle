@@ -3875,6 +3875,9 @@ const GoalOracle = () => {
     const [newCountry, setNewCountry] = useState(uData?.country || '');
     const [savingCountry, setSavingCountry] = useState(false);
     const [countriesList, setCountriesList] = useState([]);
+    // Wallet section is collapsed by default — most users never need it.
+    // Will surface meaningfully when sweepstakes / paid leagues ship.
+    const [walletOpen, setWalletOpen] = useState(false);
     const walletAddr = walletAddress;
     const displayEmail = uData?.email || '';
     const displayName = uData?.displayName || displayEmail?.split('@')[0] || 'Player';
@@ -3969,54 +3972,73 @@ const GoalOracle = () => {
               {(() => { const { streak: s } = calculateStreak(preds, results); const b = getStreakBadge(s); return s > 0 ? <div className="dropdown-streak"><Flame size={13} style={{color:'var(--amber)'}} /> Streak: {s}{b && <span className={`streak-badge streak-badge-${b.tier}`}>{b.emoji} {b.name}</span>}</div> : null; })()}
             </div>
             <div className="dropdown-divider"></div>
-            <div className="dropdown-section-label">Network</div>
-            <div className="chain-selector">
-              {CHAINS.map(c => (
-                <button key={c.id} className={`chain-option ${activeChain.id === c.id ? 'active' : ''}`} onClick={() => setActiveChain(c)}>
-                  <span className="chain-dot" style={{ background: c.color }}></span>
-                  <span>{c.name}</span>
+            {/* Wallet section is intentionally quiet — collapsed by default
+                so the dropdown reads as a profile menu, not a crypto app.
+                The wallet stays available for the upcoming sweepstakes /
+                prize features but doesn't dominate the chrome today. */}
+            <button
+              type="button"
+              className={`dropdown-wallet-toggle ${walletOpen ? 'is-open' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setWalletOpen(v => !v); }}
+              aria-expanded={walletOpen}
+            >
+              <Wallet size={14} />
+              <span className="dropdown-wallet-toggle-label">Wallet</span>
+              {walletAddr && (
+                <code className="dropdown-wallet-toggle-addr">{walletAddr.slice(0, 6)}…{walletAddr.slice(-4)}</code>
+              )}
+              <ChevronDown size={14} className={`dropdown-wallet-toggle-chev ${walletOpen ? 'flip' : ''}`} />
+            </button>
+            {walletOpen && (
+              <div className="dropdown-wallet-section">
+                <div className="dropdown-section-label">Network</div>
+                <div className="chain-selector">
+                  {CHAINS.map(c => (
+                    <button key={c.id} className={`chain-option ${activeChain.id === c.id ? 'active' : ''}`} onClick={() => setActiveChain(c)}>
+                      <span className="chain-dot" style={{ background: c.color }}></span>
+                      <span>{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+                {walletAddr ? (<>
+                  <div className="dropdown-wallet">
+                    <code className="wallet-addr">{walletAddr.slice(0, 10)}...{walletAddr.slice(-8)}</code>
+                    <button className="copy-btn" onClick={copyAddress} title="Copy address">
+                      {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                  <div className="dropdown-balances">
+                    <div className="balance-row">
+                      <span className="balance-token">USDC</span>
+                      <span className="balance-amount">{formatBalance(walletBalances.USDC)}</span>
+                    </div>
+                    <div className="balance-row balance-row-dim">
+                      <span className="balance-token">POL</span>
+                      <span className="balance-amount">{formatBalance(walletBalances.POL)}</span>
+                    </div>
+                    <button className="balance-refresh" onClick={e => { e.stopPropagation(); refreshBalances(); }} title="Refresh balances">
+                      <RefreshCw size={12} className={balLoading ? 'spin' : ''} />
+                    </button>
+                  </div>
+                </>) : (
+                  <div className="dropdown-wallet"><span className="no-wallet">No wallet connected</span></div>
+                )}
+                <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setFundModal(true); }}>
+                  <ArrowRightLeft size={16} />
+                  <div>
+                    <div className="dropdown-item-title">Receive / Add Funds</div>
+                    <div className="dropdown-item-sub">Bridge any token to USDC on Polygon</div>
+                  </div>
                 </button>
-              ))}
-            </div>
-            <div className="dropdown-divider"></div>
-            <div className="dropdown-section-label">Wallet</div>
-            {walletAddr ? (<>
-              <div className="dropdown-wallet">
-                <code className="wallet-addr">{walletAddr.slice(0, 10)}...{walletAddr.slice(-8)}</code>
-                <button className="copy-btn" onClick={copyAddress} title="Copy address">
-                  {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
+                <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setSendModal(true); }} disabled={!walletAddr}>
+                  <Send size={16} />
+                  <div>
+                    <div className="dropdown-item-title">Send</div>
+                    <div className="dropdown-item-sub">Transfer USDC or POL to another wallet</div>
+                  </div>
                 </button>
               </div>
-              <div className="dropdown-balances">
-                <div className="balance-row">
-                  <span className="balance-token">USDC</span>
-                  <span className="balance-amount">{formatBalance(walletBalances.USDC)}</span>
-                </div>
-                <div className="balance-row balance-row-dim">
-                  <span className="balance-token">POL</span>
-                  <span className="balance-amount">{formatBalance(walletBalances.POL)}</span>
-                </div>
-                <button className="balance-refresh" onClick={e => { e.stopPropagation(); refreshBalances(); }} title="Refresh balances">
-                  <RefreshCw size={12} className={balLoading ? 'spin' : ''} />
-                </button>
-              </div>
-            </>) : (
-              <div className="dropdown-wallet"><span className="no-wallet">No wallet connected</span></div>
             )}
-            <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setFundModal(true); }}>
-              <ArrowRightLeft size={16} />
-              <div>
-                <div className="dropdown-item-title">Receive / Add Funds</div>
-                <div className="dropdown-item-sub">Bridge any token to USDC on Polygon</div>
-              </div>
-            </button>
-            <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setSendModal(true); }} disabled={!walletAddr}>
-              <Send size={16} />
-              <div>
-                <div className="dropdown-item-title">Send</div>
-                <div className="dropdown-item-sub">Transfer USDC or POL to another wallet</div>
-              </div>
-            </button>
             <div className="dropdown-divider"></div>
             <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); logout(); nav('landing'); }}>
               <LogOut size={16} />
