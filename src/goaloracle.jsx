@@ -821,6 +821,30 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             </div>
           )}
 
+          {/* Engagement CTA — sits at the top of the row list so it
+              gets surfaced before the user has to scroll. Hidden in
+              user-created leagues so we don't push them out. */}
+          {isGlobalView && (onBrowseLeagues || onCreateLeague) && (
+            <div className="lb-cta">
+              <div className="lb-cta-text">
+                <strong>Beat your friends, not strangers.</strong>
+                <span>Spin up a private league and crown the real Oracle.</span>
+              </div>
+              <div className="lb-cta-actions">
+                {onBrowseLeagues && (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={onBrowseLeagues}>
+                    Find a league
+                  </button>
+                )}
+                {onCreateLeague && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={onCreateLeague}>
+                    Start one
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {(!isGlobalView || lbMode === 'simple') && (simLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
           ) : visibleSimLb.length === 0 ? (
@@ -983,29 +1007,6 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             </div>
           ))}
 
-          {/* Engagement CTA — drives the user to find or create a league
-              when this view is the global leaderboard. Hidden inside
-              user-created leagues to avoid pushing them away. */}
-          {isGlobalView && (onBrowseLeagues || onCreateLeague) && (
-            <div className="lb-cta">
-              <div className="lb-cta-text">
-                <strong>Beat your friends, not strangers.</strong>
-                <span>Spin up a private league and crown the real Oracle.</span>
-              </div>
-              <div className="lb-cta-actions">
-                {onBrowseLeagues && (
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={onBrowseLeagues}>
-                    Find a league
-                  </button>
-                )}
-                {onCreateLeague && (
-                  <button type="button" className="btn btn-primary btn-sm" onClick={onCreateLeague}>
-                    Start one
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       )}
 

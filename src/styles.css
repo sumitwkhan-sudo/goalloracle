@@ -1313,10 +1313,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 /* Per-row action pills: "View picks" on others, "Edit" + "View" on your own */
 .lb-row-actions { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
 .lb-row-btn {
-  display: inline-flex; align-items: center; gap: 0.3rem;
+  display: inline-flex; align-items: center; gap: 0.25rem;
   font-family: var(--font-data, var(--mono));
-  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
-  padding: 0.3rem 0.55rem; border-radius: 6px;
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 0.22rem 0.45rem; border-radius: 6px;
   border: 1px solid var(--border-subtle, var(--border));
   background: transparent; color: var(--text-sec);
   cursor: pointer; transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -1628,11 +1628,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .dv2-flow-actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
 .leaderboard-list { display: flex; flex-direction: column; }
-.leaderboard-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
+.leaderboard-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.45rem 1rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
 .leaderboard-item:hover { background: var(--bg-elev); }
 .leaderboard-item.is-you { background: var(--primary-soft); }
-.rank { min-width: 40px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.rank span { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); }
+.rank { min-width: 32px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.rank span { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); }
 .rank-delta { font-family: var(--mono); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1; }
 .rank-delta-up { color: var(--success, #02B906); }
 .rank-delta-down { color: var(--danger, #FF3B5C); }
@@ -1640,23 +1640,23 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .gold { color: var(--amber); }
 .silver { color: #C0C0C0; }
 .bronze { color: #CD7F32; }
-.player-info { display: flex; align-items: center; gap: 0.75rem; flex: 1; }
-.player-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--bg-elev); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; color: var(--cyan); }
-.player-name { font-weight: 600; font-size: 0.85rem; }
-.you-badge { font-family: var(--mono); font-size: 0.55rem; color: var(--cyan); background: var(--primary-soft); padding: 0.1rem 0.35rem; border-radius: 3px; margin-left: 0.3rem; }
-.player-sub { font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); }
+.player-info { display: flex; align-items: center; gap: 0.55rem; flex: 1; }
+.player-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--bg-elev); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.7rem; color: var(--cyan); }
+.player-name { font-weight: 600; font-size: 0.82rem; line-height: 1.2; }
+.you-badge { font-family: var(--mono); font-size: 0.55rem; color: var(--cyan); background: var(--primary-soft); padding: 0.08rem 0.32rem; border-radius: 3px; margin-left: 0.3rem; }
+.player-sub { font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); margin-top: 0.1rem; line-height: 1.2; }
 .player-picks {
-  display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.2rem;
+  display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.15rem;
 }
 .player-pick {
-  display: inline-flex; align-items: center; gap: 0.2rem;
-  font-family: var(--mono); font-size: 0.58rem;
-  padding: 0.1rem 0.4rem; border-radius: 3px;
+  display: inline-flex; align-items: center; gap: 0.18rem;
+  font-family: var(--mono); font-size: 0.55rem;
+  padding: 0.06rem 0.32rem; border-radius: 3px;
 }
 .player-pick.winner-pick { background: rgba(245,158,11,0.12); color: var(--amber); }
 .player-pick.runnerup-pick { background: rgba(192,192,192,0.1); color: #C0C0C0; }
-.player-points { font-family: var(--mono); }
-.points { font-weight: 700; color: var(--cyan); font-size: 0.9rem; }
+.player-points { font-family: var(--mono); display: flex; align-items: center; gap: 0.4rem; }
+.points { font-weight: 700; color: var(--cyan); font-size: 0.82rem; }
 
 /* ---- RULES ---- */
 .rules-view { max-width: 600px; }
