@@ -2091,7 +2091,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   max-height: 16rem; overflow-y: auto;
   margin: 0; padding: 0.25rem;
   list-style: none;
-  background: var(--bg-surface);
+  /* --bg-card is the guaranteed-opaque surface in every theme;
+     --bg-surface can resolve to a translucent value depending on the
+     active theme, which let the gradient CTA bleed through the list. */
+  background: var(--bg-card, #ffffff);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
@@ -2107,9 +2110,17 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   cursor: pointer;
   font-size: 0.85rem;
   color: var(--text);
+  /* Items inherit the list's opaque bg, but pin a solid base so any
+     stacking-context shenanigans don't show the modal CTA underneath. */
+  background: var(--bg-card, #ffffff);
 }
 .country-picker-item:hover { background: var(--bg-elev); }
-.country-picker-item.is-selected { background: var(--primary-soft, rgba(0,212,255,0.14)); color: var(--primary); }
+.country-picker-item.is-selected {
+  /* Solid blend instead of the transparent primary-soft token so the
+     selected row stays opaque over gradient backdrops. */
+  background: color-mix(in srgb, var(--primary) 14%, var(--bg-card, #ffffff));
+  color: var(--primary);
+}
 .country-picker-item.is-pinned {
   border-bottom: 1px dashed var(--border-subtle, var(--border));
   margin-bottom: 0.25rem;
