@@ -38,7 +38,14 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
   // Bumping this key remounts the wizard so its frozen-initial hooks
   // rehydrate from the latest subscription data (used after copy / reset).
   const [rehydrateKey, setRehydrateKey] = useState(0);
-  const triggerRehydrate = useCallback(() => setRehydrateKey(k => k + 1), []);
+  // After certain rehydrations we want the wizard to mount at a specific
+  // step — e.g. after copying Global picks, jump straight to the bracket
+  // so the user can confirm + submit their Final winner.
+  const [initialStep, setInitialStep] = useState(1);
+  const triggerRehydrate = useCallback((opts = {}) => {
+    if (opts.openStep) setInitialStep(opts.openStep);
+    setRehydrateKey(k => k + 1);
+  }, []);
 
   if (loading) {
     return (
@@ -55,6 +62,7 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
     <SimplePredictionWizard
       key={`${league?.id || 'no-league'}:${rehydrateKey}`}
       initialData={data}
+      initialStep={initialStep}
       userId={userId}
       league={league}
       onExit={onExit}
@@ -72,8 +80,8 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
 
 const BRACKET_HINT_KEY = 'goaloracle_qp_bracket_hint_dismissed';
 
-function SimplePredictionWizard({ initialData, userId, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
-  const [step, setStep] = useState(1);
+function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
+  const [step, setStep] = useState(initialStep);
   const [showSaved, setShowSaved] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
   const [bracketHintVisible, setBracketHintVisible] = useState(() => {
@@ -216,9 +224,10 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
       await copySimplePrediction(userId, GLOBAL_SIMPLE_ID, league.id);
       setCopyBanner('success');
       // Wait briefly for the Firestore subscription to deliver the freshly
-      // copied doc, then remount the wizard so every hook rehydrates from
-      // the latest data. Avoids a full-page reload.
-      setTimeout(() => onRehydrate && onRehydrate(), 400);
+      // copied doc, then remount the wizard on Step 3 so the user can
+      // confirm + submit their Final winner without scrolling back through
+      // groups + best-thirds they already filled in the Global league.
+      setTimeout(() => onRehydrate && onRehydrate({ openStep: 3 }), 400);
     } catch (e) {
       window.alert(e?.message || 'Copy failed');
     } finally {
@@ -300,14 +309,14 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
           <div className="copy-banner-body">
             <Copy size={16} />
             <div>
-              <strong>Start fresh or copy your Global picks?</strong>
-              <span>Every league keeps its own predictions. Pull in what you already submitted in the Global League to save time.</span>
+              <strong>Reuse your Global picks for {league?.name || 'this league'}?</strong>
+              <span>Pull in your existing Global bracket and jump straight to confirming your winner — no need to redo the groups.</span>
             </div>
           </div>
           <div className="copy-banner-actions">
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCopyBanner(null)}>Predict fresh</button>
             <button type="button" className="btn btn-primary btn-sm" onClick={handleCopyFromGlobal} disabled={copyBusy}>
-              {copyBusy ? <><RefreshCw size={14} className="spin" /> Copying...</> : <><Copy size={14} /> Copy Global picks</>}
+              {copyBusy ? <><RefreshCw size={14} className="spin" /> Copying...</> : <><Copy size={14} /> Copy &amp; submit bracket</>}
             </button>
           </div>
         </div>
@@ -317,8 +326,8 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
           <div className="copy-banner-body">
             <Check size={16} />
             <div>
-              <strong>Predictions submitted for {league?.name || 'this league'}</strong>
-              <span>Copied from your Global Simple picks. You can still edit any step below.</span>
+              <strong>Picks copied — confirm your winner below</strong>
+              <span>Your Global bracket is loaded into {league?.name || 'this league'}. Pick the Final winner to lock it in, or edit any earlier round.</span>
             </div>
           </div>
           <div className="copy-banner-actions">
