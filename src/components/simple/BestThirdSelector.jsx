@@ -7,12 +7,13 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { Check, ChevronDown, ChevronUp, Info, AlertTriangle } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Info, AlertTriangle, Sparkles } from 'lucide-react';
 import { GROUPS } from '../../utils/bracketUtils';
 import { FIFA_THIRD_PLACE_CRITERIA } from '../../utils/fifaThirdPlaceRules';
 import { BEST_THIRD_REQUIRED } from '../../hooks/useBestThird';
+import { thirdPlaceStrength } from '../../utils/pedigree';
 
-export default function BestThirdSelector({ groupPredictions, flags, picks, isFull, onToggle }) {
+export default function BestThirdSelector({ groupPredictions, flags, picks, isFull, onToggle, onSetPicks }) {
   const [showGuide, setShowGuide] = useState(true);
   const [shakingGroup, setShakingGroup] = useState(null);
   const [showSwapHint, setShowSwapHint] = useState(false);
@@ -23,6 +24,20 @@ export default function BestThirdSelector({ groupPredictions, flags, picks, isFu
     group: g,
     team: groupPredictions[g]?.ranking?.[2] || null,
   })).filter((x) => x.team);
+
+  // Suggest the 8 strongest third-place picks based on World Cup titles +
+  // a coarse knockout-pedigree tiebreaker. Stable alphabetical fallback so
+  // the same input always produces the same suggestion. Useful as a
+  // starting point — users can still adjust by toggling individual cards.
+  const suggestEightGroups = () => {
+    if (!onSetPicks) return;
+    const ranked = [...thirdPlaceTeams].sort((a, b) => {
+      const sb = thirdPlaceStrength(b.team) - thirdPlaceStrength(a.team);
+      if (sb !== 0) return sb;
+      return a.group.localeCompare(b.group);
+    });
+    onSetPicks(ranked.slice(0, BEST_THIRD_REQUIRED).map(c => c.group));
+  };
 
   const selectedCount = picks.length;
   // Defensive: red guard if somehow over-selected. Cards being disabled
@@ -56,6 +71,17 @@ export default function BestThirdSelector({ groupPredictions, flags, picks, isFu
           {counterState === 'over' && <AlertTriangle size={14} aria-hidden="true" />}
           <span><strong>{selectedCount}</strong> / {BEST_THIRD_REQUIRED} selected</span>
         </div>
+        {onSetPicks && (
+          <button
+            type="button"
+            className="best-third-suggest"
+            onClick={suggestEightGroups}
+            title="Pre-fill 8 picks based on World Cup pedigree — you can still adjust"
+          >
+            <Sparkles size={12} aria-hidden="true" />
+            <span>{selectedCount === 0 ? 'Suggest 8' : 'Reset suggestion'}</span>
+          </button>
+        )}
         {showSwapHint && (
           <div className="best-third-swap-hint" role="status">
             Deselect one first to swap.

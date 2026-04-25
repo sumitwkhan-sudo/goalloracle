@@ -445,6 +445,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             picks={bestThird.picks}
             isFull={bestThird.isFull}
             onToggle={bestThird.toggle}
+            onSetPicks={bestThird.setAll}
           />
 
           <div className="simple-step-nav simple-step-nav-split">

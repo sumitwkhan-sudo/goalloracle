@@ -31,8 +31,23 @@ export default function useBestThird(initialPicks) {
 
   const clear = useCallback(() => setPicks([]), []);
 
+  // Replace the entire selection with a curated set of group letters.
+  // Used by the "Suggest 8" affordance; trims/dedupes defensively.
+  const setAll = useCallback((groups) => {
+    if (!Array.isArray(groups)) return;
+    const seen = new Set();
+    const next = [];
+    for (const g of groups) {
+      if (typeof g !== 'string' || !g || seen.has(g)) continue;
+      seen.add(g);
+      next.push(g);
+      if (next.length === BEST_THIRD_REQUIRED) break;
+    }
+    setPicks(next);
+  }, []);
+
   const isComplete = picks.length === BEST_THIRD_REQUIRED;
   const isFull = picks.length >= BEST_THIRD_REQUIRED;
 
-  return { picks, toggle, clear, isComplete, isFull };
+  return { picks, toggle, clear, setAll, isComplete, isFull };
 }

@@ -1,8 +1,26 @@
 // World Cup titles per country — shown on prediction cards as heritage context
-const TITLES = {
+export const TITLES = {
   'Brazil': 5, 'Germany': 4, 'Italy': 4, 'Argentina': 3,
   'France': 2, 'Uruguay': 2, 'England': 1, 'Spain': 1,
 };
+
+// Coarse "knockout pedigree" used as a tiebreaker for best-third
+// suggestions when a group's third-place pick has no World Cup titles.
+// Hand-curated for 2026: 2 = perennial knockout side, 1 = regular
+// qualifier with recent knockout appearances. Unlisted = 0.
+export const KNOCKOUT_PEDIGREE = {
+  Netherlands: 2, Portugal: 2, Croatia: 2, Belgium: 2, Mexico: 2,
+  Morocco: 2, Switzerland: 1, USA: 1, Senegal: 1, Japan: 1,
+  'South Korea': 1, Australia: 1, Colombia: 1, Ecuador: 1,
+  Denmark: 1, Sweden: 1, Poland: 1, Serbia: 1, Ghana: 1,
+};
+
+// Combined strength score used for ranking 12 third-place teams when the
+// user wants a starting suggestion for the "best 8" selection on Step 2.
+export function thirdPlaceStrength(name) {
+  if (!name) return 0;
+  return (TITLES[name] || 0) * 3 + (KNOCKOUT_PEDIGREE[name] || 0);
+}
 
 export function getPedigree(name) {
   const t = TITLES[name];

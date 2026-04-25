@@ -21,6 +21,17 @@ const ROUND_LABEL = {
   final: 'Final',
 };
 
+// Short labels for the progress strip — one strip cell per round, full
+// labels stay in the section header below.
+const ROUND_LABEL_SHORT = {
+  roundOf32: 'R32',
+  roundOf16: 'R16',
+  quarterFinals: 'QF',
+  semiFinals: 'SF',
+  thirdPlace: '3rd',
+  final: 'Final',
+};
+
 const ROUND_TOTAL = {
   roundOf32: 16,
   roundOf16: 8,
@@ -43,8 +54,40 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
     }
   }, [openRound, isRoundComplete, isRoundUnlocked]);
 
+  // Progress strip across the top — one cell per round so the user sees
+  // exactly where they are without expanding sections. Tapping a cell
+  // jumps to that round (only if it's already unlocked).
+  const currentIdx = ROUND_ORDER.indexOf(openRound);
   return (
     <div className="bracket-mobile">
+      <nav className="bracket-progress" aria-label="Bracket round progress">
+        {ROUND_ORDER.map((roundKey, i) => {
+          const slots = bracket[roundKey] || [];
+          const picked = slots.filter((s) => s.pick && s.pick.winnerId).length;
+          const total = ROUND_TOTAL[roundKey];
+          const unlocked = isRoundUnlocked(roundKey);
+          const complete = isRoundComplete(roundKey);
+          const isCurrent = roundKey === openRound;
+          const state = !unlocked ? 'locked' : complete ? 'done' : isCurrent ? 'current' : 'open';
+          return (
+            <button
+              key={roundKey}
+              type="button"
+              className={`bracket-progress-cell bracket-progress-${state}`}
+              onClick={() => unlocked && setOpenRound(roundKey)}
+              disabled={!unlocked}
+              aria-current={isCurrent ? 'step' : undefined}
+              aria-label={`${ROUND_LABEL[roundKey]} — ${picked} of ${total} picked`}
+              title={`${ROUND_LABEL[roundKey]}: ${picked} / ${total}`}
+            >
+              <span className="bracket-progress-label">{ROUND_LABEL_SHORT[roundKey]}</span>
+              <span className="bracket-progress-meta">
+                {complete ? '✓' : !unlocked ? '🔒' : `${picked}/${total}`}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
       {ROUND_ORDER.map((roundKey) => {
         const slots = bracket[roundKey] || [];
         const unlocked = isRoundUnlocked(roundKey);

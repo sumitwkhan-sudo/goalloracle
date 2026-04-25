@@ -3543,6 +3543,19 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   color: var(--danger, #ff3b5c);
 }
 .best-third-counter-over strong { color: var(--danger, #ff3b5c); }
+.best-third-suggest {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px dashed var(--border-br, var(--border));
+  background: transparent;
+  color: var(--primary, #00d4ff);
+  font: inherit; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.best-third-suggest:hover { background: var(--primary-soft, rgba(0,212,255,0.14)); border-color: var(--primary, #00d4ff); }
 .best-third-swap-hint {
   flex: 1 1 100%;
   font-size: 0.75rem; color: var(--danger, #ff3b5c);
@@ -3815,6 +3828,56 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* Mobile: round-by-round toggles */
 .bracket-mobile { display: flex; flex-direction: column; gap: 0.6rem; }
+/* Bracket round progress strip — one cell per round across the top, sticky
+   below the wizard chrome so users always know where they are. */
+.bracket-progress {
+  position: sticky; top: 0; z-index: 5;
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: 0.25rem;
+  padding: 0.45rem;
+  border-radius: 10px;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-subtle, var(--border));
+  margin-bottom: 0.6rem;
+}
+.bracket-progress-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+  padding: 0.4rem 0.2rem;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.bracket-progress-cell:disabled { cursor: not-allowed; }
+.bracket-progress-label {
+  font-family: var(--mono);
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em;
+}
+.bracket-progress-meta {
+  font-family: var(--mono);
+  font-size: 0.62rem; line-height: 1;
+}
+.bracket-progress-current {
+  background: var(--primary-soft, rgba(0,212,255,0.14));
+  color: var(--primary, #00d4ff);
+  box-shadow: 0 0 0 1px var(--border-br, rgba(0,212,255,0.28)) inset;
+}
+.bracket-progress-done {
+  color: var(--success, #00c853);
+}
+.bracket-progress-locked {
+  color: var(--text-muted, var(--text-dim));
+  opacity: 0.6;
+}
+.bracket-progress-open:hover { background: var(--bg-elev); color: var(--text); }
+@media (max-width: 480px) {
+  .bracket-progress-cell { padding: 0.35rem 0.1rem; }
+  .bracket-progress-label { font-size: 0.6rem; }
+  .bracket-progress-meta { font-size: 0.55rem; }
+}
 .bracket-round {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
