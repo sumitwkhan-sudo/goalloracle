@@ -480,20 +480,35 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
               }}>
                 Reset bracket
               </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={async () => {
-                  const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
-                  if (allComplete) {
-                    await saveNow({ isComplete: true });
-                  }
-                  if (onComplete) onComplete();
-                  else if (onExit) onExit();
-                }}
-              >
-                Continue <ArrowRight size={16} />
-              </button>
+              {(() => {
+                // Block Continue until the user has actually picked the
+                // tournament winner (the Final). Picking the Final
+                // implies every upstream round is filled (each match
+                // feeds the next), so this single check covers R32 →
+                // Final completeness without forcing the 3rd-Place pick.
+                const finalPicked = bracketState.isRoundComplete('final');
+                return (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={!finalPicked}
+                    aria-label={finalPicked ? 'Save and finish' : 'Pick the Final winner to continue'}
+                    onClick={async () => {
+                      if (!finalPicked) return;
+                      const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
+                      if (allComplete) {
+                        await saveNow({ isComplete: true });
+                      }
+                      if (onComplete) onComplete();
+                      else if (onExit) onExit();
+                    }}
+                  >
+                    {finalPicked
+                      ? <>Continue <ArrowRight size={16} /></>
+                      : <>Pick the Final winner to continue</>}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </section>
