@@ -347,6 +347,89 @@ function _countryFlag(code) {
   return String.fromCodePoint(A + (cc.charCodeAt(0) - base), A + (cc.charCodeAt(1) - base));
 }
 
+// Searchable country combobox. Plain <select> can't be filtered by typing
+// across browsers in a useful way, and a 160-row list is painful without it.
+// USA is pinned to the top regardless of search since the bulk of users are
+// in the US. Pass the same countries array we lazy-load elsewhere.
+function CountryPicker({ value, onChange, countries, autoFocus, disabled, id, placeholder = 'Search countries…' }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const selected = countries.find(c => c.code === value);
+  const inputValue = open ? query : (selected ? `${selected.flag}  ${selected.name}` : '');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const matches = (c) => !q
+      || c.name.toLowerCase().includes(q)
+      || c.code.toLowerCase() === q;
+    const usa = countries.find(c => c.code === 'US');
+    const rest = countries.filter(c => c.code !== 'US' && matches(c));
+    const out = [];
+    if (usa && matches(usa)) out.push(usa);
+    return out.concat(rest);
+  }, [countries, query]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false); setQuery('');
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const pick = (c) => { onChange(c.code); setOpen(false); setQuery(''); inputRef.current?.blur(); };
+
+  return (
+    <div className="country-picker" ref={wrapRef}>
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        className="country-picker-input"
+        value={inputValue}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        disabled={disabled}
+        autoComplete="off"
+        onFocus={() => { setOpen(true); setQuery(''); }}
+        onChange={e => { setQuery(e.target.value); if (!open) setOpen(true); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { setOpen(false); setQuery(''); inputRef.current?.blur(); }
+          else if (e.key === 'Enter' && filtered.length > 0) { e.preventDefault(); pick(filtered[0]); }
+        }}
+        aria-autocomplete="list"
+        aria-expanded={open}
+        role="combobox"
+      />
+      {open && (
+        <ul className="country-picker-list" role="listbox">
+          {filtered.length === 0 ? (
+            <li className="country-picker-empty">No matches</li>
+          ) : filtered.map(c => (
+            <li
+              key={c.code}
+              role="option"
+              aria-selected={c.code === value}
+              className={`country-picker-item ${c.code === value ? 'is-selected' : ''} ${c.code === 'US' && !query ? 'is-pinned' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); pick(c); }}
+            >
+              <span className="country-picker-flag">{c.flag}</span>
+              <span className="country-picker-name">{c.name}</span>
+              <span className="country-picker-code">{c.code}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // Post-join prompt: offers to copy existing Global predictions into the newly
 // joined league (classic only). Simple leagues share a single prediction doc
 // across all simple leagues, so this just confirms that.
@@ -3896,13 +3979,16 @@ const GoalOracle = () => {
                   <button type="button" className="edit-name-btn" onClick={() => { setNewCountry(userCountryCode); setEditingCountry(true); }} title="Edit home country">✏️</button>
                 </div>
               ) : (
-                <div className="edit-name-row">
-                  <select className="edit-name-input" value={newCountry} onChange={e => setNewCountry(e.target.value)} autoFocus disabled={savingCountry} style={{flex:1}}>
-                    <option value="">Select country…</option>
-                    {countriesList.map(c => (
-                      <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-                    ))}
-                  </select>
+                <div className="edit-country-row">
+                  <div style={{flex:1, minWidth:0}}>
+                    <CountryPicker
+                      value={newCountry}
+                      countries={countriesList}
+                      onChange={(code) => setNewCountry(code)}
+                      autoFocus
+                      disabled={savingCountry}
+                    />
+                  </div>
                   <button type="button" className="btn btn-primary btn-sm" onClick={saveCountry} disabled={savingCountry || !newCountry} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>Save</button>
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingCountry(false)} disabled={savingCountry} style={{padding:'0.3rem 0.6rem',fontSize:'0.7rem'}}>✕</button>
                 </div>
@@ -4457,17 +4543,12 @@ const GoalOracle = () => {
 
           <div className="username-country-wrap">
             <label className="username-country-label" htmlFor="home-country">Home country</label>
-            <select
+            <CountryPicker
               id="home-country"
-              className="username-country-select"
               value={country}
-              onChange={e => { setCountry(e.target.value); setErr(''); }}
-            >
-              <option value="">Select your country…</option>
-              {countries.map(c => (
-                <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-              ))}
-            </select>
+              countries={countries}
+              onChange={(code) => { setCountry(code); setErr(''); }}
+            />
           </div>
 
           {err && <div className="username-error"><AlertTriangle size={14} /> {err}</div>}

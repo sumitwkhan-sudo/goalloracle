@@ -2070,7 +2070,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .username-rules { font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); margin-bottom: 1rem; letter-spacing: 0.03em; }
 .username-country-wrap { text-align: left; margin-bottom: 1rem; }
 .username-country-label { display: block; font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.35rem; }
-.username-country-select {
+/* Searchable country combobox — used in the sign-up prompt and the
+   account-dropdown country edit. */
+.country-picker { position: relative; width: 100%; }
+.country-picker-input {
   width: 100%;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
@@ -2079,9 +2082,44 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   border-radius: 8px;
   font-size: 0.9rem;
   font-family: inherit;
-  cursor: pointer;
 }
-.username-country-select:focus { outline: none; border-color: var(--primary); }
+.country-picker-input:focus { outline: none; border-color: var(--primary); }
+.country-picker-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.country-picker-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+  z-index: 50;
+  max-height: 16rem; overflow-y: auto;
+  margin: 0; padding: 0.25rem;
+  list-style: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+.country-picker-empty {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.82rem; color: var(--text-dim); font-style: italic;
+}
+.country-picker-item {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.country-picker-item:hover { background: var(--bg-elev); }
+.country-picker-item.is-selected { background: var(--primary-soft, rgba(0,212,255,0.14)); color: var(--primary); }
+.country-picker-item.is-pinned {
+  border-bottom: 1px dashed var(--border-subtle, var(--border));
+  margin-bottom: 0.25rem;
+  padding-bottom: 0.55rem;
+}
+.country-picker-flag { font-size: 1.05rem; line-height: 1; flex-shrink: 0; }
+.country-picker-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.country-picker-code { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.05em; }
+/* Account-dropdown edit row keeps the picker + Save / cancel inline. */
+.edit-country-row { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.35rem; }
 /* Leaderboard row — country flag before display name */
 .player-country-flag { font-size: 1rem; margin-right: 0.4rem; line-height: 1; vertical-align: -1px; }
 .username-error {
