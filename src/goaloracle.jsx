@@ -1800,6 +1800,20 @@ const GoalOracle = () => {
       nav('detail', globalLeague);
     };
 
+    // Hero CTAs are state-aware so a logged-in user sees their next
+    // useful action (finish bracket / leaderboard / invite friends)
+    // instead of the generic "Start Predicting" pitch. Mirrors the
+    // dashboard's continueCard logic. While quickPicks is still loading
+    // (authenticated && quickPicks === null), fall back to a neutral
+    // "Continue predicting" so the primary doesn't flash a number that
+    // might be wrong.
+    const goLeaderboardLanding = () => {
+      const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || {
+        id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true,
+      };
+      nav('detail', gs, { tab: 'leaderboard' });
+    };
+
     // "Start Predicting" buttons: route straight to Global Quick Picks flow
     const startSimplePredicting = () => {
       track('bracket_start', { league_id: 'global-simple', authenticated });
@@ -1810,6 +1824,49 @@ const GoalOracle = () => {
       };
       nav('detail', globalSimple);
     };
+
+    const heroCtas = useMemo(() => {
+      // Anonymous: keep the original sign-up pitch.
+      if (!authenticated) {
+        return {
+          primary: { label: <>Start Predicting &mdash; It&rsquo;s Free</>, onClick: startSimplePredicting },
+          secondary: { label: 'Create a League', onClick: () => login() },
+        };
+      }
+      // Authenticated but Quick Picks fetch still in flight — neutral copy.
+      if (quickPicks === null) {
+        return {
+          primary: { label: 'Continue predicting', onClick: startSimplePredicting },
+          secondary: { label: 'View leaderboard', onClick: goLeaderboardLanding },
+        };
+      }
+      const hasPrivateLeagues = leagues.some(l => !l.isGlobal && l.id !== 'global' && l.id !== 'global-simple');
+      // Mid-bracket: surface exactly how many picks are left.
+      if (!quickPicks.isComplete) {
+        const n = quickPicks.totalRemaining;
+        return {
+          primary: {
+            label: `Finish your bracket — ${n} pick${n === 1 ? '' : 's'} left`,
+            onClick: startSimplePredicting,
+          },
+          secondary: { label: 'View leaderboard', onClick: goLeaderboardLanding },
+        };
+      }
+      // Done with QP and only competing in the global pool — push them
+      // to spin up a private league with friends.
+      if (!hasPrivateLeagues) {
+        return {
+          primary: { label: 'Invite friends to a league', onClick: () => nav('create') },
+          secondary: { label: 'View leaderboard', onClick: goLeaderboardLanding },
+        };
+      }
+      // Done + already has private leagues: leaderboard is the most
+      // useful primary; keep an Invite secondary for growth.
+      return {
+        primary: { label: 'View leaderboard', onClick: goLeaderboardLanding },
+        secondary: { label: 'Invite friends', onClick: () => nav('create') },
+      };
+    }, [authenticated, quickPicks, leagues]);
 
     // Mock leaderboard data
     const mockLb = [
@@ -1836,8 +1893,8 @@ const GoalOracle = () => {
               <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
               <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
               <div className="hero-cta">
-                <button className="btn btn-primary btn-lg" onClick={startSimplePredicting}>Start Predicting &mdash; It&rsquo;s Free</button>
-                <button className="btn btn-secondary btn-lg" onClick={() => authenticated ? nav('create') : login()}>Create a League</button>
+                <button className="btn btn-primary btn-lg" onClick={heroCtas.primary.onClick}>{heroCtas.primary.label}</button>
+                <button className="btn btn-secondary btn-lg" onClick={heroCtas.secondary.onClick}>{heroCtas.secondary.label}</button>
               </div>
               <div className="hero-social-proof">
                 <div className="hero-avatars">
