@@ -709,48 +709,6 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         </div>
       )}
 
-      {sTab !== 'predictions' && (
-        <div className="predict-cta-wrap">
-          <button
-            type="button"
-            className="predict-cta"
-            onClick={() => {
-              if (!authenticated) { onSignIn && onSignIn(); return; }
-              // Non-global leagues have a single mode — go straight into it
-              // instead of showing a menu that only has one option.
-              if (!isGlobalView) { goToPredictions('simple'); return; }
-              setPredMenuOpen((v) => !v);
-            }}
-            aria-expanded={isGlobalView ? predMenuOpen : undefined}
-          >
-            <Target size={16} />
-            <span>Change your predictions</span>
-            {isGlobalView && <ChevronDown size={14} className={`predict-cta-chev ${predMenuOpen ? 'open' : ''}`} />}
-            {!isGlobalView && <ChevronRight size={14} />}
-          </button>
-          {isGlobalView && predMenuOpen && (
-            <div className="predict-cta-menu" onClick={(e) => e.stopPropagation()}>
-              <button type="button" className="predict-cta-option" onClick={() => goToPredictions('classic')}>
-                <span className="predict-cta-option-icon classic"><Trophy size={16} /></span>
-                <div className="predict-cta-option-text">
-                  <strong>Classic Predictions</strong>
-                  <span>Score &amp; result for every fixture</span>
-                </div>
-                <ChevronRight size={14} />
-              </button>
-              <button type="button" className="predict-cta-option" onClick={() => goToPredictions('simple')}>
-                <span className="predict-cta-option-icon simple"><Target size={16} /></span>
-                <div className="predict-cta-option-text">
-                  <strong>Quick Picks</strong>
-                  <span>Group rankings + knockout bracket</span>
-                </div>
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {sTab === 'predictions' && (
         <div className="predict-inline-header">
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSTab('leaderboard')}>
@@ -762,32 +720,11 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
       {sTab === 'leaderboard' && (
         <div className="leaderboard">
-          <div className="leaderboard-header leaderboard-header-tabs-left">
-            {isGlobalView ? (
-              <div className="lb-mode-toggle lb-mode-toggle-big" role="tablist" aria-label="Leaderboard view">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={lbMode === 'simple'}
-                  className={`lb-mode-tab ${lbMode === 'simple' ? 'active' : ''}`}
-                  onClick={() => setLbMode('simple')}
-                >
-                  <Target size={14} /> Quick Picks Leaderboard
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={lbMode === 'classic'}
-                  className={`lb-mode-tab ${lbMode === 'classic' ? 'active' : ''}`}
-                  onClick={() => setLbMode('classic')}
-                >
-                  <Trophy size={14} /> Classic Predictions Leaderboard
-                </button>
-              </div>
-            ) : (
+          {!isGlobalView && (
+            <div className="leaderboard-header leaderboard-header-tabs-left">
               <h3>Rankings</h3>
-            )}
-          </div>
+            </div>
+          )}
 
           {isGlobalView && (
             <div className="lb-scope-bar">
@@ -845,7 +782,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             </div>
           )}
 
-          {(!isGlobalView || lbMode === 'simple') && (simLbl ? (
+          {(simLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
           ) : visibleSimLb.length === 0 ? (
             <div className="empty-state"><p>
@@ -898,22 +835,22 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                           <><Clock size={11} style={{color:'var(--text-sec)', verticalAlign:'middle'}} /> Not started</>
                         )}
                       </div>
-                      {(e.winner || e.runnerUp) && (
-                        <div className="player-picks">
-                          {e.winner && (
-                            <span className="player-pick winner-pick">
-                              <Trophy size={10} /> {_teamFlags[e.winner] || ''} {e.winner}
-                            </span>
-                          )}
-                          {e.runnerUp && (
-                            <span className="player-pick runnerup-pick">
-                              <Award size={10} /> {_teamFlags[e.runnerUp] || ''} {e.runnerUp}
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
+                  {(e.winner || e.runnerUp) && (
+                    <div className="player-picks">
+                      {e.winner && (
+                        <span className="player-pick winner-pick" title="Predicted winner">
+                          <Trophy size={10} /> {_teamFlags[e.winner] || ''} {e.winner}
+                        </span>
+                      )}
+                      {e.runnerUp && (
+                        <span className="player-pick runnerup-pick" title="Predicted runner-up">
+                          <Award size={10} /> {_teamFlags[e.runnerUp] || ''} {e.runnerUp}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="player-points">
                     <span className="points">{e.totalAccuracy > 0 ? `${e.totalAccuracy}%` : '—'}</span>
                     <div className="lb-row-actions">
@@ -923,76 +860,6 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                             <Target size={11} /> Edit
                           </button>
                           <button type="button" className="lb-row-btn" onClick={(ev) => { ev.stopPropagation(); setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp, leagueId: league?.id || 'global-simple' }); }}>
-                            <Eye size={11} /> View
-                          </button>
-                        </>
-                      ) : (
-                        <span className="lb-row-btn lb-row-btn-view"><Eye size={11} /> View picks</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-          ))}
-
-          {isGlobalView && lbMode === 'classic' && (classicLbl ? (
-            <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
-          ) : visibleClassicLb.length === 0 ? (
-            <div className="empty-state"><p>
-              {lbScope === 'country' ? `No Classic Predictions players in ${_countryFlag(lbScopeCountry)} ${lbScopeCountry || 'this country'} yet.` :
-                lbScope === 'friends' ? 'No friends have Classic Predictions yet.' : 'No Classic Predictions yet in the global league.'}
-            </p></div>
-          ) : (
-            <div className="leaderboard-list">
-              {visibleClassicLb.map((e, i) => {
-                const isYou = e.userId === userData?.id;
-                const openView = () => setViewingPicks({ mode: 'classic', userId: e.userId, displayName: e.displayName, classicPredictions: e.rawPredictions, predCount: e.predictions });
-                const rowClick = () => {
-                  if (isYou && onOpenClassic) onOpenClassic();
-                  else openView();
-                };
-                return (
-                <div
-                  key={e.userId}
-                  className={`leaderboard-item lb-clickable ${isYou ? 'is-you' : ''}`}
-                  onClick={rowClick}
-                  role="button"
-                  tabIndex={0}
-                  title={isYou ? 'Edit your Classic predictions' : `View ${e.displayName}'s picks`}
-                >
-                  <div className="rank">
-                    {i === 0 && <Trophy size={20} className="gold" />}
-                    {i === 1 && <Trophy size={20} className="silver" />}
-                    {i === 2 && <Trophy size={20} className="bronze" />}
-                    {i > 2 && <span>#{i + 1}</span>}
-                    <RankDelta delta={classicDeltas[e.userId]} />
-                  </div>
-                  <div className="player-info">
-                    <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
-                    <div>
-                      <div className="player-name">
-                        {e.country && <span className="player-country-flag" title={e.country}>{_countryFlag(e.country)}</span>}
-                        {e.displayName}
-                        {isYou && <span className="you-badge">You</span>}
-                      </div>
-                      <div className="player-sub">
-                        <Target size={11} style={{verticalAlign:'middle', color:'var(--cyan)'}} /> {e.predictions} prediction{e.predictions !== 1 ? 's' : ''} made
-                      </div>
-                    </div>
-                  </div>
-                  <div className="player-points">
-                    <span className="points">—</span>
-                    <div className="lb-row-actions">
-                      {isYou ? (
-                        <>
-                          {onOpenClassic && (
-                            <button type="button" className="lb-row-btn lb-row-btn-primary" onClick={(ev) => { ev.stopPropagation(); onOpenClassic(); }}>
-                              <Target size={11} /> Edit
-                            </button>
-                          )}
-                          <button type="button" className="lb-row-btn" onClick={(ev) => { ev.stopPropagation(); openView(); }}>
                             <Eye size={11} /> View
                           </button>
                         </>

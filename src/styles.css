@@ -1687,11 +1687,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .dv2-flow-actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
 .leaderboard-list { display: flex; flex-direction: column; }
-.leaderboard-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.45rem 1rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
+.leaderboard-item { display: flex; align-items: center; gap: 0.55rem; padding: 0.32rem 0.85rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
 .leaderboard-item:hover { background: var(--bg-elev); }
 .leaderboard-item.is-you { background: var(--primary-soft); }
-.rank { min-width: 32px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.rank span { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); }
+.rank { min-width: 28px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0; }
+.rank span { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); }
 .rank-delta { font-family: var(--mono); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1; }
 .rank-delta-up { color: var(--success, #02B906); }
 .rank-delta-down { color: var(--danger, #FF3B5C); }
@@ -1699,23 +1699,31 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .gold { color: var(--amber); }
 .silver { color: #C0C0C0; }
 .bronze { color: #CD7F32; }
-.player-info { display: flex; align-items: center; gap: 0.55rem; flex: 1; }
-.player-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--bg-elev); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.7rem; color: var(--cyan); }
-.player-name { font-weight: 600; font-size: 0.82rem; line-height: 1.2; }
-.you-badge { font-family: var(--mono); font-size: 0.55rem; color: var(--cyan); background: var(--primary-soft); padding: 0.08rem 0.32rem; border-radius: 3px; margin-left: 0.3rem; }
-.player-sub { font-family: var(--mono); font-size: 0.6rem; color: var(--text-dim); margin-top: 0.1rem; line-height: 1.2; }
+.player-info { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 12rem; min-width: 0; }
+.player-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--bg-elev); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.68rem; color: var(--cyan); flex-shrink: 0; }
+.player-name { font-weight: 600; font-size: 0.82rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.you-badge { font-family: var(--mono); font-size: 0.55rem; color: var(--cyan); background: var(--primary-soft); padding: 0.06rem 0.3rem; border-radius: 3px; margin-left: 0.3rem; }
+.player-sub { font-family: var(--mono); font-size: 0.58rem; color: var(--text-dim); margin-top: 0.06rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Picks column — winner / runner-up pills now sit as a sibling cell to
+   the right of player-info instead of below the username, so the row
+   stays single-line. */
 .player-picks {
-  display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.15rem;
+  display: flex; flex-wrap: wrap; gap: 0.25rem;
+  flex: 0 1 auto;
+  justify-content: flex-end;
 }
 .player-pick {
   display: inline-flex; align-items: center; gap: 0.18rem;
   font-family: var(--mono); font-size: 0.55rem;
-  padding: 0.06rem 0.32rem; border-radius: 3px;
+  padding: 0.08rem 0.34rem; border-radius: 3px;
+  white-space: nowrap;
+  max-width: 9rem;
+  overflow: hidden; text-overflow: ellipsis;
 }
 .player-pick.winner-pick { background: rgba(245,158,11,0.12); color: var(--amber); }
 .player-pick.runnerup-pick { background: rgba(192,192,192,0.1); color: #C0C0C0; }
-.player-points { font-family: var(--mono); display: flex; align-items: center; gap: 0.4rem; }
-.points { font-weight: 700; color: var(--cyan); font-size: 0.82rem; }
+.player-points { font-family: var(--mono); display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.points { font-weight: 700; color: var(--cyan); font-size: 0.78rem; }
 
 /* ---- RULES ---- */
 .rules-view { max-width: 600px; }
@@ -2498,21 +2506,22 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .type-selector.triple { grid-template-columns: 1fr; }
   .group-selector { grid-template-columns: repeat(4, 1fr); }
 
-  /* Leaderboard rows — stack player-info above player-points and tighten spacing */
+  /* Leaderboard rows — picks wrap to a second line on narrow screens
+     since there isn't room for them inline beside the username. */
   .leaderboard-item {
     flex-wrap: wrap;
-    gap: 0.5rem;
-    padding: 0.65rem 0.85rem;
-    align-items: flex-start;
+    gap: 0.4rem;
+    padding: 0.45rem 0.7rem;
+    align-items: center;
   }
-  .leaderboard-item .rank { min-width: 28px; }
-  .leaderboard-item .player-info { gap: 0.5rem; min-width: 0; flex: 1 1 auto; }
+  .leaderboard-item .rank { min-width: 24px; }
+  .leaderboard-item .player-info { gap: 0.4rem; min-width: 0; flex: 1 1 auto; }
   .leaderboard-item .player-info > div { min-width: 0; }
-  .leaderboard-item .player-avatar { width: 28px; height: 28px; font-size: 0.72rem; flex-shrink: 0; }
-  .leaderboard-item .player-name { font-size: 0.82rem; line-height: 1.25; word-break: break-word; }
-  .leaderboard-item .player-sub { font-size: 0.58rem; }
-  .leaderboard-item .player-picks { gap: 0.25rem; margin-top: 0.3rem; }
-  .leaderboard-item .player-pick { font-size: 0.55rem; padding: 0.08rem 0.32rem; }
+  .leaderboard-item .player-avatar { width: 24px; height: 24px; font-size: 0.66rem; flex-shrink: 0; }
+  .leaderboard-item .player-name { font-size: 0.78rem; line-height: 1.2; }
+  .leaderboard-item .player-sub { font-size: 0.55rem; }
+  .leaderboard-item .player-picks { gap: 0.2rem; flex: 1 1 100%; justify-content: flex-start; }
+  .leaderboard-item .player-pick { font-size: 0.55rem; padding: 0.06rem 0.3rem; }
   .leaderboard-item .player-points {
     margin-left: auto;
     text-align: right;
