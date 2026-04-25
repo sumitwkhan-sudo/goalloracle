@@ -1485,6 +1485,65 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   border-radius: var(--radius-lg);
   margin: 0 0 1rem;
 }
+
+/* First-visit fresh-vs-copy gate — replaces the wizard chrome until the
+   user picks a path. Centered card with two large stacked options. */
+.copy-gate {
+  display: flex; justify-content: center; padding: 2rem 0 1rem;
+}
+.copy-gate-card {
+  width: 100%; max-width: 36rem;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: var(--radius-lg);
+  padding: 1.6rem 1.5rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+.copy-gate-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 12px;
+  background: var(--primary-soft, rgba(0,212,255,0.14));
+  color: var(--primary, #00d4ff);
+  margin-bottom: 0.75rem;
+}
+.copy-gate-title { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.4rem; line-height: 1.25; }
+.copy-gate-sub { font-size: 0.9rem; color: var(--text-sec); line-height: 1.5; margin: 0 auto 1.25rem; max-width: 30rem; }
+.copy-gate-actions { display: flex; flex-direction: column; gap: 0.6rem; }
+.copy-gate-option {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle, var(--border));
+  background: var(--bg-card, #fff);
+  color: var(--text);
+  font: inherit; text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.05s;
+}
+.copy-gate-option:hover:not(:disabled) {
+  border-color: var(--primary, #00d4ff);
+  background: var(--bg-elev);
+}
+.copy-gate-option:active:not(:disabled) { transform: translateY(1px); }
+.copy-gate-option:disabled { opacity: 0.6; cursor: wait; }
+.copy-gate-option > svg { flex-shrink: 0; margin-top: 2px; color: var(--primary); }
+.copy-gate-option > div { display: flex; flex-direction: column; gap: 0.18rem; min-width: 0; }
+.copy-gate-option strong { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.copy-gate-option span { font-size: 0.82rem; color: var(--text-sec); line-height: 1.4; }
+.copy-gate-option-copy {
+  border-color: var(--primary, #00d4ff);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--primary) 8%, var(--bg-card, #fff)),
+    var(--bg-card, #fff));
+}
+.copy-gate-option-copy strong { color: var(--primary, #00d4ff); }
+.copy-gate-option-fresh > svg { color: var(--amber, #ffb800); }
+@media (max-width: 480px) {
+  .copy-gate { padding: 1rem 0; }
+  .copy-gate-card { padding: 1.25rem 1rem; }
+  .copy-gate-title { font-size: 1.1rem; }
+}
 .copy-banner-prompt {
   background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(255,184,0,0.06));
   border: 1px solid rgba(0,212,255,0.3);
@@ -1697,11 +1756,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .notification {
   position: fixed; top: 1rem; right: 1rem; z-index: 9999;
   display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem;
-  border-radius: 10px; font-size: 0.85rem; font-weight: 500;
-  animation: slideIn 0.3s ease-out; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  border-radius: 10px; font-size: 0.9rem; font-weight: 600;
+  animation: slideIn 0.3s ease-out; box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+  /* Opaque background — the previous rgba(0.12) over the page made the
+     toast almost invisible on light theme. Solid card bg + a colored
+     left border keeps it readable everywhere. */
+  background: var(--bg-card, #fff); color: var(--text);
+  border: 1px solid var(--border-subtle, var(--border));
+  border-left-width: 4px;
+  max-width: min(420px, calc(100vw - 2rem));
 }
-.notification.success { background: rgba(0,230,118,0.12); border: 1px solid rgba(0,230,118,0.2); color: var(--success); }
-.notification.error { background: rgba(255,59,92,0.12); border: 1px solid rgba(255,59,92,0.2); color: var(--danger); }
+.notification.success { border-left-color: var(--success, #00c853); }
+.notification.success svg { color: var(--success, #00c853); }
+.notification.error { border-left-color: var(--danger, #ff3b5c); }
+.notification.error svg { color: var(--danger, #ff3b5c); }
 @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
 /* ---- NAME EDITING ---- */

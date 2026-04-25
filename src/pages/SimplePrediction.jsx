@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { ArrowLeft, ArrowRight, Check, AlertTriangle, Copy, RotateCcw, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, AlertTriangle, Copy, RotateCcw, RefreshCw, Sparkles } from 'lucide-react';
 import StepProgress from '../components/simple/StepProgress';
 import GroupGrid from '../components/simple/GroupGrid';
 import QuickPicksScoringPanel from '../components/simple/QuickPicksScoringPanel';
@@ -304,20 +304,46 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         </div>
       )}
 
+      {/* First-visit gate: when the user has just joined a private league
+          and has no local picks yet, ask them up-front whether to copy
+          their Global bracket or start fresh. We hide the rest of the
+          wizard chrome so this is the only thing on screen. */}
       {!isGlobalSimple && copyBanner === 'prompt' && (
-        <div className="copy-banner copy-banner-prompt">
-          <div className="copy-banner-body">
-            <Copy size={16} />
-            <div>
-              <strong>Reuse your Global picks for {league?.name || 'this league'}?</strong>
-              <span>Pull in your existing Global bracket and jump straight to confirming your winner — no need to redo the groups.</span>
+        <div className="copy-gate">
+          <div className="copy-gate-card">
+            <div className="copy-gate-icon" aria-hidden="true"><Copy size={24} /></div>
+            <h2 className="copy-gate-title">How do you want to predict {league?.name || 'this league'}?</h2>
+            <p className="copy-gate-sub">
+              Each league keeps its own bracket. Reuse the picks you already
+              made in the Global league, or start a fresh prediction from
+              scratch.
+            </p>
+            <div className="copy-gate-actions">
+              <button
+                type="button"
+                className="copy-gate-option copy-gate-option-copy"
+                onClick={handleCopyFromGlobal}
+                disabled={copyBusy}
+              >
+                <Copy size={18} aria-hidden="true" />
+                <div>
+                  <strong>{copyBusy ? 'Copying…' : 'Copy & submit my Global bracket'}</strong>
+                  <span>Brings in your groups, best-thirds, and bracket. You'll only need to confirm your Final winner.</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="copy-gate-option copy-gate-option-fresh"
+                onClick={() => setCopyBanner(null)}
+                disabled={copyBusy}
+              >
+                <Sparkles size={18} aria-hidden="true" />
+                <div>
+                  <strong>Predict fresh for this league</strong>
+                  <span>Rank the groups, pick best-thirds, then fill the bracket from scratch.</span>
+                </div>
+              </button>
             </div>
-          </div>
-          <div className="copy-banner-actions">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCopyBanner(null)}>Predict fresh</button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={handleCopyFromGlobal} disabled={copyBusy}>
-              {copyBusy ? <><RefreshCw size={14} className="spin" /> Copying...</> : <><Copy size={14} /> Copy &amp; submit bracket</>}
-            </button>
           </div>
         </div>
       )}
@@ -338,9 +364,11 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         </div>
       )}
 
-      <StepProgress current={step} completed={completedSteps} onStepClick={handleStepClick} />
+      {copyBanner !== 'prompt' && (
+        <StepProgress current={step} completed={completedSteps} onStepClick={handleStepClick} />
+      )}
 
-      {step === 1 && (
+      {copyBanner !== 'prompt' && step === 1 && (
         <section className="simple-step-section">
           <div className="simple-step-intro">
             <h2>Step 1 — Rank each group</h2>
@@ -388,7 +416,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         </section>
       )}
 
-      {step === 2 && (
+      {copyBanner !== 'prompt' && step === 2 && (
         <section className="simple-step-section">
           <div className="simple-step-intro">
             <h2>Step 2 — Pick best third-place teams</h2>
@@ -435,7 +463,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         </section>
       )}
 
-      {step === 3 && (
+      {copyBanner !== 'prompt' && step === 3 && (
         <section className="simple-step-section">
           <div className="simple-step-intro">
             <div className="simple-step-intro-head">

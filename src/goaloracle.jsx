@@ -2891,7 +2891,21 @@ const GoalOracle = () => {
         notify(`Joined ${league.name}!`);
         setJoiningId(null);
         setPassInput('');
-        setPostJoin({ id: league.id, name: league.name, mode: league.predictionMode || 'classic' });
+        // Quick Picks leagues route straight into the league — the in-league
+        // gate (copy-banner) handles the fresh-vs-copy choice. Classic
+        // leagues keep the legacy success modal for now since they don't
+        // have an equivalent in-league gate yet.
+        const isSimple = league.predictionMode === 'simple';
+        if (isSimple) {
+          // Tiny delay so the leagues subscription delivers the new
+          // membership before nav() picks up the league.
+          setTimeout(() => {
+            const fresh = leagues.find(x => x.id === league.id) || allLeagues.find(x => x.id === league.id) || league;
+            nav('detail', fresh);
+          }, 150);
+        } else {
+          setPostJoin({ id: league.id, name: league.name, mode: league.predictionMode || 'classic' });
+        }
       } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
     };
 
@@ -2936,7 +2950,10 @@ const GoalOracle = () => {
               </thead>
               <tbody>
                 {f.map((l) => {
-                  const mem = l.members?.includes(uData?.id);
+                  // Membership flips live via the user's leagues subscription
+                  // (the cached `allLeagues.members` array doesn't refresh
+                  // after a join, which left the button stuck on "Join").
+                  const mem = leagues.some(ml => ml.id === l.id) || l.members?.includes(uData?.id);
                   const isQuickPicks = l.predictionMode === 'simple';
                   return (
                     <tr key={l.id} className="leagues-row">
