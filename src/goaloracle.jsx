@@ -526,7 +526,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {} }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -977,6 +977,30 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
               })}
             </div>
           ))}
+
+          {/* Engagement CTA — drives the user to find or create a league
+              when this view is the global leaderboard. Hidden inside
+              user-created leagues to avoid pushing them away. */}
+          {isGlobalView && (onBrowseLeagues || onCreateLeague) && (
+            <div className="lb-cta">
+              <div className="lb-cta-text">
+                <strong>Beat your friends, not strangers.</strong>
+                <span>Spin up a private league and crown the real Oracle.</span>
+              </div>
+              <div className="lb-cta-actions">
+                {onBrowseLeagues && (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={onBrowseLeagues}>
+                    Find a league
+                  </button>
+                )}
+                {onCreateLeague && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={onCreateLeague}>
+                    Start one
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -4788,6 +4812,8 @@ const GoalOracle = () => {
           onBack={() => nav(authenticated ? 'leagues' : 'landing')}
           onSetUsername={() => setShowUsernamePrompt(true)}
           notify={notify}
+          onBrowseLeagues={() => nav('browse')}
+          onCreateLeague={() => nav('create')}
           onOpenClassic={() => {
             const classic = leagues.find((l) => l.id === 'global') || allLeagues.find((l) => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } };
             setDetailTab('predictions');
