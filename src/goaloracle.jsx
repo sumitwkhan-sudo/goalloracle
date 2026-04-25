@@ -864,7 +864,12 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                         {e.isComplete ? (
                           <><CheckCircle size={11} style={{color:'var(--success)', verticalAlign:'middle'}} /> Complete</>
                         ) : e.hasSubmitted ? (
-                          <><RefreshCw size={11} style={{color:'var(--amber)', verticalAlign:'middle'}} /> In progress</>
+                          <>
+                            <RefreshCw size={11} style={{color:'var(--amber)', verticalAlign:'middle'}} />{' '}
+                            {typeof e.picksLeft === 'number' && e.picksLeft > 0
+                              ? `${e.picksLeft} pick${e.picksLeft === 1 ? '' : 's'} left`
+                              : 'In progress'}
+                          </>
                         ) : (
                           <><Clock size={11} style={{color:'var(--text-sec)', verticalAlign:'middle'}} /> Not started</>
                         )}

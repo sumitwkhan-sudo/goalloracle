@@ -64,6 +64,11 @@ export default async function handler(req, res) {
       }
     }
 
+    // Quick Picks completion budget: 12 group rankings + 8 best-thirds +
+    // 32 bracket winners (R32:16, R16:8, QF:4, SF:2, 3rd:1, Final:1).
+    const QP_TOTAL_PICKS = 12 + 8 + 32;
+    const BRACKET_ROUNDS = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['thirdPlace', 1], ['final', 1]];
+
     const leaderboard = members.map(userId => {
       const user = users[userId] || { displayName: userId.slice(0, 8), usernameSet: false };
       const pred = preds[userId];
@@ -73,13 +78,35 @@ export default async function handler(req, res) {
       const winner = finalPick?.winnerId || null;
       const runnerUp = finalPick?.loserId || null;
 
+      // Pick-count math used both for the "Complete" sort key and the
+      // "N picks left" label on the row. Counting a group as "ranked"
+      // requires all 4 positions filled; bracket rounds count any entry
+      // with a winnerId.
+      const groups = pred?.groupPredictions || {};
+      const thirds = Array.isArray(pred?.bestThirdPicks) ? pred.bestThirdPicks : [];
+      const ko = pred?.knockoutPredictions || {};
+      const groupsDone = Object.values(groups).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
+      const thirdsDone = thirds.filter(Boolean).length;
+      let bracketDone = 0;
+      for (const [k] of BRACKET_ROUNDS) {
+        bracketDone += (ko[k] || []).filter(p => p && p.winnerId).length;
+      }
+      const totalPicked = groupsDone + Math.min(thirdsDone, 8) + bracketDone;
+      const picksLeft = Math.max(0, QP_TOTAL_PICKS - totalPicked);
+      // Picking the Final winner is the meaningful end-state for the user
+      // even if they skipped the 3rd-Place match. Treat that — or the
+      // explicit isComplete flag — as "done" so the leaderboard label
+      // doesn't keep saying "In progress" for users who finished.
+      const isComplete = !!(pred?.isComplete || winner);
+
       return {
         userId,
         displayName: user.displayName,
         usernameSet: user.usernameSet,
         country: user.country || null,
         hasSubmitted: !!pred,
-        isComplete: pred?.isComplete || false,
+        isComplete,
+        picksLeft,
         submittedAt: ts?._seconds ? ts._seconds * 1000 : ts?.toMillis ? ts.toMillis() : ts || null,
         totalAccuracy: 0,
         winner,

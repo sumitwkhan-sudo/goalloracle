@@ -129,7 +129,14 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
     knockoutPredictions: frozenInitial?.knockoutPredictions,
-    onChange: (next) => save({ knockoutPredictions: next }),
+    onChange: (next) => {
+      // Treat picking the Final winner as the user finishing their
+      // bracket — leaderboards key off isComplete and we don't want
+      // users to stay in "In progress" forever just because they
+      // skipped the 3rd-Place match.
+      const finalPicked = !!(next?.final?.[0]?.winnerId);
+      save({ knockoutPredictions: next, isComplete: finalPicked });
+    },
   });
 
   // Wrap pickWinner so the wizard can: (1) dismiss the first-visit hint
