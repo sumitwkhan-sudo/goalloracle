@@ -82,12 +82,28 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
 
   const pickWinner = useCallback((matchId, winnerTeam) => {
     const round = getRoundForMatchId(matchId);
-    if (!round) return;
+    if (!round) return { cleared: 0 };
     const roundSlots = bracket[round];
     const slot = roundSlots?.find((s) => s.matchId === matchId);
-    if (!slot || !slot.home || !slot.away) return;
-    if (winnerTeam !== slot.home && winnerTeam !== slot.away) return;
+    if (!slot || !slot.home || !slot.away) return { cleared: 0 };
+    if (winnerTeam !== slot.home && winnerTeam !== slot.away) return { cleared: 0 };
     const loser = winnerTeam === slot.home ? slot.away : slot.home;
+
+    // If the user is *changing* a previously-set winner, count how many
+    // already-picked downstream matches will be wiped so the caller can
+    // surface a "N picks reset" toast. Picking the same team again is a
+    // no-op for downstream so cleared stays 0.
+    let cleared = 0;
+    const previousWinner = slot.pick?.winnerId;
+    if (previousWinner && previousWinner !== winnerTeam) {
+      const downstream = getDownstreamMatchIds(matchId);
+      for (const dsId of downstream) {
+        const dsRound = getRoundForMatchId(dsId);
+        if (!dsRound) continue;
+        const dsSlot = bracket[dsRound]?.find((s) => s.matchId === dsId);
+        if (dsSlot?.pick?.winnerId) cleared++;
+      }
+    }
 
     dirtyRef.current = true;
     setPicks((prev) => {
@@ -106,6 +122,7 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
 
       return next;
     });
+    return { cleared };
   }, [bracket]);
 
   const resetMatch = useCallback((matchId) => {

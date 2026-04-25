@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, ChevronRight } from 'lucide-react';
 
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatMatchDate(dateStr) {
@@ -57,6 +57,9 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
         {homeSelected && <span className="bracket-row-pill adv">ADV</span>}
         {homeIsLoser && <span className="bracket-row-pill out">OUT</span>}
         {isLocked && <Lock size={12} className="bracket-row-lock" />}
+        {!homeSelected && !homeIsLoser && !isLocked && homeTeam && awayTeam && (
+          <ChevronRight size={14} className="bracket-row-advance" aria-hidden="true" />
+        )}
       </button>
       <button
         type="button"
@@ -69,6 +72,9 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
         <span className="bracket-row-name">{awayTeam || 'TBD'}</span>
         {awaySelected && <span className="bracket-row-pill adv">ADV</span>}
         {awayIsLoser && <span className="bracket-row-pill out">OUT</span>}
+        {!awaySelected && !awayIsLoser && !isLocked && homeTeam && awayTeam && (
+          <ChevronRight size={14} className="bracket-row-advance" aria-hidden="true" />
+        )}
       </button>
     </div>
   );

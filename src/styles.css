@@ -3605,6 +3605,76 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .bracket-row + .bracket-row { border-top: 1px solid var(--border); }
 .bracket-row:hover:not(:disabled):not(.locked) { background: rgba(255,255,255,0.04); }
 .bracket-row:disabled { cursor: default; }
+/* Right-arrow affordance — only visible on hover/focus of unpicked rows so
+   first-time users can tell the rows are clickable. */
+.bracket-row-advance {
+  color: var(--text-dim);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.bracket-row:hover:not(:disabled):not(.locked) .bracket-row-advance,
+.bracket-row:focus-visible:not(:disabled):not(.locked) .bracket-row-advance {
+  opacity: 1;
+  transform: translateX(2px);
+  color: var(--primary);
+}
+/* First-visit hint tooltip — pulses above the first R32 match. */
+.bracket-match-wrap { position: relative; }
+.bracket-match-wrap.has-hint, .bracket-desktop-slot.has-hint { position: relative; }
+.bracket-hint-tooltip {
+  position: absolute;
+  left: 50%; top: -54px; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  background: var(--primary, #00d4ff); color: #081018;
+  font-size: 0.78rem; font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(0, 212, 255, 0.35);
+  z-index: 12;
+  animation: qp-hint-pulse 1.6s ease-in-out infinite;
+}
+.bracket-hint-tooltip .bracket-hint-arrow {
+  position: absolute; left: 50%; bottom: -6px;
+  width: 12px; height: 12px; transform: translateX(-50%) rotate(45deg);
+  background: var(--primary, #00d4ff);
+}
+.bracket-hint-text { line-height: 1.2; }
+.bracket-hint-close {
+  margin-left: 0.2rem;
+  background: rgba(0, 0, 0, 0.15); color: inherit;
+  border: none; border-radius: 999px;
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.bracket-hint-close:hover { background: rgba(0, 0, 0, 0.28); }
+@keyframes qp-hint-pulse {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(-3px); }
+}
+@media (max-width: 480px) {
+  .bracket-hint-tooltip { font-size: 0.72rem; max-width: calc(100vw - 2rem); white-space: normal; text-align: center; }
+}
+/* Cascade-change toast: shown when re-picking a winner wipes downstream. */
+.bracket-cascade-toast {
+  position: sticky; bottom: 1rem;
+  margin: 1rem auto 0;
+  max-width: 28rem;
+  padding: 0.65rem 1rem;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--amber, #ffb800);
+  border-left: 4px solid var(--amber, #ffb800);
+  border-radius: var(--radius);
+  font-size: 0.85rem; color: var(--text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 20;
+  animation: qp-toast-in 0.2s ease both;
+}
+@keyframes qp-toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .bracket-row.tbd { opacity: 0.55; }
 .bracket-row.winner {
   background: rgba(0,230,118,0.12); border-left-color: #00E676;

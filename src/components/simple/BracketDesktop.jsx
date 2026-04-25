@@ -11,6 +11,7 @@
 
 import React, { useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
 import BracketMatch from './BracketMatch';
+import BracketHintTooltip from './BracketHintTooltip';
 
 const LEFT_SIDE_R32_IDS  = ['r32-01', 'r32-02', 'r32-03', 'r32-04', 'r32-05', 'r32-06', 'r32-07', 'r32-08'];
 const RIGHT_SIDE_R32_IDS = ['r32-09', 'r32-10', 'r32-11', 'r32-12', 'r32-13', 'r32-14', 'r32-15', 'r32-16'];
@@ -42,7 +43,7 @@ const CONNECTIONS = [
   { from: 'sf-01', to: '3rd' },   { from: 'sf-02', to: '3rd' },
 ];
 
-function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matchRefs, matchLookup, compact = true }) {
+function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matchRefs, matchLookup, compact = true, hintMatchId, onDismissHint }) {
   return (
     <div className="bracket-desktop-col">
       {title && <div className="bracket-desktop-col-title">{title}</div>}
@@ -52,12 +53,14 @@ function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matc
           if (!slot) return null;
           const meta = matchLookup?.[id];
           const needsPick = !!(slot.home && slot.away && !slot.pick?.winnerId);
+          const isHintAnchor = hintMatchId && hintMatchId === id;
           return (
             <div
               key={id}
-              className="bracket-desktop-slot"
+              className={`bracket-desktop-slot ${isHintAnchor ? 'has-hint' : ''}`}
               ref={(el) => { if (el) matchRefs.current[id] = el; }}
             >
+              {isHintAnchor && <BracketHintTooltip onDismiss={onDismissHint} />}
               <BracketMatch
                 matchId={id}
                 homeTeam={slot.home}
@@ -88,7 +91,8 @@ function findSlot(bracket, matchId) {
   return null;
 }
 
-export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, matchLookup }) {
+export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, matchLookup, showHint, onDismissHint }) {
+  const hintMatchId = showHint ? 'r32-01' : null;
   const containerRef = useRef(null);
   const matchRefs = useRef({});
   const [paths, setPaths] = useState([]);
@@ -144,6 +148,8 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           isMatchLocked={isMatchLocked}
           matchRefs={matchRefs}
           matchLookup={matchLookup}
+          hintMatchId={hintMatchId}
+          onDismissHint={onDismissHint}
         />
         <MatchColumn
           title="Round of 16"

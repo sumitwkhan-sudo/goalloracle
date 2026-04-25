@@ -70,10 +70,30 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
   );
 }
 
+const BRACKET_HINT_KEY = 'goaloracle_qp_bracket_hint_dismissed';
+
 function SimplePredictionWizard({ initialData, userId, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
   const [step, setStep] = useState(1);
   const [showSaved, setShowSaved] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
+  const [bracketHintVisible, setBracketHintVisible] = useState(() => {
+    try { return localStorage.getItem(BRACKET_HINT_KEY) !== '1'; } catch { return true; }
+  });
+  const [cascadeToast, setCascadeToast] = useState(null);
+  const cascadeToastTimer = useRef(null);
+  const bracketHintTimer = useRef(null);
+  const dismissBracketHint = useCallback(() => {
+    setBracketHintVisible(false);
+    try { localStorage.setItem(BRACKET_HINT_KEY, '1'); } catch {}
+  }, []);
+
+  // Auto-dismiss the bracket hint 4s after the user lands on Step 3.
+  useEffect(() => {
+    if (step !== 3 || !bracketHintVisible) return;
+    if (bracketHintTimer.current) clearTimeout(bracketHintTimer.current);
+    bracketHintTimer.current = setTimeout(() => dismissBracketHint(), 4000);
+    return () => { if (bracketHintTimer.current) clearTimeout(bracketHintTimer.current); };
+  }, [step, bracketHintVisible, dismissBracketHint]);
   // Copy banner: 'prompt' (offer to copy), 'success' (just copied, show reset), null.
   const isGlobalSimple = league?.id === GLOBAL_SIMPLE_ID;
   const hasLocalPicks = !!(initialData && (
@@ -111,6 +131,21 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
     knockoutPredictions: frozenInitial?.knockoutPredictions,
     onChange: (next) => save({ knockoutPredictions: next }),
   });
+
+  // Wrap pickWinner so the wizard can: (1) dismiss the first-visit hint
+  // tooltip, (2) surface a toast when changing an upstream pick wipes
+  // downstream rounds, so the user understands why bracket cells they
+  // already filled went blank.
+  const pickWinnerWithFeedback = useCallback((matchId, winnerTeam) => {
+    const result = bracketState.pickWinner(matchId, winnerTeam) || {};
+    if (bracketHintVisible) dismissBracketHint();
+    if (result.cleared > 0) {
+      if (cascadeToastTimer.current) clearTimeout(cascadeToastTimer.current);
+      setCascadeToast(`Pick updated — ${result.cleared} dependent pick${result.cleared === 1 ? '' : 's'} reset.`);
+      cascadeToastTimer.current = setTimeout(() => setCascadeToast(null), 3500);
+    }
+    return result;
+  }, [bracketState, bracketHintVisible, dismissBracketHint]);
 
   useEffect(() => {
     if (!savedAt) return;
@@ -407,19 +442,29 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
           {layout === 'desktop' ? (
             <BracketDesktop
               bracket={bracketState.bracket}
-              pickWinner={bracketState.pickWinner}
+              pickWinner={pickWinnerWithFeedback}
               isMatchLocked={isMatchLocked}
               matchLookup={matchLookup}
+              showHint={bracketHintVisible}
+              onDismissHint={dismissBracketHint}
             />
           ) : (
             <BracketMobile
               bracket={bracketState.bracket}
-              pickWinner={bracketState.pickWinner}
+              pickWinner={pickWinnerWithFeedback}
               isRoundComplete={bracketState.isRoundComplete}
               isRoundUnlocked={bracketState.isRoundUnlocked}
               isMatchLocked={isMatchLocked}
               matchLookup={matchLookup}
+              showHint={bracketHintVisible}
+              onDismissHint={dismissBracketHint}
             />
+          )}
+
+          {cascadeToast && (
+            <div className="bracket-cascade-toast" role="status" aria-live="polite">
+              {cascadeToast}
+            </div>
           )}
 
           <div className="simple-step-nav simple-step-nav-split">

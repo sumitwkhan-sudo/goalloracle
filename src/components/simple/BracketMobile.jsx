@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import BracketMatch from './BracketMatch';
+import BracketHintTooltip from './BracketHintTooltip';
 import { ROUND_ORDER } from '../../utils/bracketUtils';
 
 const ROUND_LABEL = {
@@ -29,7 +30,7 @@ const ROUND_TOTAL = {
   final: 1,
 };
 
-export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup }) {
+export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint }) {
   const firstIncomplete = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r)) || 'roundOf32';
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
@@ -75,23 +76,29 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                 {slots.map((s, i) => {
                   const meta = matchLookup?.[s.matchId];
                   const needsPick = !!(s.home && s.away && !s.pick?.winnerId);
+                  // Anchor the first-visit hint to the first match of the
+                  // first incomplete round so it's the matchup the user
+                  // is most likely to interact with.
+                  const isHintAnchor = showHint && roundKey === 'roundOf32' && i === 0;
                   return (
-                    <BracketMatch
-                      key={s.matchId}
-                      matchId={s.matchId}
-                      label={`Match ${i + 1}`}
-                      homeTeam={s.home}
-                      awayTeam={s.away}
-                      homeFlag={s.homeFlag}
-                      awayFlag={s.awayFlag}
-                      winnerId={s.pick?.winnerId || null}
-                      onPick={(team) => pickWinner(s.matchId, team)}
-                      isLocked={isMatchLocked ? isMatchLocked(s.matchId) : false}
-                      size="full"
-                      city={meta?.city}
-                      date={meta?.date}
-                      needsPick={needsPick}
-                    />
+                    <div key={s.matchId} className={`bracket-match-wrap ${isHintAnchor ? 'has-hint' : ''}`}>
+                      {isHintAnchor && <BracketHintTooltip onDismiss={onDismissHint} />}
+                      <BracketMatch
+                        matchId={s.matchId}
+                        label={`Match ${i + 1}`}
+                        homeTeam={s.home}
+                        awayTeam={s.away}
+                        homeFlag={s.homeFlag}
+                        awayFlag={s.awayFlag}
+                        winnerId={s.pick?.winnerId || null}
+                        onPick={(team) => pickWinner(s.matchId, team)}
+                        isLocked={isMatchLocked ? isMatchLocked(s.matchId) : false}
+                        size="full"
+                        city={meta?.city}
+                        date={meta?.date}
+                        needsPick={needsPick}
+                      />
+                    </div>
                   );
                 })}
               </div>
