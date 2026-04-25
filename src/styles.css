@@ -3387,18 +3387,67 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* Best-third selector */
 .best-third { display: flex; flex-direction: column; gap: 1rem; }
+/* Sticky header above the third-place grid: title + counter pill + swap hint.
+   Position-sticky to stay visible while the user scrolls through 12 teams. */
+.best-third-header {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,184,0,0.35);
+  background: linear-gradient(180deg, rgba(255,184,0,0.10), rgba(255,184,0,0.04));
+  backdrop-filter: blur(8px);
+}
+.best-third-header-complete {
+  border-color: rgba(0,230,118,0.4);
+  background: linear-gradient(180deg, rgba(0,230,118,0.10), rgba(0,230,118,0.03));
+}
+.best-third-header-over {
+  border-color: rgba(255,59,92,0.5);
+  background: linear-gradient(180deg, rgba(255,59,92,0.10), rgba(255,59,92,0.04));
+}
+.best-third-header-text { flex: 1 1 16rem; min-width: 0; }
+.best-third-title { margin: 0 0 0.15rem; font-size: 1rem; font-weight: 700; color: var(--text); }
+.best-third-subtitle { margin: 0; font-size: 0.78rem; color: var(--text-sec); line-height: 1.4; }
 .best-third-counter {
-  display: flex; align-items: baseline; gap: 0.5rem;
-  padding: 0.75rem 1rem; border-radius: var(--radius);
-  background: var(--bg-card); border: 1px solid var(--border);
-  font-size: 0.9rem; color: var(--text-sec);
-  transition: border-color 0.2s, background 0.2s;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.4rem 0.7rem; border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.75rem; color: var(--text-sec);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-subtle, var(--border));
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  white-space: nowrap;
 }
-.best-third-counter strong { color: var(--text); font-size: 0.95rem; }
-.best-third-counter.counter-complete {
-  border-color: rgba(0,230,118,0.4); background: rgba(0,230,118,0.06);
+.best-third-counter strong { color: var(--text); font-weight: 700; }
+.best-third-counter-complete {
+  background: rgba(0,230,118,0.14);
+  border-color: rgba(0,230,118,0.5);
+  color: var(--success, #00c853);
 }
-.best-third-counter.counter-complete strong { color: var(--success); }
+.best-third-counter-complete strong { color: var(--success, #00c853); }
+.best-third-counter-over {
+  background: rgba(255,59,92,0.14);
+  border-color: rgba(255,59,92,0.5);
+  color: var(--danger, #ff3b5c);
+}
+.best-third-counter-over strong { color: var(--danger, #ff3b5c); }
+.best-third-swap-hint {
+  flex: 1 1 100%;
+  font-size: 0.75rem; color: var(--danger, #ff3b5c);
+  font-style: italic;
+}
+/* Wrapper exists so we can listen for taps on disabled cards (the inner
+   <button disabled> swallows pointer events) and trigger a shake. */
+.best-third-card-wrap { display: contents; }
+.best-third-card-wrap.is-shaking .best-third-card { animation: qp-shake 0.35s ease both; }
+@keyframes qp-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
 /* Quick Picks scoring panel — Step 1 */
 .qp-scoring-panel {
   background: var(--bg-card);

@@ -6,14 +6,18 @@
  * 8 have been chosen.
  */
 
-import React, { useState } from 'react';
-import { Check, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Check, ChevronDown, ChevronUp, Info, AlertTriangle } from 'lucide-react';
 import { GROUPS } from '../../utils/bracketUtils';
 import { FIFA_THIRD_PLACE_CRITERIA } from '../../utils/fifaThirdPlaceRules';
 import { BEST_THIRD_REQUIRED } from '../../hooks/useBestThird';
 
 export default function BestThirdSelector({ groupPredictions, flags, picks, isFull, onToggle }) {
   const [showGuide, setShowGuide] = useState(true);
+  const [shakingGroup, setShakingGroup] = useState(null);
+  const [showSwapHint, setShowSwapHint] = useState(false);
+  const shakeTimer = useRef(null);
+  const hintTimer = useRef(null);
 
   const thirdPlaceTeams = GROUPS.map((g) => ({
     group: g,
@@ -21,13 +25,42 @@ export default function BestThirdSelector({ groupPredictions, flags, picks, isFu
   })).filter((x) => x.team);
 
   const selectedCount = picks.length;
-  const counterClass = selectedCount === BEST_THIRD_REQUIRED ? 'counter-complete' : '';
+  // Defensive: red guard if somehow over-selected. Cards being disabled
+  // when isFull keeps this from happening, but it's a cheap safety net.
+  const counterState = selectedCount > BEST_THIRD_REQUIRED ? 'over'
+    : selectedCount === BEST_THIRD_REQUIRED ? 'complete'
+    : 'progress';
+
+  // Fire the shake when a user taps a disabled (already-full) card. The
+  // <button> itself is disabled so we listen on the wrapper via mousedown.
+  const handleDisabledTap = (group) => {
+    if (shakeTimer.current) clearTimeout(shakeTimer.current);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    setShakingGroup(group);
+    setShowSwapHint(true);
+    shakeTimer.current = setTimeout(() => setShakingGroup(null), 500);
+    hintTimer.current = setTimeout(() => setShowSwapHint(false), 2400);
+  };
 
   return (
     <div className="best-third">
-      <div className={`best-third-counter ${counterClass}`} aria-live="polite">
-        <strong>{BEST_THIRD_REQUIRED} teams advance</strong>
-        <span>selected: {selectedCount} / {BEST_THIRD_REQUIRED}</span>
+      <div className={`best-third-header best-third-header-${counterState}`} role="region" aria-label="Third-place selection summary">
+        <div className="best-third-header-text">
+          <h3 className="best-third-title">Which {BEST_THIRD_REQUIRED} third-place teams advance?</h3>
+          <p className="best-third-subtitle">
+            Only {BEST_THIRD_REQUIRED} of the 12 group third-place finishers go through. Select exactly {BEST_THIRD_REQUIRED}.
+          </p>
+        </div>
+        <div className={`best-third-counter best-third-counter-${counterState}`} aria-live="polite">
+          {counterState === 'complete' && <Check size={14} aria-hidden="true" />}
+          {counterState === 'over' && <AlertTriangle size={14} aria-hidden="true" />}
+          <span><strong>{selectedCount}</strong> / {BEST_THIRD_REQUIRED} selected</span>
+        </div>
+        {showSwapHint && (
+          <div className="best-third-swap-hint" role="status">
+            Deselect one first to swap.
+          </div>
+        )}
       </div>
 
       <div className="best-third-banner">
@@ -58,24 +91,31 @@ export default function BestThirdSelector({ groupPredictions, flags, picks, isFu
         {thirdPlaceTeams.map(({ group, team }) => {
           const isSelected = picks.includes(group);
           const isDisabled = !isSelected && isFull;
+          const isShaking = shakingGroup === group;
           return (
-            <button
+            <div
               key={group}
-              type="button"
-              className={`best-third-card ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
-              onClick={() => onToggle(group)}
-              disabled={isDisabled}
-              aria-pressed={isSelected}
+              className={`best-third-card-wrap ${isShaking ? 'is-shaking' : ''}`}
+              onMouseDown={() => { if (isDisabled) handleDisabledTap(group); }}
+              onTouchStart={() => { if (isDisabled) handleDisabledTap(group); }}
             >
-              <span className="best-third-flag" aria-hidden="true">{flags[team] || '🏳️'}</span>
-              <span className="best-third-team">{team}</span>
-              <span className="best-third-group">Group {group}</span>
-              {isSelected && (
-                <span className="best-third-check" aria-hidden="true">
-                  <Check size={14} />
-                </span>
-              )}
-            </button>
+              <button
+                type="button"
+                className={`best-third-card ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
+                onClick={() => onToggle(group)}
+                disabled={isDisabled}
+                aria-pressed={isSelected}
+              >
+                <span className="best-third-flag" aria-hidden="true">{flags[team] || '🏳️'}</span>
+                <span className="best-third-team">{team}</span>
+                <span className="best-third-group">Group {group}</span>
+                {isSelected && (
+                  <span className="best-third-check" aria-hidden="true">
+                    <Check size={14} />
+                  </span>
+                )}
+              </button>
+            </div>
           );
         })}
       </div>
