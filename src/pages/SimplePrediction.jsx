@@ -16,6 +16,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { ArrowLeft, ArrowRight, Check, AlertTriangle, Copy, RotateCcw, RefreshCw } from 'lucide-react';
 import StepProgress from '../components/simple/StepProgress';
 import GroupGrid from '../components/simple/GroupGrid';
+import QuickPicksScoringPanel from '../components/simple/QuickPicksScoringPanel';
 import BestThirdSelector from '../components/simple/BestThirdSelector';
 import BracketMobile from '../components/simple/BracketMobile';
 import BracketDesktop from '../components/simple/BracketDesktop';
@@ -294,6 +295,8 @@ function SimplePredictionWizard({ initialData, userId, league, onExit, onComplet
             <h2>Step 1 — Rank each group</h2>
             <p>Drag teams to order them 1st through 4th in each of the 12 groups, then tap <strong>Confirm ranking</strong> on each card.</p>
           </div>
+
+          <QuickPicksScoringPanel />
 
           <div className="simple-step-nav simple-step-nav-top">
             <button
