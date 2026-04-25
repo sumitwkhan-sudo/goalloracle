@@ -3731,9 +3731,21 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* Desktop bracket */
 .bracket-desktop {
-  position: relative; overflow-x: auto;
-  padding: 1rem 0 1.5rem;
-  /* Hide on narrow viewports — SimplePrediction switches to BracketMobile anyway */
+  /* Break out of .simple-page's 1100px max-width so the full bracket
+     fits on standard laptop / desktop viewports without forcing the
+     user to scroll horizontally inside the bracket region. Width tracks
+     the viewport up to a sensible cap. position:relative + left:50% +
+     translateX(-50%) keeps the bracket centered in the viewport on any
+     screen size. Internal overflow-x:auto is the fallback for narrow
+     viewports that still can't fit the grid. */
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100vw, 1500px);
+  box-sizing: border-box;
+  padding: 1rem 1rem 1.5rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 .bracket-desktop-svg {
   position: absolute; top: 0; left: 0; pointer-events: none;
@@ -3741,9 +3753,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .bracket-desktop-grid {
   position: relative; z-index: 1;
-  display: grid; grid-template-columns: repeat(7, minmax(130px, 1fr));
-  gap: 0.65rem;
-  min-width: 1100px;
+  display: grid; grid-template-columns: repeat(7, minmax(118px, 1fr));
+  gap: 0.5rem;
+  /* Lower min-width so the grid doesn't force overflow on ~1280px laptops;
+     overflow-x on the parent still kicks in for narrower screens. */
+  min-width: 920px;
 }
 .bracket-desktop-col {
   display: flex; flex-direction: column;
