@@ -11,7 +11,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback, captureReferralFromUrl } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -19,6 +19,7 @@ import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
+import PublicBracket from './components/PublicBracket';
 import './styles.css';
 
 // Per-view <Helmet> tags. Authenticated views are noindex; public views get
@@ -75,7 +76,8 @@ const PATH_TO_VIEW = {
 };
 const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
 
-function pathForView(view, league) {
+function pathForView(view, league, opts) {
+  if (view === 'publicBracket' && opts?.userId) return `/u/${encodeURIComponent(opts.userId)}/bracket`;
   if (view === 'detail' && league?.id) return `/league/${encodeURIComponent(league.id)}`;
   if (view === 'simplePredict' && league?.id) return `/quick-picks/${encodeURIComponent(league.id)}`;
   if (view === 'simplePredict') return '/quick-picks';
@@ -85,6 +87,9 @@ function pathForView(view, league) {
 function parseRoute() {
   if (typeof window === 'undefined') return { view: 'landing', leagueId: null };
   const p = window.location.pathname;
+  // Public share page: /u/{userId}/bracket — read-only, no auth required.
+  const publicMatch = p.match(/^\/u\/([^/]+)(?:\/bracket)?\/?$/);
+  if (publicMatch) return { view: 'publicBracket', publicUserId: decodeURIComponent(publicMatch[1]) };
   if (p.startsWith('/league/')) return { view: 'landing', leagueId: decodeURIComponent(p.slice(8)) || null, deepLinkView: 'detail' };
   if (p.startsWith('/quick-picks/')) return { view: 'landing', leagueId: decodeURIComponent(p.slice(13)) || null, deepLinkView: 'simplePredict' };
   return { view: PATH_TO_VIEW[p] || 'landing', leagueId: null };
@@ -760,35 +765,72 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
           {/* Engagement CTA — sits at the top of the row list so it
               gets surfaced before the user has to scroll. Hidden in
-              user-created leagues so we don't push them out. */}
-          {isGlobalView && (onBrowseLeagues || onCreateLeague) && (
-            <div className="lb-cta">
-              <div className="lb-cta-text">
-                <strong>Beat your friends, not strangers.</strong>
-                <span>Spin up a private league and crown the real Oracle.</span>
-              </div>
-              <div className="lb-cta-actions">
-                {onBrowseLeagues && (
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={onBrowseLeagues}>
-                    Find a league
+              user-created leagues so we don't push them out. The
+              copy-link button uses the user's referral URL so any
+              sign-up that lands via the link is attributable. */}
+          {isGlobalView && (onBrowseLeagues || onCreateLeague) && userData?.id && (() => {
+            const referralUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://goaloracle.io'}/?ref=${encodeURIComponent(userData.id)}`;
+            const copyReferral = async () => {
+              try {
+                await navigator.clipboard.writeText(referralUrl);
+                if (notify) notify('Invite link copied. Share it with friends!');
+              } catch {
+                if (notify) notify('Could not copy link', 'error');
+              }
+            };
+            return (
+              <div className="lb-cta">
+                <div className="lb-cta-text">
+                  <strong>Beat your friends, not strangers.</strong>
+                  <span>Spin up a private league or share your invite — every friend you bring counts.</span>
+                </div>
+                <div className="lb-cta-actions">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={copyReferral} title={referralUrl}>
+                    <Copy size={14} /> Copy invite link
                   </button>
-                )}
-                {onCreateLeague && (
-                  <button type="button" className="btn btn-primary btn-sm" onClick={onCreateLeague}>
-                    Start one
-                  </button>
-                )}
+                  {onBrowseLeagues && (
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={onBrowseLeagues}>
+                      Find a league
+                    </button>
+                  )}
+                  {onCreateLeague && (
+                    <button type="button" className="btn btn-primary btn-sm" onClick={onCreateLeague}>
+                      Start one
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {(simLbl ? (
             <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
           ) : visibleSimLb.length === 0 ? (
-            <div className="empty-state"><p>
-              {lbScope === 'country' ? `No players in ${_countryFlag(lbScopeCountry)} ${lbScopeCountry || 'this country'} yet.` :
-                lbScope === 'friends' ? 'No friends found in this league.' : 'No members yet.'}
-            </p></div>
+            <div className="empty-state lb-empty-state">
+              {lbScope === 'friends' ? (
+                <>
+                  <Users size={20} aria-hidden="true" />
+                  <p>No friends here yet — invite a few and watch the rankings come alive.</p>
+                  {userData?.id && (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={async () => {
+                        const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://goaloracle.io'}/?ref=${encodeURIComponent(userData.id)}`;
+                        try { await navigator.clipboard.writeText(url); if (notify) notify('Invite link copied!'); }
+                        catch { if (notify) notify('Could not copy link', 'error'); }
+                      }}
+                    >
+                      <Copy size={14} /> Copy invite link
+                    </button>
+                  )}
+                </>
+              ) : lbScope === 'country' ? (
+                <p>No players in {_countryFlag(lbScopeCountry)} {lbScopeCountry || 'this country'} yet. Be the first.</p>
+              ) : (
+                <p>No members yet.</p>
+              )}
+            </div>
           ) : (
             <div className="leaderboard-list">
               {visibleSimLb.map((e, i) => {
@@ -908,6 +950,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         displayName={userData?.displayName}
         leagueName={league?.name}
         leagueId={league?.id}
+        userId={userData?.id}
         winner={shareBracket?.winner}
         runnerUp={shareBracket?.runnerUp}
         thirdPlace={shareBracket?.thirdPlace}
@@ -952,6 +995,8 @@ const GoalOracle = () => {
       ? { leagueId: initialRouteRef.current.leagueId, targetView: initialRouteRef.current.deepLinkView }
       : null
   );
+  // Public-share-page target — populated when the URL is /u/{userId}/bracket.
+  const [publicBracketUserId, setPublicBracketUserId] = useState(initialRouteRef.current.publicUserId || null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [confetti, setConfetti] = useState(false);
@@ -1118,7 +1163,11 @@ const GoalOracle = () => {
       if (route.leagueId) {
         setPendingDeepLink({ leagueId: route.leagueId, targetView: route.deepLinkView });
         setView('landing');
+      } else if (route.view === 'publicBracket') {
+        setPublicBracketUserId(route.publicUserId || null);
+        setView('publicBracket');
       } else {
+        setPublicBracketUserId(null);
         setView(route.view);
       }
       window.scrollTo(0, 0);
@@ -1129,6 +1178,10 @@ const GoalOracle = () => {
 
   useEffect(() => { fetchPlatformStats().then(setStats).catch(() => {}); }, []);
   useEffect(() => subscribeToMatchResults(setResults), []);
+  // Capture any ?ref=... param early so it survives Privy's OAuth
+  // round-trip and is available when createOrUpdateUser writes the
+  // new user doc.
+  useEffect(() => { captureReferralFromUrl(); }, []);
   const authInitRef = useRef(false);
 
   // getAccessToken() hangs forever when Privy wallet iframe isn't ready — wrap with timeout
@@ -2051,22 +2104,33 @@ const GoalOracle = () => {
               </div>
             </div>
 
-            {/* Community predictions */}
+            {/* Next match teaser — replaces the prior mock community-pick
+                percentages. Pre-kickoff we don't have aggregated pick
+                data yet, so showing fake bars was filler. The card now
+                points at the actual opening match with venue + kickoff
+                and a CTA to start predicting. Once tournament data is
+                live we can re-introduce real community percentages. */}
             <div className="community-panel reveal">
-              <h3>Community Predictions</h3>
+              <h3>Next match</h3>
               {communityMatch && (
-                <div className="comm-match">
-                  <span>{communityMatch.homeFlag} {communityMatch.home}</span>
-                  <span className="comm-vs">vs</span>
-                  <span>{communityMatch.awayFlag} {communityMatch.away}</span>
-                </div>
+                <>
+                  <div className="comm-match">
+                    <span>{communityMatch.homeFlag} {communityMatch.home}</span>
+                    <span className="comm-vs">vs</span>
+                    <span>{communityMatch.awayFlag} {communityMatch.away}</span>
+                  </div>
+                  <div className="comm-meta">
+                    <div><MapPin size={12} aria-hidden="true" /> {communityMatch.venue}, {communityMatch.city}</div>
+                    <div><Calendar size={12} aria-hidden="true" /> {new Date(communityMatch.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {communityMatch.time} ET</div>
+                  </div>
+                </>
               )}
-              <div className="comm-bars">
-                <div className="comm-bar-row"><span className="comm-bar-label">{communityMatch?.home} Win</span><div className="comm-bar"><div className="comm-bar-fill comm-fill-home" style={{width:'52%'}}></div></div><span>52%</span></div>
-                <div className="comm-bar-row"><span className="comm-bar-label">Draw</span><div className="comm-bar"><div className="comm-bar-fill comm-fill-draw" style={{width:'28%'}}></div></div><span>28%</span></div>
-                <div className="comm-bar-row"><span className="comm-bar-label">{communityMatch?.away} Win</span><div className="comm-bar"><div className="comm-bar-fill comm-fill-away" style={{width:'20%'}}></div></div><span>20%</span></div>
+              <div className="comm-cta">
+                <p>Predictions are open. Make yours before kickoff and your bracket joins the leaderboard the moment results post.</p>
+                <button type="button" className="btn btn-primary btn-sm" onClick={startSimplePredicting}>
+                  {authenticated ? 'Continue predicting' : 'Start your bracket'} <ChevronRight size={14} />
+                </button>
               </div>
-              <div className="comm-total">12,843 predictions</div>
             </div>
           </div>
         </div></section>
@@ -4844,6 +4908,15 @@ const GoalOracle = () => {
         />
       )}
       {view === 'faq' && <FAQ />}
+      {view === 'publicBracket' && (
+        <PublicBracket
+          userId={publicBracketUserId}
+          onSignUp={() => {
+            if (authenticated) { nav('dashboard'); }
+            else { login(); }
+          }}
+        />
+      )}
       {view === 'feedback' && <Feedback key="feedback" />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
       {fundModal && <AddFundsModal />}

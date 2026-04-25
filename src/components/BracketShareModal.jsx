@@ -17,9 +17,16 @@ const SITE_URL = 'https://goaloracle.io';
 // (Phase 4 middleware will inject per-league OG tags for crawlers) and clicks
 // drop the recipient straight into the league detail view rather than the
 // generic landing page.
-function buildShareUrl(leagueId) {
-  if (!leagueId) return SITE_URL;
-  return `${SITE_URL}/league/${encodeURIComponent(leagueId)}`;
+function buildShareUrl(userId, leagueId) {
+  // Prefer the public bracket page (`/u/{userId}/bracket`) so the
+  // recipient lands on the actual prediction, not the generic home page.
+  // Append `?ref={userId}` so any sign-up arriving via this link gets
+  // attributed to the bracket owner. Falls back to a league deep link
+  // if we don't have a userId for some reason, then to the home page.
+  const origin = (typeof window !== 'undefined' && window.location?.origin) || SITE_URL;
+  if (userId) return `${origin}/u/${encodeURIComponent(userId)}/bracket?ref=${encodeURIComponent(userId)}`;
+  if (leagueId) return `${origin}/league/${encodeURIComponent(leagueId)}`;
+  return origin;
 }
 
 function buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl }) {
@@ -41,6 +48,7 @@ export default function BracketShareModal({
   displayName,
   leagueName,
   leagueId,     // optional — when provided, share URLs deep-link to the league
+  userId,       // optional — when provided, share URLs use the public /u/{userId}/bracket page
   winner,       // { name, flag }
   runnerUp,     // { name, flag }
   thirdPlace,   // { name, flag } — optional
@@ -52,7 +60,7 @@ export default function BracketShareModal({
   }, [open, leagueId]);
   if (!open) return null;
 
-  const shareUrl = buildShareUrl(leagueId);
+  const shareUrl = buildShareUrl(userId, leagueId);
   const caption = buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl });
   const encoded = encodeURIComponent(caption);
 

@@ -50,7 +50,49 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(400).json({ error: 'Invalid type param. Use ?type=stats, ?type=results, or ?type=league&id=...' });
+    if (type === 'bracket') {
+      // Read-only Quick Picks summary for the public share page at
+      // /u/{userId}/bracket. We expose the user's display name, country,
+      // and bracket picks (winner / runner-up + every round's winner) but
+      // never email, wallet address, or any other private field.
+      const { userId } = req.query;
+      if (!userId) return res.status(400).json({ error: 'userId required' });
+      const userSnap = await db.collection('users').doc(userId).get();
+      if (!userSnap.exists) return res.status(404).json({ error: 'user not found' });
+      const u = userSnap.data();
+
+      // Prefer the user's per-league Global Quick Picks doc; fall back to
+      // the legacy single-doc path for users predating the per-league split.
+      let predData = null;
+      const composite = await db.collection('simplePredictions').doc(`${userId}__global-simple`).get();
+      if (composite.exists) predData = composite.data();
+      else {
+        const legacy = await db.collection('simplePredictions').doc(userId).get();
+        if (legacy.exists) predData = legacy.data();
+      }
+      if (!predData) return res.status(404).json({ error: 'no bracket' });
+
+      const finalPick = predData?.knockoutPredictions?.final?.[0];
+      const thirdPick = predData?.knockoutPredictions?.thirdPlace?.[0];
+
+      // Cache bracket reads at the edge for 5 min so a viral share doesn't
+      // hammer Firestore. Stale-while-revalidate keeps it fresh-feeling.
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+      return res.status(200).json({
+        userId,
+        displayName: u.displayName || userId.slice(0, 8),
+        country: u.country || null,
+        isComplete: !!(predData.isComplete || finalPick?.winnerId),
+        groupPredictions: predData.groupPredictions || {},
+        bestThirdPicks: Array.isArray(predData.bestThirdPicks) ? predData.bestThirdPicks : [],
+        knockoutPredictions: predData.knockoutPredictions || {},
+        winner: finalPick?.winnerId || null,
+        runnerUp: finalPick?.loserId || null,
+        thirdPlace: thirdPick?.winnerId || null,
+      });
+    }
+
+    return res.status(400).json({ error: 'Invalid type param. Use ?type=stats, ?type=results, ?type=league&id=..., or ?type=bracket&userId=...' });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

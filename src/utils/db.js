@@ -130,6 +130,12 @@ export async function createOrUpdateUser(privyUser) {
   console.log('[auth] new user, creating in Firestore...');
   try {
     const displayName = emailAddr?.split('@')[0] || (walletAddr ? walletAddr.slice(0, 8) : 'Anonymous');
+    // Capture the referrer (if any) so admins can see which existing
+    // user brought this person in. The ref code is captured client-side
+    // from the URL on app load and stashed in sessionStorage; see
+    // captureReferralFromUrl() below.
+    let referredBy = null;
+    try { referredBy = sessionStorage.getItem('goaloracle_ref') || null; } catch {}
     await setDoc(userRef, {
       id: userId,
       createdAt: serverTimestamp(),
@@ -140,6 +146,7 @@ export async function createOrUpdateUser(privyUser) {
       walletAddress: walletAddr || null,
       displayName,
       usernameSet: false,
+      ...(referredBy ? { referredBy } : {}),
     });
 
     // Read back the created doc
@@ -149,6 +156,20 @@ export async function createOrUpdateUser(privyUser) {
     console.error('[auth] failed to create user:', e.message);
     return null;
   }
+}
+
+// Capture a `?ref=...` param off the current URL into sessionStorage so
+// it survives the OAuth round-trip and is available when the new user
+// doc is written. Idempotent — safe to call on every app mount.
+export function captureReferralFromUrl() {
+  try {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref && /^[A-Za-z0-9:_-]{3,80}$/.test(ref)) {
+      sessionStorage.setItem('goaloracle_ref', ref);
+    }
+  } catch {}
 }
 
 export async function updateUserProfile(userId, updates) {
