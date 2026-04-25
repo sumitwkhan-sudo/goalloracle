@@ -1011,6 +1011,11 @@ const GoalOracle = () => {
   const [stats, setStats] = useState({ totalPlayers: 0, totalPrizePools: 0, activeLeagues: 0 });
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
   const [showEmailPrompt, setShowEmailPrompt] = useState(false);
+  // Email prompt is deferred until the user has actually engaged with
+  // the product — stacking it on top of the username prompt the moment
+  // they sign in is modal whiplash. This flag carries the intent; the
+  // useEffect below decides when to surface it.
+  const [pendingEmailPrompt, setPendingEmailPrompt] = useState(false);
   const [shareCard, setShareCard] = useState(null); // { matchId, home, away, homeFlag, awayFlag, homeScore, awayScore, result }
   // Lifted from Detail — survives Firestore re-renders
   const [detailTab, setDetailTab] = useState('predictions');
@@ -1170,10 +1175,12 @@ const GoalOracle = () => {
       setUData(u);
       setRole(u.role || 'user');
       if (!u.usernameSet) setShowUsernamePrompt(true);
-      // Wallet-only sign-ups have no email on file. Prompt them for one so we
-      // can send reminders + result notifications. Respect emailSkipped if
-      // they've already dismissed it once.
-      else if (!u.email && !u.emailSkipped) setShowEmailPrompt(true);
+      // Wallet-only sign-ups have no email on file. We still want to
+      // capture an email for reminders + targeted outreach, but not
+      // immediately on login — that's modal whiplash. Mark it pending
+      // and the deferred-prompt effect will surface it after a
+      // meaningful first pick.
+      else if (!u.email && !u.emailSkipped) setPendingEmailPrompt(true);
 
       // Backfill country for existing users who signed up before we required
       // it. Product directive: known overrides go first, then IP geolocation,
@@ -1215,6 +1222,27 @@ const GoalOracle = () => {
     autoRedirectedRef.current = true;
     setView(prev => (prev === 'landing' ? 'dashboard' : prev));
   }, [authenticated, uData?.id]);
+
+  // Surface the deferred email prompt once the user has engaged with the
+  // product — i.e. they've placed at least one Quick Picks selection or
+  // saved a classic prediction. Falls back to a 90s grace timer so we
+  // still capture the email from users who poke around without picking.
+  useEffect(() => {
+    if (!pendingEmailPrompt) return;
+    if (showUsernamePrompt) return; // never stack on top of the username modal
+    const qpStarted = !!quickPicks && quickPicks.totalRemaining < 52;
+    const classicStarted = Object.values(preds).some(p => p?.result);
+    if (qpStarted || classicStarted) {
+      setShowEmailPrompt(true);
+      setPendingEmailPrompt(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      setShowEmailPrompt(true);
+      setPendingEmailPrompt(false);
+    }, 90000);
+    return () => clearTimeout(t);
+  }, [pendingEmailPrompt, showUsernamePrompt, quickPicks, preds]);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
   useEffect(() => {
     if (!selLeague?.id) return;
@@ -4501,8 +4529,18 @@ const GoalOracle = () => {
         const updated = await updateUserProfile(uData.id, { displayName: trimmed, usernameSet: true, country: finalCountry });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
-        if (updated && !updated.email && !updated.emailSkipped) setShowEmailPrompt(true);
+        // Email prompt is deferred — we mark it pending and surface it
+        // later, after the user has placed their first pick. Stacking
+        // it on top of the username prompt was modal whiplash.
+        if (updated && !updated.email && !updated.emailSkipped) setPendingEmailPrompt(true);
         notify(`Welcome, ${trimmed}!`);
+        // New users go straight to the Quick Picks wizard. They've just
+        // spent time picking a username and country — don't make them
+        // click through a dashboard before placing their first pick.
+        const globalSimple = leagues.find(l => l.id === 'global-simple')
+          || allLeagues.find(l => l.id === 'global-simple')
+          || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+        nav('detail', globalSimple, { tab: 'predictions' });
       } catch(e) { setErr(e.message); } finally { setBusy(false); }
     };
 
