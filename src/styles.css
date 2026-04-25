@@ -2499,6 +2499,55 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   padding: 0.1rem 0.35rem; border-radius: 4px;
   background: rgba(255, 184, 0, 0.14); color: var(--amber, #ffb800);
 }
+/* Referral attribution shown under each user's identity block. */
+.admin-user-via {
+  font-size: 0.62rem; color: var(--text-dim); font-style: italic;
+  margin-top: 0.15rem;
+}
+.admin-user-ref-pill {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.04em;
+  padding: 0.18rem 0.45rem; border-radius: 999px;
+  background: rgba(0, 230, 118, 0.12); color: var(--success, #00c853);
+  border: 1px solid rgba(0, 230, 118, 0.3);
+  white-space: nowrap;
+}
+.admin-user-ref-pill strong { font-weight: 700; }
+/* Top-referrers strip — quick at-a-glance growth view above user list. */
+.admin-referrals-strip {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+.admin-referrals-strip-head {
+  font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.55rem;
+}
+.admin-referrals-strip-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-wrap: wrap; gap: 0.45rem;
+}
+.admin-referrals-strip-item {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-subtle, var(--border));
+  font-size: 0.78rem;
+}
+.admin-referrals-strip-rank {
+  font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+  color: var(--text-dim); letter-spacing: 0.04em;
+}
+.admin-referrals-strip-name { font-weight: 600; display: inline-flex; align-items: center; gap: 0.3rem; }
+.admin-referrals-strip-count {
+  font-family: var(--mono); font-size: 0.68rem; color: var(--success, #00c853);
+}
+.admin-referrals-strip-count strong { font-weight: 700; }
 .admin-role-badge {
   font-family: var(--mono); font-size: 0.55rem; font-weight: 600; padding: 0.15rem 0.5rem;
   border-radius: 20px; letter-spacing: 0.04em;

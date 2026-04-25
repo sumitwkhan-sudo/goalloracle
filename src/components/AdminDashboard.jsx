@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, checkOracleHealth } from '../utils/db';
@@ -131,6 +131,30 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const totalMatches = WORLD_CUP_MATCHES.length;
   const paidLeagues = (allLeagues || []).filter(l => l.type === 'paid').length;
   const freeLeagues = (allLeagues || []).length - paidLeagues;
+
+  // Referral attribution: count how many other users each user brought
+  // in via the ?ref= share link. We piggy-back on the already-loaded
+  // users array — no extra API call. The userById lookup lets us show
+  // "Joined via {name}" on the referee's row.
+  const referralCountById = useMemo(() => {
+    const m = {};
+    for (const u of users) {
+      if (u.referredBy) m[u.referredBy] = (m[u.referredBy] || 0) + 1;
+    }
+    return m;
+  }, [users]);
+  const userById = useMemo(() => {
+    const m = {};
+    for (const u of users) m[u.id] = u;
+    return m;
+  }, [users]);
+  const topReferrers = useMemo(() => (
+    Object.entries(referralCountById)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id, count]) => ({ id, count, user: userById[id] }))
+      .filter(r => r.user)
+  ), [referralCountById, userById]);
 
   // Filtered matches
   const filteredMatches = WORLD_CUP_MATCHES.filter(m => {
@@ -305,9 +329,30 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             </div>
           </div>
 
+          {topReferrers.length > 0 && (
+            <div className="admin-referrals-strip" role="region" aria-label="Top referrers">
+              <div className="admin-referrals-strip-head">Top referrers</div>
+              <ol className="admin-referrals-strip-list">
+                {topReferrers.map((r, i) => (
+                  <li key={r.id} className="admin-referrals-strip-item">
+                    <span className="admin-referrals-strip-rank">#{i + 1}</span>
+                    <span className="admin-referrals-strip-name">
+                      {r.user.country && <span className="admin-user-flag" title={r.user.country}>{_countryFlagFromCode(r.user.country)}</span>}
+                      {r.user.displayName || r.id.slice(0, 8)}
+                    </span>
+                    <span className="admin-referrals-strip-count"><strong>{r.count}</strong> invited</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
           <div className="admin-card-list admin-scroll">
             {filteredUsers.length === 0 && <div className="admin-empty">{users.length === 0 ? 'Loading users...' : 'No users match your search.'}</div>}
-            {filteredUsers.map(u => (
+            {filteredUsers.map(u => {
+              const referrals = referralCountById[u.id] || 0;
+              const referrer = u.referredBy ? userById[u.referredBy] : null;
+              return (
               <div key={u.id} className="admin-list-card">
                 <div className="admin-list-left">
                   <div>
@@ -320,9 +365,19 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     {u.email && <div className="admin-user-email">{u.email}</div>}
                     {u.walletAddress && <div className="admin-user-email" style={{fontSize:'0.7rem',opacity:0.6}}>{u.walletAddress.slice(0, 10)}...{u.walletAddress.slice(-6)}</div>}
                     {!u.email && !u.walletAddress && <div className="admin-user-email">{u.id.slice(0, 20)}...</div>}
+                    {u.referredBy && (
+                      <div className="admin-user-via" title={`referredBy: ${u.referredBy}`}>
+                        Joined via {referrer?.displayName || `${u.referredBy.slice(0, 10)}…`}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="admin-list-right">
+                  {referrals > 0 && (
+                    <span className="admin-user-ref-pill" title={`${referrals} new sign-up${referrals === 1 ? '' : 's'} attributed to this user`}>
+                      <strong>{referrals}</strong> invited
+                    </span>
+                  )}
                   <span className={`admin-role-badge ${u.role || 'user'}`}>{(u.role || 'user').toUpperCase()}</span>
                   <select className="admin-select" value={u.role || 'user'} onChange={e => handleRoleChange(u.id, e.target.value)}>
                     <option value="user">user</option>
@@ -331,7 +386,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   </select>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
