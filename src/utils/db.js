@@ -478,7 +478,12 @@ export async function fetchFeatureFlags() {
 }
 
 // Live subscription so admins flipping a flag in one tab propagate to
-// other clients within a minute or two without a refresh.
+// other clients within a minute or two without a refresh. The error
+// path is intentionally a NO-OP — if the subscription fails (e.g.
+// Firestore rules block the read for an unauthenticated client) we
+// keep whatever state was last set by fetchFeatureFlags(). Resetting
+// to defaults here would undo any disabled flag the moment the page
+// loads.
 export function subscribeToFeatureFlags(callback) {
   const ref = doc(db, 'settings', 'featureFlags');
   return onSnapshot(ref, (snap) => {
@@ -487,7 +492,9 @@ export function subscribeToFeatureFlags(callback) {
       quickPicksEnabled: data.quickPicksEnabled !== false,
       classicEnabled: data.classicEnabled !== false,
     });
-  }, () => callback({ ...DEFAULT_FEATURE_FLAGS }));
+  }, (err) => {
+    console.warn('[featureFlags] subscription error (keeping last value):', err?.message || err);
+  });
 }
 
 export async function adminSetFeatureFlag(flag, value) {

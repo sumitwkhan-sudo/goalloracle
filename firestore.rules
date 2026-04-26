@@ -81,5 +81,14 @@ service cloud.firestore {
       allow read: if false;
       allow create: if true;
     }
+
+    // Admin-toggleable feature flags. Public read so every client (incl.
+    // unauthenticated landing-page visitors) gets the same hide/show
+    // treatment via the live subscription. Writes go through /api/admin
+    // which uses the admin SDK and bypasses these rules.
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
