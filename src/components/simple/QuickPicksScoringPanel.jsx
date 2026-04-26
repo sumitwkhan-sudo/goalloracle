@@ -2,9 +2,10 @@
  * QuickPicksScoringPanel
  *
  * Collapsible "How Points Are Scored" card shown at the top of Step 1 of
- * the Quick Picks wizard. Default-expanded on a user's first visit so the
- * scoring rules are obvious; persists collapse state in localStorage so
- * returning users see only the compact header.
+ * the Quick Picks wizard. Default-collapsed so the rules don't push the
+ * actual prediction UI below the fold — users can expand if they want
+ * the breakdown. Their choice persists in localStorage so the panel
+ * doesn't fight them across sessions.
  *
  * Values are pulled directly from `src/utils/scoringSimple.js` so this
  * panel never drifts from the engine.
@@ -20,15 +21,18 @@ import {
   TOTAL_MAX,
 } from '../../utils/scoringSimple';
 
-const STORAGE_KEY = 'goaloracle_qp_scoring_dismissed';
+// localStorage values: '1' = expanded, '0' or unset = collapsed.
+// (Inverted from the original "dismissed" key so the new default matches
+// the localStorage absence-of-value, instead of needing a migration.)
+const STORAGE_KEY = 'goaloracle_qp_scoring_open';
 
 export default function QuickPicksScoringPanel() {
   const [open, setOpen] = useState(() => {
-    try { return localStorage.getItem(STORAGE_KEY) !== '1'; } catch { return true; }
+    try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch { return false; }
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, open ? '0' : '1'); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, open ? '1' : '0'); } catch {}
   }, [open]);
 
   return (

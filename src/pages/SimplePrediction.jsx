@@ -17,6 +17,7 @@ import { ArrowLeft, ArrowRight, Check, AlertTriangle, Copy, RotateCcw, RefreshCw
 import StepProgress from '../components/simple/StepProgress';
 import GroupGrid from '../components/simple/GroupGrid';
 import QuickPicksScoringPanel from '../components/simple/QuickPicksScoringPanel';
+import ScrollDownNudge from '../components/simple/ScrollDownNudge';
 import BestThirdSelector from '../components/simple/BestThirdSelector';
 import BracketMobile from '../components/simple/BracketMobile';
 import BracketDesktop from '../components/simple/BracketDesktop';
@@ -376,6 +377,8 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
           </div>
 
           <QuickPicksScoringPanel />
+
+          <ScrollDownNudge label="Scroll down to rank each group" />
 
           <div className="simple-step-nav simple-step-nav-top">
             <button

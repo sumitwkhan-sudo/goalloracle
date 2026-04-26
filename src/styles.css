@@ -3891,6 +3891,43 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .qp-scoring-totals strong { color: var(--text); }
 
+/* Scroll-down nudge — appears between the collapsed scoring panel and
+   the group grid on Step 1, fades away the moment the user scrolls
+   past it (or after 6s). Bouncing chevron + a one-line label. */
+.qp-scroll-nudge {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.25rem;
+  margin: 0.85rem auto 0.5rem;
+  color: var(--text-dim);
+  animation: qp-nudge-fade-in 0.45s ease-out both, qp-nudge-fade-out 0.6s ease-in 5.4s both;
+  pointer-events: none; user-select: none;
+}
+.qp-scroll-nudge-label {
+  font-family: var(--mono);
+  font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase;
+  font-weight: 600;
+}
+.qp-scroll-nudge-chev {
+  color: var(--primary);
+  animation: qp-nudge-bounce 1.6s ease-in-out infinite;
+}
+@keyframes qp-nudge-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50%      { transform: translateY(5px); opacity: 1; }
+}
+@keyframes qp-nudge-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes qp-nudge-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qp-scroll-nudge,
+  .qp-scroll-nudge-chev { animation: none; }
+}
+
 .best-third-banner {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
