@@ -6,7 +6,7 @@
  * to the top of the scroll container.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import BracketMatch from './BracketMatch';
 import BracketHintTooltip from './BracketHintTooltip';
@@ -45,14 +45,23 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
   const firstIncomplete = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r)) || 'roundOf32';
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
-  // If the unlocked-but-incomplete round changes (e.g. user completes a round),
-  // follow the frontier automatically.
+  // Auto-advance the open accordion ONLY at the moment a round's
+  // completion flips from incomplete → complete. Previously this fired
+  // on every render where the open round happened to be complete,
+  // which meant any user click on a finished prior round (R32 16/16,
+  // for example) was instantly slapped back to the next incomplete
+  // round. The user could never reopen a finished round.
+  const prevCompleteRef = useRef(isRoundComplete(openRound));
   useEffect(() => {
-    if (isRoundComplete(openRound)) {
+    const nowComplete = isRoundComplete(openRound);
+    const wasComplete = prevCompleteRef.current;
+    prevCompleteRef.current = nowComplete;
+    // Only advance on the false → true edge.
+    if (!wasComplete && nowComplete) {
       const next = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r));
       if (next) setOpenRound(next);
     }
-  }, [openRound, isRoundComplete, isRoundUnlocked]);
+  }, [openRound, bracket, isRoundComplete, isRoundUnlocked]);
 
   // Progress strip across the top — one cell per round so the user sees
   // exactly where they are without expanding sections. Tapping a cell

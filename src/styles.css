@@ -123,7 +123,12 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; transition: background 0.35s, color 0.35s; }
+/* `overflow-x: clip` instead of `hidden` so body doesn't become an
+   implicit scroll container — `hidden` breaks `position: sticky` for
+   any descendant (e.g. the bracket round-progress strip on iOS
+   Safari). `clip` gives the same visual no-horizontal-scroll result
+   without creating a containing block. */
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: clip; transition: background 0.35s, color 0.35s; }
 .app { min-height: 100vh; transition: background 0.35s; }
 
 /* ---- GRADIENT TEXT UTILITY ---- */
@@ -4030,7 +4035,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   min-height: 44px;
 }
 .bracket-row + .bracket-row { border-top: 1px solid var(--border); }
-.bracket-row:hover:not(:disabled):not(.locked):not(.readonly) { background: rgba(255,255,255,0.04); }
+/* Hover rules are gated to actual mouse devices. On touch devices
+   iOS keeps the :hover state "stuck" after a tap, which then fights
+   with the .winner / .loser styling and reads as a flicker as the
+   user scrolls past picked rows. */
+@media (hover: hover) and (pointer: fine) {
+  .bracket-row:hover:not(:disabled):not(.locked):not(.readonly) { background: rgba(255,255,255,0.04); }
+}
 .bracket-row:disabled { cursor: default; }
 /* Read-only rows render as <div> (no click affordance, no hover lift)
    so the bracket can be embedded in PicksViewer to display another
@@ -4046,7 +4057,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   opacity: 0;
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
-.bracket-row:hover:not(:disabled):not(.locked) .bracket-row-advance,
+@media (hover: hover) and (pointer: fine) {
+  .bracket-row:hover:not(:disabled):not(.locked) .bracket-row-advance {
+    opacity: 1;
+    transform: translateX(2px);
+    color: var(--primary);
+  }
+}
 .bracket-row:focus-visible:not(:disabled):not(.locked) .bracket-row-advance {
   opacity: 1;
   transform: translateX(2px);
@@ -4141,7 +4158,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 /* Bracket round progress strip — one cell per round across the top, sticky
    below the wizard chrome so users always know where they are. */
 .bracket-progress {
-  position: sticky; top: 0; z-index: 5;
+  /* The -webkit-sticky fallback is unnecessary on modern Safari but
+     harmless. top: 0 pins to the viewport edge as the user scrolls
+     through the round body; z-index is high enough to sit above the
+     match cards but below any modal / drawer surfaces. */
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0; z-index: 20;
   display: grid; grid-template-columns: repeat(6, 1fr);
   gap: 0.25rem;
   padding: 0.45rem;
@@ -4149,6 +4172,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: var(--bg-card, #fff);
   border: 1px solid var(--border-subtle, var(--border));
   margin-bottom: 0.6rem;
+  /* Soft drop-shadow appears as soon as the strip pins so the user
+     gets visual confirmation it's now floating above the matches. */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 .bracket-progress-cell {
   display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
