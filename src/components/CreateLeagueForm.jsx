@@ -208,7 +208,7 @@ export default function CreateLeagueForm({
 
   return (
     <div className="create-league">
-      <div className="page-header"><button className="btn-back" onClick={() => { resetForm(); setCreateSuccess(null); nav('dashboard'); }}>← Back</button><h1>Create Your League</h1></div>
+      <div className="page-header"><button className="btn-back-sm btn-back-sm-named" onClick={() => { resetForm(); setCreateSuccess(null); nav('dashboard'); }}>&larr; <span>Dashboard</span></button><h1>Create Your League</h1></div>
       <div className="create-league-form" style={{ position: 'relative' }}>
         {busy && <div className="create-loading-overlay"><div className="create-loading-inner"><Loader size={32} className="spin" /><p>Creating your league...</p></div></div>}
         {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}

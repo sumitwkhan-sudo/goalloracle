@@ -788,10 +788,10 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
       {sTab === 'predictions' && (
         <div className="predict-inline-header">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSTab('leaderboard')}>
-            &larr; Back to leaderboard
-          </button>
-          <span className="predict-inline-title"><Target size={14} /> Quick Picks</span>
+          {/* Breadcrumb-style label — the page-header back already
+              returns up the stack; a second "Back to leaderboard"
+              affordance here was duplicate nav. */}
+          <span className="predict-inline-crumb"><Target size={13} /> Quick Picks · Predictions</span>
         </div>
       )}
 
@@ -2815,7 +2815,7 @@ const GoalOracle = () => {
     return (
       <div className="leagues-v2">
         <div className="lv2-header">
-          <div><button className="btn-back" onClick={() => nav('dashboard')}>&larr; Back</button><h1 className="lv2-title">Your Leagues</h1><span className="lv2-count">{allMine.length} league{allMine.length !== 1 ? 's' : ''}</span></div>
+          <div><h1 className="lv2-title">Your Leagues</h1><span className="lv2-count">{allMine.length} league{allMine.length !== 1 ? 's' : ''}</span></div>
           <div className="dv2-actions">
             <button className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={16} /> Browse</button>
             <button className="btn btn-primary btn-sm" onClick={() => nav('create')}><Plus size={16} /> Create</button>
@@ -2986,7 +2986,7 @@ const GoalOracle = () => {
 
     return (
       <div className="browse-leagues">
-        <div className="page-header"><button className="btn-back" onClick={() => nav('dashboard')}>← Back</button><h1>Browse Leagues</h1><p style={{color:'var(--text-sec)', fontSize:'0.88rem', marginTop:'0.25rem'}}>Public leagues are shown below. Got a passcode? Enter it to join a private league.</p></div>
+        <div className="page-header"><h1>Browse Leagues</h1><p style={{color:'var(--text-sec)', fontSize:'0.88rem', marginTop:'0.25rem'}}>Public leagues are shown below. Got a passcode? Enter it to join a private league.</p></div>
 
         {/* Passcode join section */}
         <div className="passcode-join-section">
@@ -3345,7 +3345,7 @@ const GoalOracle = () => {
       <div className="league-detail">
         <div className="page-header-compact">
           <div className="phc-left">
-            <button className="btn-back-sm" onClick={() => nav('dashboard')}>←</button>
+            <button className="btn-back-sm btn-back-sm-named" onClick={() => nav('leagues')}>&larr; <span>Leagues</span></button>
             <h1 className="phc-title">{selLeague?.name}</h1>
             <div className="phc-meta">
               <span><Users size={14} /> {(selLeague?.memberCount || selLeague?.members?.length || 0)}</span>
@@ -4322,7 +4322,7 @@ const GoalOracle = () => {
     return (
       <div className="page feedback-page">
         <div className="page-header">
-          <button className="btn-back" onClick={() => nav('landing')}>← Back</button>
+          <button className="btn-back-sm btn-back-sm-named" onClick={() => nav('landing')}>&larr; <span>Home</span></button>
           <h1>Share Your Feedback</h1>
           <p style={{ color: 'var(--text-sec)', fontSize: '0.88rem', marginTop: '0.25rem' }}>Your input directly shapes what we build next.</p>
         </div>
@@ -4626,7 +4626,6 @@ const GoalOracle = () => {
     return (
       <div className="faq-page">
         <div className="page-header">
-          {authenticated && <button className="btn-back" onClick={() => nav('dashboard')}>← Back</button>}
           <div>
             <h1>Frequently Asked Questions</h1>
             <p className="faq-page-sub">Everything you need to know about GoalOracle — how it works, how scores are verified, and more.</p>

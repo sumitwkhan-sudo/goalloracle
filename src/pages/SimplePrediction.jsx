@@ -260,8 +260,8 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
       {!embedded && (
         <div className="simple-page-header">
-          <button type="button" className="btn btn-ghost" onClick={onExit} aria-label="Back">
-            <ArrowLeft size={16} /> Back
+          <button type="button" className="btn-back-sm btn-back-sm-named" onClick={onExit} aria-label="Back to leagues">
+            <ArrowLeft size={14} /> <span>Leagues</span>
           </button>
           <div className="simple-page-title">
             <h1>{league?.name || 'Simple Mode'}</h1>

@@ -1677,6 +1677,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .predict-inline-header .btn-sm { white-space: nowrap; flex-shrink: 0; }
+/* Breadcrumb-style label inside the wizard — replaces the duplicate
+   "Back to leaderboard" affordance now that the page-header named
+   back is the single source of nav. */
+.predict-inline-crumb {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-dim); font-weight: 600;
+}
+.predict-inline-crumb svg { color: var(--primary); }
 
 /* Join-success modal actions row */
 .join-success-modal { max-width: 520px; }
