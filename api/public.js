@@ -50,6 +50,22 @@ export default async function handler(req, res) {
       });
     }
 
+    if (type === 'flags') {
+      // Admin-toggleable feature flags. Public so unauthenticated visitors
+      // (landing page) get the same hide/show treatment as logged-in users.
+      // Defaults: Quick Picks on, Classic on. Once an admin flips a flag
+      // it persists in /settings/featureFlags.
+      const snap = await db.collection('settings').doc('featureFlags').get();
+      const stored = snap.exists ? (snap.data() || {}) : {};
+      // Short edge cache so changes propagate within a minute without
+      // each client hammering Firestore.
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+      return res.status(200).json({
+        quickPicksEnabled: stored.quickPicksEnabled !== false,
+        classicEnabled: stored.classicEnabled !== false,
+      });
+    }
+
     if (type === 'bracket') {
       // Read-only Quick Picks summary for the public share page at
       // /u/{userId}/bracket. We expose the user's display name, country,

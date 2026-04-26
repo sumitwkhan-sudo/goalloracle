@@ -455,6 +455,45 @@ export async function adminBackfillCountries() {
   return await apiCall('admin', 'POST', { action: 'backfillCountries' });
 }
 
+// ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
+// Defaults match the legacy behavior so a missing /settings/featureFlags
+// doc doesn't accidentally hide anything.
+export const DEFAULT_FEATURE_FLAGS = {
+  quickPicksEnabled: true,
+  classicEnabled: true,
+};
+
+export async function fetchFeatureFlags() {
+  try {
+    const res = await fetch('/api/public?type=flags', { cache: 'no-store' });
+    if (!res.ok) return { ...DEFAULT_FEATURE_FLAGS };
+    const data = await res.json();
+    return {
+      quickPicksEnabled: data.quickPicksEnabled !== false,
+      classicEnabled: data.classicEnabled !== false,
+    };
+  } catch {
+    return { ...DEFAULT_FEATURE_FLAGS };
+  }
+}
+
+// Live subscription so admins flipping a flag in one tab propagate to
+// other clients within a minute or two without a refresh.
+export function subscribeToFeatureFlags(callback) {
+  const ref = doc(db, 'settings', 'featureFlags');
+  return onSnapshot(ref, (snap) => {
+    const data = snap.exists() ? (snap.data() || {}) : {};
+    callback({
+      quickPicksEnabled: data.quickPicksEnabled !== false,
+      classicEnabled: data.classicEnabled !== false,
+    });
+  }, () => callback({ ...DEFAULT_FEATURE_FLAGS }));
+}
+
+export async function adminSetFeatureFlag(flag, value) {
+  return await apiCall('admin', 'POST', { action: 'setFeatureFlag', flag, value: !!value });
+}
+
 export async function setUserRole(userId, role, adminId) {
   await apiCall('admin', 'POST', { action: 'setRole', targetUserId: userId, newRole: role });
 }

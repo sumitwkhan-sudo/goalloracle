@@ -187,6 +187,29 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, updated, skipped, overrides: overrideHits });
     }
 
+    if (action === 'setFeatureFlag') {
+      // Admin-toggleable feature flags. Stored at /settings/featureFlags
+      // and read by every client on mount via /api/public?type=flags.
+      // Allowed flags are whitelisted so a typo can't write arbitrary
+      // keys onto the doc.
+      const ALLOWED = new Set(['quickPicksEnabled', 'classicEnabled']);
+      const { flag, value } = req.body;
+      if (!ALLOWED.has(flag)) return res.status(400).json({ error: `Unknown flag: ${flag}` });
+      if (typeof value !== 'boolean') return res.status(400).json({ error: 'value must be boolean' });
+      const ref = db.collection('settings').doc('featureFlags');
+      const snap = await ref.get();
+      const prev = snap.exists ? (snap.data() || {}) : {};
+      await ref.set({ ...prev, [flag]: value, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      await db.collection('adminLogs').add({
+        action: 'set_feature_flag',
+        flag, value,
+        previousValue: prev[flag] ?? null,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, flag, value });
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
   } catch (e) {
     console.error('Admin error:', e);

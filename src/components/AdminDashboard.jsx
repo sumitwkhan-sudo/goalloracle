@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, checkOracleHealth } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminSetFeatureFlag, checkOracleHealth, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -11,7 +11,7 @@ function _countryFlagFromCode(code) {
   return String.fromCodePoint(A + (cc.charCodeAt(0) - base), A + (cc.charCodeAt(1) - base));
 }
 
-const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify }) => {
+const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify, featureFlags = DEFAULT_FEATURE_FLAGS }) => {
   const [tab, setTab] = useState('results');
   const [users, setUsers] = useState([]);
   const [selMatch, setSelMatch] = useState(null);
@@ -24,6 +24,24 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [editingLeagueName, setEditingLeagueName] = useState('');
   const [savingLeagueId, setSavingLeagueId] = useState(null);
   const [backfillingCountries, setBackfillingCountries] = useState(false);
+
+  // Feature flag toggle — pessimistic: tell the user immediately on
+   // failure rather than letting the UI drift out of sync with the
+   // server. Live subscription in App will update featureFlags after
+   // a successful write.
+  const [flagBusy, setFlagBusy] = useState(null);
+  const toggleFeatureFlag = async (flag) => {
+    setFlagBusy(flag);
+    try {
+      const next = !(featureFlags[flag] !== false);
+      await adminSetFeatureFlag(flag, next);
+      notify(`${flag === 'classicEnabled' ? 'Classic Predictions' : 'Quick Picks'} ${next ? 'enabled' : 'disabled'}`);
+    } catch (e) {
+      notify('Toggle failed: ' + e.message, 'error');
+    } finally {
+      setFlagBusy(null);
+    }
+  };
 
   const runBackfillCountries = async () => {
     if (!window.confirm('Backfill country for every user that does not already have one? Sumit → BD, lebida2352 → PK, everyone else → US.')) return;
@@ -329,9 +347,26 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             </div>
           </div>
 
-          {topReferrers.length > 0 && (
-            <div className="admin-referrals-strip" role="region" aria-label="Top referrers">
-              <div className="admin-referrals-strip-head">Top referrers</div>
+          {/* Referrals — always visible so admins know it exists. Empty
+              state explains the mechanism when no shares have landed
+              new users yet; populated state shows the top 5 referrers. */}
+          <div className="admin-referrals-strip" role="region" aria-label="Referrals">
+            <div className="admin-referrals-strip-head">
+              Referrals — top inviters via the share link
+              {topReferrers.length > 0 && (
+                <span className="admin-referrals-total">
+                  · {Object.values(referralCountById).reduce((s, n) => s + n, 0)} attributed sign-up{Object.values(referralCountById).reduce((s, n) => s + n, 0) === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+            {topReferrers.length === 0 ? (
+              <div className="admin-referrals-empty">
+                Nobody's brought in a sign-up yet. Every share button on the site
+                appends <code>?ref=&lt;userId&gt;</code> — when a new user signs up via
+                that link, <code>referredBy</code> is written on their user doc and
+                their referrer shows up here.
+              </div>
+            ) : (
               <ol className="admin-referrals-strip-list">
                 {topReferrers.map((r, i) => (
                   <li key={r.id} className="admin-referrals-strip-item">
@@ -344,8 +379,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   </li>
                 ))}
               </ol>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="admin-card-list admin-scroll">
             {filteredUsers.length === 0 && <div className="admin-empty">{users.length === 0 ? 'Loading users...' : 'No users match your search.'}</div>}
@@ -647,10 +682,54 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           <div className="admin-panel-head">
             <div>
               <h2>Settings</h2>
-              <p className="admin-panel-desc">Platform configuration and environment status</p>
+              <p className="admin-panel-desc">Feature toggles, platform configuration, and environment status</p>
             </div>
           </div>
 
+          <h3 className="admin-section-title">Feature flags</h3>
+          <div className="admin-flag-card">
+            <div className="admin-flag-row">
+              <div className="admin-flag-text">
+                <strong>Quick Picks league</strong>
+                <span>Group rankings + best thirds + knockout bracket. The fast on-ramp for new users.</span>
+              </div>
+              <button
+                type="button"
+                className={`admin-flag-switch ${featureFlags.quickPicksEnabled !== false ? 'is-on' : 'is-off'}`}
+                onClick={() => toggleFeatureFlag('quickPicksEnabled')}
+                disabled={flagBusy === 'quickPicksEnabled'}
+                aria-pressed={featureFlags.quickPicksEnabled !== false}
+                aria-label="Toggle Quick Picks league"
+              >
+                <span className="admin-flag-switch-knob" />
+                <span className="admin-flag-switch-label">{featureFlags.quickPicksEnabled !== false ? 'ON' : 'OFF'}</span>
+              </button>
+            </div>
+            <div className="admin-flag-row">
+              <div className="admin-flag-text">
+                <strong>Classic Predictions league</strong>
+                <span>Score + result for every fixture. Heavier prediction model — turn off to hide the entire Classic UX from users while keeping all data + code intact.</span>
+              </div>
+              <button
+                type="button"
+                className={`admin-flag-switch ${featureFlags.classicEnabled !== false ? 'is-on' : 'is-off'}`}
+                onClick={() => toggleFeatureFlag('classicEnabled')}
+                disabled={flagBusy === 'classicEnabled'}
+                aria-pressed={featureFlags.classicEnabled !== false}
+                aria-label="Toggle Classic Predictions league"
+              >
+                <span className="admin-flag-switch-knob" />
+                <span className="admin-flag-switch-label">{featureFlags.classicEnabled !== false ? 'ON' : 'OFF'}</span>
+              </button>
+            </div>
+            <p className="admin-flag-note">
+              Toggles propagate to every connected client within ~60 seconds via the live
+              feature-flags subscription. Existing predictions and league data are untouched
+              when a mode is turned off — they're just hidden from the UI.
+            </p>
+          </div>
+
+          <h3 className="admin-section-title">Platform configuration</h3>
           <div className="admin-contract-card">
             <div className="admin-contract-row"><span className="admin-contract-lbl">Prediction Lock</span><span className="admin-contract-val">5 min before kickoff</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">Default Points — Result</span><span className="admin-contract-val">3 pts</span></div>

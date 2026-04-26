@@ -2527,6 +2527,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   color: var(--text-dim);
   margin-bottom: 0.55rem;
 }
+.admin-referrals-total { color: var(--success, #00c853); margin-left: 0.3rem; }
+.admin-referrals-empty {
+  font-size: 0.78rem; color: var(--text-sec); line-height: 1.5;
+  padding: 0.4rem 0;
+}
+.admin-referrals-empty code {
+  font-family: var(--mono); font-size: 0.72rem;
+  padding: 0.05rem 0.3rem; border-radius: 4px;
+  background: var(--bg-elev); color: var(--text);
+}
 .admin-referrals-strip-list {
   list-style: none; padding: 0; margin: 0;
   display: flex; flex-wrap: wrap; gap: 0.45rem;
@@ -2637,6 +2647,56 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .admin-contract-actions { margin-top: 1rem; display: flex; gap: 0.5rem; }
 .admin-section-title { font-size: 0.85rem; font-weight: 700; margin: 1.5rem 0 0.75rem; }
 .admin-env-check { font-size: 0.62rem; font-family: var(--mono); color: var(--text-dim); }
+
+/* Feature-flag toggle card on the Settings tab. iOS-style switches. */
+.admin-flag-card {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 12px;
+  padding: 0.5rem 1rem 1.1rem;
+}
+.admin-flag-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+.admin-flag-row:last-of-type { border-bottom: none; }
+.admin-flag-text { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.admin-flag-text strong { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.admin-flag-text span { font-size: 0.8rem; color: var(--text-sec); line-height: 1.45; }
+.admin-flag-switch {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.3rem 0.65rem 0.3rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, var(--border));
+  background: var(--bg-elev);
+  color: var(--text-sec);
+  font-family: var(--mono); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.admin-flag-switch:disabled { opacity: 0.6; cursor: wait; }
+.admin-flag-switch-knob {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--text-muted, var(--text-dim));
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+.admin-flag-switch.is-on {
+  background: rgba(0, 230, 118, 0.14);
+  color: var(--success, #00c853);
+  border-color: rgba(0, 230, 118, 0.4);
+}
+.admin-flag-switch.is-on .admin-flag-switch-knob { background: var(--success, #00c853); transform: translateX(2px); }
+.admin-flag-switch.is-off:hover:not(:disabled) {
+  background: var(--bg-card, #fff); color: var(--text);
+}
+.admin-flag-note {
+  margin: 0.85rem 0 0; font-size: 0.78rem; color: var(--text-sec);
+  font-style: italic; line-height: 1.5;
+}
 
 /* ============================================
    RESPONSIVE

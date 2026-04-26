@@ -11,7 +11,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback, captureReferralFromUrl } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -997,6 +997,11 @@ const GoalOracle = () => {
   );
   // Public-share-page target — populated when the URL is /u/{userId}/bracket.
   const [publicBracketUserId, setPublicBracketUserId] = useState(initialRouteRef.current.publicUserId || null);
+  // Admin-toggleable feature flags. Loaded once on mount + live-subscribed
+  // so an admin flipping a toggle propagates to every client. Defaults
+  // preserve legacy behavior so a missing settings doc doesn't hide
+  // anything by accident.
+  const [featureFlags, setFeatureFlags] = useState(DEFAULT_FEATURE_FLAGS);
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [confetti, setConfetti] = useState(false);
@@ -1182,6 +1187,13 @@ const GoalOracle = () => {
   // round-trip and is available when createOrUpdateUser writes the
   // new user doc.
   useEffect(() => { captureReferralFromUrl(); }, []);
+  // Feature flags are admin-toggleable. Initial fetch is fast (cached
+  // edge response) and the live subscription keeps every client in sync
+  // when an admin flips a toggle.
+  useEffect(() => {
+    fetchFeatureFlags().then(setFeatureFlags).catch(() => {});
+    return subscribeToFeatureFlags(setFeatureFlags);
+  }, []);
   const authInitRef = useRef(false);
 
   // getAccessToken() hangs forever when Privy wallet iframe isn't ready — wrap with timeout
@@ -4918,7 +4930,7 @@ const GoalOracle = () => {
         />
       )}
       {view === 'feedback' && <Feedback key="feedback" />}
-      {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} />}
+      {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} featureFlags={featureFlags} />}
       {fundModal && <AddFundsModal />}
       {sendModal && <SendModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
