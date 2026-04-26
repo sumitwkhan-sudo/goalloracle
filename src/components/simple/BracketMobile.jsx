@@ -41,7 +41,7 @@ const ROUND_TOTAL = {
   final: 1,
 };
 
-export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint }) {
+export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false }) {
   const firstIncomplete = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r)) || 'roundOf32';
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
@@ -122,7 +122,7 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                   // Anchor the first-visit hint to the first match of the
                   // first incomplete round so it's the matchup the user
                   // is most likely to interact with.
-                  const isHintAnchor = showHint && roundKey === 'roundOf32' && i === 0;
+                  const isHintAnchor = !readOnly && showHint && roundKey === 'roundOf32' && i === 0;
                   return (
                     <div key={s.matchId} className={`bracket-match-wrap ${isHintAnchor ? 'has-hint' : ''}`}>
                       {isHintAnchor && <BracketHintTooltip onDismiss={onDismissHint} />}
@@ -140,6 +140,7 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                         city={meta?.city}
                         date={meta?.date}
                         needsPick={needsPick}
+                        readOnly={readOnly}
                       />
                     </div>
                   );

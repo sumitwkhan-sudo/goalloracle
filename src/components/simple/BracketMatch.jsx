@@ -15,12 +15,12 @@ function formatMatchDate(dateStr) {
   return `${MONTH_SHORT[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
 
-function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick }) {
+function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick, readOnly = false }) {
   const homeSelected = winnerId && winnerId === homeTeam;
   const awaySelected = winnerId && winnerId === awayTeam;
 
   const handlePick = (team) => {
-    if (isLocked || !team || !homeTeam || !awayTeam) return;
+    if (readOnly || isLocked || !team || !homeTeam || !awayTeam) return;
     onPick && onPick(team);
   };
 
@@ -30,14 +30,50 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
     isLoser && 'loser',
     isTBD && 'tbd',
     isLocked && 'locked',
+    readOnly && 'readonly',
   ].filter(Boolean).join(' ');
 
   const homeIsLoser = winnerId && !homeSelected;
   const awayIsLoser = winnerId && !awaySelected;
   const formattedDate = formatMatchDate(date);
 
+  // Read-only render — used by PicksViewer to show another user's bracket
+  // without exposing pick affordances. No buttons, no hover arrow, no
+  // lock icon (which is a different state). Just static cells highlighted
+  // with the same winner/loser styling.
+  const Row = ({ isWinner, isLoser, isTBD, flag, team, withLockIcon }) => {
+    if (readOnly) {
+      return (
+        <div className={rowClass(isWinner, isLoser, isTBD)}>
+          <span className="bracket-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
+          <span className="bracket-row-name">{team || 'TBD'}</span>
+          {isWinner && <span className="bracket-row-pill adv">ADV</span>}
+          {isLoser && <span className="bracket-row-pill out">OUT</span>}
+        </div>
+      );
+    }
+    return (
+      <button
+        type="button"
+        className={rowClass(isWinner, isLoser, isTBD)}
+        onClick={() => handlePick(team)}
+        disabled={isLocked || !homeTeam || !awayTeam}
+        aria-pressed={!!isWinner}
+      >
+        <span className="bracket-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
+        <span className="bracket-row-name">{team || 'TBD'}</span>
+        {isWinner && <span className="bracket-row-pill adv">ADV</span>}
+        {isLoser && <span className="bracket-row-pill out">OUT</span>}
+        {withLockIcon && isLocked && <Lock size={12} className="bracket-row-lock" />}
+        {!isWinner && !isLoser && !isLocked && homeTeam && awayTeam && (
+          <ChevronRight size={14} className="bracket-row-advance" aria-hidden="true" />
+        )}
+      </button>
+    );
+  };
+
   return (
-    <div className={`bracket-match size-${size}${needsPick ? ' needs-pick' : ''}`} data-match-id={matchId}>
+    <div className={`bracket-match size-${size}${needsPick && !readOnly ? ' needs-pick' : ''}${readOnly ? ' readonly' : ''}`} data-match-id={matchId}>
       {(city || formattedDate) && (
         <div className="bracket-match-meta">
           {city && <span className="bracket-match-city">{city}</span>}
@@ -45,37 +81,8 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
         </div>
       )}
       {label && <div className="bracket-match-label">{label}</div>}
-      <button
-        type="button"
-        className={rowClass(homeSelected, homeIsLoser, !homeTeam)}
-        onClick={() => handlePick(homeTeam)}
-        disabled={isLocked || !homeTeam || !awayTeam}
-        aria-pressed={!!homeSelected}
-      >
-        <span className="bracket-row-flag" aria-hidden="true">{homeFlag || '🏳️'}</span>
-        <span className="bracket-row-name">{homeTeam || 'TBD'}</span>
-        {homeSelected && <span className="bracket-row-pill adv">ADV</span>}
-        {homeIsLoser && <span className="bracket-row-pill out">OUT</span>}
-        {isLocked && <Lock size={12} className="bracket-row-lock" />}
-        {!homeSelected && !homeIsLoser && !isLocked && homeTeam && awayTeam && (
-          <ChevronRight size={14} className="bracket-row-advance" aria-hidden="true" />
-        )}
-      </button>
-      <button
-        type="button"
-        className={rowClass(awaySelected, awayIsLoser, !awayTeam)}
-        onClick={() => handlePick(awayTeam)}
-        disabled={isLocked || !homeTeam || !awayTeam}
-        aria-pressed={!!awaySelected}
-      >
-        <span className="bracket-row-flag" aria-hidden="true">{awayFlag || '🏳️'}</span>
-        <span className="bracket-row-name">{awayTeam || 'TBD'}</span>
-        {awaySelected && <span className="bracket-row-pill adv">ADV</span>}
-        {awayIsLoser && <span className="bracket-row-pill out">OUT</span>}
-        {!awaySelected && !awayIsLoser && !isLocked && homeTeam && awayTeam && (
-          <ChevronRight size={14} className="bracket-row-advance" aria-hidden="true" />
-        )}
-      </button>
+      <Row isWinner={homeSelected} isLoser={homeIsLoser} isTBD={!homeTeam} flag={homeFlag} team={homeTeam} withLockIcon />
+      <Row isWinner={awaySelected} isLoser={awayIsLoser} isTBD={!awayTeam} flag={awayFlag} team={awayTeam} />
     </div>
   );
 }

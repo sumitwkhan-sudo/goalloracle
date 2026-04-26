@@ -1380,7 +1380,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 @keyframes pv-fade { from { opacity: 0; } to { opacity: 1; } }
 .picks-viewer-modal {
-  width: 100%; max-width: 640px;
+  width: 100%; max-width: 880px;
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); overflow: hidden;
   box-shadow: 0 20px 60px rgba(0,0,0,0.6);
@@ -1406,6 +1406,45 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .picks-viewer-close:hover { color: var(--text); }
 .picks-viewer-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1.25rem; }
+/* Tabs inside the picks viewer modal — Group stage / Knockout bracket. */
+.pv-tabs {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  background: var(--bg-elev); border-radius: 999px; padding: 0.2rem;
+  align-self: flex-start;
+}
+.pv-tab {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-family: var(--font-data, var(--mono));
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 0.4rem 0.75rem; border-radius: 999px;
+  border: none; background: transparent; color: var(--text-sec);
+  cursor: pointer;
+}
+.pv-tab:hover { color: var(--text); }
+.pv-tab.active {
+  background: var(--primary-soft, rgba(0,212,255,0.14));
+  color: var(--primary, #00d4ff);
+  box-shadow: 0 0 0 1px var(--border-br, rgba(0,212,255,0.28)) inset;
+}
+.pv-bracket-section {
+  /* The desktop bracket breaks out of its container by default for
+     full-bleed centering on the wizard page. Inside the modal we want
+     it to stay within the modal's bounds and scroll horizontally if
+     the tree's intrinsic width exceeds the modal's. */
+  overflow-x: auto;
+}
+.pv-bracket-section .bracket-desktop {
+  position: static;
+  left: auto;
+  transform: none;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0.5rem 0 1rem;
+}
+.pv-bracket-section .bracket-desktop-grid {
+  min-width: 1100px;
+}
 .picks-viewer-section h4.picks-viewer-h { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.16em; text-transform: uppercase; margin: 0 0 0.6rem; font-weight: 500; }
 .picks-viewer-muted { color: var(--text-dim); font-size: 0.82rem; }
 
@@ -3945,8 +3984,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   min-height: 44px;
 }
 .bracket-row + .bracket-row { border-top: 1px solid var(--border); }
-.bracket-row:hover:not(:disabled):not(.locked) { background: rgba(255,255,255,0.04); }
+.bracket-row:hover:not(:disabled):not(.locked):not(.readonly) { background: rgba(255,255,255,0.04); }
 .bracket-row:disabled { cursor: default; }
+/* Read-only rows render as <div> (no click affordance, no hover lift)
+   so the bracket can be embedded in PicksViewer to display another
+   user's predictions without exposing edit handles. */
+.bracket-row.readonly { cursor: default; }
+.bracket-row.readonly:hover { background: transparent; }
+.bracket-match.readonly { background: var(--bg-card, #fff); }
+.bracket-match.readonly .bracket-row-advance { display: none; }
 /* Right-arrow affordance — only visible on hover/focus of unpicked rows so
    first-time users can tell the rows are clickable. */
 .bracket-row-advance {

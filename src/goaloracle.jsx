@@ -20,6 +20,10 @@ import BracketShareModal from './components/BracketShareModal';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
+import BracketDesktop from './components/simple/BracketDesktop';
+import BracketMobile from './components/simple/BracketMobile';
+import useBracketState from './hooks/useBracketState';
+import useBracketLayout from './hooks/useBracketLayout';
 import './styles.css';
 
 // Per-view <Helmet> tags. Authenticated views are noindex; public views get
@@ -220,6 +224,52 @@ function PicksViewer({ target, onClose }) {
   }
 
   return (
+    <PicksViewerBody
+      target={target}
+      onClose={onClose}
+      data={data}
+      loading={loading}
+      err={err}
+      thirdPlace={thirdPlace}
+      groupsLocal={GROUPS_LOCAL}
+      roundOrder={roundOrder}
+      roundLabel={roundLabel}
+    />
+  );
+}
+
+// Tabbed body for Quick Picks predictions: a Group stage tab (12 group
+// rankings + best-thirds) and a Knockout bracket tab that re-uses the
+// real BracketDesktop / BracketMobile in read-only mode so other users'
+// brackets render with the same branch-style tree the owner sees while
+// editing. Extracted into its own component so we can use hooks
+// (useBracketState, useBracketLayout) that the outer PicksViewer can't
+// call before the early classic-mode return.
+function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, groupsLocal, roundOrder, roundLabel }) {
+  const [tab, setTab] = useState('groups');
+  const layout = useBracketLayout();
+
+  const matchLookup = useMemo(() => {
+    const out = {};
+    for (const m of WORLD_CUP_MATCHES) out[m.id] = m;
+    return out;
+  }, []);
+
+  // Compute the bracket structure from the viewed user's stored picks
+  // using the same hook the owner uses while editing — all the
+  // round-of-32 seed math + best-third routing happens for free. We
+  // pass a no-op onChange because we'll only read bracketState.bracket.
+  const bracketState = useBracketState({
+    groupPredictions: data?.groupPredictions,
+    bestThirdPicks: data?.bestThirdPicks,
+    knockoutPredictions: data?.knockoutPredictions,
+    onChange: () => {},
+  });
+
+  const hasGroups = groupsLocal.some((g) => (data?.groupPredictions?.[g]?.ranking || []).length > 0);
+  const hasKnockout = roundOrder.some((r) => (data?.knockoutPredictions?.[r] || []).length > 0);
+
+  return (
     <div className="picks-viewer-backdrop" onClick={onClose}>
       <div className="picks-viewer-modal" onClick={(e) => e.stopPropagation()}>
         <div className="picks-viewer-header">
@@ -241,6 +291,8 @@ function PicksViewer({ target, onClose }) {
           <div className="empty-state"><p>This user hasn&rsquo;t saved any predictions yet.</p></div>
         ) : (
           <div className="picks-viewer-body">
+            {/* Champion / runner-up / 3rd place podium kept above the
+                tabs — that's the headline summary. Tabs swap below. */}
             <div className="picks-viewer-finalists">
               <div className="picks-viewer-podium">
                 <div className="podium-slot podium-winner">
@@ -267,65 +319,90 @@ function PicksViewer({ target, onClose }) {
               </div>
             </div>
 
-            <div className="picks-viewer-section">
-              <h4 className="picks-viewer-h">Group stage rankings</h4>
-              <div className="picks-viewer-groups">
-                {GROUPS_LOCAL.map(g => {
-                  const ranking = data.groupPredictions?.[g]?.ranking || [];
-                  if (ranking.length === 0) return null;
-                  return (
-                    <div key={g} className="picks-viewer-group">
-                      <div className="pv-group-title">Group {g}</div>
-                      <ol className="pv-group-list">
-                        {ranking.map((t, i) => (
-                          <li key={`${g}-${t || i}`}><span className="pv-rank">{i + 1}.</span> <span className="pv-flag">{_teamFlags[t] || ''}</span> <span className="pv-team">{t || '—'}</span></li>
-                        ))}
-                      </ol>
-                    </div>
-                  );
-                })}
-                {GROUPS_LOCAL.every(g => !(data.groupPredictions?.[g]?.ranking?.length)) && (
-                  <span className="picks-viewer-muted">No group rankings submitted yet.</span>
-                )}
-              </div>
+            <div className="pv-tabs" role="tablist" aria-label="Picks view">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'groups'}
+                className={`pv-tab ${tab === 'groups' ? 'active' : ''}`}
+                onClick={() => setTab('groups')}
+              >
+                <Users size={13} /> Group stage
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'bracket'}
+                className={`pv-tab ${tab === 'bracket' ? 'active' : ''}`}
+                onClick={() => setTab('bracket')}
+              >
+                <Trophy size={13} /> Knockout bracket
+              </button>
             </div>
 
-            <div className="picks-viewer-section">
-              <h4 className="picks-viewer-h">Best 3rd-place picks</h4>
-              {(data.bestThirdPicks || []).length > 0 ? (
-                <div className="picks-viewer-chips">
-                  {data.bestThirdPicks.map(g => (
-                    <span key={g} className="pv-chip">Group {g}</span>
-                  ))}
+            {tab === 'groups' && (
+              <>
+                <div className="picks-viewer-section">
+                  <h4 className="picks-viewer-h">Group stage rankings</h4>
+                  <div className="picks-viewer-groups">
+                    {groupsLocal.map(g => {
+                      const ranking = data.groupPredictions?.[g]?.ranking || [];
+                      if (ranking.length === 0) return null;
+                      return (
+                        <div key={g} className="picks-viewer-group">
+                          <div className="pv-group-title">Group {g}</div>
+                          <ol className="pv-group-list">
+                            {ranking.map((t, i) => (
+                              <li key={`${g}-${t || i}`}><span className="pv-rank">{i + 1}.</span> <span className="pv-flag">{_teamFlags[t] || ''}</span> <span className="pv-team">{t || '—'}</span></li>
+                            ))}
+                          </ol>
+                        </div>
+                      );
+                    })}
+                    {!hasGroups && (
+                      <span className="picks-viewer-muted">No group rankings submitted yet.</span>
+                    )}
+                  </div>
                 </div>
-              ) : <span className="picks-viewer-muted">Not selected yet.</span>}
-            </div>
 
-            <div className="picks-viewer-section">
-              <h4 className="picks-viewer-h">Knockout bracket</h4>
-              <div className="picks-viewer-rounds">
-                {roundOrder.map(r => {
-                  const picks = data.knockoutPredictions?.[r] || [];
-                  if (picks.length === 0) return null;
-                  return (
-                    <div key={r} className="pv-round">
-                      <div className="pv-round-title">{roundLabel[r]}</div>
-                      <div className="pv-round-picks">
-                        {picks.map(p => (
-                          <span key={p.matchId} className="pv-pick">
-                            <span className="pv-flag">{_teamFlags[p.winnerId] || ''}</span>
-                            <span className="pv-team">{p.winnerId}</span>
-                          </span>
-                        ))}
-                      </div>
+                <div className="picks-viewer-section">
+                  <h4 className="picks-viewer-h">Best 3rd-place picks</h4>
+                  {(data.bestThirdPicks || []).length > 0 ? (
+                    <div className="picks-viewer-chips">
+                      {data.bestThirdPicks.map(g => (
+                        <span key={g} className="pv-chip">Group {g}</span>
+                      ))}
                     </div>
-                  );
-                })}
-                {roundOrder.every(r => !(data.knockoutPredictions?.[r]?.length)) && (
+                  ) : <span className="picks-viewer-muted">Not selected yet.</span>}
+                </div>
+              </>
+            )}
+
+            {tab === 'bracket' && (
+              <div className="picks-viewer-section pv-bracket-section">
+                {!hasKnockout ? (
                   <span className="picks-viewer-muted">No knockout picks yet.</span>
+                ) : layout === 'desktop' ? (
+                  <BracketDesktop
+                    bracket={bracketState.bracket}
+                    pickWinner={() => {}}
+                    isMatchLocked={() => false}
+                    matchLookup={matchLookup}
+                    readOnly
+                  />
+                ) : (
+                  <BracketMobile
+                    bracket={bracketState.bracket}
+                    pickWinner={() => {}}
+                    isRoundComplete={bracketState.isRoundComplete}
+                    isRoundUnlocked={bracketState.isRoundUnlocked}
+                    isMatchLocked={() => false}
+                    matchLookup={matchLookup}
+                    readOnly
+                  />
                 )}
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
