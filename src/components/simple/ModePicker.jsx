@@ -29,10 +29,18 @@ const MODES = [
   },
 ];
 
-export default function ModePicker({ value, onChange }) {
+export default function ModePicker({ value, onChange, featureFlags }) {
+  // Filter the visible modes by the admin feature flags. Defaults are
+  // permissive — a missing flag map keeps both modes visible so existing
+  // callers (and SSR) don't accidentally hide options.
+  const visible = MODES.filter((m) => {
+    if (m.key === 'classic' && featureFlags?.classicEnabled === false) return false;
+    if (m.key === 'simple' && featureFlags?.quickPicksEnabled === false) return false;
+    return true;
+  });
   return (
     <div className="mode-picker">
-      {MODES.map((m) => {
+      {visible.map((m) => {
         const selected = value === m.key;
         const Icon = m.iconComponent;
         return (

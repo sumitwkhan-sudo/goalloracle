@@ -1288,6 +1288,16 @@ const GoalOracle = () => {
     setView(prev => (prev === 'landing' ? 'dashboard' : prev));
   }, [authenticated, uData?.id]);
 
+  // If the active view is a Classic league but Classic has been turned off
+  // by an admin (deep-linked from an old URL), bounce back to the dashboard
+  // so the user doesn't land on an empty page.
+  useEffect(() => {
+    if (view !== 'detail') return;
+    if (featureFlags.classicEnabled === false && selLeague && selLeague.predictionMode !== 'simple') {
+      nav('dashboard');
+    }
+  }, [view, selLeague, featureFlags.classicEnabled, nav]);
+
   // Surface the deferred email prompt once the user has engaged with the
   // product — i.e. they've placed at least one Quick Picks selection or
   // saved a classic prediction. Falls back to a 90s grace timer so we
@@ -2238,10 +2248,12 @@ const GoalOracle = () => {
       }
 
       // Classic match locking within 24h that the user hasn't predicted.
+      // Skip entirely when the Classic mode is disabled by feature flag —
+      // routing to a hidden Classic league would be confusing.
       const now = Date.now();
       const LOCK_BUFFER_MS = 5 * 60 * 1000;
       const SOON_MS = 24 * 60 * 60 * 1000;
-      const soon = needsPrediction.find(m => {
+      const soon = featureFlags.classicEnabled === false ? null : needsPrediction.find(m => {
         const [hh, mm] = (m.time || '15:00').split(':').map(Number);
         const kick = new Date(`${m.date}T00:00:00Z`);
         kick.setUTCHours(hh + 4, mm, 0, 0);
@@ -2288,7 +2300,7 @@ const GoalOracle = () => {
         cta: 'Browse leagues',
         onClick: () => nav('browse'),
       };
-    }, [quickPicks, quickPicksIncomplete, simpleLeagues, needsPrediction, ml, leagueRanks, leagues]);
+    }, [quickPicks, quickPicksIncomplete, simpleLeagues, needsPrediction, ml, leagueRanks, leagues, featureFlags.classicEnabled]);
 
     // Recent completed results
     const recentResults = useMemo(() =>
@@ -2493,24 +2505,26 @@ const GoalOracle = () => {
               </p>
               <div className="dv2-flow-cta">Continue your Quick Picks <ChevronRight size={14} /></div>
             </div>
-            <div
-              className="dv2-flow-card dv2-flow-classic"
-              onClick={() => {
-                const g = leagues.find(l => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 }, isGlobal: true };
-                setDetailTab('predictions');
-                nav('detail', g);
-              }}
-            >
-              <div className="dv2-flow-head">
-                <div className="dv2-flow-icon dv2-flow-icon-classic"><Trophy size={20} /></div>
-                <div className="dv2-flow-title">Classic Predictions</div>
-                <span className="dv2-flow-badge dv2-flow-badge-per-league">Per-league</span>
+            {featureFlags.classicEnabled !== false && (
+              <div
+                className="dv2-flow-card dv2-flow-classic"
+                onClick={() => {
+                  const g = leagues.find(l => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 }, isGlobal: true };
+                  setDetailTab('predictions');
+                  nav('detail', g);
+                }}
+              >
+                <div className="dv2-flow-head">
+                  <div className="dv2-flow-icon dv2-flow-icon-classic"><Trophy size={20} /></div>
+                  <div className="dv2-flow-title">Classic Predictions</div>
+                  <span className="dv2-flow-badge dv2-flow-badge-per-league">Per-league</span>
+                </div>
+                <p className="dv2-flow-desc">
+                  Pick the score and result of each fixture. <strong>Each Classic Predictions league stores its own set of picks</strong>. Copy from your Global Classic Predictions when you create or join a new one.
+                </p>
+                <div className="dv2-flow-cta">Continue your Classic Predictions <ChevronRight size={14} /></div>
               </div>
-              <p className="dv2-flow-desc">
-                Pick the score and result of each fixture. <strong>Each Classic Predictions league stores its own set of picks</strong>. Copy from your Global Classic Predictions when you create or join a new one.
-              </p>
-              <div className="dv2-flow-cta">Continue your Classic Predictions <ChevronRight size={14} /></div>
-            </div>
+            )}
             <div
               className="dv2-flow-card dv2-flow-join"
               onClick={() => nav('browse')}
@@ -2565,7 +2579,7 @@ const GoalOracle = () => {
                   </div>
                 );
               })}
-              {needsPrediction.map(m => {
+              {featureFlags.classicEnabled !== false && needsPrediction.map(m => {
                 const classicLeague = ml.find(l => l.predictionMode === 'classic') || ml[0];
                 return (
                   <div key={m.id} className="dv2-action-card" onClick={() => nav('detail', classicLeague)}>
@@ -2662,10 +2676,17 @@ const GoalOracle = () => {
   };
 
   const LeaguesList = () => {
-    const allMine = leagues.length > 0 ? leagues : [
+    const seedAll = leagues.length > 0 ? leagues : [
       { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
       { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
     ];
+    // Filter out leagues whose mode is disabled by feature flag — keeps
+    // the data intact in Firestore but hides the league rows here.
+    const allMine = seedAll.filter(l => {
+      if (l.predictionMode === 'classic' && featureFlags.classicEnabled === false) return false;
+      if (l.predictionMode === 'simple' && featureFlags.quickPicksEnabled === false) return false;
+      return true;
+    });
     const isGlobalLeague = (l) => l.id === 'global' || l.id === 'global-simple' || l.isGlobal === true;
     const globalLeagues = allMine.filter(isGlobalLeague);
     const privateLeagues = allMine.filter(l => !isGlobalLeague(l));
@@ -2851,7 +2872,12 @@ const GoalOracle = () => {
     const [passInput, setPassInput] = useState('');
     const [joinErr, setJoinErr] = useState('');
     const [postJoin, setPostJoin] = useState(null); // { id, name, mode } after successful join
-    const publicLeagues = allLeagues.filter(l => l.visibility !== 'private');
+    const publicLeagues = allLeagues.filter(l => {
+      if (l.visibility === 'private') return false;
+      if (l.predictionMode === 'classic' && featureFlags.classicEnabled === false) return false;
+      if (l.predictionMode === 'simple' && featureFlags.quickPicksEnabled === false) return false;
+      return true;
+    });
     const f = publicLeagues.filter(l => l.name?.toLowerCase().includes(q.toLowerCase()));
 
     const handleJoin = async (league, passcode = null) => {
@@ -4883,6 +4909,7 @@ const GoalOracle = () => {
           nav={nav}
           notify={notify}
           createLeague={createLeague}
+          featureFlags={featureFlags}
         />
       )}
       {view === 'detail' && selLeague?.predictionMode === 'simple' && (
@@ -4910,7 +4937,7 @@ const GoalOracle = () => {
           setLbScopeCountry={setLbScopeCountry}
         />
       )}
-      {view === 'detail' && selLeague?.predictionMode !== 'simple' && <Detail key={selLeague?.id || 'detail'} />}
+      {view === 'detail' && selLeague?.predictionMode !== 'simple' && featureFlags.classicEnabled !== false && <Detail key={selLeague?.id || 'detail'} />}
       {view === 'simplePredict' && (
         <SimplePrediction
           key={`simple-${selLeague?.id || 'solo'}`}
@@ -4941,7 +4968,7 @@ const GoalOracle = () => {
           which would otherwise destroy the drawer's DOM and reset its scroll
           position). Toggle is visible only on Classic leagues' predictions
           tab; drawer can always render (hidden off-canvas when closed). */}
-      {view === 'detail' && selLeague?.predictionMode !== 'simple' && detailTab === 'predictions' && (
+      {view === 'detail' && selLeague?.predictionMode !== 'simple' && featureFlags.classicEnabled !== false && detailTab === 'predictions' && (
         <LiveStandingsToggle
           open={standingsOpen}
           onToggle={() => setStandingsOpen(v => !v)}
@@ -4949,7 +4976,7 @@ const GoalOracle = () => {
         />
       )}
       <LiveStandingsDrawer
-        open={standingsOpen && view === 'detail' && selLeague?.predictionMode !== 'simple'}
+        open={standingsOpen && view === 'detail' && selLeague?.predictionMode !== 'simple' && featureFlags.classicEnabled !== false}
         onClose={() => setStandingsOpen(false)}
         predictions={preds}
       />

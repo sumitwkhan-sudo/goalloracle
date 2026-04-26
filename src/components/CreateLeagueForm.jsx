@@ -8,7 +8,7 @@
  * DOM and the focused input across re-renders.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertTriangle, CheckCircle, Key, Unlock, Lock, Eye, EyeOff,
   RefreshCw, ChevronRight, Loader, Copy, Target,
@@ -130,7 +130,15 @@ export default function CreateLeagueForm({
   nav,
   notify,
   createLeague,
+  featureFlags,
 }) {
+  // If the currently-selected mode is disabled by an admin flag, snap to
+  // the other one so the form doesn't submit a hidden mode.
+  useEffect(() => {
+    if (!featureFlags) return;
+    if (createMode === 'classic' && featureFlags.classicEnabled === false) setCreateMode('simple');
+    else if (createMode === 'simple' && featureFlags.quickPicksEnabled === false) setCreateMode('classic');
+  }, [featureFlags, createMode, setCreateMode]);
   const tp = createTp, setTp = setCreateTp;
   const nm = createName, setNm = setCreateName;
   const vis = createVis, setVis = setCreateVis;
@@ -205,7 +213,7 @@ export default function CreateLeagueForm({
         {busy && <div className="create-loading-overlay"><div className="create-loading-inner"><Loader size={32} className="spin" /><p>Creating your league...</p></div></div>}
         {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}
         <div className="form-section"><label>Prediction Mode</label>
-          <ModePicker value={createMode} onChange={setCreateMode} />
+          <ModePicker value={createMode} onChange={setCreateMode} featureFlags={featureFlags} />
         </div>
         <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={(e) => setNm(e.target.value)} className="input-field" /></div>
         <div className="form-section"><label>League Type</label>
