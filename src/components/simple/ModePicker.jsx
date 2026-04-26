@@ -12,7 +12,7 @@ const MODES = [
   {
     key: 'simple',
     icon: '⚽',
-    title: 'Simple Mode',
+    title: 'Quick Picks',
     recommended: true,
     description: 'Pick group rankings + bracket winners. No score predictions. Great for casual fans.',
     scoring: '% prediction accuracy',
@@ -21,7 +21,7 @@ const MODES = [
   {
     key: 'classic',
     iconComponent: Target,
-    title: 'Classic Mode',
+    title: 'Classic Predictions',
     recommended: false,
     description: 'Predict every match score. Full points system. For the dedicated football analysts.',
     scoring: 'points per correct result',

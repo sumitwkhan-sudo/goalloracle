@@ -212,9 +212,20 @@ export default function CreateLeagueForm({
       <div className="create-league-form" style={{ position: 'relative' }}>
         {busy && <div className="create-loading-overlay"><div className="create-loading-inner"><Loader size={32} className="spin" /><p>Creating your league...</p></div></div>}
         {err && <div className="form-error"><AlertTriangle size={16} /> {err}</div>}
-        <div className="form-section"><label>Prediction Mode</label>
-          <ModePicker value={createMode} onChange={setCreateMode} featureFlags={featureFlags} />
-        </div>
+        {/* Hide the entire mode-picker section when only one mode is
+            available. With Classic disabled by feature flag there's only
+            Quick Picks to choose, so the section becomes visual clutter. */}
+        {(() => {
+          const showSimple = featureFlags?.quickPicksEnabled !== false;
+          const showClassic = featureFlags?.classicEnabled !== false;
+          const visibleCount = (showSimple ? 1 : 0) + (showClassic ? 1 : 0);
+          if (visibleCount <= 1) return null;
+          return (
+            <div className="form-section"><label>Prediction Mode</label>
+              <ModePicker value={createMode} onChange={setCreateMode} featureFlags={featureFlags} />
+            </div>
+          );
+        })()}
         <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={(e) => setNm(e.target.value)} className="input-field" /></div>
         <div className="form-section"><label>League Type</label>
           <div className="type-selector">
