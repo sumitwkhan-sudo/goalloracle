@@ -687,23 +687,18 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
     <div className="league-detail">
       <div className="page-header-compact">
         <div className="phc-left">
-          <button className="btn-back-sm" onClick={onBack}>&larr;</button>
+          {/* Named back button — destination matches what onBack does
+              ("Leagues" when authenticated, "Home" otherwise) so the
+              user always knows where the tap takes them. */}
+          <button className="btn-back-sm btn-back-sm-named" onClick={onBack}>
+            &larr; <span>{authenticated ? 'Leagues' : 'Home'}</span>
+          </button>
           <h1 className="phc-title">{title}</h1>
           <div className="phc-meta">
             <span><Users size={14} /> {(league?.memberCount || league?.members?.length || 0).toLocaleString()} members</span>
             <span className="lv2-mode-pill simple">QUICK PICKS</span>
           </div>
         </div>
-        {authenticated && (
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm phc-share"
-            onClick={openShareBracket}
-            aria-label="Share my bracket"
-          >
-            <Share2 size={14} /> Share my bracket
-          </button>
-        )}
       </div>
 
       {needsUsername && (
@@ -903,6 +898,12 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
                           </button>
                           <button type="button" className="lb-row-btn" onClick={(ev) => { ev.stopPropagation(); setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp, leagueId: league?.id || 'global-simple' }); }}>
                             <Eye size={11} /> View
+                          </button>
+                          {/* Share moved off the page header onto the user's
+                              own row — it's a context-attached action,
+                              not a permanent header citizen. */}
+                          <button type="button" className="lb-row-btn" onClick={(ev) => { ev.stopPropagation(); openShareBracket(); }} aria-label="Share my bracket">
+                            <Share2 size={11} /> Share
                           </button>
                         </>
                       ) : (

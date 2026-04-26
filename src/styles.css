@@ -2959,6 +2959,17 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .phc-left { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; min-width: 0; }
 .btn-back-sm { background: none; border: none; font-size: 1rem; color: var(--text-sec); cursor: pointer; padding: 0; }
+/* Named variant — adds a label next to the arrow so the user knows
+   the destination ("← Leagues" / "← Home") instead of a bare glyph. */
+.btn-back-sm-named {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.55rem 0.25rem 0.45rem;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-back-sm-named:hover { background: var(--bg-elev); color: var(--text); }
+.btn-back-sm-named span { font-weight: 600; }
 .phc-title { font-size: 1.2rem; font-weight: 800; white-space: nowrap; }
 .phc-meta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; color: var(--text-sec); }
 .phc-right { display: flex; gap: 0.35rem; flex-shrink: 0; }
