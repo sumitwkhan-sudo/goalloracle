@@ -2558,68 +2558,35 @@ const GoalOracle = () => {
           </>
         )}
 
-        {/* Prediction flow explainer — how the two modes work per league */}
-        <div className="dv2-section">
-          <div className="dv2-section-head">
-            <h3 className="dv2-section-title">Your Prediction Flow</h3>
-            <span className="dv2-section-sub">Two modes · One set of picks per league</span>
-          </div>
-          <div className="dv2-flow-grid">
-            <div
-              className="dv2-flow-card dv2-flow-simple"
-              onClick={() => {
-                const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
-                setDetailTab('predictions');
-                nav('detail', gs);
-              }}
-            >
-              <div className="dv2-flow-head">
-                <div className="dv2-flow-icon"><Target size={20} /></div>
-                <div className="dv2-flow-title">Quick Picks</div>
-                <span className="dv2-flow-badge">Shared</span>
-              </div>
-              <p className="dv2-flow-desc">
-                Rank each group, pick the best thirds, and call the knockout bracket. <strong>Your picks apply to every Quick Picks league you belong to</strong> — make them once, compete everywhere.
-              </p>
-              <div className="dv2-flow-cta">Continue your Quick Picks <ChevronRight size={14} /></div>
-            </div>
-            {featureFlags.classicEnabled !== false && (
-              <div
-                className="dv2-flow-card dv2-flow-classic"
-                onClick={() => {
-                  const g = leagues.find(l => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 }, isGlobal: true };
-                  setDetailTab('predictions');
-                  nav('detail', g);
-                }}
-              >
-                <div className="dv2-flow-head">
-                  <div className="dv2-flow-icon dv2-flow-icon-classic"><Trophy size={20} /></div>
-                  <div className="dv2-flow-title">Classic Predictions</div>
-                  <span className="dv2-flow-badge dv2-flow-badge-per-league">Per-league</span>
-                </div>
-                <p className="dv2-flow-desc">
-                  Pick the score and result of each fixture. <strong>Each Classic Predictions league stores its own set of picks</strong>. Copy from your Global Classic Predictions when you create or join a new one.
-                </p>
-                <div className="dv2-flow-cta">Continue your Classic Predictions <ChevronRight size={14} /></div>
-              </div>
-            )}
-            <div
-              className="dv2-flow-card dv2-flow-join"
-              onClick={() => nav('browse')}
-            >
-              <div className="dv2-flow-head">
-                <div className="dv2-flow-icon dv2-flow-icon-join"><Users size={20} /></div>
-                <div className="dv2-flow-title">Join a League</div>
-                <span className="dv2-flow-badge dv2-flow-badge-join">Public + code</span>
-              </div>
-              <p className="dv2-flow-desc">
-                Browse public leagues to find one that fits, or <strong>enter a private passcode from a friend</strong> to jump straight in. One click takes you both places.
-              </p>
-              <div className="dv2-flow-cta">Browse or enter a code <ChevronRight size={14} /></div>
-            </div>
-          </div>
-          <div className="dv2-flow-actions">
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => nav('create')}><Plus size={14} /> Create a league</button>
+        {/* Compact top-of-dashboard CTAs. Three actions only: edit your
+            Quick Picks, join a league (browse public + private code),
+            create a league. Replaces the older three-card explainer +
+            section header — for a returning user that copy reads as
+            onboarding clutter. The primary label adapts based on
+            whether the user has completed their picks. */}
+        <div className="dv2-section dv2-cta-section">
+          <button
+            type="button"
+            className="dv2-cta-primary"
+            onClick={() => {
+              const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+              setDetailTab('predictions');
+              nav('detail', gs);
+            }}
+          >
+            <span className="dv2-cta-primary-icon"><Target size={18} /></span>
+            <span className="dv2-cta-primary-label">
+              {quickPicks && quickPicks.isComplete ? 'Edit your Quick Picks' : 'Continue your Quick Picks'}
+            </span>
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+          <div className="dv2-cta-row">
+            <button type="button" className="dv2-cta-secondary" onClick={() => nav('browse')}>
+              <Users size={14} aria-hidden="true" /> Join a league
+            </button>
+            <button type="button" className="dv2-cta-secondary" onClick={() => nav('create')}>
+              <Plus size={14} aria-hidden="true" /> Create a league
+            </button>
           </div>
         </div>
 

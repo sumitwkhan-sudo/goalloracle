@@ -1697,55 +1697,36 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .join-success-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .join-success-actions .btn-lg { flex: 1; }
 
-/* Dashboard: prediction flow explainer */
-.dv2-section-sub { font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.14em; text-transform: uppercase; }
-.dv2-flow-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 0.75rem; }
-@media (max-width: 1000px) { .dv2-flow-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 720px) { .dv2-flow-grid { grid-template-columns: 1fr; } }
-.dv2-flow-card {
-  position: relative; display: flex; flex-direction: column; gap: 0.75rem;
-  padding: 1.1rem 1.1rem 0.95rem;
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  cursor: pointer; transition: transform 0.2s, border-color 0.2s;
+/* Dashboard: compact CTA stack. One full-width primary action (open
+   the Quick Picks wizard) plus a 2-up row of secondary buttons (Join,
+   Create). Replaces the older three-card prediction-flow explainer
+   which read as onboarding for returning users. */
+.dv2-cta-section { display: flex; flex-direction: column; gap: 0.55rem; }
+.dv2-cta-primary {
+  display: flex; align-items: center; gap: 0.7rem;
+  width: 100%; padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, rgba(0,212,255,0.12), rgba(255,45,135,0.08));
+  border: 1px solid rgba(0,212,255,0.35); border-radius: var(--radius-lg);
+  color: var(--text); font-size: 1rem; font-weight: 700; text-align: left;
+  cursor: pointer; transition: border-color 0.2s, transform 0.15s;
 }
-.dv2-flow-card:hover { border-color: var(--border-br); }
-.dv2-flow-simple {
-  background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(255,45,135,0.03));
-  border-color: rgba(0,212,255,0.3);
-}
-.dv2-flow-classic {
-  background: linear-gradient(135deg, rgba(255,184,0,0.08), rgba(255,45,135,0.03));
-  border-color: rgba(255,184,0,0.3);
-}
-.dv2-flow-join {
-  background: linear-gradient(135deg, rgba(123,97,255,0.08), rgba(0,212,255,0.04));
-  border-color: rgba(123,97,255,0.3);
-}
-.dv2-flow-head { display: flex; align-items: center; gap: 0.6rem; }
-.dv2-flow-icon {
-  width: 36px; height: 36px; border-radius: 50%;
+.dv2-cta-primary:hover { border-color: var(--cyan); }
+.dv2-cta-primary:active { transform: translateY(1px); }
+.dv2-cta-primary-icon {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, var(--cyan), var(--magenta)); color: #000;
 }
-.dv2-flow-icon-classic { background: linear-gradient(135deg, var(--amber), var(--magenta)); }
-.dv2-flow-icon-join { background: linear-gradient(135deg, var(--violet), var(--cyan)); color: #fff; }
-.dv2-flow-title { font-size: 1rem; font-weight: 700; flex: 1; }
-.dv2-flow-badge {
-  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em;
-  text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 999px;
-  background: rgba(0,212,255,0.12); color: var(--cyan);
+.dv2-cta-primary-label { flex: 1; }
+.dv2-cta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+.dv2-cta-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: border-color 0.2s, background 0.2s;
 }
-.dv2-flow-badge-per-league { background: rgba(255,184,0,0.14); color: var(--amber); }
-.dv2-flow-badge-join { background: rgba(123,97,255,0.16); color: var(--violet); }
-.dv2-flow-desc { font-size: 0.85rem; color: var(--text-sec); margin: 0; line-height: 1.5; }
-.dv2-flow-desc strong { color: var(--text); font-weight: 600; }
-.dv2-flow-cta {
-  display: inline-flex; align-items: center; gap: 0.3rem;
-  font-family: var(--mono); font-size: 0.72rem; color: var(--primary);
-  letter-spacing: 0.06em; padding-top: 0.4rem;
-  border-top: 1px dashed var(--border);
-}
-.dv2-flow-actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
+.dv2-cta-secondary:hover { border-color: var(--border-br); background: var(--bg-elev); }
 .leaderboard-list { display: flex; flex-direction: column; }
 .leaderboard-item { display: flex; align-items: center; gap: 0.55rem; padding: 0.32rem 0.85rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
 .leaderboard-item:hover { background: var(--bg-elev); }
