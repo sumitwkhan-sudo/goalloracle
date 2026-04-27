@@ -77,16 +77,27 @@ export default function BracketShareModal({
     );
   };
   const copyForInstagram = async () => {
-    // Instagram web doesn't accept prefilled captions, so we copy the text
-    // so the user can paste into a new post/story.
+    // Instagram doesn't accept prefilled captions on web or via URL
+    // schemes — best we can do is copy the caption then send the user
+    // to Instagram so they can paste into a new post / story.
     try {
       await navigator.clipboard.writeText(caption);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
       track('share_completed', { channel: 'instagram', league_id: leagueId || null });
-      if (notify) notify('Caption copied — paste into Instagram');
+      if (notify) notify('Caption copied — opening Instagram');
     } catch {
       if (notify) notify('Copy failed', 'error');
+      return;
+    }
+    const isMobile = typeof navigator !== 'undefined'
+      && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+    if (isMobile) {
+      // Universal link: iOS / Android open the Instagram app if
+      // installed, otherwise fall through to the web version.
+      window.location.href = 'https://www.instagram.com/';
+    } else {
+      window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
     }
   };
   const copyCaption = async () => {

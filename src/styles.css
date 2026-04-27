@@ -4651,29 +4651,29 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .bracket-share-modal {
   position: relative; background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 14px); padding: 1.25rem;
+  border-radius: var(--radius-lg, 14px); padding: 1rem;
   max-width: 420px; width: calc(100% - 2rem); max-height: 92vh; overflow-y: auto;
   box-shadow: 0 20px 60px -20px rgba(0,0,0,0.6);
 }
 .bracket-share-card {
   background: linear-gradient(135deg, rgba(124,92,255,0.18), rgba(0,212,255,0.08) 60%, rgba(255,45,135,0.12));
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px; padding: 1rem 1.1rem; margin-top: 0.5rem;
+  border-radius: 14px; padding: 0.85rem 0.95rem; margin-top: 0.25rem;
   color: var(--text);
 }
 .bsc-brand {
   display: flex; align-items: center; gap: 0.35rem;
-  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.7); margin-bottom: 0.6rem;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.7); margin-bottom: 0.45rem;
 }
 .bsc-brand-name { font-weight: 700; color: var(--primary, #7c5cff); }
 .bsc-brand-dot { opacity: 0.5; }
-.bsc-heading { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; line-height: 1.3; }
+.bsc-heading { font-size: 0.92rem; font-weight: 600; margin-bottom: 0.55rem; line-height: 1.3; }
 .bsc-author { color: var(--text-sec); font-weight: 500; }
 .bsc-row {
-  display: flex; align-items: center; gap: 0.75rem;
-  padding: 0.55rem 0.7rem; background: rgba(0,0,0,0.2);
-  border-radius: 10px; margin-bottom: 0.4rem;
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.4rem 0.6rem; background: rgba(0,0,0,0.2);
+  border-radius: 10px; margin-bottom: 0.3rem;
 }
 .bsc-row-winner { border-left: 3px solid #ffab00; }
 .bsc-row-runner { border-left: 3px solid rgba(255,255,255,0.4); }
@@ -4686,33 +4686,33 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
   color: rgba(255,255,255,0.55); margin-bottom: 0.1rem;
 }
-.bsc-row-team { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.95rem; }
-.bsc-flag { font-size: 1.25rem; }
+.bsc-row-team { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.92rem; }
+.bsc-flag { font-size: 1.15rem; }
 .bsc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bsc-footer {
   display: flex; align-items: center; justify-content: space-between;
-  margin-top: 0.75rem; padding-top: 0.6rem;
+  margin-top: 0.55rem; padding-top: 0.45rem;
   border-top: 1px solid rgba(255,255,255,0.1);
-  font-size: 0.78rem; color: var(--text-sec);
+  font-size: 0.76rem; color: var(--text-sec);
 }
 .bsc-footer strong { color: var(--primary, #7c5cff); font-weight: 700; }
-.bsc-tags { font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 0.3rem; }
+.bsc-tags { font-size: 0.68rem; color: rgba(255,255,255,0.4); margin-top: 0.25rem; }
 
 .bracket-share-hint {
   display: flex; align-items: flex-start; gap: 0.5rem;
-  font-size: 0.78rem; color: var(--text-sec); line-height: 1.45;
-  margin: 1rem 0 0.75rem; padding: 0;
+  font-size: 0.75rem; color: var(--text-sec); line-height: 1.4;
+  margin: 0.6rem 0 0.55rem; padding: 0;
 }
 .bracket-share-hint svg { flex-shrink: 0; margin-top: 2px; color: var(--primary, #7c5cff); }
 
 .bracket-share-actions {
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem;
 }
 .bracket-share-actions .share-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  padding: 0.55rem 0.75rem; border: 1px solid var(--border);
+  padding: 0.5rem 0.7rem; border: 1px solid var(--border);
   border-radius: 10px; background: var(--bg-elev); color: var(--text);
-  font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
   transition: transform 0.1s, border-color 0.15s, background 0.15s;
 }
 .bracket-share-actions .share-btn:hover { border-color: var(--primary); }
