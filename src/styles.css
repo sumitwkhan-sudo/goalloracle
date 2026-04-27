@@ -4143,12 +4143,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
    below the wizard chrome so users always know where they are. */
 .bracket-progress {
   /* The -webkit-sticky fallback is unnecessary on modern Safari but
-     harmless. top: 0 pins to the viewport edge as the user scrolls
-     through the round body; z-index is high enough to sit above the
-     match cards but below any modal / drawer surfaces. */
+     harmless. top: 56px parks the strip just below the sticky .navbar
+     (z-index 100, ~56px tall) so it doesn't tuck under the brand bar
+     as the user scrolls through the round body. z-index is high
+     enough to sit above the match cards but below any modal / drawer
+     surfaces. */
   position: -webkit-sticky;
   position: sticky;
-  top: 0; z-index: 20;
+  top: 56px; z-index: 20;
   display: grid; grid-template-columns: repeat(6, 1fr);
   gap: 0.25rem;
   padding: 0.45rem;
