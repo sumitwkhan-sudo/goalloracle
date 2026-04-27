@@ -46,17 +46,30 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
   // Auto-advance the open accordion ONLY at the moment a round's
-  // completion flips from incomplete → complete. Previously this fired
-  // on every render where the open round happened to be complete,
-  // which meant any user click on a finished prior round (R32 16/16,
-  // for example) was instantly slapped back to the next incomplete
-  // round. The user could never reopen a finished round.
+  // completion flips from incomplete → complete. Two refs are needed:
+  //   - prevRoundRef:    which round the effect last evaluated, so we
+  //                      can detect navigation between rounds.
+  //   - prevCompleteRef: that round's completion state, so we can
+  //                      detect a false → true edge within it.
+  // If we tracked completion alone, the previous round's value would
+  // be misread as "was incomplete" the moment the user tapped into a
+  // finished round, and the edge check would auto-advance them right
+  // back out — defeating the whole purpose of the reopen fix.
+  const prevRoundRef = useRef(openRound);
   const prevCompleteRef = useRef(isRoundComplete(openRound));
   useEffect(() => {
+    // Reset both refs on navigation so completion edges are only
+    // detected within a single round.
+    if (prevRoundRef.current !== openRound) {
+      prevRoundRef.current = openRound;
+      prevCompleteRef.current = isRoundComplete(openRound);
+      return;
+    }
     const nowComplete = isRoundComplete(openRound);
     const wasComplete = prevCompleteRef.current;
     prevCompleteRef.current = nowComplete;
-    // Only advance on the false → true edge.
+    // Only advance on the false → true edge — the user just finished
+    // the round they're currently looking at.
     if (!wasComplete && nowComplete) {
       const next = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r));
       if (next) setOpenRound(next);
