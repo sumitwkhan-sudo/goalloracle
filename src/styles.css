@@ -3622,8 +3622,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 0.75rem 1rem;
   font-size: 0.85rem; color: var(--text-sec);
-  /* Stay visible while the user scrolls through the 12 groups. */
-  position: sticky; top: 0; z-index: 5;
+  /* Stay visible while the user scrolls through the 12 groups.
+     top: 56px parks it just below the sticky .navbar (z-index 100,
+     ~56px tall — see the .nav-menu mobile drop-down which uses the
+     same offset). top: 0 would tuck it under the nav. */
+  position: sticky; top: 56px; z-index: 5;
   backdrop-filter: saturate(1.2) blur(6px);
   -webkit-backdrop-filter: saturate(1.2) blur(6px);
   box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.35);
