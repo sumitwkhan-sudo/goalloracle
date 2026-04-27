@@ -2,55 +2,34 @@
  * ScrollDownNudge
  *
  * Subtle "scroll down to start" prompt rendered between the collapsed
- * scoring panel and the group grid on Step 1 of Quick Picks. Bouncing
- * chevron + a one-line label, fades itself out the moment the user
- * scrolls past it (or after a 6-second timer, so it never lingers).
+ * scoring panel and the Save & Continue button on Step 1 of Quick
+ * Picks. Bouncing chevron + a one-line label, dismisses itself once
+ * the user scrolls past it.
  *
- * Stays out of the way for returning users by also dismissing on the
- * second visit via localStorage.
+ * Shown on every visit. Earlier versions one-shot-dismissed it via
+ * localStorage and a 6s timer, but the layout above the groups is
+ * tall enough that even returning users benefit from the affordance —
+ * without it the page reads like it ends at "Save & Continue".
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
-const STORAGE_KEY = 'goaloracle_qp_scroll_nudge_seen';
-
 export default function ScrollDownNudge({ label = 'Scroll down to rank each group' }) {
-  const [visible, setVisible] = useState(() => {
-    try { return localStorage.getItem(STORAGE_KEY) !== '1'; } catch { return true; }
-  });
+  const [visible, setVisible] = useState(true);
   const ref = useRef(null);
 
   useEffect(() => {
     if (!visible) return;
-    let dismissed = false;
-    const dismiss = () => {
-      if (dismissed) return;
-      dismissed = true;
-      setVisible(false);
-      try { localStorage.setItem(STORAGE_KEY, '1'); } catch {}
-    };
-
-    // Auto-dismiss as soon as the nudge scrolls out of view — by then
-    // the user has clearly figured it out without our help.
     const el = ref.current;
-    let observer = null;
-    if (el && 'IntersectionObserver' in window) {
-      observer = new IntersectionObserver((entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) dismiss();
-        }
-      }, { threshold: 0 });
-      observer.observe(el);
-    }
-
-    // Belt-and-braces: fade after 6s even if the user hasn't moved.
-    const t = setTimeout(dismiss, 6000);
-
-    return () => {
-      clearTimeout(t);
-      if (observer) observer.disconnect();
-    };
+    if (!el || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) setVisible(false);
+      }
+    }, { threshold: 0 });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [visible]);
 
   if (!visible) return null;
