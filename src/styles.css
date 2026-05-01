@@ -185,7 +185,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .nav-menu a svg, .nav-menu .nav-link svg { flex-shrink: 0; }
 .nav-menu a:hover, .nav-menu .nav-link:hover { color: var(--cyan); }
 .nav-actions { display: flex; align-items: center; gap: 0.5rem; }
-.mobile-toggle { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 0.25rem; }
+.mobile-toggle { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 0.25rem; touch-action: manipulation; }
 .theme-switcher {
   display: flex; align-items: center;
   background: var(--card); border: 1px solid var(--border); border-radius: 20px;
@@ -217,6 +217,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   padding: 0.6rem 1.25rem; font-family: var(--font); font-size: 0.85rem; font-weight: 600;
   border: none; border-radius: 8px; cursor: pointer; transition: all 0.25s;
   text-decoration: none; white-space: nowrap;
+  /* Disable iOS Safari's legacy double-tap-zoom on tap targets so
+     fast / fat-finger taps don't permanently zoom the page. Page-
+     level pinch-zoom is preserved (manipulation allows pan+pinch). */
+  touch-action: manipulation;
 }
 .btn-primary { background: var(--grad); color: var(--bg); }
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,212,255,0.2); }
@@ -2735,6 +2739,25 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 /* ============================================
    RESPONSIVE
    ============================================ */
+/* iOS Safari auto-zooms whenever an input with computed font-size
+   below 16px receives focus, and never zooms back out — leaving the
+   page at a different scale until reload. Bumping form controls to
+   16px on coarse-pointer (touch) devices kills the zoom trap. Mouse
+   / keyboard users keep the existing tighter sizing. */
+@media (pointer: coarse) {
+  .input-field, .input-field-sm,
+  .search-bar input,
+  .input-currency,
+  .passcode-input,
+  .send-addr-input,
+  input[type="text"], input[type="email"], input[type="number"],
+  input[type="search"], input[type="tel"], input[type="url"],
+  input[type="password"],
+  textarea, select {
+    font-size: 16px;
+  }
+}
+
 @media (max-width: 900px) {
   .admin-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .admin-oracle-grid { grid-template-columns: 1fr; }
@@ -3651,6 +3674,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   color: var(--primary, #7c5cff); border: 1px solid rgba(124, 92, 255, 0.35);
   font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
+  touch-action: manipulation;
 }
 .group-card-confirm-btn:hover { background: rgba(124, 92, 255, 0.18); }
 .group-card-confirm-btn:active { transform: translateY(1px); }
@@ -4017,6 +4041,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   border-left: 3px solid transparent; font: inherit; text-align: left;
   cursor: pointer; transition: background 0.15s, border-color 0.15s;
   min-height: 44px;
+  /* No double-tap-zoom on bracket picks — users hammer these and
+     iOS would otherwise zoom the page on a quick second tap. */
+  touch-action: manipulation;
 }
 .bracket-row + .bracket-row { border-top: 1px solid var(--border); }
 /* Hover rules are gated to actual mouse devices. On touch devices
