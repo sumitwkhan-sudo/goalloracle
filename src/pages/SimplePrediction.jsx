@@ -198,8 +198,17 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
 
   const goToStep = useCallback((nextStep) => {
     setStep(nextStep);
-    window.scrollTo(0, 0);
   }, []);
+
+  // Scroll to top whenever the step changes. Doing this in an effect
+  // (rather than inside goToStep alongside setStep) guarantees the
+  // new step's DOM is in place before we scroll — on iOS Safari a
+  // synchronous window.scrollTo inside the click handler runs against
+  // the old, taller layout and the layout shift to the shorter next
+  // step landed the user at the bottom of the page instead of the top.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [step]);
 
   const handleStepClick = useCallback((s) => {
     const hasKnockoutPicks = Object.keys(bracketState.picksByMatchId).length > 0;
