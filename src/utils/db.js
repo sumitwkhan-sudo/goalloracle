@@ -146,6 +146,11 @@ export async function createOrUpdateUser(privyUser) {
       walletAddress: walletAddr || null,
       displayName,
       usernameSet: false,
+      // Gate for the post-signup passcode-first prompt. Existing users
+      // created before this field was added simply lack it (undefined),
+      // and the modal only shows on strict `=== false`, so they never
+      // see the prompt — only freshly-created users do.
+      onboardingComplete: false,
       ...(referredBy ? { referredBy } : {}),
     });
 
@@ -179,6 +184,7 @@ export async function updateUserProfile(userId, updates) {
   if (updates.usernameSet === true) safeUpdates.usernameSet = true;
   if (updates.email) safeUpdates.email = updates.email;
   if (updates.emailSkipped === true) safeUpdates.emailSkipped = true;
+  if (updates.onboardingComplete === true) safeUpdates.onboardingComplete = true;
   if (typeof updates.country === 'string' && updates.country.trim()) safeUpdates.country = updates.country.trim().toUpperCase();
   if (updates.walletAddress) safeUpdates.walletAddress = updates.walletAddress;
   await updateDoc(userRef, safeUpdates);

@@ -17,6 +17,8 @@ import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
 import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
+import PasscodePromptModal from './components/PasscodePromptModal';
+import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -1987,6 +1989,17 @@ const GoalOracle = () => {
                   </div>
                 </div>
               )}
+              <HeroLeaderboardPreview
+                onViewFull={() => {
+                  if (authenticated) {
+                    const gs = leagues.find((l) => l.id === 'global-simple') || allLeagues.find((l) => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+                    setDetailTab('leaderboard');
+                    nav('detail', gs);
+                  } else {
+                    login();
+                  }
+                }}
+              />
             </div>
           </div>
         </section>
@@ -5006,6 +5019,30 @@ const GoalOracle = () => {
       {sendModal && <SendModal />}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
       {showEmailPrompt && !showUsernamePrompt && authenticated && uData && <EmailPrompt />}
+      {/* Passcode-first prompt — only fires for freshly created users
+          (onboardingComplete === false). Existing users created before
+          this flag was added simply lack the field, so the strict
+          `=== false` gate keeps them clear of the prompt. */}
+      {authenticated && uData?.onboardingComplete === false && !showUsernamePrompt && (
+        <PasscodePromptModal
+          open
+          allLeagues={allLeagues}
+          notify={notify}
+          onSkip={async () => {
+            try { await updateUserProfile(uData.id, { onboardingComplete: true }); } catch {}
+            setUData((u) => (u ? { ...u, onboardingComplete: true } : u));
+          }}
+          onJoin={async (joinedLeague, passcode) => {
+            await joinLeague(joinedLeague.id, uData.id, passcode);
+            try { await updateUserProfile(uData.id, { onboardingComplete: true }); } catch {}
+            setUData((u) => (u ? { ...u, onboardingComplete: true } : u));
+            // Land them in the league they just joined so they see
+            // immediate confirmation that the passcode worked.
+            setDetailTab('leaderboard');
+            nav('detail', joinedLeague);
+          }}
+        />
+      )}
       <ShareCardModal />
       {/* Live Standings drawer — rendered at App root so it survives Detail's
           re-mount cycle (every preds update re-creates the Detail function,
