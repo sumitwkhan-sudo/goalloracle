@@ -522,7 +522,7 @@ function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify, userId }) {
   const [copied, setCopied] = useState(null);
   const isSimple = postJoin.mode === 'simple';
   const sourceLeagueId = isSimple ? 'global-simple' : 'global';
-  const sourceLabel = isSimple ? 'Global Quick Picks' : 'Global Classic Predictions';
+  const sourceLabel = isSimple ? 'Global League' : 'Global Classic Predictions';
 
   const handleCopy = async () => {
     setCopying(true);
@@ -1860,7 +1860,7 @@ const GoalOracle = () => {
     // might be wrong.
     const goLeaderboardLanding = () => {
       const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || {
-        id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true,
+        id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true,
       };
       nav('detail', gs, { tab: 'leaderboard' });
     };
@@ -1870,7 +1870,7 @@ const GoalOracle = () => {
       track('bracket_start', { league_id: 'global-simple', authenticated });
       if (!authenticated) { login(); return; }
       const globalSimple = leagues.find(l => l.id === 'global-simple') || {
-        id: 'global-simple', name: 'Global Quick Picks', type: 'free',
+        id: 'global-simple', name: 'Global League', type: 'free',
         predictionMode: 'simple', isGlobal: true,
       };
       nav('detail', globalSimple);
@@ -1992,7 +1992,7 @@ const GoalOracle = () => {
               <HeroLeaderboardPreview
                 onViewFull={() => {
                   if (authenticated) {
-                    const gs = leagues.find((l) => l.id === 'global-simple') || allLeagues.find((l) => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+                    const gs = leagues.find((l) => l.id === 'global-simple') || allLeagues.find((l) => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
                     setDetailTab('leaderboard');
                     nav('detail', gs);
                   } else {
@@ -2129,7 +2129,7 @@ const GoalOracle = () => {
               <div className="lb-panel-head">
                 <h3>Global Leaderboard</h3>
                 <a className="lb-view-all" onClick={() => {
-                  const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+                  const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
                   nav('detail', gs);
                   setDetailTab('leaderboard');
                 }}>View Full Leaderboard <ChevronRight size={14} /></a>
@@ -2146,7 +2146,7 @@ const GoalOracle = () => {
                       const scope = t === 'global' ? 'all' : t;
                       setLbScope(scope);
                       if (scope === 'country') setLbScopeCountry(uData?.country || '');
-                      const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+                      const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
                       // nav() resets detailTab to 'predictions' by default
                       // — pass tab:'leaderboard' so SimpleDetail opens on the
                       // leaderboard, not the Quick Picks wizard.
@@ -2282,7 +2282,7 @@ const GoalOracle = () => {
   const Dash = () => {
     const ml = leagues.length > 0 ? leagues : [
       { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
-      { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', memberCount: stats.totalPlayers },
+      { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', memberCount: stats.totalPlayers },
     ];
     const defaultPS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
     const ps = ml[0]?.pointsSystem || defaultPS;
@@ -2370,14 +2370,14 @@ const GoalOracle = () => {
         const leading = qpGlobalRk.rank === 1;
         return {
           kind: 'rank',
-          eyebrow: 'Global Quick Picks',
+          eyebrow: 'Global League',
           title: leading
             ? `You're #1 of ${qpGlobalRk.total.toLocaleString()}`
             : `You're #${qpGlobalRk.rank.toLocaleString()} of ${qpGlobalRk.total.toLocaleString()}`,
           sub: leading ? `Hold the top spot until June 11.` : `See who's ahead of you and why.`,
           cta: 'Open leaderboard',
           onClick: () => {
-            const qpLeague = simpleLeagues[0] || leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+            const qpLeague = simpleLeagues[0] || leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
             nav('detail', qpLeague, { tab: 'leaderboard' });
           },
         };
@@ -2582,7 +2582,7 @@ const GoalOracle = () => {
             type="button"
             className="dv2-cta-primary"
             onClick={() => {
-              const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+              const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
               setDetailTab('predictions');
               nav('detail', gs);
             }}
@@ -2736,7 +2736,7 @@ const GoalOracle = () => {
   const LeaguesList = () => {
     const seedAll = leagues.length > 0 ? leagues : [
       { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
-      { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
+      { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
     ];
     // Filter out leagues whose mode is disabled by feature flag — keeps
     // the data intact in Firestore but hides the league rows here.
@@ -4698,7 +4698,7 @@ const GoalOracle = () => {
         // click through a dashboard before placing their first pick.
         const globalSimple = leagues.find(l => l.id === 'global-simple')
           || allLeagues.find(l => l.id === 'global-simple')
-          || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+          || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
         nav('detail', globalSimple, { tab: 'predictions' });
       } catch(e) { setErr(e.message); } finally { setBusy(false); }
     };
@@ -4875,7 +4875,7 @@ const GoalOracle = () => {
       <div className={`nav-menu ${menuOpen ? 'active' : ''}`} onClick={e => e.stopPropagation()}>
         <a className="nav-link" onClick={() => nav('landing')}><Home size={14} /><span>Home</span></a>
         <a className="nav-link" onClick={() => {
-          const simpleLeague = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global Quick Picks', type: 'free', predictionMode: 'simple', isGlobal: true };
+          const simpleLeague = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
           nav('detail', simpleLeague);
           setDetailTab('leaderboard');
         }}><TrendingUp size={14} /><span>Leaderboard</span></a>

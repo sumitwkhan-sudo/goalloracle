@@ -45,7 +45,7 @@ export default function HeroLeaderboardPreview({ onViewFull }) {
     <div className="hero-lb-card">
       <div className="hero-lb-header">
         <span className="hero-lb-label">
-          <Trophy size={12} aria-hidden="true" /> Global Quick Picks
+          <Trophy size={12} aria-hidden="true" /> Global League
         </span>
         <button type="button" className="hero-lb-view" onClick={onViewFull}>
           View full <ChevronRight size={12} aria-hidden="true" />

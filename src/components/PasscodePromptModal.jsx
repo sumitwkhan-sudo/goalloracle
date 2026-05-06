@@ -4,7 +4,7 @@
  * One-screen post-signup prompt: invites brand-new users to enter a
  * passcode from a friend so their first prediction lands them in a
  * private league alongside the global one. Skipping is a first-class
- * choice — the user is already a member of Global Quick Picks
+ * choice — the user is already a member of the Global League
  * automatically, and the copy makes that explicit.
  *
  * Controlled by the caller via `open`. The caller is responsible for
@@ -55,7 +55,7 @@ export default function PasscodePromptModal({
         <h2 id="ppm-title" className="ppm-title">Got a passcode from a friend?</h2>
         <p className="ppm-sub">
           Enter it to join their private league right away. You'll also be in
-          the <strong>Global Quick Picks</strong> league automatically.
+          the <strong>Global League</strong> automatically.
         </p>
 
         <div className="ppm-input-row">
@@ -85,7 +85,7 @@ export default function PasscodePromptModal({
         {err && <p className="ppm-err" role="alert">{err}</p>}
 
         <button type="button" className="ppm-skip" onClick={onSkip} disabled={busy}>
-          <X size={14} aria-hidden="true" /> No code right now — go to Global Quick Picks
+          <X size={14} aria-hidden="true" /> No code right now — go to Global League
         </button>
         <p className="ppm-skip-hint">
           You can join private leagues anytime from your dashboard.
