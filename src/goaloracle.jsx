@@ -19,6 +19,7 @@ import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
+import BoldestCallCard from './components/simple/BoldestCallCard';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -2538,6 +2539,14 @@ const GoalOracle = () => {
             </button>
           </div>
         </div>
+
+        {/* Surfaces the user's most contrarian knockout pick. Internally
+            gated on having enough other submitters for the % to mean
+            something, and on the user having submitted any picks. Hidden
+            otherwise — never shows a placeholder. */}
+        {uData?.id && (
+          <BoldestCallCard userId={uData.id} leagueId="global-simple" />
+        )}
 
         {/* Needs Prediction — only render once quickPicks has loaded so the
             section doesn't flicker between "All caught up" and the action

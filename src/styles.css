@@ -4237,6 +4237,32 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .bracket-hint-tooltip { font-size: 0.72rem; max-width: calc(100vw - 2rem); white-space: normal; text-align: center; }
 }
 /* Cascade-change toast: shown when re-picking a winner wipes downstream. */
+/* Boldest-call dashboard widget — single-line nudge surfacing the
+   user's most contrarian knockout pick relative to global Quick Picks
+   consensus. Compact so it can sit between the CTA stack and the
+   Needs Your Prediction list without making the dashboard feel busy. */
+.boldest-call-card {
+  display: flex; align-items: center; gap: 0.65rem;
+  margin: 0.6rem 0;
+  padding: 0.6rem 0.85rem;
+  background: linear-gradient(135deg, rgba(255,184,0,0.1), rgba(255,45,135,0.04));
+  border: 1px solid rgba(255,184,0,0.3);
+  border-radius: var(--radius);
+  font-size: 0.88rem; color: var(--text);
+}
+.boldest-call-icon {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--amber), var(--magenta)); color: #000;
+}
+.boldest-call-text { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.35; }
+.boldest-call-label {
+  font-family: var(--mono); font-size: 0.62rem;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-dim);
+}
+.boldest-call-body strong { font-weight: 700; }
+
 /* Rarity reveal — Step 3 post-Final card showing how unique the
    user's bracket is vs the global crowd. Sits above the bottom
    nav, so the user notices the headline number before tapping
