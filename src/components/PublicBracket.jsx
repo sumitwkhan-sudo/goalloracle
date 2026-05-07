@@ -13,9 +13,10 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trophy, Award, Share2, ChevronRight, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Trophy, Award, Share2, ChevronRight, RefreshCw, AlertTriangle, Users } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { ROUND_ORDER } from '../utils/bracketUtils';
+import { getSimpleConsensus } from '../utils/db';
 
 const ROUND_LABEL = {
   roundOf32: 'Round of 32',
@@ -50,6 +51,12 @@ export default function PublicBracket({ userId, onSignUp }) {
   const [err, setErr] = useState('');
   const teamFlags = useMemo(buildTeamFlags, []);
 
+  // Crowd consensus from the global Quick Picks league — used to render
+  // "X% agree" chips next to champion / runner-up / 3rd. Fetch is fire-
+  // and-forget; if it fails the chips just don't appear (the bracket
+  // itself still renders).
+  const [consensus, setConsensus] = useState(null);
+
   useEffect(() => {
     if (!userId) { setErr('Missing user'); setLoading(false); return; }
     let cancelled = false;
@@ -67,6 +74,9 @@ export default function PublicBracket({ userId, onSignUp }) {
         if (!cancelled) setLoading(false);
       }
     })();
+    getSimpleConsensus('global-simple')
+      .then((c) => { if (!cancelled) setConsensus(c); })
+      .catch(() => { /* non-fatal */ });
     return () => { cancelled = true; };
   }, [userId]);
 
@@ -142,15 +152,30 @@ export default function PublicBracket({ userId, onSignUp }) {
             <div className="public-bracket-final pb-final-winner">
               <span className="pb-role"><Trophy size={14} /> Champion</span>
               <span className="pb-team">{winnerFlag} {data.winner}</span>
+              {consensus && consensus.champion?.[data.winner] != null && (
+                <span className="pb-consensus" title="Share of GoalOracle users who picked the same champion">
+                  <Users size={11} /> {Math.round(consensus.champion[data.winner] * 100)}% agree
+                </span>
+              )}
             </div>
             <div className="public-bracket-final pb-final-runner">
               <span className="pb-role"><Award size={14} /> Runner-up</span>
               <span className="pb-team">{runnerFlag} {data.runnerUp || 'TBD'}</span>
+              {consensus && data.runnerUp && consensus.runnerUp?.[data.runnerUp] != null && (
+                <span className="pb-consensus">
+                  <Users size={11} /> {Math.round(consensus.runnerUp[data.runnerUp] * 100)}% agree
+                </span>
+              )}
             </div>
             {data.thirdPlace && (
               <div className="public-bracket-final pb-final-third">
                 <span className="pb-role">3rd place</span>
                 <span className="pb-team">{thirdFlag} {data.thirdPlace}</span>
+                {consensus && consensus.thirdPlace?.[data.thirdPlace] != null && (
+                  <span className="pb-consensus">
+                    <Users size={11} /> {Math.round(consensus.thirdPlace[data.thirdPlace] * 100)}% agree
+                  </span>
+                )}
               </div>
             )}
           </div>

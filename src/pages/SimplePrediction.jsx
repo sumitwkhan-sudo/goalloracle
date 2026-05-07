@@ -29,7 +29,7 @@ import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isPredictionLocked } from '../utils/points';
-import { copySimplePrediction, resetSimplePrediction, getSimplePrediction } from '../utils/db';
+import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
@@ -85,6 +85,21 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   const [step, setStep] = useState(initialStep);
   const [showSaved, setShowSaved] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
+  // Crowd consensus for the active league. Lazy-fetched the first time
+  // the user reaches Step 3 (the bracket) — Step 1/2 don't surface
+  // consensus, no need to pay the round-trip up front. The wrapper
+  // memoizes per-leagueId so this won't re-fetch within the cache TTL.
+  const [consensus, setConsensus] = useState(null);
+  useEffect(() => {
+    if (step !== 3) return;
+    if (consensus) return;
+    if (!league?.id) return;
+    let cancelled = false;
+    getSimpleConsensus(league.id)
+      .then((data) => { if (!cancelled) setConsensus(data); })
+      .catch(() => { /* non-fatal — bars just won't render */ });
+    return () => { cancelled = true; };
+  }, [step, league?.id, consensus]);
   const [bracketHintVisible, setBracketHintVisible] = useState(() => {
     try { return localStorage.getItem(BRACKET_HINT_KEY) !== '1'; } catch { return true; }
   });
@@ -504,6 +519,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               matchLookup={matchLookup}
               showHint={bracketHintVisible}
               onDismissHint={dismissBracketHint}
+              consensus={consensus?.knockout}
             />
           ) : (
             <BracketMobile
@@ -515,6 +531,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               matchLookup={matchLookup}
               showHint={bracketHintVisible}
               onDismissHint={dismissBracketHint}
+              consensus={consensus?.knockout}
             />
           )}
 

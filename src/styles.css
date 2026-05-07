@@ -4278,6 +4278,42 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .bracket-row-pill.out { background: rgba(255,82,82,0.14); color: #FF5252; }
 .bracket-row-lock { color: var(--text-dim); }
 
+/* Crowd consensus bar — appears below each picked match showing the
+   relative split of users who picked each team to advance. Only
+   rendered once the user has made their pick (no anchoring). */
+.bracket-consensus {
+  padding: 0.45rem 0.7rem 0.55rem;
+  border-top: 1px dashed var(--border);
+  display: flex; flex-direction: column; gap: 0.2rem;
+}
+.bracket-consensus-bar {
+  display: flex; height: 4px; border-radius: 2px; overflow: hidden;
+  background: rgba(255,255,255,0.05);
+}
+.bracket-consensus-fill { height: 100%; transition: width 0.35s ease; }
+.bracket-consensus-home { background: var(--cyan, #00d4ff); }
+.bracket-consensus-away { background: var(--magenta, #ff2d87); }
+.bracket-consensus-pcts {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim);
+}
+.bracket-consensus-label {
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.58rem;
+}
+.bracket-match.size-compact .bracket-consensus { padding: 0.3rem 0.5rem 0.4rem; }
+.bracket-match.size-compact .bracket-consensus-pcts { font-size: 0.58rem; }
+.bracket-match.size-compact .bracket-consensus-label { font-size: 0.52rem; }
+
+/* Consensus chip on PublicBracket finals rows — small badge next to
+   the team name showing % of users who agree with this end-state. */
+.pb-consensus {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  margin-left: 0.6rem; padding: 0.18rem 0.5rem; border-radius: 999px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.7rem;
+  color: var(--text-sec);
+}
+
 .bracket-match.size-compact .bracket-row { padding: 0.4rem 0.55rem; min-height: 36px; }
 .bracket-match.size-compact .bracket-row-name { font-size: 0.8rem; }
 .bracket-match.size-compact .bracket-match-label { display: none; }

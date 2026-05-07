@@ -41,7 +41,7 @@ const ROUND_TOTAL = {
   final: 1,
 };
 
-export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false }) {
+export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus }) {
   const firstIncomplete = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r)) || 'roundOf32';
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
@@ -145,6 +145,14 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                   // first incomplete round so it's the matchup the user
                   // is most likely to interact with.
                   const isHintAnchor = !readOnly && showHint && roundKey === 'roundOf32' && i === 0;
+                  // Crowd consensus only renders once the user has picked a
+                  // winner for this match — pre-pick we deliberately hide
+                  // it so the user's call isn't anchored to the herd. In
+                  // readOnly mode (e.g. PicksViewer) the winner is already
+                  // set, so the bar appears.
+                  const showBar = !!s.pick?.winnerId && consensus?.[roundKey]?.[s.matchId];
+                  const homePct = showBar ? consensus[roundKey][s.matchId][s.home] : undefined;
+                  const awayPct = showBar ? consensus[roundKey][s.matchId][s.away] : undefined;
                   return (
                     <div key={s.matchId} className={`bracket-match-wrap ${isHintAnchor ? 'has-hint' : ''}`}>
                       {isHintAnchor && <BracketHintTooltip onDismiss={onDismissHint} />}
@@ -163,6 +171,8 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                         date={meta?.date}
                         needsPick={needsPick}
                         readOnly={readOnly}
+                        homeAdvancePct={homePct}
+                        awayAdvancePct={awayPct}
                       />
                     </div>
                   );
