@@ -11,7 +11,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -622,6 +622,10 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   const [lbKey, setLbKey] = useState(0);
   const [viewingPicks, setViewingPicks] = useState(null); // { userId, displayName, winner, runnerUp }
   const [shareBracket, setShareBracket] = useState(null); // null | { winner, runnerUp, thirdPlace }
+  // Crowd consensus for the active league — used to surface bracket
+  // rarity in the share-modal caption. Lazy-fetched once the user
+  // opens the share flow; getSimpleConsensus memoizes per-league.
+  const [shareConsensus, setShareConsensus] = useState(null);
   const [countriesList, setCountriesList] = useState([]);
 
   // Lazy-load the countries list only when the filter is first used.
@@ -685,6 +689,11 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         runnerUp: runnerUpName ? { name: runnerUpName, flag: flags[runnerUpName] || '🏳️' } : null,
         thirdPlace: thirdName ? { name: thirdName, flag: flags[thirdName] || '🏳️' } : null,
       });
+      // Fire-and-forget: pull crowd consensus for the league so the
+      // share modal can report bracket rarity in the caption.
+      getSimpleConsensus(league.id)
+        .then((c) => setShareConsensus(c))
+        .catch(() => { /* non-fatal — caption still ships without rarity */ });
     } catch (e) {
       if (notify) notify(e?.message || 'Failed to load bracket', 'error');
     }
@@ -1034,6 +1043,18 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         winner={shareBracket?.winner}
         runnerUp={shareBracket?.runnerUp}
         thirdPlace={shareBracket?.thirdPlace}
+        rarityPct={(() => {
+          if (!shareConsensus || !shareBracket?.winner?.name || !shareBracket?.runnerUp?.name) return undefined;
+          const c = shareConsensus.champion?.[shareBracket.winner.name];
+          const r = shareConsensus.runnerUp?.[shareBracket.runnerUp.name];
+          const t = shareBracket.thirdPlace?.name
+            ? shareConsensus.thirdPlace?.[shareBracket.thirdPlace.name]
+            : null;
+          const known = [c, r, t].filter((v) => typeof v === 'number');
+          if (known.length === 0) return undefined;
+          const avg = known.reduce((a, b) => a + b, 0) / known.length;
+          return Math.min(99, Math.round((1 - avg) * 100));
+        })()}
         notify={notify}
       />
     </div>

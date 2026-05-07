@@ -21,6 +21,7 @@ import ScrollDownNudge from '../components/simple/ScrollDownNudge';
 import BestThirdSelector from '../components/simple/BestThirdSelector';
 import BracketMobile from '../components/simple/BracketMobile';
 import BracketDesktop from '../components/simple/BracketDesktop';
+import RarityCard from '../components/simple/RarityCard';
 import useSimplePrediction from '../hooks/useSimplePrediction';
 import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
@@ -540,6 +541,26 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               {cascadeToast}
             </div>
           )}
+
+          {/* Rarity reveal — once the user has picked the Final winner,
+              show how unique their bracket is vs the global crowd. The
+              card collapses gracefully if consensus is still loading or
+              the user is the first to submit. */}
+          {(() => {
+            const finalSlot = bracketState.bracket?.final?.[0];
+            const thirdSlot = bracketState.bracket?.thirdPlace?.[0];
+            if (!finalSlot?.pick?.winnerId) return null;
+            const winnerId = finalSlot.pick.winnerId;
+            const runnerUpId = winnerId === finalSlot.home ? finalSlot.away : finalSlot.home;
+            return (
+              <RarityCard
+                consensus={consensus}
+                champion={winnerId}
+                runnerUp={runnerUpId}
+                thirdPlace={thirdSlot?.pick?.winnerId || null}
+              />
+            );
+          })()}
 
           <div className="simple-step-nav simple-step-nav-split">
             <button type="button" className="btn btn-secondary" onClick={() => goToStep(2)}>
