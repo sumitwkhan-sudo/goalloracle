@@ -395,6 +395,27 @@ export async function getSimpleLeaderboard(leagueId) {
   return data;
 }
 
+// In-memory cache for crowd consensus. The endpoint already sets a
+// 5-minute edge cache, but multiple components on one page (rarity
+// card, boldest-call widget, contested-match card) share the data —
+// no point hitting Vercel six times in one render.
+const _consensusCache = new Map(); // leagueId -> { ts, promise }
+const CONSENSUS_TTL_MS = 5 * 60 * 1000;
+
+export async function getSimpleConsensus(leagueId) {
+  const now = Date.now();
+  const cached = _consensusCache.get(leagueId);
+  if (cached && (now - cached.ts) < CONSENSUS_TTL_MS) return cached.promise;
+  const promise = apiCall(`simple-consensus?leagueId=${encodeURIComponent(leagueId)}`)
+    .catch((e) => {
+      // Drop the cache entry on failure so the next caller retries.
+      _consensusCache.delete(leagueId);
+      throw e;
+    });
+  _consensusCache.set(leagueId, { ts: now, promise });
+  return promise;
+}
+
 export function subscribeToSimpleScore(userId, leagueId, callback) {
   const ref = doc(db, 'simplePredictions', simplePredDocId(userId, leagueId), 'scores', leagueId);
   return onSnapshot(ref, (snap) => {
