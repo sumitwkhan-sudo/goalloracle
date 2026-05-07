@@ -1799,58 +1799,6 @@ const GoalOracle = () => {
     useScrollReveal();
     const [lbTab, setLbTab] = useState('global');
 
-    // Find next upcoming match (any match, including knockout)
-    const now = Date.now();
-    const nextMatch = useMemo(() => {
-      const sorted = [...WORLD_CUP_MATCHES].sort((a, b) => {
-        const toMs = m => {
-          const [hh, mm] = (m.time || '15:00').split(':').map(Number);
-          const d = new Date(`${m.date}T00:00:00Z`);
-          d.setUTCHours(hh + 4, mm, 0, 0);
-          return d.getTime();
-        };
-        return toMs(a) - toMs(b);
-      });
-      return sorted.find(m => {
-        const [hh, mm] = (m.time || '15:00').split(':').map(Number);
-        const d = new Date(`${m.date}T00:00:00Z`);
-        d.setUTCHours(hh + 4, mm, 0, 0);
-        return d.getTime() > now;
-      }) || null;
-    }, []);
-
-    // Countdown timer — locks 5 min before kickoff
-    const [countdown, setCountdown] = useState('');
-    const [isLocked, setIsLocked] = useState(false);
-    useEffect(() => {
-      if (!nextMatch) return;
-      const [hh, mm] = (nextMatch.time || '15:00').split(':').map(Number);
-      const kick = new Date(`${nextMatch.date}T00:00:00Z`);
-      kick.setUTCHours(hh + 4, mm, 0, 0);
-      const lockMs = kick.getTime() - 5 * 60 * 1000;
-      const tick = () => {
-        const diff = lockMs - Date.now();
-        if (diff <= 0) { setCountdown('LOCKED'); setIsLocked(true); return; }
-        setIsLocked(false);
-        const d = Math.floor(diff / 86400000);
-        const h = Math.floor((diff % 86400000) / 3600000);
-        const mi = Math.floor((diff % 3600000) / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        setCountdown(d > 0 ? `${d}d ${h}h ${mi}m ${s}s` : `${h}h ${mi}m ${s}s`);
-      };
-      tick();
-      const iv = setInterval(tick, 1000);
-      return () => clearInterval(iv);
-    }, [nextMatch]);
-
-    // Navigate to predictions for this match
-    const goToPredict = () => {
-      if (!authenticated) { login(); return; }
-      // Route to the global league detail view on the predictions tab
-      const globalLeague = leagues.find(l => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } };
-      nav('detail', globalLeague);
-    };
-
     // Hero CTAs are state-aware so a logged-in user sees their next
     // useful action (finish bracket / leaderboard / invite friends)
     // instead of the generic "Start Predicting" pitch. Mirrors the
@@ -1956,39 +1904,6 @@ const GoalOracle = () => {
               <p className="hero-compliance"><Shield size={12} /> GoalOracle&rsquo;s prediction engine is compliant with the official FIFA World Cup 26&trade; rulebook</p>
             </div>
             <div className="hero-right">
-              {nextMatch ? (
-                <div className={`next-match-card ${isLocked ? 'nmc-locked' : ''}`}>
-                  <div className="nmc-header">
-                    <span className="nmc-label">{nextMatch.stage || 'Next Match'}</span>
-                    <span className={`nmc-countdown ${isLocked ? 'nmc-countdown-locked' : ''}`}>
-                      {isLocked ? <><Lock size={12} /> Predictions locked</> : <><Clock size={12} /> Predictions close in: <strong>{countdown}</strong></>}
-                    </span>
-                  </div>
-                  <div className="nmc-teams">
-                    <div className="nmc-team"><span className="nmc-flag">{nextMatch.homeFlag}</span><span className="nmc-name">{nextMatch.home}</span></div>
-                    <span className="nmc-vs">VS</span>
-                    <div className="nmc-team"><span className="nmc-flag">{nextMatch.awayFlag}</span><span className="nmc-name">{nextMatch.away}</span></div>
-                  </div>
-                  <div className="nmc-meta">
-                    <span><Calendar size={12} /> {new Date(nextMatch.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                    <span>&middot;</span>
-                    <span>{nextMatch.time} ET</span>
-                    <span>&middot;</span>
-                    <span><MapPin size={12} /> {nextMatch.venue}</span>
-                  </div>
-                  <button className="btn btn-secondary nmc-btn" onClick={goToPredict} disabled={isLocked}>
-                    {isLocked ? <><Lock size={16} /> Predictions Locked</> : <>Preview this match <ChevronRight size={14} /></>}
-                  </button>
-                </div>
-              ) : (
-                <div className="next-match-card nmc-empty">
-                  <div className="nmc-empty-inner">
-                    <Clock size={32} />
-                    <p>No matches available for prediction right now.</p>
-                    <button className="btn btn-secondary" onClick={() => authenticated ? nav('dashboard') : login()}>View Leaderboard</button>
-                  </div>
-                </div>
-              )}
               <HeroLeaderboardPreview
                 onViewFull={() => {
                   if (authenticated) {
