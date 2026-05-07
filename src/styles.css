@@ -4288,6 +4288,68 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .contested-card-body strong { font-weight: 700; }
 
+/* Bracket-survival card — list of remaining-alive picks per round,
+   with a thin progress bar per row that drains as teams the user
+   picked get eliminated. Pre-tournament every row is full and the
+   header shows "Tournament starts in N days." Same compact slot in
+   the dashboard stack as the boldest-call / contested cards above. */
+.bracket-survival-card {
+  margin: 0.6rem 0;
+  padding: 0.75rem 0.85rem 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.bs-card-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.45rem;
+}
+.bs-card-icon {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primary-soft, rgba(124,92,255,0.16));
+  color: var(--primary, #7c5cff);
+}
+.bs-card-title {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text);
+}
+.bs-card-pre {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 0.62rem;
+  color: var(--text-dim);
+}
+.bs-card-rows {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.3rem;
+}
+.bs-card-row {
+  display: grid; grid-template-columns: 36px 1fr 56px;
+  align-items: center; gap: 0.55rem;
+  font-size: 0.78rem;
+}
+.bs-card-round {
+  font-family: var(--mono); font-size: 0.66rem; font-weight: 700;
+  color: var(--text-dim);
+}
+.bs-card-bar {
+  height: 6px; border-radius: 3px;
+  background: rgba(255,255,255,0.06); overflow: hidden;
+}
+.bs-card-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--success));
+  transition: width 0.4s ease;
+}
+.bs-card-count {
+  font-family: var(--mono); font-size: 0.78rem; font-weight: 700;
+  text-align: right; color: var(--text);
+}
+.bs-card-count.is-cracked { color: var(--amber, #ffb800); }
+
 /* Rarity reveal — Step 3 post-Final card showing how unique the
    user's bracket is vs the global crowd. Sits above the bottom
    nav, so the user notices the headline number before tapping

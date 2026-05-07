@@ -21,6 +21,7 @@ import PasscodePromptModal from './components/PasscodePromptModal';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import BoldestCallCard from './components/simple/BoldestCallCard';
 import MostContestedCard from './components/simple/MostContestedCard';
+import BracketSurvivalCard from './components/simple/BracketSurvivalCard';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -2553,6 +2554,13 @@ const GoalOracle = () => {
             and same hidden-when-unavailable behavior, so this won't appear
             until consensus has substance. */}
         <MostContestedCard leagueId="global-simple" />
+        {/* Bracket survival — shows how many of the user's predicted
+            advances are still alive given current results. Pre-tournament
+            this is full counts plus a "Tournament starts in N days"
+            ribbon. Hidden if the user has no picks. */}
+        {uData?.id && (
+          <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />
+        )}
 
         {/* Needs Prediction — only render once quickPicks has loaded so the
             section doesn't flicker between "All caught up" and the action
