@@ -20,6 +20,7 @@ import BracketShareModal from './components/BracketShareModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import BoldestCallCard from './components/simple/BoldestCallCard';
+import MostContestedCard from './components/simple/MostContestedCard';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -2547,6 +2548,11 @@ const GoalOracle = () => {
         {uData?.id && (
           <BoldestCallCard userId={uData.id} leagueId="global-simple" />
         )}
+        {/* Crowd-level companion to the boldest-call widget: the bracket
+            slot where users are most evenly split. Same MIN_USER threshold
+            and same hidden-when-unavailable behavior, so this won't appear
+            until consensus has substance. */}
+        <MostContestedCard leagueId="global-simple" />
 
         {/* Needs Prediction — only render once quickPicks has loaded so the
             section doesn't flicker between "All caught up" and the action
