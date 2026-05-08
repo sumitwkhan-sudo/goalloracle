@@ -6208,3 +6208,275 @@ body.light .lsd-head,
   display: flex; gap: 0.4rem; margin-top: 0.2rem;
 }
 .dropdown-wallet-actions .btn { flex: 1; justify-content: center; }
+
+/* ╔════════════════════════════════════════════════════════════════════╗
+   ║  YOUR LEAGUES — Apple HIG redesign. Paired with                    ║
+   ║  LeagueLeaderboardLayout: same row primitives, hairline dividers,  ║
+   ║  chevron-only nav, one-state-pill cascade, neutral metadata.       ║
+   ║                                                                     ║
+   ║  Tap = navigate. Always.                                            ║
+   ╚════════════════════════════════════════════════════════════════════╝ */
+
+.leagues-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+  display: flex; flex-direction: column;
+}
+@media (min-width: 720px) {
+  .leagues-page { padding: 1.25rem 1.5rem 3.5rem; }
+}
+
+/* ── Header — title + ONE filled gradient CTA ──────────────────────── */
+.leagues-header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; margin-bottom: 0.85rem;
+}
+.leagues-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem; font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.leagues-create {
+  background: var(--grad);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  font-family: var(--font); font-weight: 700; font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+  transition: filter 0.12s, transform 0.12s;
+}
+.leagues-create:hover { filter: brightness(1.05); }
+.leagues-create:active { transform: translateY(1px); }
+@media (max-width: 720px) {
+  .leagues-title { font-size: 1.1rem; }
+  .leagues-create { padding: 0.5rem 0.75rem; font-size: 0.78rem; }
+}
+
+/* ── Toolbar — filter tabs (primary) + secondary Browse ────────────── */
+.leagues-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; margin-bottom: 0.7rem;
+}
+.leagues-filter {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--bg-elev); border-radius: 8px;
+}
+.leagues-filter-tab {
+  background: transparent; border: none; color: var(--text-sec);
+  border-radius: 6px; padding: 0.4rem 0.85rem;
+  font-family: var(--font); font-size: 0.78rem; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.leagues-filter-tab:hover { color: var(--text); }
+.leagues-filter-tab.is-active { background: var(--bg); color: var(--text); }
+.leagues-browse {
+  background: var(--bg-elev); color: var(--text-sec);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  font-family: var(--font); font-size: 0.78rem; font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+  flex-shrink: 0;
+  transition: color 0.12s, border-color 0.12s;
+}
+.leagues-browse:hover { color: var(--text); border-color: var(--border-br); }
+
+/* ── Section labels — small caps mono, low contrast ────────────────── */
+.leagues-section-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-sec);
+  margin: 1rem 0 0.4rem;
+  padding: 0 0.85rem;
+}
+.leagues-section-label:first-child { margin-top: 0.5rem; }
+
+/* ── Row anatomy — hairline dividers, no card chrome ───────────────── */
+.leagues-list {
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.lr-row {
+  display: grid;
+  grid-template-columns: 1fr auto 90px 16px;
+  gap: 0.85rem; align-items: center;
+  padding: 0.7rem 0.95rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font); color: var(--text);
+  transition: background 0.1s;
+  min-height: 56px;
+  position: relative;
+}
+.lr-row:last-child { border-bottom: none; }
+.lr-row:hover { background: var(--bg-elev); }
+.lr-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  background: var(--primary-soft);
+}
+
+/* Urgent rows: 2px danger left edge — single visual reinforces the danger
+   pill without adding a second one. */
+.lr-row-urgent::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 2px; background: var(--danger);
+}
+
+/* Ended rows: dim the whole row to drop them visually */
+.lr-row-ended { opacity: 0.7; }
+.lr-row-ended:hover { opacity: 0.95; }
+
+.lr-cell { display: flex; align-items: center; min-width: 0; }
+
+/* Name cell — primary content, ellipsis */
+.lr-cell-name { min-width: 0; }
+.lr-name {
+  font-weight: 600; font-size: 0.92rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text);
+}
+
+/* Status pill — exactly one renders, tone driven by cascade */
+.lr-cell-status { justify-content: flex-end; }
+.lr-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.72rem; font-weight: 600;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.lr-pill-success { background: rgba(0, 230, 118, 0.14); color: var(--success); }
+.lr-pill-warn    { background: rgba(255, 184, 0, 0.14); color: var(--amber); }
+.lr-pill-danger  {
+  background: rgba(255, 59, 92, 0.14); color: var(--danger);
+}
+.lr-pill-danger > svg:first-child {
+  animation: lrUrgentPulse 1.4s ease-in-out infinite;
+}
+@keyframes lrUrgentPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+.lr-pill-ended { background: var(--bg-elev); color: var(--text-sec); }
+
+/* Rank — quiet metadata, mono, right-aligned */
+.lr-cell-rank {
+  justify-content: flex-end;
+  font-family: var(--mono);
+  gap: 3px;
+}
+.lr-rank { font-weight: 700; font-size: 0.85rem; color: var(--text); }
+.lr-total { font-size: 0.7rem; color: var(--text-sec); }
+.lr-rank-skel { color: var(--text-dim); font-weight: 400; }
+
+/* Chevron — same pattern as .ll-cell-chev. Hover slides 2px. */
+.lr-cell-chev {
+  justify-content: flex-end;
+  color: var(--text-dim);
+  transition: color 0.12s, transform 0.12s;
+}
+.lr-row:hover .lr-cell-chev { color: var(--text-sec); transform: translateX(2px); }
+
+/* ── Hero state — only when user has zero personal leagues ─────────── */
+.leagues-hero {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.25rem; padding: 1.1rem 1.2rem; margin-bottom: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-br);
+  border-left: 4px solid var(--cyan);
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+.leagues-hero-meta { min-width: 0; flex: 1 1 280px; }
+.leagues-hero-eyebrow {
+  font-family: var(--mono); font-size: 0.62rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-sec);
+}
+.leagues-hero-title {
+  font-family: var(--font-display);
+  font-size: 1.2rem; font-weight: 700;
+  margin: 0.3rem 0 0.4rem;
+  line-height: 1.2;
+}
+.leagues-hero-sub {
+  font-size: 0.85rem; color: var(--text-sec); line-height: 1.5;
+  margin: 0; max-width: 52ch;
+}
+.leagues-hero-actions {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.leagues-hero-cta {
+  background: var(--primary); color: var(--bg);
+  border: none; border-radius: 8px;
+  padding: 0.55rem 0.95rem;
+  font-family: var(--font); font-weight: 700; font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.leagues-hero-cta:hover { filter: brightness(1.08); }
+.leagues-hero-secondary {
+  background: var(--bg-elev); color: var(--text-sec);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  font-family: var(--font); font-weight: 600; font-size: 0.85rem;
+  cursor: pointer;
+}
+.leagues-hero-secondary:hover { color: var(--text); border-color: var(--border-br); }
+
+/* ── Empty states ──────────────────────────────────────────────────── */
+.leagues-empty,
+.leagues-empty-filter {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.75rem; padding: 2rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: center;
+}
+.leagues-empty p,
+.leagues-empty-filter p {
+  margin: 0; font-size: 0.88rem; color: var(--text-sec); line-height: 1.5;
+}
+
+/* ── Mobile — single column, compress horizontal layout ────────────── */
+@media (max-width: 720px) {
+  .lr-row {
+    grid-template-columns: 1fr 60px 14px;
+    gap: 0.55rem;
+    padding: 0.65rem 0.75rem;
+    min-height: 60px; /* keep touch target */
+  }
+  /* Status pill drops to a second line under the name on narrow screens */
+  .lr-cell-status {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin-top: 4px;
+    padding-left: 0;
+  }
+  .lr-pill { font-size: 0.68rem; padding: 2px 6px; }
+  .lr-name { font-size: 0.88rem; }
+  .lr-rank { font-size: 0.8rem; }
+  .leagues-hero { flex-direction: column; align-items: flex-start; }
+  .leagues-hero-actions { width: 100%; }
+  .leagues-hero-cta, .leagues-hero-secondary { flex: 1; justify-content: center; }
+  .leagues-section-label { padding: 0 0.75rem; }
+}

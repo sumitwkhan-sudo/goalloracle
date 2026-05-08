@@ -21,6 +21,7 @@ import AdminDashboard from './components/AdminDashboard';
 import Dashboard from './components/Dashboard';
 import AnimatedCounter from './components/AnimatedCounter';
 import LeagueLeaderboardLayout from './components/LeagueLeaderboardLayout';
+import LeagueListRow from './components/LeagueListRow';
 import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
@@ -1049,7 +1050,6 @@ const GoalOracle = () => {
 
   // Lifted from Dashboard/Leagues — survives Firestore re-renders
   const [dashLeagueFilter, setDashLeagueFilter] = useState('all');
-  const [expandedLeagues, setExpandedLeagues] = useState({});
   const [leagueRanks, setLeagueRanks] = useState({});
   // Global Leaderboard scope — 'all' shows every user, 'country' narrows to a
   // selected ISO-2, 'friends' narrows to the user's private-league members.
@@ -2079,12 +2079,15 @@ const GoalOracle = () => {
   };
 
 
+
+  // ─── Your Leagues — Apple HIG redesign ────────────────────────────────
+  // Page paired with LeagueLeaderboardLayout: same row anatomy, hairline
+  // dividers, chevron-only nav, one-state-pill cascade. Tap = navigate.
   const LeaguesList = () => {
     const seedAll = leagues.length > 0 ? leagues : [
       { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
     ];
-    // Filter out leagues whose mode is disabled by feature flag — keeps
-    // the data intact in Firestore but hides the league rows here.
+    // Feature-flag filter — same logic as before.
     const allMine = seedAll.filter(l => {
       if (l.predictionMode === 'classic' && featureFlags.classicEnabled === false) return false;
       if (l.predictionMode === 'simple' && featureFlags.quickPicksEnabled === false) return false;
@@ -2092,177 +2095,171 @@ const GoalOracle = () => {
     });
     const isGlobalLeague = (l) => l.id === 'global' || l.id === 'global-simple' || l.isGlobal === true;
     const globalLeagues = allMine.filter(isGlobalLeague);
-    const privateLeagues = allMine.filter(l => !isGlobalLeague(l));
-    const defaultPS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
-    const [lbCache, setLbCache] = useState({});
+    const personalLeagues = allMine.filter(l => !isGlobalLeague(l));
 
-    const filtered = useMemo(() => {
-      if (dashLeagueFilter === 'all') return privateLeagues;
-      return privateLeagues.filter(l => {
-        const hasCompleted = Object.keys(results).length > 0;
-        if (dashLeagueFilter === 'ended') return hasCompleted;
-        return !hasCompleted || dashLeagueFilter === 'active';
-      });
-    }, [privateLeagues, dashLeagueFilter, results]);
-
-    const toggleExpand = (id) => setExpandedLeagues(prev => ({ ...prev, [id]: !prev[id] }));
-
-    // Returns { done, remaining, etaMin, text } or null if data isn't loaded yet.
-    // Quick Picks share one pick doc across all QP leagues, so every QP row
-    // shows the same status. Classic leagues use per-league myPredCount from
-    // the leagueRanks fetch.
+    // Status object built from existing data flow — same shape Dashboard
+    // uses. Returns { done, remaining, etaMin, ended } | null.
     const predStatus = (league) => {
       if (league.predictionMode === 'simple') {
         if (!quickPicks) return null;
-        if (quickPicks.isComplete) return { done: true, remaining: 0, text: 'All picks in' };
+        if (quickPicks.isComplete) return { done: true, remaining: 0 };
         const etaMin = Math.max(1, Math.round(quickPicks.totalRemaining * 8 / 60));
-        return { done: false, remaining: quickPicks.totalRemaining, etaMin, text: `${quickPicks.totalRemaining} picks left · ~${etaMin} min` };
+        return { done: false, remaining: quickPicks.totalRemaining, etaMin };
       }
       const rk = leagueRanks[league.id];
       if (!rk || typeof rk.myPredCount !== 'number') return null;
       const total = WORLD_CUP_MATCHES.length;
       const remaining = Math.max(0, total - rk.myPredCount);
-      if (remaining === 0) return { done: true, remaining: 0, text: `All ${total} picks in` };
+      if (remaining === 0) return { done: true, remaining: 0 };
       const etaMin = Math.max(1, Math.round(remaining * 20 / 60));
-      return { done: false, remaining, etaMin, text: `${remaining} pick${remaining !== 1 ? 's' : ''} left · ~${etaMin} min` };
+      return { done: false, remaining, etaMin };
     };
 
-    const fetchLb = async (league) => {
-      if (lbCache[league.id]) return;
-      try {
-        const { leaderboard: bu, userNames } = await getLeagueLeaderboard(league.id);
-        const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, displayName: userNames[uid] || uid.slice(0, 8), ...calculateTotalPoints(pr, results, league.pointsSystem || defaultPS) }));
-        const sorted = sortLeaderboard(entries);
-        setLbCache(prev => ({ ...prev, [league.id]: sorted }));
-      } catch {}
+    // Urgency rule from the brief: <30 min to next deadline + picks remaining.
+    // Pre-tournament we don't have per-league deadlines, so urgent = any
+    // league with picks remaining within an hour of the next match lock.
+    // For now, treat urgent as `remaining > 0 AND etaMin <= 30` (the user
+    // could finish in under 30 min). Will tighten once match-by-match locks
+    // are wired into per-league status.
+    const isUrgent = (status) => !!status && !status.done && !status.ended && (status.etaMin || 9999) <= 30;
+
+    // Sort: recently-active proxy. Active picks first (urgent then warning),
+    // then completed, then ended. Within tier, alphabetical.
+    const sortByActivity = (arr) => {
+      const tier = (l) => {
+        const s = predStatus(l);
+        if (!s) return 5;
+        if (s.ended) return 4;
+        if (s.done) return 3;
+        if (isUrgent(s)) return 1;
+        return 2;
+      };
+      return [...arr].sort((a, b) => {
+        const ta = tier(a), tb = tier(b);
+        if (ta !== tb) return ta - tb;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    };
+
+    const filtered = useMemo(() => {
+      const base = personalLeagues;
+      if (dashLeagueFilter === 'all') return sortByActivity(base);
+      return sortByActivity(base.filter(l => {
+        const s = predStatus(l);
+        if (dashLeagueFilter === 'ended') return !!s?.ended;
+        if (dashLeagueFilter === 'active') return !s?.ended;
+        return true;
+      }));
+      // sortByActivity / predStatus close over leagueRanks + quickPicks; the
+      // memo deps below ensure we re-sort when those change.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [personalLeagues, dashLeagueFilter, leagueRanks, quickPicks]);
+
+    const personalCount = personalLeagues.length;
+    const isHeroState = personalCount === 0 && globalLeagues.length > 0;
+
+    const renderRow = (league) => {
+      const status = predStatus(league);
+      const urgent = isUrgent(status);
+      const rk = leagueRanks[league.id];
+      const total = league.memberCount || rk?.total || 0;
+      return (
+        <LeagueListRow
+          key={league.id}
+          league={league}
+          status={status}
+          rank={rk?.rank}
+          total={total || null}
+          urgent={urgent}
+          onClick={() => nav('detail', league)}
+        />
+      );
     };
 
     return (
-      <div className="leagues-v2">
-        <div className="lv2-header">
-          <div><h1 className="lv2-title">Your Leagues</h1><span className="lv2-count">{allMine.length} league{allMine.length !== 1 ? 's' : ''}</span></div>
-          <div className="dv2-actions">
-            <button className="btn btn-secondary btn-sm" onClick={() => nav('browse')}><Search size={16} /> Browse</button>
-            <button className="btn btn-primary btn-sm" onClick={() => nav('create')}><Plus size={16} /> Create</button>
-          </div>
+      <div className="leagues-page">
+        {/* Header — title + ONE primary CTA. Browse moves to the toolbar. */}
+        <div className="leagues-header">
+          <h1 className="leagues-title">Your leagues</h1>
+          <button type="button" className="leagues-create" onClick={() => nav('create')}>
+            <Plus size={14} aria-hidden="true" /> Create league
+          </button>
         </div>
 
-        {globalLeagues.length > 0 && (
-          <>
-            <h2 className="lv2-section-title">Global</h2>
-            <div className="lv2-list lv2-list-global">
-              {globalLeagues.map(gl => {
-                const gRk = leagueRanks[gl.id];
-                const gStatus = predStatus(gl);
-                return (
-                  <div key={gl.id} className="lv2-row lv2-row-global">
-                    <div className="lv2-row-top" onClick={() => nav('detail', gl)}>
-                      <div className="lv2-row-info">
-                        <h3 className="lv2-row-name">
-                          {gl.name} <span className="lv2-global-pill">GLOBAL</span>
-                          {gl.predictionMode === 'simple' && <span className="lv2-mode-pill simple">QUICK PICKS</span>}
-                          {gl.predictionMode !== 'simple' && <span className="lv2-mode-pill classic">CLASSIC</span>}
-                        </h3>
-                        <span className="lv2-row-meta"><Users size={12} /> {(gl.memberCount || 0).toLocaleString()} members</span>
-                        {gStatus && (
-                          <span className={`lv2-pred-status ${gStatus.done ? 'lv2-pred-done' : 'lv2-pred-open'}`}>
-                            {gStatus.done ? <CheckCircle size={12} /> : <Target size={12} />} {gStatus.text}
-                          </span>
-                        )}
-                      </div>
-                      <div className="lv2-row-rank-area">
-                        {gRk ? <><span className="lv2-rank-num">#{gRk.rank.toLocaleString()}</span><span className="lv2-rank-label">of {(gl.memberCount || 0).toLocaleString()}</span></> : <span className="lv2-rank-num">&mdash;</span>}
-                      </div>
-                      <ChevronRight size={16} className="lv2-chevron" />
-                    </div>
-                  </div>
-                );
-              })}
+        {/* Toolbar — segmented filter + secondary Browse */}
+        <div className="leagues-toolbar">
+          <div className="leagues-filter" role="tablist" aria-label="Filter leagues">
+            {['all', 'active', 'ended'].map(f => (
+              <button
+                key={f}
+                role="tab"
+                aria-selected={dashLeagueFilter === f}
+                className={`leagues-filter-tab ${dashLeagueFilter === f ? 'is-active' : ''}`}
+                onClick={() => setDashLeagueFilter(f)}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="leagues-browse" onClick={() => nav('browse')}>
+            <Search size={13} aria-hidden="true" /> Browse
+          </button>
+        </div>
+
+        {/* Hero new-user state: only the global league exists, swap the
+            standard global row for an invitational hero. Once the user
+            has any personal league, we revert to the section-header
+            pattern. Solves the "Global feels under-emphasized for new
+            users" risk surgically rather than permanently inflating its
+            visual weight. */}
+        {isHeroState && (
+          <div className="leagues-hero">
+            <div className="leagues-hero-meta">
+              <span className="leagues-hero-eyebrow">YOU'RE IN</span>
+              <h2 className="leagues-hero-title">{globalLeagues[0]?.name || 'Global League'}</h2>
+              <p className="leagues-hero-sub">Compete against everyone playing GoalOracle. Create or join a private league to play with friends.</p>
             </div>
-            {privateLeagues.length > 0 && <h2 className="lv2-section-title">Your Leagues</h2>}
+            <div className="leagues-hero-actions">
+              <button type="button" className="leagues-hero-cta" onClick={() => nav('detail', globalLeagues[0])}>
+                Open Global <ChevronRight size={14} aria-hidden="true" />
+              </button>
+              <button type="button" className="leagues-hero-secondary" onClick={() => nav('browse')}>
+                Browse leagues
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Steady-state: section header + standard rows */}
+        {!isHeroState && globalLeagues.length > 0 && (
+          <>
+            <div className="leagues-section-label">GLOBAL</div>
+            <div className="leagues-list">{globalLeagues.map(renderRow)}</div>
           </>
         )}
 
-        <div className="lv2-filters">
-          {['all', 'active', 'ended'].map(f => (
-            <button key={f} className={`lv2-pill ${dashLeagueFilter === f ? 'lv2-pill-active' : ''}`} onClick={() => setDashLeagueFilter(f)}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
-          ))}
-        </div>
+        {personalCount > 0 && (
+          <>
+            <div className="leagues-section-label">YOUR LEAGUES · {personalCount}</div>
+            {filtered.length === 0 ? (
+              <div className="leagues-empty-filter">
+                <p>No leagues match this filter.</p>
+                <button type="button" className="leagues-browse" onClick={() => setDashLeagueFilter('all')}>Show all</button>
+              </div>
+            ) : (
+              <div className="leagues-list">{filtered.map(renderRow)}</div>
+            )}
+          </>
+        )}
 
-        {filtered.length === 0 ? (
-          <div className="lv2-empty"><Trophy size={32} /><p>No leagues match this filter</p><button className="btn btn-primary btn-sm" onClick={() => setDashLeagueFilter('all')}>Show all</button></div>
-        ) : (
-          <div className="lv2-list">
-            {filtered.map(l => {
-              const rk = leagueRanks[l.id];
-              const expanded = expandedLeagues[l.id];
-              const lb = lbCache[l.id];
-              if (expanded && !lb) fetchLb(l);
-
-              // Mini leaderboard: 5 rows centered on user
-              let miniRows = [];
-              if (lb && uData?.id) {
-                const myIdx = lb.findIndex(e => e.userId === uData.id);
-                let start = Math.max(0, myIdx - 2);
-                if (start + 5 > lb.length) start = Math.max(0, lb.length - 5);
-                miniRows = lb.slice(start, start + 5).map((e, i) => ({ ...e, pos: start + i + 1 }));
-              }
-
-              const leaderPts = lb?.[0]?.totalPoints || rk?.leaderPts || 0;
-              const myPts = rk?.myPts || 0;
-              const gapPct = leaderPts > 0 ? Math.min((myPts / leaderPts) * 100, 100) : 0;
-
-              const pStatus = predStatus(l);
-              return (
-                <div key={l.id} className="lv2-row">
-                  <div className="lv2-row-top" onClick={() => toggleExpand(l.id)}>
-                    <div className="lv2-row-info">
-                      <h3 className="lv2-row-name">
-                        {l.name}
-                        {l.predictionMode === 'simple' && <span className="lv2-mode-pill simple">QUICK PICKS</span>}
-                        {l.predictionMode !== 'simple' && <span className="lv2-mode-pill classic">CLASSIC</span>}
-                      </h3>
-                      <span className="lv2-row-meta"><Users size={12} /> {(l.memberCount || l.members?.length || 0).toLocaleString()} members</span>
-                      {pStatus && (
-                        <span className={`lv2-pred-status ${pStatus.done ? 'lv2-pred-done' : 'lv2-pred-open'}`}>
-                          {pStatus.done ? <CheckCircle size={12} /> : <Target size={12} />} {pStatus.text}
-                        </span>
-                      )}
-                    </div>
-                    <div className="lv2-row-rank-area">
-                      {rk ? <><span className="lv2-rank-num">#{rk.rank}</span><span className="lv2-rank-label">your rank</span></> : <span className="lv2-rank-num">&mdash;</span>}
-                    </div>
-                    <ChevronDown size={16} className={`lv2-chevron ${expanded ? 'lv2-chevron-open' : ''}`} />
-                  </div>
-
-                  <div className={`lv2-row-expand ${expanded ? 'lv2-row-expanded' : ''}`}>
-                    {expanded && (
-                      <>
-                        {lb ? (
-                          <div className="lv2-mini-lb">
-                            {miniRows.map(e => (
-                              <div key={e.userId} className={`lv2-mini-row ${e.userId === uData?.id ? 'lv2-mini-you' : ''}`}>
-                                <span className="lv2-mini-pos">{e.pos}</span>
-                                <span className="lv2-mini-name">{e.displayName} {e.userId === uData?.id && <span className="lv2-you-pill">YOU</span>}</span>
-                                <span className="lv2-mini-pts">{e.totalPoints}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="lv2-mini-loading"><RefreshCw size={16} className="spin" /> Loading leaderboard...</div>
-                        )}
-                        <div className="lv2-gap-bar-wrap">
-                          <span className="lv2-gap-label">Gap to 1st</span>
-                          <div className="lv2-gap-track"><div className="lv2-gap-fill" style={{width: `${gapPct}%`}} /></div>
-                          <span className="lv2-gap-text">{myPts >= leaderPts ? 'Leading' : `${leaderPts - myPts} pts back`}</span>
-                        </div>
-                        <button className="btn btn-primary btn-sm lv2-enter-btn" onClick={() => nav('detail', l)}>Enter League <ChevronRight size={14} /></button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+        {/* Empty state for users who somehow have neither global nor personal
+            (shouldn't happen given backfill, but render gracefully). */}
+        {personalCount === 0 && globalLeagues.length === 0 && (
+          <div className="leagues-empty">
+            <p>No leagues yet.</p>
+            <button type="button" className="leagues-create" onClick={() => nav('create')}>
+              <Plus size={14} aria-hidden="true" /> Create your first league
+            </button>
           </div>
         )}
       </div>
