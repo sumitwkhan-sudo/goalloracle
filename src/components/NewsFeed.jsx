@@ -1,15 +1,45 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Newspaper, ExternalLink } from 'lucide-react';
-import { getDailyArticles } from '../data/teamNews';
+import { ARTICLES_FALLBACK } from '../data/teamNews';
 
-// Dashboard news feed — three articles per calendar day, links open in
-// a new tab so users keep their session here. Date selection is
-// deterministic so every visitor sees the same three on a given day.
+// Three live World Cup 26 articles, sourced from /api/news (Google News
+// RSS). Refreshes every 30 minutes. Falls back to a generic hub-link
+// set if the API is unreachable. Links open in a new tab so the user
+// keeps their session here.
+
+const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 min
+
 export default function NewsFeed() {
-  const articles = useMemo(() => getDailyArticles(new Date(), 3), []);
-  if (articles.length === 0) return null;
+  const [articles, setArticles] = useState(ARTICLES_FALLBACK);
+  const fetchTokenRef = useRef(0);
 
-  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const token = ++fetchTokenRef.current;
+      try {
+        const r = await fetch('/api/news', { cache: 'no-store' });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (cancelled || token !== fetchTokenRef.current) return;
+        if (Array.isArray(data.articles) && data.articles.length > 0) {
+          setArticles(data.articles.slice(0, 3));
+        }
+      } catch {
+        // Keep whatever's currently rendered.
+      }
+    };
+    load();
+    const id = setInterval(load, REFRESH_INTERVAL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  const today = useMemo(
+    () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    []
+  );
+
+  if (articles.length === 0) return null;
 
   return (
     <section className="news-feed" aria-label="World Cup 2026 news today">
@@ -21,7 +51,7 @@ export default function NewsFeed() {
         <span className="news-feed-date">{today} · {articles.length} of 3</span>
       </header>
       <ul className="news-feed-list">
-        {articles.map(a => (
+        {articles.slice(0, 3).map(a => (
           <li key={a.id} className="news-feed-item-wrap">
             <a
               className="news-feed-item"
