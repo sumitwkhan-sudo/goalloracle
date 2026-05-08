@@ -5,9 +5,24 @@
 // back here if the response is unusable.
 
 export const TEAM_NEWS_FALLBACK = [
-  { team: null, flag: '🏆', text: 'FIFA World Cup 26 — group draws complete, knockouts loading' },
-  { team: null, flag: '🏆', text: 'Squads being announced across all 48 nations' },
-  { team: null, flag: '🏆', text: 'Loading the latest team news…' },
+  {
+    team: null, flag: '🏆',
+    text: 'FIFA World Cup 26 — official tournament hub',
+    url: 'https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026',
+    source: 'FIFA',
+  },
+  {
+    team: null, flag: '🏆',
+    text: 'BBC Sport — World Cup coverage',
+    url: 'https://www.bbc.com/sport/football/world-cup',
+    source: 'BBC Sport',
+  },
+  {
+    team: null, flag: '🏆',
+    text: 'ESPN — latest World Cup news',
+    url: 'https://www.espn.com/soccer/fifa-world-cup/',
+    source: 'ESPN',
+  },
 ];
 
 export const ARTICLES_FALLBACK = [

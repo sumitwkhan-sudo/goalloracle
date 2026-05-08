@@ -30,6 +30,7 @@ import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
 import NewsTicker from './components/NewsTicker';
+import NewsArticleViewer from './components/NewsArticleViewer';
 import BracketDesktop from './components/simple/BracketDesktop';
 import BracketMobile from './components/simple/BracketMobile';
 import useBracketState from './hooks/useBracketState';
@@ -4019,6 +4020,7 @@ const GoalOracle = () => {
         onClose={() => setStandingsOpen(false)}
         predictions={preds}
       />
+      <NewsArticleViewer />
     </div>
   );
 };

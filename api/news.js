@@ -132,6 +132,8 @@ export default async function handler(req, res) {
       team: e.team,
       flag: e.flag,
       text: e.title,
+      url: e.link,
+      source: e.source,
     }));
 
     const articles = enriched.slice(0, 3).map((e, i) => ({

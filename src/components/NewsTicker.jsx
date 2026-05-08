@@ -1,14 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Radio } from 'lucide-react';
 import { TEAM_NEWS_FALLBACK } from '../data/teamNews';
+import { openNewsArticle } from '../utils/newsViewer';
 
 // Pulls live World Cup 26 team news from /api/news (Google News RSS),
-// rendered as a non-clickable marquee under the navbar. Refreshes every
-// 30 minutes; falls back to the seed file if the API is down so the
-// page never goes blank. Items are plain spans — no anchors, no click
-// handlers — so users can't navigate away from the ticker.
+// rendered as a slow-scrolling marquee under the navbar so users can
+// read items as they pass. Items are buttons — clicking one opens the
+// in-page slide-in iframe viewer (NewsArticleViewer) so the user can
+// read the article without leaving goaloracle.com.
 //
-// Pause-on-hover for readability; honours prefers-reduced-motion.
+// Refreshes every 30 minutes; falls back to the seed file if the API
+// is down. Pause-on-hover for full readability; honours
+// prefers-reduced-motion.
 
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 min
 
@@ -41,6 +44,15 @@ export default function NewsTicker() {
   // viewport just as the first half completes its translateX(-50%).
   const doubled = useMemo(() => [...items, ...items], [items]);
 
+  const handleClick = (item) => {
+    if (!item.url) return;
+    openNewsArticle({
+      url: item.url,
+      title: item.text,
+      source: item.source || (item.team ? `${item.team} · World Cup 26` : 'World Cup 26'),
+    });
+  };
+
   return (
     <div className="news-ticker" role="status" aria-label="FIFA World Cup 2026 team news">
       <div className="news-ticker-label" aria-hidden="true">
@@ -51,12 +63,19 @@ export default function NewsTicker() {
       <div className="news-ticker-viewport">
         <div className="news-ticker-track">
           {doubled.map((item, i) => (
-            <span className="news-ticker-item" key={i}>
+            <button
+              type="button"
+              className="news-ticker-item"
+              key={i}
+              onClick={() => handleClick(item)}
+              disabled={!item.url}
+              aria-label={item.team ? `${item.team}: ${item.text}` : item.text}
+            >
               {item.flag && <span className="news-ticker-flag" aria-hidden="true">{item.flag}</span>}
               {item.team && <span className="news-ticker-team">{item.team}</span>}
               <span className="news-ticker-text">{item.text}</span>
               <span className="news-ticker-sep" aria-hidden="true">◆</span>
-            </span>
+            </button>
           ))}
         </div>
       </div>

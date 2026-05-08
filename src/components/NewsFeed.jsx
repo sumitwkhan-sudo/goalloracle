@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Newspaper, ExternalLink } from 'lucide-react';
+import { Newspaper, ChevronRight } from 'lucide-react';
 import { ARTICLES_FALLBACK } from '../data/teamNews';
+import { openNewsArticle } from '../utils/newsViewer';
 
 // Three live World Cup 26 articles, sourced from /api/news (Google News
 // RSS). Refreshes every 30 minutes. Falls back to a generic hub-link
-// set if the API is unreachable. Links open in a new tab so the user
-// keeps their session here.
+// set if the API is unreachable. Clicking a row opens the slide-in
+// iframe viewer so the user reads in-place — same pattern as the
+// ticker.
 
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 min
 
@@ -53,11 +55,10 @@ export default function NewsFeed() {
       <ul className="news-feed-list">
         {articles.slice(0, 3).map(a => (
           <li key={a.id} className="news-feed-item-wrap">
-            <a
+            <button
+              type="button"
               className="news-feed-item"
-              href={a.url}
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={() => openNewsArticle({ url: a.url, title: a.title, source: a.source })}
             >
               <span className="news-feed-source">
                 <span className="news-feed-source-dot" aria-hidden="true" />
@@ -66,9 +67,9 @@ export default function NewsFeed() {
               <span className="news-feed-title">{a.title}</span>
               <span className="news-feed-meta">
                 <span className="news-feed-team" aria-hidden="true">{a.flag} {a.team}</span>
-                <ExternalLink size={11} aria-hidden="true" />
+                <ChevronRight size={12} aria-hidden="true" />
               </span>
-            </a>
+            </button>
           </li>
         ))}
       </ul>
