@@ -2227,7 +2227,6 @@ const GoalOracle = () => {
 
   const LeaguesList = () => {
     const seedAll = leagues.length > 0 ? leagues : [
-      { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
       { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
     ];
     // Filter out leagues whose mode is disabled by feature flag — keeps
