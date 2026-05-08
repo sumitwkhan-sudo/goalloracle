@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X } from 'lucide-react';
+import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminSetFeatureFlag, checkOracleHealth, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -24,6 +24,39 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [editingLeagueName, setEditingLeagueName] = useState('');
   const [savingLeagueId, setSavingLeagueId] = useState(null);
   const [backfillingCountries, setBackfillingCountries] = useState(false);
+  // Inline payout-wallet editor (mirrors the league-rename pencil pattern)
+  const [editingWalletUserId, setEditingWalletUserId] = useState(null);
+  const [editingWalletValue, setEditingWalletValue] = useState('');
+  const [savingWalletUserId, setSavingWalletUserId] = useState(null);
+
+  const startWalletEdit = (u) => {
+    setEditingWalletUserId(u.id);
+    setEditingWalletValue(u.walletAddress || '');
+  };
+  const cancelWalletEdit = () => {
+    setEditingWalletUserId(null);
+    setEditingWalletValue('');
+  };
+  const saveWalletAssignment = async (u) => {
+    const trimmed = editingWalletValue.trim();
+    if (trimmed && !/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+      notify('Invalid EVM address (expected 0x + 40 hex chars)', 'error');
+      return;
+    }
+    setSavingWalletUserId(u.id);
+    try {
+      const res = await adminAssignWallet(u.id, trimmed);
+      // Mutate the in-memory list for snappy UX
+      u.walletAddress = res.walletAddress || null;
+      setUsers((curr) => curr.map((x) => (x.id === u.id ? { ...x, walletAddress: res.walletAddress || null } : x)));
+      notify(trimmed ? 'Payout wallet assigned' : 'Payout wallet cleared');
+      cancelWalletEdit();
+    } catch (e) {
+      notify(e.message || 'Failed to assign wallet', 'error');
+    } finally {
+      setSavingWalletUserId(null);
+    }
+  };
 
   // Feature flag toggle — pessimistic: tell the user immediately on
    // failure rather than letting the UI drift out of sync with the
@@ -398,8 +431,44 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       {!u.country && <span className="admin-user-noemail" title="No country on file">no country</span>}
                     </div>
                     {u.email && <div className="admin-user-email">{u.email}</div>}
-                    {u.walletAddress && <div className="admin-user-email" style={{fontSize:'0.7rem',opacity:0.6}}>{u.walletAddress.slice(0, 10)}...{u.walletAddress.slice(-6)}</div>}
-                    {!u.email && !u.walletAddress && <div className="admin-user-email">{u.id.slice(0, 20)}...</div>}
+                    {!u.email && <div className="admin-user-email">{u.id.slice(0, 20)}...</div>}
+                    {editingWalletUserId === u.id ? (
+                      <div className="admin-wallet-edit-row">
+                        <input
+                          type="text"
+                          className="input-field admin-wallet-input"
+                          value={editingWalletValue}
+                          onChange={(e) => setEditingWalletValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveWalletAssignment(u);
+                            else if (e.key === 'Escape') cancelWalletEdit();
+                          }}
+                          placeholder="0x... (leave blank to clear)"
+                          maxLength={42}
+                          autoFocus
+                          disabled={savingWalletUserId === u.id}
+                          spellCheck={false}
+                        />
+                        <button type="button" className="btn btn-primary btn-sm" onClick={() => saveWalletAssignment(u)} disabled={savingWalletUserId === u.id} title="Save">
+                          {savingWalletUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Check size={14} />}
+                        </button>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={cancelWalletEdit} disabled={savingWalletUserId === u.id} title="Cancel">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="admin-wallet-row">
+                        <Wallet size={11} style={{opacity:0.6}} />
+                        {u.walletAddress ? (
+                          <code className="admin-wallet-addr">{u.walletAddress.slice(0, 10)}...{u.walletAddress.slice(-6)}</code>
+                        ) : (
+                          <span className="admin-wallet-empty">No payout wallet</span>
+                        )}
+                        <button type="button" className="admin-wallet-edit-btn" onClick={() => startWalletEdit(u)} title="Assign payout wallet">
+                          <Pencil size={11} />
+                        </button>
+                      </div>
+                    )}
                     {u.referredBy && (
                       <div className="admin-user-via" title={`referredBy: ${u.referredBy}`}>
                         Joined via {referrer?.displayName || `${u.referredBy.slice(0, 10)}…`}
@@ -747,7 +816,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             <div className="admin-contract-row"><span className="admin-contract-lbl">ORACLE_PRIVATE_KEY_1</span><span className="admin-env-check">Set in Vercel env</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">ORACLE_PRIVATE_KEY_2</span><span className="admin-env-check">Set in Vercel env</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">FIREBASE_SERVICE_ACCOUNT</span><span className="admin-env-check">Set in Vercel env</span></div>
-            <div className="admin-contract-row"><span className="admin-contract-lbl">PRIVY_APP_SECRET</span><span className="admin-env-check">Set in Vercel env</span></div>
+            <div className="admin-contract-row"><span className="admin-contract-lbl">RESEND_API_KEY</span><span className="admin-env-check">Set in Vercel env</span></div>
+            <div className="admin-contract-row"><span className="admin-contract-lbl">GOOGLE_OAUTH_CLIENT_ID</span><span className="admin-env-check">Set in Vercel env</span></div>
           </div>
 
           <div className="admin-oracle-info" style={{marginTop:'1rem'}}>

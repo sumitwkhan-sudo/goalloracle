@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth as fbAuth } from './config/firebase';
+import { signOut as authSignOut } from './utils/auth';
+import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
@@ -11,7 +14,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, signIntoFirebase, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -1150,8 +1153,16 @@ const CITY_CODES = {
   'San Francisco': 'SF', 'Seattle': 'SEA', 'Toronto': 'TOR', 'Vancouver': 'VAN',
 };
 const GoalOracle = () => {
-  const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
-  const { wallets } = useWallets();
+  // Firebase Auth replaces Privy. `ready` flips to true after the first
+  // onAuthStateChanged callback so gating logic doesn't render before we
+  // know the user's signed-in state. `authenticated` mirrors fbAuth.currentUser.
+  const [ready, setReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const login = useCallback(() => setShowLogin(true), []);
+  const logout = useCallback(async () => {
+    try { await authSignOut(); } catch (e) { console.warn('[auth] sign-out failed:', e.message); }
+  }, []);
   const initialRouteRef = useRef(parseRoute());
   const [view, setView] = useState(initialRouteRef.current.view);
   const [pendingDeepLink, setPendingDeepLink] = useState(
@@ -1365,62 +1376,38 @@ const GoalOracle = () => {
   }, []);
   const authInitRef = useRef(false);
 
-  // getAccessToken() hangs forever when Privy wallet iframe isn't ready — wrap with timeout
-  const getTokenSafe = useCallback(async (timeoutMs = 5000) => {
-    try {
-      return await Promise.race([
-        getAccessToken(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('token_timeout')), timeoutMs))
-      ]);
-    } catch {
-      return null;
-    }
-  }, [getAccessToken]);
-
+  // Subscribe to Firebase Auth. The first callback marks `ready` so render
+  // gates can wait. On sign-in we cache the ID token (used by /api/* calls)
+  // and load/create the matching user doc. On sign-out we clear local state.
   useEffect(() => {
-    if (!ready) return;
-    if (!authenticated) {
-      setUData(null); setRole('user'); setAuthToken(null); resetFirebaseAuth();
-      authInitRef.current = false;
-      return;
-    }
-    if (authInitRef.current) return;
-
-    let stopped = false;
-    let attempts = 0;
-    const tryAuth = async () => {
-      if (stopped || authInitRef.current) return;
-      attempts++;
-      const timeout = Math.min(3000 + attempts * 2000, 15000);
-      console.log(`[auth] attempt ${attempts}, timeout=${timeout}ms`);
-      const token = await getTokenSafe(timeout);
-      if (!token) { console.warn(`[auth] no token attempt ${attempts}`); return; }
-      if (stopped) return;
-      console.log('[auth] got token, signing into Firebase...');
-      setAuthToken(token);
-      const fbOk = await signIntoFirebase(token);
-      if (!fbOk) { console.warn('[auth] Firebase sign-in failed, retrying...'); return; }
-      if (stopped) return;
-      const u = await createOrUpdateUser(user);
-      if (stopped || !u) return;
-      console.log('[auth] SUCCESS:', u.displayName, u.role);
-      stopped = true;
+    const unsub = onAuthStateChanged(fbAuth, async (fbUser) => {
+      setReady(true);
+      if (!fbUser) {
+        setAuthenticated(false);
+        setUData(null); setRole('user'); setAuthToken(null); resetFirebaseAuth();
+        authInitRef.current = false;
+        return;
+      }
+      setAuthenticated(true);
+      if (authInitRef.current) return;
       authInitRef.current = true;
-      setUData(u);
-      setRole(u.role || 'user');
-      if (!u.usernameSet) setShowUsernamePrompt(true);
-      // Wallet-only sign-ups have no email on file. We still want to
-      // capture an email for reminders + targeted outreach, but not
-      // immediately on login — that's modal whiplash. Mark it pending
-      // and the deferred-prompt effect will surface it after a
-      // meaningful first pick.
-      else if (!u.email && !u.emailSkipped) setPendingEmailPrompt(true);
 
-      // Backfill country for existing users who signed up before we required
-      // it. Product directive: known overrides go first, then IP geolocation,
-      // then default to US so the leaderboard flag is never blank.
-      if (u.usernameSet && !u.country) {
-        (async () => {
+      try {
+        const token = await fbUser.getIdToken();
+        setAuthToken(token);
+        const u = await createOrUpdateUser({ id: fbUser.uid, email: fbUser.email });
+        if (!u) return;
+        console.log('[auth] SUCCESS:', u.displayName, u.role);
+        setUData(u);
+        setRole(u.role || 'user');
+        setShowLogin(false);
+        if (!u.usernameSet) setShowUsernamePrompt(true);
+        else if (!u.email && !u.emailSkipped) setPendingEmailPrompt(true);
+
+        // Backfill country for existing users who signed up before we required
+        // it. Product directive: known overrides go first, then IP geolocation,
+        // then default to US so the leaderboard flag is never blank.
+        if (u.usernameSet && !u.country) {
           try {
             const { detectCountryByIP } = await import('./utils/countries');
             const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
@@ -1431,19 +1418,22 @@ const GoalOracle = () => {
           } catch (e) {
             console.warn('[auth] country backfill failed:', e.message);
           }
-        })();
+        }
+      } catch (e) {
+        console.error('[auth] sign-in flow failed:', e.message);
       }
-    };
+    });
 
-    // Delay first attempt 1s to let Privy wallet iframe initialize
-    const first = setTimeout(() => tryAuth().catch(e => console.error('[auth]', e.message)), 1000);
-    const interval = setInterval(() => {
-      if (stopped || authInitRef.current) { clearInterval(interval); return; }
-      tryAuth().catch(e => console.error('[auth]', e.message));
-    }, 3000);
+    // Refresh the cached ID token periodically so server calls don't hit
+    // expired tokens after the first hour.
+    const refresh = setInterval(async () => {
+      const u = fbAuth.currentUser;
+      if (!u) return;
+      try { setAuthToken(await u.getIdToken(false)); } catch {}
+    }, 30 * 60 * 1000);
 
-    return () => { stopped = true; clearTimeout(first); clearInterval(interval); };
-  }, [ready, authenticated, getTokenSafe]);
+    return () => { unsub(); clearInterval(refresh); };
+  }, []);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(loadAllLeagues, [loadAllLeagues]);
 
@@ -3570,17 +3560,8 @@ const GoalOracle = () => {
   };
 
   // ================================
+  // ACCOUNT DROPDOWN
   // ================================
-  // ACCOUNT DROPDOWN + ADD FUNDS MODAL
-  // ================================
-  const CHAINS = [
-    { id: 137, name: 'Polygon', color: '#8247E5' },
-    { id: 8453, name: 'Base', color: '#0052FF' },
-    { id: 42161, name: 'Arbitrum', color: '#28A0F0' },
-    { id: 10, name: 'Optimism', color: '#FF0420' },
-    { id: 1, name: 'Ethereum', color: '#627EEA' },
-  ];
-  const TOKENS = ['ETH', 'USDC', 'USDT', 'POL'];
 
   // Parent-level league creation handler (survives inline component remounts)
   const createLeagueRef = useRef(null);
@@ -3599,18 +3580,15 @@ const GoalOracle = () => {
   }, [uData?.id, nav, notify, loadAllLeagues]);
   createLeagueRef.current = handleCreateLeague;
 
-  const [fundModal, setFundModal] = useState(false);
-  const [sendModal, setSendModal] = useState(false);
   const [hidePredicted, setHidePredicted] = useState(false);
   const [frozenUnpredictedIds, setFrozenUnpredictedIds] = useState(null);
   const [walletBalances, setWalletBalances] = useState({ USDC: '0.00', POL: '0.00' });
   const [balLoading, setBalLoading] = useState(false);
   const balancesRef = useRef(walletBalances);
 
-  // Resolve wallet address from Privy user
-  const walletAddress = useMemo(() => {
-    return typeof user?.wallet === 'string' ? user.wallet : user?.wallet?.address || uData?.walletAddress || '';
-  }, [user?.wallet, uData?.walletAddress]);
+  // Sweepstakes payout wallet — admin-assigned external EVM address. Stored
+  // on the user doc; balance is read-only via public Polygon RPC.
+  const walletAddress = uData?.walletAddress || '';
 
   // Fetch balances on auth and periodically
   const refreshBalances = useCallback(async () => {
@@ -3644,442 +3622,10 @@ const GoalOracle = () => {
     return () => clearInterval(interval);
   }, [walletAddress, refreshBalances]);
 
-  const AddFundsModal = () => {
-    const [srcChain, setSrcChain] = useState(CHAINS[4]); // Ethereum
-    const [srcToken, setSrcToken] = useState('ETH');
-    const [amount, setAmount] = useState('');
-    const [depositAddr, setDepositAddr] = useState(null);
-    const [reqId, setReqId] = useState(null);
-    const [bridgeStatus, setBridgeStatus] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [err, setErr] = useState('');
-    const [copied2, setCopied2] = useState(false);
-    const [useBridge, setUseBridge] = useState(false);
-    const walletAddr = walletAddress;
-
-    const getDecimals = () => {
-      if (srcToken === 'ETH' || srcToken === 'POL') return 18;
-      return 6; // USDC, USDT
-    };
-
-    const toSmallestUnit = (val) => {
-      const dec = getDecimals();
-      const parts = val.split('.');
-      const whole = parts[0] || '0';
-      let frac = (parts[1] || '').padEnd(dec, '0').slice(0, dec);
-      return BigInt(whole) * BigInt(10 ** dec) + BigInt(frac);
-    };
-
-    const requestDeposit = async () => {
-      setErr(''); setLoading(true); setDepositAddr(null);
-      if (!amount || parseFloat(amount) <= 0) { setErr('Enter a valid amount'); setLoading(false); return; }
-      if (!walletAddr) { setErr('No wallet connected'); setLoading(false); return; }
-      try {
-        const res = await fetch('/api/bridge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await getTokenSafe(5000)}` },
-          body: JSON.stringify({
-            recipientAddress: walletAddr,
-            originChainId: srcChain.id,
-            originToken: srcToken,
-            destinationChainId: 137,
-            amount: toSmallestUnit(amount).toString(),
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setDepositAddr(data.depositAddress);
-        setReqId(data.requestId);
-      } catch (e) {
-        setErr(e.message);
-      } finally { setLoading(false); }
-    };
-
-    const checkStatus = async () => {
-      if (!reqId) return;
-      try {
-        const res = await fetch(`/api/bridge?requestId=${reqId}`, {
-          headers: { 'Authorization': `Bearer ${await getTokenSafe(5000)}` },
-        });
-        const data = await res.json();
-        setBridgeStatus(data.status || data.state || 'pending');
-      } catch (e) { setBridgeStatus('error'); }
-    };
-
-    const copyDeposit = () => {
-      const addr = useBridge ? depositAddr : walletAddr;
-      if (!addr) return;
-      navigator.clipboard.writeText(addr).then(() => {
-        setCopied2(true);
-        setTimeout(() => setCopied2(false), 2000);
-      });
-    };
-
-    return (
-      <div className="modal-overlay" onClick={() => setFundModal(false)}>
-        <div className="fund-modal" onClick={e => e.stopPropagation()}>
-          <div className="fund-modal-header">
-            <h3><Wallet size={20} /> Add Funds</h3>
-            <button className="modal-close" onClick={() => setFundModal(false)}><X size={20} /></button>
-          </div>
-
-          {/* Current balance */}
-          <div className="fund-balance-bar">
-            <div className="fund-bal-item"><span className="fund-bal-label">USDC</span><span className="fund-bal-val">{formatBalance(walletBalances.USDC)}</span></div>
-            <div className="fund-bal-item fund-bal-dim"><span className="fund-bal-label">POL</span><span className="fund-bal-val">{formatBalance(walletBalances.POL)}</span></div>
-            <button className="balance-refresh" onClick={refreshBalances} title="Refresh"><RefreshCw size={12} className={balLoading ? 'spin' : ''} /></button>
-          </div>
-
-          {/* Tab: Direct Transfer vs Bridge */}
-          <div className="fund-tabs">
-            <button className={`fund-tab ${!useBridge ? 'active' : ''}`} onClick={() => setUseBridge(false)}>Direct Transfer</button>
-            <button className={`fund-tab ${useBridge ? 'active' : ''}`} onClick={() => setUseBridge(true)}>Bridge & Swap</button>
-          </div>
-
-          {!useBridge ? (<>
-            {/* Simple direct transfer — just show wallet address */}
-            <p className="fund-desc">Send USDC directly to your wallet on Polygon. No bridging needed if you already have USDC on Polygon.</p>
-            <div className="fund-section">
-              <label>Your Polygon Wallet Address</label>
-              <div className="deposit-addr-box">
-                <code>{walletAddr}</code>
-                <button className="copy-btn" onClick={copyDeposit}>{copied2 ? <CheckCircle size={14} /> : <Copy size={14} />}</button>
-              </div>
-            </div>
-            <div className="fund-note-box">
-              <div className="fund-note-item"><CheckCircle size={14} /> Send <strong>USDC</strong> on Polygon — contract: <code>0x3c499...3359</code></div>
-              <div className="fund-note-item"><AlertTriangle size={14} /> Only send on <strong>Polygon network</strong> — other chains will lose funds</div>
-            </div>
-          </>) : (<>
-            {/* Bridge flow */}
-            <p className="fund-desc">Send any supported token from any chain — it auto-converts to USDC on Polygon for your wallet.</p>
-
-          {!depositAddr ? (<>
-            <div className="fund-section">
-              <label>Send from</label>
-              <div className="fund-row">
-                <select className="fund-select" value={srcChain.id} onChange={e => setSrcChain(CHAINS.find(c => c.id === parseInt(e.target.value)))}>
-                  {CHAINS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <select className="fund-select" value={srcToken} onChange={e => setSrcToken(e.target.value)}>
-                  {TOKENS.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="fund-arrow"><ArrowRightLeft size={20} /></div>
-
-            <div className="fund-section">
-              <label>Receive as</label>
-              <div className="fund-dest">
-                <span className="chain-dot" style={{ background: '#8247E5' }}></span>
-                <strong>USDC</strong> on <strong>Polygon</strong>
-              </div>
-            </div>
-
-            <div className="fund-section">
-              <label>Amount</label>
-              <input type="number" className="fund-input" placeholder={`0.00 ${srcToken}`} value={amount} onChange={e => setAmount(e.target.value)} min="0" step="any" />
-            </div>
-
-            {err && <div className="fund-error"><AlertTriangle size={14} /> {err}</div>}
-
-            <button className="btn btn-primary fund-btn" onClick={requestDeposit} disabled={loading}>
-              {loading ? <><Loader size={16} className="spin" /> Getting deposit address...</> : 'Get Deposit Address'}
-            </button>
-          </>) : (<>
-            <div className="fund-success">
-              <CheckCircle size={20} />
-              <span>Deposit address ready!</span>
-            </div>
-            <div className="fund-section">
-              <label>Send {amount} {srcToken} on {srcChain.name} to:</label>
-              <div className="deposit-addr-box">
-                <code>{depositAddr}</code>
-                <button className="copy-btn" onClick={copyDeposit}>{copied2 ? <CheckCircle size={14} /> : <Copy size={14} />}</button>
-              </div>
-            </div>
-            <p className="fund-note">After sending, Relay will automatically bridge and swap your {srcToken} to USDC on Polygon and deliver it to your wallet.</p>
-
-            <div className="fund-actions">
-              <button className="btn btn-secondary btn-sm" onClick={checkStatus}>
-                <RefreshCw size={14} /> Check Status
-              </button>
-              {bridgeStatus && <span className={`bridge-status ${bridgeStatus}`}>{bridgeStatus}</span>}
-            </div>
-
-            <button className="btn btn-sm fund-new" onClick={() => { setDepositAddr(null); setReqId(null); setBridgeStatus(null); setAmount(''); }}>
-              New Deposit
-            </button>
-          </>)}
-          </>)}
-        </div>
-      </div>
-    );
-  };
-
-  const SendModal = () => {
-    const [step, setStep] = useState('form'); // 'form' | 'confirm' | 'sending' | 'success' | 'error'
-    const [token, setToken] = useState('USDC');
-    const [recipient, setRecipient] = useState('');
-    const [amount, setAmount] = useState('');
-    const [txHash, setTxHash] = useState(null);
-    const [err, setErr] = useState('');
-    const [acknowledged, setAcknowledged] = useState(false);
-
-    // Pick the embedded wallet (Privy-created); falls back to first connected wallet
-    const embeddedWallet = wallets.find(w => w.walletClientType === 'privy') || wallets[0];
-    const fromAddr = embeddedWallet?.address || walletAddress;
-
-    const usdcBalance = parseFloat(walletBalances.USDC || '0');
-    const polBalance = parseFloat(walletBalances.POL || '0');
-    const currentBalance = token === 'USDC' ? usdcBalance : polBalance;
-
-    const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(recipient);
-    const isSelfAddress = fromAddr && recipient.toLowerCase() === fromAddr.toLowerCase();
-    const amountNum = parseFloat(amount || '0');
-    const hasPolForGas = polBalance > 0.001;
-    const canContinue = isValidAddress && !isSelfAddress && amountNum > 0 && amountNum <= currentBalance;
-
-    const setMax = () => {
-      if (token === 'POL') {
-        // Leave ~0.01 POL as gas buffer
-        const remaining = Math.max(0, polBalance - 0.01);
-        setAmount(remaining > 0 ? remaining.toFixed(4) : '0');
-      } else {
-        setAmount(String(currentBalance));
-      }
-    };
-
-    const handleContinue = () => {
-      setErr('');
-      if (!isValidAddress) { setErr('Invalid wallet address'); return; }
-      if (isSelfAddress) { setErr('You can\u2019t send to your own wallet'); return; }
-      if (amountNum <= 0) { setErr('Amount must be greater than 0'); return; }
-      if (amountNum > currentBalance) { setErr(`Insufficient ${token} balance`); return; }
-      if (!hasPolForGas) { setErr('You need some POL to pay for gas fees'); return; }
-      setAcknowledged(false);
-      setStep('confirm');
-    };
-
-    const handleSend = async () => {
-      if (!embeddedWallet) { setErr('No wallet available'); return; }
-      setErr('');
-      setStep('sending');
-      try {
-        if (typeof embeddedWallet.switchChain === 'function') {
-          try { await embeddedWallet.switchChain(137); } catch {}
-        }
-        const provider = await embeddedWallet.getEthereumProvider();
-
-        let txParams;
-        if (token === 'USDC') {
-          const USDC_ADDR = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
-          const decimals = 6;
-          // Convert amount string to smallest units preserving up to `decimals` fractional digits
-          const parts = amount.split('.');
-          const whole = parts[0] || '0';
-          const frac = (parts[1] || '').padEnd(decimals, '0').slice(0, decimals);
-          const amountUnits = BigInt(whole) * BigInt(10 ** decimals) + BigInt(frac);
-          // transfer(address,uint256) — selector 0xa9059cbb
-          const paddedAddr = recipient.slice(2).toLowerCase().padStart(64, '0');
-          const paddedAmt = amountUnits.toString(16).padStart(64, '0');
-          const data = '0xa9059cbb' + paddedAddr + paddedAmt;
-          txParams = { from: fromAddr, to: USDC_ADDR, data, value: '0x0' };
-        } else {
-          const decimals = 18;
-          const parts = amount.split('.');
-          const whole = parts[0] || '0';
-          const frac = (parts[1] || '').padEnd(decimals, '0').slice(0, decimals);
-          const amountWei = BigInt(whole) * BigInt(10 ** decimals) + BigInt(frac);
-          txParams = { from: fromAddr, to: recipient, value: '0x' + amountWei.toString(16) };
-        }
-
-        const hash = await provider.request({
-          method: 'eth_sendTransaction',
-          params: [txParams],
-        });
-
-        setTxHash(hash);
-        setStep('success');
-        setTimeout(() => refreshBalances(), 8000);
-      } catch (e) {
-        console.error('[send] Error:', e);
-        const msg = e?.message || '';
-        if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
-          setErr('Transaction cancelled');
-        } else {
-          setErr(msg || 'Transaction failed');
-        }
-        setStep('error');
-      }
-    };
-
-    const closeModal = () => { if (step !== 'sending') setSendModal(false); };
-
-    return (
-      <div className="modal-overlay" onClick={closeModal}>
-        <div className="fund-modal" onClick={e => e.stopPropagation()}>
-          <div className="fund-modal-header">
-            <h3><Send size={20} /> Send Crypto</h3>
-            <button className="modal-close" onClick={closeModal} disabled={step === 'sending'}><X size={20} /></button>
-          </div>
-
-          {step === 'form' && (<>
-            <div className="fund-balance-bar">
-              <div className="fund-bal-item"><span className="fund-bal-label">USDC</span><span className="fund-bal-val">{formatBalance(walletBalances.USDC)}</span></div>
-              <div className="fund-bal-item fund-bal-dim"><span className="fund-bal-label">POL</span><span className="fund-bal-val">{formatBalance(walletBalances.POL)}</span></div>
-              <button className="balance-refresh" onClick={refreshBalances} title="Refresh"><RefreshCw size={12} className={balLoading ? 'spin' : ''} /></button>
-            </div>
-
-            <div className="fund-section">
-              <label>Token</label>
-              <div className="fund-tabs">
-                <button className={`fund-tab ${token === 'USDC' ? 'active' : ''}`} onClick={() => { setToken('USDC'); setAmount(''); }}>USDC</button>
-                <button className={`fund-tab ${token === 'POL' ? 'active' : ''}`} onClick={() => { setToken('POL'); setAmount(''); }}>POL</button>
-              </div>
-            </div>
-
-            <div className="fund-section">
-              <label>Recipient wallet address</label>
-              <input
-                type="text"
-                className="fund-input send-addr-input"
-                placeholder="0x..."
-                value={recipient}
-                onChange={e => setRecipient(e.target.value.trim())}
-                spellCheck={false}
-                autoComplete="off"
-              />
-              {recipient && !isValidAddress && (
-                <div className="send-field-err"><AlertTriangle size={12} /> Not a valid Ethereum address</div>
-              )}
-              {isSelfAddress && (
-                <div className="send-field-err"><AlertTriangle size={12} /> This is your own wallet</div>
-              )}
-            </div>
-
-            <div className="fund-section">
-              <label>Amount</label>
-              <div className="send-amount-wrap">
-                <input
-                  type="number"
-                  className="fund-input"
-                  placeholder={`0.00 ${token}`}
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  min="0"
-                  step="any"
-                />
-                <button type="button" className="send-max-btn" onClick={setMax}>MAX</button>
-              </div>
-              <div className="send-balance-info">
-                Available: {formatBalance(currentBalance)} {token}
-                {token === 'POL' && <span className="send-gas-hint"> &middot; MAX leaves 0.01 POL for gas</span>}
-              </div>
-            </div>
-
-            <div className="fund-note-box fund-note-danger">
-              <div className="fund-note-item">
-                <AlertTriangle size={14} />
-                <span><strong>Polygon network only.</strong> Confirm the recipient's wallet supports <strong>{token} on Polygon</strong>. Sending to an incompatible address or wrong network will result in <strong>permanent loss of funds</strong>.</span>
-              </div>
-              <div className="fund-note-item">
-                <AlertTriangle size={14} />
-                <span>Double-check the recipient address — crypto transactions are <strong>irreversible</strong>.</span>
-              </div>
-              {!hasPolForGas && (
-                <div className="fund-note-item">
-                  <AlertTriangle size={14} />
-                  <span>You have no POL for gas. Add POL to your wallet before sending.</span>
-                </div>
-              )}
-            </div>
-
-            {err && <div className="fund-error"><AlertTriangle size={14} /> {err}</div>}
-
-            <button className="btn btn-primary fund-btn" onClick={handleContinue} disabled={!canContinue || !hasPolForGas}>
-              Review Transaction <ChevronRight size={16} />
-            </button>
-          </>)}
-
-          {step === 'confirm' && (<>
-            <p className="fund-desc">Review carefully. This cannot be reversed.</p>
-
-            <div className="send-review">
-              <div className="send-review-row"><span>Network</span><strong>Polygon</strong></div>
-              <div className="send-review-row"><span>Token</span><strong>{token}</strong></div>
-              <div className="send-review-row send-review-amount"><span>Amount</span><strong>{amount} {token}</strong></div>
-              <div className="send-review-row"><span>From</span><code className="send-review-addr">{fromAddr ? `${fromAddr.slice(0,10)}...${fromAddr.slice(-8)}` : '—'}</code></div>
-              <div className="send-review-row send-review-to"><span>To</span><code className="send-review-addr send-review-addr-full">{recipient}</code></div>
-            </div>
-
-            <div className="fund-note-box fund-note-danger">
-              <div className="fund-note-item">
-                <AlertTriangle size={14} />
-                <span><strong>Warning:</strong> If the recipient's wallet does not support <strong>{token} on Polygon</strong>, your funds will be <strong>permanently lost</strong>. Verify both the address and network compatibility before continuing.</span>
-              </div>
-            </div>
-
-            <label className="send-ack">
-              <input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)} />
-              <span>I have verified the recipient address and confirmed it supports {token} on Polygon. I understand this transaction cannot be undone.</span>
-            </label>
-
-            {err && <div className="fund-error"><AlertTriangle size={14} /> {err}</div>}
-
-            <div className="send-confirm-actions">
-              <button className="btn btn-secondary" onClick={() => setStep('form')}>
-                <ChevronDown size={16} style={{transform:'rotate(90deg)'}} /> Back
-              </button>
-              <button className="btn btn-primary" onClick={handleSend} disabled={!acknowledged}>
-                <Send size={14} /> Send {amount} {token}
-              </button>
-            </div>
-          </>)}
-
-          {step === 'sending' && (
-            <div className="send-status-view">
-              <Loader size={36} className="spin" />
-              <h4>Sending transaction...</h4>
-              <p>Confirm in your wallet if prompted. This may take up to a minute.</p>
-            </div>
-          )}
-
-          {step === 'success' && (
-            <div className="send-status-view">
-              <CheckCircle size={44} style={{color: 'var(--success, #00c853)'}} />
-              <h4>Transaction sent!</h4>
-              <p>Your transaction has been broadcast to Polygon. It usually confirms in a few seconds.</p>
-              {txHash && (
-                <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="tx-link">
-                  View on Polygonscan <ExternalLink size={14} />
-                </a>
-              )}
-              <button className="btn btn-primary" onClick={() => setSendModal(false)} style={{marginTop: '1rem'}}>Done</button>
-            </div>
-          )}
-
-          {step === 'error' && (
-            <div className="send-status-view">
-              <AlertTriangle size={44} style={{color: 'var(--danger, #ff3b5c)'}} />
-              <h4>Transaction failed</h4>
-              <p>{err || 'Something went wrong.'}</p>
-              <div className="send-confirm-actions">
-                <button className="btn btn-secondary" onClick={() => { setErr(''); setStep('form'); }}>Try again</button>
-                <button className="btn btn-primary" onClick={() => setSendModal(false)}>Close</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   const AccountDropdown = () => {
     const [open, setOpen] = useState(false);
     const [copied, setCopied] = useState(false);
-    const [activeChain, setActiveChain] = useState(CHAINS[0]);
     const [editingName, setEditingName] = useState(false);
     const [newName, setNewName] = useState('');
     const [editingCountry, setEditingCountry] = useState(false);
@@ -4182,36 +3728,25 @@ const GoalOracle = () => {
               {(() => { const xp = calculateXP(preds, results, leagues.length); const li = getLevelInfo(xp); return <div className="dropdown-xp"><Star size={13} style={{color:'var(--primary)'}} /> Level {li.level} — {li.title} <span className="dropdown-xp-num">({li.totalXP.toLocaleString()} XP)</span></div>; })()}
               {(() => { const { streak: s } = calculateStreak(preds, results); const b = getStreakBadge(s); return s > 0 ? <div className="dropdown-streak"><Flame size={13} style={{color:'var(--amber)'}} /> Streak: {s}{b && <span className={`streak-badge streak-badge-${b.tier}`}>{b.emoji} {b.name}</span>}</div> : null; })()}
             </div>
-            <div className="dropdown-divider"></div>
-            {/* Wallet section is intentionally quiet — collapsed by default
-                so the dropdown reads as a profile menu, not a crypto app.
-                The wallet stays available for the upcoming sweepstakes /
-                prize features but doesn't dominate the chrome today. */}
-            <button
-              type="button"
-              className={`dropdown-wallet-toggle ${walletOpen ? 'is-open' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setWalletOpen(v => !v); }}
-              aria-expanded={walletOpen}
-            >
-              <Wallet size={14} />
-              <span className="dropdown-wallet-toggle-label">Wallet</span>
-              {walletAddr && (
+            {/* Wallet section: only shown when an admin has assigned a payout
+                wallet. Read-only — sweepstakes payouts are sent here from the
+                treasury, off-app. Removed Add Funds + Send (no signer
+                available without an embedded wallet provider). */}
+            {walletAddr && (<>
+              <div className="dropdown-divider"></div>
+              <button
+                type="button"
+                className={`dropdown-wallet-toggle ${walletOpen ? 'is-open' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setWalletOpen(v => !v); }}
+                aria-expanded={walletOpen}
+              >
+                <Wallet size={14} />
+                <span className="dropdown-wallet-toggle-label">Payout wallet</span>
                 <code className="dropdown-wallet-toggle-addr">{walletAddr.slice(0, 6)}…{walletAddr.slice(-4)}</code>
-              )}
-              <ChevronDown size={14} className={`dropdown-wallet-toggle-chev ${walletOpen ? 'flip' : ''}`} />
-            </button>
-            {walletOpen && (
-              <div className="dropdown-wallet-section">
-                <div className="dropdown-section-label">Network</div>
-                <div className="chain-selector">
-                  {CHAINS.map(c => (
-                    <button key={c.id} className={`chain-option ${activeChain.id === c.id ? 'active' : ''}`} onClick={() => setActiveChain(c)}>
-                      <span className="chain-dot" style={{ background: c.color }}></span>
-                      <span>{c.name}</span>
-                    </button>
-                  ))}
-                </div>
-                {walletAddr ? (<>
+                <ChevronDown size={14} className={`dropdown-wallet-toggle-chev ${walletOpen ? 'flip' : ''}`} />
+              </button>
+              {walletOpen && (
+                <div className="dropdown-wallet-section">
                   <div className="dropdown-wallet">
                     <code className="wallet-addr">{walletAddr.slice(0, 10)}...{walletAddr.slice(-8)}</code>
                     <button className="copy-btn" onClick={copyAddress} title="Copy address">
@@ -4231,25 +3766,12 @@ const GoalOracle = () => {
                       <RefreshCw size={12} className={balLoading ? 'spin' : ''} />
                     </button>
                   </div>
-                </>) : (
-                  <div className="dropdown-wallet"><span className="no-wallet">No wallet connected</span></div>
-                )}
-                <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setFundModal(true); }}>
-                  <ArrowRightLeft size={16} />
-                  <div>
-                    <div className="dropdown-item-title">Receive / Add Funds</div>
-                    <div className="dropdown-item-sub">Bridge any token to USDC on Polygon</div>
+                  <div className="dropdown-wallet-note">
+                    Sweepstakes payouts are sent to this address on Polygon.
                   </div>
-                </button>
-                <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); setSendModal(true); }} disabled={!walletAddr}>
-                  <Send size={16} />
-                  <div>
-                    <div className="dropdown-item-title">Send</div>
-                    <div className="dropdown-item-sub">Transfer USDC or POL to another wallet</div>
-                  </div>
-                </button>
-              </div>
-            )}
+                </div>
+              )}
+            </>)}
             <div className="dropdown-divider"></div>
             <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); logout(); nav('landing'); }}>
               <LogOut size={16} />
@@ -4266,10 +3788,9 @@ const GoalOracle = () => {
   // ================================
   // ─── Feedback Form ─────────────────────────────────────────────────────
   const Feedback = () => {
-    // Try to get email from Privy — wallet-only users won't have one
-    const privyEmail = uData?.email || (typeof user?.email === 'string' ? user.email : user?.email?.address) || '';
-    const hasEmail = authenticated && !!privyEmail;
-    const [fbEmail, setFbEmail] = useState(privyEmail);
+    const userEmail = uData?.email || '';
+    const hasEmail = authenticated && !!userEmail;
+    const [fbEmail, setFbEmail] = useState(userEmail);
     const [fbName, setFbName] = useState(uData?.displayName || '');
     const [fbType, setFbType] = useState('general');
     const [fbMsg, setFbMsg] = useState('');
@@ -4278,7 +3799,7 @@ const GoalOracle = () => {
     const [fbError, setFbError] = useState('');
 
     // If logged in with email, use it; otherwise require manual entry
-    const finalEmail = hasEmail ? privyEmail : fbEmail.trim();
+    const finalEmail = hasEmail ? userEmail : fbEmail.trim();
 
     const handleFeedbackSubmit = async () => {
       if (!finalEmail || !fbMsg.trim()) return;
@@ -4338,7 +3859,7 @@ const GoalOracle = () => {
           )}
           {hasEmail && (
             <div className="feedback-signed-in">
-              <CheckCircle size={16} /> Submitting as <strong>{privyEmail}</strong>
+              <CheckCircle size={16} /> Submitting as <strong>{userEmail}</strong>
             </div>
           )}
           <div className="form-section">
@@ -4598,7 +4119,7 @@ const GoalOracle = () => {
           },
           {
             q: 'What about the wallets I see on the platform?',
-            a: 'When you sign up, an embedded wallet is automatically created for you via Privy. This is part of our authentication system and may be used for future features. Currently, no funds are collected, held, or managed by GoalOracle.'
+            a: 'GoalOracle does not create wallets for users. If a future sweepstakes or prize league pays out in crypto, a payout wallet address can be linked to your account by an administrator on request. No funds are collected, held, or managed by GoalOracle.'
           },
           {
             q: 'Is GoalOracle a gambling site?',
@@ -4616,7 +4137,7 @@ const GoalOracle = () => {
           },
           {
             q: 'What login methods are supported?',
-            a: 'You can sign up with email, Google, Twitter/X, or directly with a crypto wallet (MetaMask, Coinbase Wallet, etc.). All methods create the same account.'
+            a: 'You can sign up with your email (we send a 6-digit code) or with Google. Both methods create the same account, and you can switch between them anytime by signing in with the same email.'
           },
           {
             q: 'Who can I contact for support?',
@@ -5037,8 +4558,12 @@ const GoalOracle = () => {
       )}
       {view === 'feedback' && <Feedback key="feedback" />}
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} featureFlags={featureFlags} />}
-      {fundModal && <AddFundsModal />}
-      {sendModal && <SendModal />}
+      {showLogin && !authenticated && (
+        <LoginScreen
+          onClose={() => setShowLogin(false)}
+          onSignedIn={() => setShowLogin(false)}
+        />
+      )}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
       {showEmailPrompt && !showUsernamePrompt && authenticated && uData && <EmailPrompt />}
       {/* Passcode-first prompt — only fires for freshly created users

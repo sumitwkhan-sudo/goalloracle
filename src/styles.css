@@ -2124,6 +2124,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .dropdown-wallet-toggle-chev { color: var(--text-dim); transition: transform 0.15s ease; }
 .dropdown-wallet-toggle-chev.flip { transform: rotate(180deg); }
 .dropdown-wallet-section { padding: 0.25rem 0; }
+.dropdown-wallet-note {
+  font-size: 0.7rem; color: var(--text-dim);
+  padding: 0.45rem 0.75rem 0.25rem; line-height: 1.4;
+}
 .dropdown-section-label { padding: 0.75rem 1.25rem 0.25rem; font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); font-family: var(--mono); }
 .dropdown-wallet { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 1.25rem 0.75rem; }
 .wallet-addr { font-family: var(--mono); font-size: 0.75rem; color: var(--text-sec); background: var(--bg-elev); padding: 0.25rem 0.5rem; border-radius: 4px; }
@@ -5388,3 +5392,97 @@ body.light .lsd-head,
   .lsd-toggle { padding: 0.55rem 0.55rem; border-radius: 10px 0 0 10px; }
   .lsd-name { max-width: 7.5rem; }
 }
+
+/* ─── Login modal (email OTP + Google) ─── */
+.login-modal {
+  position: relative;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px;
+  width: 100%; max-width: 420px; padding: 2.25rem 1.75rem 1.75rem;
+  box-shadow: 0 20px 80px rgba(0,0,0,0.6);
+  animation: usernameIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.login-modal .modal-close {
+  position: absolute; top: 0.75rem; right: 0.75rem;
+  background: transparent; border: none; color: var(--text-dim);
+  width: 32px; height: 32px; border-radius: 8px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.login-modal .modal-close:hover { background: var(--bg-elev); color: var(--text); }
+.login-modal-header { text-align: center; margin-bottom: 1.25rem; }
+.login-modal-title { font-size: 1.4rem; font-weight: 700; margin: 0 0 0.4rem; }
+.login-modal-desc { font-size: 0.88rem; color: var(--text-sec); line-height: 1.5; margin: 0; }
+.login-back {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  background: transparent; border: none; color: var(--text-sec); cursor: pointer;
+  font-size: 0.78rem; padding: 0.25rem 0.5rem; margin-bottom: 0.5rem;
+}
+.login-back:hover { color: var(--text); }
+.login-label {
+  display: block; font-size: 0.78rem; font-weight: 600;
+  color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
+.login-input-wrap {
+  position: relative; display: flex; align-items: center; margin-bottom: 0.4rem;
+}
+.login-input-icon { position: absolute; left: 0.85rem; color: var(--text-dim); pointer-events: none; }
+.login-input {
+  width: 100%; padding: 0.85rem 0.85rem 0.85rem 2.5rem;
+  border: 1.5px solid var(--border); border-radius: 10px;
+  background: var(--bg-elev); color: var(--text);
+  font-family: var(--font); font-size: 1rem; font-weight: 600;
+  transition: all 0.2s;
+}
+.login-input:focus { outline: none; border-color: var(--primary); }
+.login-code-input {
+  padding-left: 0.85rem; text-align: center; letter-spacing: 0.5em;
+  font-size: 1.4rem; font-variant-numeric: tabular-nums;
+}
+.login-error {
+  display: flex; align-items: center; gap: 0.4rem;
+  color: var(--err, #ff3b30); font-size: 0.82rem; margin: 0.5rem 0 0;
+}
+.login-submit { width: 100%; margin-top: 1rem; }
+.login-resend { width: 100%; margin-top: 0.5rem; }
+.login-divider {
+  display: flex; align-items: center; gap: 0.75rem;
+  color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;
+  margin: 1rem 0;
+}
+.login-divider::before, .login-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.login-google-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.6rem; width: 100%;
+  padding: 0.75rem 1rem; border-radius: 10px;
+  background: #fff; color: #1f1f1f; border: 1.5px solid var(--border);
+  font-weight: 600; font-size: 0.95rem; cursor: pointer;
+  transition: all 0.15s;
+}
+.login-google-btn:hover:not(:disabled) { background: #f6f6f8; }
+.login-google-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ─── Admin payout wallet inline editor ─── */
+.admin-wallet-row {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.7rem; color: var(--text-dim); margin-top: 0.2rem;
+}
+.admin-wallet-addr { font-family: ui-monospace, SFMono-Regular, monospace; opacity: 0.8; }
+.admin-wallet-empty { font-style: italic; opacity: 0.6; }
+.admin-wallet-edit-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--text-dim);
+  cursor: pointer; padding: 2px 4px; border-radius: 4px;
+}
+.admin-wallet-edit-btn:hover { background: var(--bg-elev); color: var(--text); }
+.admin-wallet-edit-row {
+  display: flex; align-items: center; gap: 0.4rem; margin-top: 0.3rem;
+  flex-wrap: wrap;
+}
+.admin-wallet-input {
+  flex: 1; min-width: 16rem;
+  font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.78rem;
+  padding: 0.4rem 0.55rem;
+}
+

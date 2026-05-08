@@ -77,6 +77,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Email-OTP codes. Server-only — clients must never read or write
+    // these (would leak code hashes). The /api/auth/* endpoints use the
+    // admin SDK and bypass these rules.
+    match /authCodes/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     match /feedback/{feedbackId} {
       allow read: if false;
       allow create: if true;

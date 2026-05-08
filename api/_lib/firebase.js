@@ -1,10 +1,4 @@
-import { PrivyClient } from '@privy-io/server-auth';
 import admin from 'firebase-admin';
-
-const privy = new PrivyClient(
-  process.env.PRIVY_APP_ID,
-  process.env.PRIVY_APP_SECRET
-);
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -29,13 +23,12 @@ async function verifyAuth(req) {
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
   try {
-    const claims = await privy.verifyAuthToken(token);
-    if (!claims.userId && claims.sub) claims.userId = claims.sub;
-    return claims;
+    const decoded = await admin.auth().verifyIdToken(token);
+    return { userId: decoded.uid, sub: decoded.uid, email: decoded.email || null };
   } catch (e) {
     console.error('Token verification failed:', e.message);
     return null;
   }
 }
 
-export { privy, db, admin, corsHeaders, verifyAuth };
+export { db, admin, corsHeaders, verifyAuth };

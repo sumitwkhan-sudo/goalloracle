@@ -187,6 +187,33 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, updated, skipped, overrides: overrideHits });
     }
 
+    if (action === 'assignWallet') {
+      const { targetUserId, walletAddress } = req.body;
+      if (!targetUserId) return res.status(400).json({ error: 'Missing targetUserId' });
+      const trimmed = (walletAddress || '').trim();
+      // Empty string clears the field; otherwise must be a valid EVM address.
+      if (trimmed && !/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+        return res.status(400).json({ error: 'Invalid EVM wallet address' });
+      }
+      const userSnap = await db.collection('users').doc(targetUserId).get();
+      if (!userSnap.exists) return res.status(404).json({ error: 'User not found' });
+      const previous = userSnap.data().walletAddress || null;
+      await db.collection('users').doc(targetUserId).update({
+        walletAddress: trimmed || null,
+        walletAssignedBy: trimmed ? userId : null,
+        walletAssignedAt: trimmed ? FieldValue.serverTimestamp() : null,
+      });
+      await db.collection('adminLogs').add({
+        action: 'assign_wallet',
+        targetUserId,
+        previousWallet: previous,
+        newWallet: trimmed || null,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, walletAddress: trimmed || null });
+    }
+
     if (action === 'setFeatureFlag') {
       // Admin-toggleable feature flags. Stored at /settings/featureFlags
       // and read by every client on mount via /api/public?type=flags.
