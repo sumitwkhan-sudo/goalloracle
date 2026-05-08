@@ -188,17 +188,24 @@ export async function copyPredictions(sourceLeagueId, targetLeagueId) {
   return data;
 }
 
+// Hidden from all client views. Docs still exist in Firestore (admin SDK
+// can still read/write) but never surface to users — including the admin
+// dashboard. Sweep covers both the live snapshot and the all-leagues fetch.
+const HIDDEN_LEAGUE_IDS = new Set(['global']);
+const isVisibleLeague = (l) => l && !HIDDEN_LEAGUE_IDS.has(l.id);
+
 export function subscribeToUserLeagues(userId, callback) {
   const q = query(collection(db, 'leagues'), where('members', 'array-contains', userId));
   return onSnapshot(q, (snap) => {
-    console.log('[db] userLeagues snapshot:', snap.docs.length, 'docs for', userId);
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(isVisibleLeague);
+    console.log('[db] userLeagues snapshot:', docs.length, 'docs for', userId);
+    callback(docs);
   }, (err) => { console.error('[db] userLeagues error:', err.message, err.code); callback([]); });
 }
 
 export async function fetchAllLeagues() {
   const snap = await getDocs(collection(db, 'leagues'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(isVisibleLeague);
 }
 
 // ---- PREDICTIONS (direct Firestore writes with client-side lock check) ----

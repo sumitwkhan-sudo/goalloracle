@@ -56,7 +56,6 @@ export default function Dashboard({
   nav,
 }) {
   const ml = leagues.length > 0 ? leagues : [
-    { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', memberCount: stats.totalPlayers, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } },
     { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', memberCount: stats.totalPlayers },
   ];
   const ps = ml[0]?.pointsSystem || DEFAULT_PS;
