@@ -130,9 +130,12 @@ export async function createOrUpdateUser(authUser) {
   }
 }
 
-// Capture a `?ref=...` param off the current URL into sessionStorage so
-// it survives the OAuth round-trip and is available when the new user
-// doc is written. Idempotent — safe to call on every app mount.
+// Capture URL params that should survive the auth round-trip:
+//   ?ref=USERID    — referral attribution
+//   ?join=LEAGUE   — league auto-join after signup or on next mount
+//   ?p=PASSCODE    — passcode for private league joins
+// Stored in sessionStorage so the user doc / auto-join effect can read
+// them once auth resolves. Idempotent — safe to call on every app mount.
 export function captureReferralFromUrl() {
   try {
     if (typeof window === 'undefined') return;
@@ -141,7 +144,29 @@ export function captureReferralFromUrl() {
     if (ref && /^[A-Za-z0-9:_-]{3,80}$/.test(ref)) {
       sessionStorage.setItem('goaloracle_ref', ref);
     }
+    const join = params.get('join');
+    if (join && /^[A-Za-z0-9_-]{3,120}$/.test(join)) {
+      sessionStorage.setItem('goaloracle_pending_join', join);
+    }
+    const passcode = params.get('p');
+    if (passcode && /^[A-Za-z0-9_-]{3,40}$/.test(passcode)) {
+      sessionStorage.setItem('goaloracle_pending_passcode', passcode);
+    }
   } catch {}
+}
+
+export function consumePendingJoin() {
+  try {
+    if (typeof window === 'undefined') return null;
+    const leagueId = sessionStorage.getItem('goaloracle_pending_join');
+    if (!leagueId) return null;
+    const passcode = sessionStorage.getItem('goaloracle_pending_passcode') || null;
+    sessionStorage.removeItem('goaloracle_pending_join');
+    sessionStorage.removeItem('goaloracle_pending_passcode');
+    return { leagueId, passcode };
+  } catch {
+    return null;
+  }
 }
 
 export async function updateUserProfile(userId, updates) {

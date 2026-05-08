@@ -14,7 +14,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -815,23 +815,30 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       {sTab === 'leaderboard' && (() => {
         const isGlobal = league?.id === 'global-simple' || league?.id === 'global' || league?.isGlobal === true;
         const isPrivate = league?.visibility === 'private';
+        // Build a single invite URL the recipient can click. For non-global
+        // leagues we tack on `?join=LEAGUE_ID` so the auto-join effect picks
+        // it up after sign-up (or immediately if already signed in). Private
+        // leagues bake the passcode into the URL — that's already the
+        // passcode's purpose: gate joining for whoever has it.
         const handleInvite = async () => {
           const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
-          const refUrl = userData?.id ? `${origin}/?ref=${encodeURIComponent(userData.id)}` : origin;
-          let text;
-          if (isGlobal) {
-            text = `Pick the World Cup 26 winner with me on GoalOracle.\nSign up at ${refUrl}`;
-          } else {
-            const lines = [`Join my GoalOracle league "${league?.name || 'our league'}"!`];
-            if (isPrivate && league?.passcode) lines.push('', `Passcode: ${league.passcode}`);
-            lines.push('', `Sign up at ${refUrl}`);
-            text = lines.join('\n');
+          const params = new URLSearchParams();
+          if (userData?.id) params.set('ref', userData.id);
+          if (!isGlobal && league?.id) {
+            params.set('join', league.id);
+            if (isPrivate && league?.passcode) params.set('p', league.passcode);
           }
+          const url = `${origin}/?${params.toString()}`;
           try {
-            if (typeof navigator !== 'undefined' && navigator.share) { await navigator.share({ title: isGlobal ? 'GoalOracle' : 'Join my GoalOracle league', text }); return; }
-            await navigator.clipboard.writeText(text);
-            if (notify) notify(isPrivate && league?.passcode ? 'Invite + passcode copied' : 'Invite link copied');
-          } catch { if (notify) notify('Could not copy invite', 'error'); }
+            await navigator.clipboard.writeText(url);
+            if (notify) {
+              if (isGlobal) notify('Invite link copied');
+              else if (isPrivate && league?.passcode) notify('Invite link copied — joins automatically when opened');
+              else notify('Invite link copied — joins automatically when opened');
+            }
+          } catch {
+            if (notify) notify('Could not copy invite', 'error');
+          }
         };
         const rows = visibleSimLb.map(e => ({ ...e, delta: simDeltas[e.userId] }));
         return (
@@ -1139,6 +1146,48 @@ const GoalOracle = () => {
   // round-trip and is available when createOrUpdateUser writes the
   // new user doc.
   useEffect(() => { captureReferralFromUrl(); }, []);
+
+  // Auto-join via invite link. captureReferralFromUrl() stashes the league
+  // ID + optional passcode in sessionStorage; this effect consumes them
+  // once the user is authenticated and their leagues subscription has
+  // resolved (so we don't try to join a league they're already in).
+  // Runs once per session — consumePendingJoin clears the stored values.
+  const autoJoinAttempted = useRef(false);
+  useEffect(() => {
+    if (autoJoinAttempted.current) return;
+    if (!authenticated || !uData?.id || !ready) return;
+    if (typeof window === 'undefined') return;
+    // Need to wait for leagues to load so we can short-circuit if already a member.
+    const pending = (typeof sessionStorage !== 'undefined') && sessionStorage.getItem('goaloracle_pending_join');
+    if (!pending) { autoJoinAttempted.current = true; return; }
+    if (leagues.some(l => l.id === pending)) {
+      // Already a member — just clear pending and navigate.
+      consumePendingJoin();
+      autoJoinAttempted.current = true;
+      const target = leagues.find(l => l.id === pending);
+      if (target) nav('detail', target);
+      return;
+    }
+    autoJoinAttempted.current = true;
+    const { leagueId, passcode } = consumePendingJoin() || {};
+    if (!leagueId) return;
+    (async () => {
+      try {
+        await joinLeague(leagueId, uData.id, passcode);
+        notify('Joined the league');
+        // Wait one tick for the leagues subscription to refresh, then
+        // navigate. The subscribe handler will re-render with the new doc.
+        setTimeout(() => {
+          // Re-read from current state via a synthetic league object — the
+          // subscription will have populated it by the time the user lands.
+          nav('detail', { id: leagueId });
+        }, 600);
+      } catch (e) {
+        const msg = e?.message || 'Could not join — invite may have expired or passcode invalid';
+        notify(msg, 'error');
+      }
+    })();
+  }, [authenticated, uData?.id, ready, leagues, nav, notify]);
   // Feature flags are admin-toggleable. Initial fetch is fast (cached
   // edge response) and the live subscription keeps every client in sync
   // when an admin flips a toggle.
@@ -2918,7 +2967,39 @@ const GoalOracle = () => {
     // Wallet section is collapsed by default — most users never need it.
     // Will surface meaningfully when sweepstakes / paid leagues ship.
     const [walletOpen, setWalletOpen] = useState(false);
+    const [editingWallet, setEditingWallet] = useState(false);
+    const [walletInput, setWalletInput] = useState('');
+    const [walletConfirmed, setWalletConfirmed] = useState(false);
+    const [walletSaving, setWalletSaving] = useState(false);
     const walletAddr = walletAddress;
+    const isValidEvm = /^0x[a-fA-F0-9]{40}$/.test(walletInput.trim());
+
+    const startEditWallet = () => {
+      setWalletInput(walletAddr || '');
+      setWalletConfirmed(false);
+      setEditingWallet(true);
+    };
+    const cancelEditWallet = () => {
+      setEditingWallet(false);
+      setWalletInput('');
+      setWalletConfirmed(false);
+    };
+    const saveWallet = async () => {
+      if (!isValidEvm || !walletConfirmed || walletSaving) return;
+      setWalletSaving(true);
+      try {
+        const updated = await updateUserProfile(uData.id, { walletAddress: walletInput.trim() });
+        if (updated) setUData(updated);
+        setEditingWallet(false);
+        setWalletInput('');
+        setWalletConfirmed(false);
+        notify('Payout wallet saved');
+      } catch (e) {
+        notify('Could not save wallet. Try again.', 'error');
+      } finally {
+        setWalletSaving(false);
+      }
+    };
     const displayEmail = uData?.email || '';
     const displayName = uData?.displayName || displayEmail?.split('@')[0] || 'Player';
     const userCountryCode = uData?.country || '';
@@ -3011,50 +3092,120 @@ const GoalOracle = () => {
               {(() => { const xp = calculateXP(preds, results, leagues.length); const li = getLevelInfo(xp); return <div className="dropdown-xp"><Star size={13} style={{color:'var(--primary)'}} /> Level {li.level} — {li.title} <span className="dropdown-xp-num">({li.totalXP.toLocaleString()} XP)</span></div>; })()}
               {(() => { const { streak: s } = calculateStreak(preds, results); const b = getStreakBadge(s); return s > 0 ? <div className="dropdown-streak"><Flame size={13} style={{color:'var(--amber)'}} /> Streak: {s}{b && <span className={`streak-badge streak-badge-${b.tier}`}>{b.emoji} {b.name}</span>}</div> : null; })()}
             </div>
-            {/* Wallet section: only shown when an admin has assigned a payout
-                wallet. Read-only — sweepstakes payouts are sent here from the
-                treasury, off-app. Removed Add Funds + Send (no signer
-                available without an embedded wallet provider). */}
-            {walletAddr && (<>
-              <div className="dropdown-divider"></div>
-              <button
-                type="button"
-                className={`dropdown-wallet-toggle ${walletOpen ? 'is-open' : ''}`}
-                onClick={(e) => { e.stopPropagation(); setWalletOpen(v => !v); }}
-                aria-expanded={walletOpen}
-              >
-                <Wallet size={14} />
-                <span className="dropdown-wallet-toggle-label">Payout wallet</span>
+            {/* Payout wallet — user-editable EVM address. Sweepstakes
+                payouts go here on Polygon. Always shown so users can add
+                or edit; collapsed by default to keep the dropdown short. */}
+            <div className="dropdown-divider"></div>
+            <button
+              type="button"
+              className={`dropdown-wallet-toggle ${walletOpen ? 'is-open' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setWalletOpen(v => !v); }}
+              aria-expanded={walletOpen}
+            >
+              <Wallet size={14} />
+              <span className="dropdown-wallet-toggle-label">Payout wallet</span>
+              {walletAddr ? (
                 <code className="dropdown-wallet-toggle-addr">{walletAddr.slice(0, 6)}…{walletAddr.slice(-4)}</code>
-                <ChevronDown size={14} className={`dropdown-wallet-toggle-chev ${walletOpen ? 'flip' : ''}`} />
-              </button>
-              {walletOpen && (
-                <div className="dropdown-wallet-section">
-                  <div className="dropdown-wallet">
-                    <code className="wallet-addr">{walletAddr.slice(0, 10)}...{walletAddr.slice(-8)}</code>
-                    <button className="copy-btn" onClick={copyAddress} title="Copy address">
-                      {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
-                    </button>
-                  </div>
-                  <div className="dropdown-balances">
-                    <div className="balance-row">
-                      <span className="balance-token">USDC</span>
-                      <span className="balance-amount">{formatBalance(walletBalances.USDC)}</span>
-                    </div>
-                    <div className="balance-row balance-row-dim">
-                      <span className="balance-token">POL</span>
-                      <span className="balance-amount">{formatBalance(walletBalances.POL)}</span>
-                    </div>
-                    <button className="balance-refresh" onClick={e => { e.stopPropagation(); refreshBalances(); }} title="Refresh balances">
-                      <RefreshCw size={12} className={balLoading ? 'spin' : ''} />
-                    </button>
-                  </div>
-                  <div className="dropdown-wallet-note">
-                    Sweepstakes payouts are sent to this address on Polygon.
-                  </div>
-                </div>
+              ) : (
+                <span className="dropdown-wallet-toggle-empty">Add</span>
               )}
-            </>)}
+              <ChevronDown size={14} className={`dropdown-wallet-toggle-chev ${walletOpen ? 'flip' : ''}`} />
+            </button>
+            {walletOpen && (
+              <div className="dropdown-wallet-section">
+                {editingWallet ? (
+                  <div className="dropdown-wallet-editor">
+                    <label className="dropdown-wallet-label" htmlFor="payout-wallet-input">EVM-compatible address</label>
+                    <input
+                      id="payout-wallet-input"
+                      type="text"
+                      className={`dropdown-wallet-input ${walletInput && !isValidEvm ? 'is-invalid' : ''}`}
+                      placeholder="0x…"
+                      value={walletInput}
+                      onChange={e => setWalletInput(e.target.value.trim())}
+                      autoFocus
+                      spellCheck={false}
+                      autoComplete="off"
+                    />
+                    {walletInput && !isValidEvm && (
+                      <div className="dropdown-wallet-err">
+                        Address must be 0x followed by 40 hex characters (Ethereum, Polygon, Base, etc.).
+                      </div>
+                    )}
+                    <label className="dropdown-wallet-confirm">
+                      <input
+                        type="checkbox"
+                        checked={walletConfirmed}
+                        onChange={e => setWalletConfirmed(e.target.checked)}
+                      />
+                      <span>I confirm this is an EVM-compatible address. Sending payouts to a non-EVM address (e.g. Bitcoin, Solana) will result in lost funds.</span>
+                    </label>
+                    <div className="dropdown-wallet-actions">
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={saveWallet}
+                        disabled={!isValidEvm || !walletConfirmed || walletSaving}
+                      >
+                        {walletSaving ? 'Saving…' : (walletAddr ? 'Update' : 'Save')}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={cancelEditWallet}
+                        disabled={walletSaving}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : walletAddr ? (
+                  <>
+                    <div className="dropdown-wallet">
+                      <code className="wallet-addr">{walletAddr.slice(0, 10)}…{walletAddr.slice(-8)}</code>
+                      <button className="copy-btn" onClick={copyAddress} title="Copy address">
+                        {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
+                      </button>
+                      <button
+                        type="button"
+                        className="copy-btn"
+                        onClick={(e) => { e.stopPropagation(); startEditWallet(); }}
+                        title="Edit payout address"
+                      >
+                        <Target size={14} />
+                      </button>
+                    </div>
+                    <div className="dropdown-balances">
+                      <div className="balance-row">
+                        <span className="balance-token">USDC</span>
+                        <span className="balance-amount">{formatBalance(walletBalances.USDC)}</span>
+                      </div>
+                      <div className="balance-row balance-row-dim">
+                        <span className="balance-token">POL</span>
+                        <span className="balance-amount">{formatBalance(walletBalances.POL)}</span>
+                      </div>
+                      <button className="balance-refresh" onClick={e => { e.stopPropagation(); refreshBalances(); }} title="Refresh balances">
+                        <RefreshCw size={12} className={balLoading ? 'spin' : ''} />
+                      </button>
+                    </div>
+                    <div className="dropdown-wallet-note">
+                      Sweepstakes payouts are sent to this address on Polygon.
+                    </div>
+                  </>
+                ) : (
+                  <div className="dropdown-wallet-empty">
+                    <p>Add an EVM address (Ethereum, Polygon, Base, etc.) to receive sweepstakes payouts.</p>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={(e) => { e.stopPropagation(); startEditWallet(); }}
+                    >
+                      <Plus size={14} /> Add payout address
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="dropdown-divider"></div>
             <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); logout(); nav('landing'); }}>
               <LogOut size={16} />

@@ -19,7 +19,8 @@
 import React, { useMemo } from 'react';
 import {
   Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus,
-  CheckCircle, RefreshCw, Clock, Globe, MapPin, Users, Target, Eye, Share2,
+  CheckCircle, RefreshCw, Clock, Globe, MapPin, Users, Target, Share2,
+  ChevronRight,
 } from 'lucide-react';
 import { teamFlags, countryFlag } from '../utils/flags';
 
@@ -96,8 +97,13 @@ function LeaderboardRow({ row, rank, isYou, onRowClick, onEdit, onShareBracket }
         <PredictionCell winner={row.winner} runnerUp={row.runnerUp} />
       </div>
       <div className="ll-cell ll-cell-pts">
-        {row.totalAccuracy > 0 ? <span className="ll-pts-num">{row.totalAccuracy}%</span> : <span className="ll-pts-empty">—</span>}
+        {row.totalAccuracy > 0 ? <span className="ll-pts-num">{Math.round(row.totalAccuracy * 100)}%</span> : <span className="ll-pts-empty">—</span>}
       </div>
+      {!isYou && (
+        <div className="ll-cell ll-cell-chev" aria-hidden="true">
+          <ChevronRight size={14} />
+        </div>
+      )}
       {isYou && (
         <div className="ll-cell ll-cell-actions">
           <button
@@ -274,9 +280,10 @@ export default function LeagueLeaderboardLayout({
       <div className="ll-colheader" aria-hidden="true">
         <div className="ll-cell ll-cell-rank">RANK</div>
         <div className="ll-cell ll-cell-id">PLAYER</div>
-        <div className="ll-cell ll-cell-status">·</div>
+        <div className="ll-cell ll-cell-status" />
         <div className="ll-cell ll-cell-pred">PREDICTION</div>
-        <div className="ll-cell ll-cell-pts">ACC</div>
+        <div className="ll-cell ll-cell-pts" title="Score — % of available points scored so far">SCORE</div>
+        <div className="ll-cell ll-cell-chev" />
       </div>
 
       {loading ? (
