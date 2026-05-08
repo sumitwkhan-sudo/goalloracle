@@ -5844,3 +5844,298 @@ body.light .lsd-head,
 .td-pane-side .bs-card,
 .td-pane-side .insight-card,
 .td-pane-side > article { margin: 0; }
+
+/* ╔════════════════════════════════════════════════════════════════════╗
+   ║  LEAGUE LEADERBOARD LAYOUT — Apple HIG rebuild.                     ║
+   ║  Hairline dividers, no decorative pills, inline-arrow predictions,  ║
+   ║  sticky user row, ONE primary CTA per page.                         ║
+   ╚════════════════════════════════════════════════════════════════════╝ */
+
+.ll-shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1rem 1rem 6rem; /* extra bottom for sticky row clearance */
+  display: flex; flex-direction: column;
+}
+@media (min-width: 720px) {
+  .ll-shell { padding: 1.25rem 1.5rem 5rem; }
+}
+
+/* ── Header — league name + meta + ONE primary CTA ─────────────────── */
+.ll-header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; margin-bottom: 0.85rem; flex-wrap: wrap;
+}
+.ll-header-meta { display: flex; align-items: center; gap: 0.85rem; min-width: 0; }
+.ll-header-back {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-sec); border-radius: 8px; padding: 0.4rem 0.65rem;
+  font-family: var(--font); font-size: 0.78rem; cursor: pointer;
+  flex-shrink: 0;
+}
+.ll-header-back:hover { color: var(--text); border-color: var(--border-br); }
+.ll-header-title-block { min-width: 0; }
+.ll-header-title {
+  font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;
+  letter-spacing: -0.01em; margin: 0; line-height: 1.15;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
+.ll-header-sub {
+  font-family: var(--mono); font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-sec); margin-top: 3px;
+  display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+}
+.ll-header-dot { color: var(--text-dim); }
+.ll-header-invite {
+  background: var(--grad);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.05rem;
+  font-family: var(--font); font-weight: 700; font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+  transition: filter 0.12s, transform 0.12s;
+}
+.ll-header-invite:hover { filter: brightness(1.05); }
+.ll-header-invite:active { transform: translateY(1px); }
+@media (max-width: 720px) {
+  .ll-header { flex-wrap: nowrap; gap: 0.5rem; }
+  .ll-header-title { font-size: 1.05rem; }
+  .ll-header-sub { font-size: 0.62rem; }
+  .ll-header-invite { padding: 0.5rem 0.75rem; font-size: 0.78rem; }
+}
+
+/* ── Scope bar (global only) ──────────────────────────────────────── */
+.ll-scope {
+  display: flex; align-items: center; gap: 0.55rem;
+  margin-bottom: 0.7rem; flex-wrap: wrap;
+}
+.ll-scope-tabs {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--bg-elev); border-radius: 8px;
+}
+.ll-scope-tab {
+  background: transparent; border: none; color: var(--text-sec);
+  border-radius: 6px; padding: 0.4rem 0.7rem;
+  font-family: var(--font); font-size: 0.78rem; font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+  transition: background 0.12s, color 0.12s;
+}
+.ll-scope-tab:hover { color: var(--text); }
+.ll-scope-tab.is-active { background: var(--bg); color: var(--text); }
+.ll-scope-country {
+  background: var(--bg-elev); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.4rem 0.55rem; font-family: var(--font); font-size: 0.78rem;
+  cursor: pointer;
+}
+.ll-scope-hint { font-size: 0.74rem; color: var(--text-sec); }
+
+/* ── Column header — small caps, low contrast, optional ───────────── */
+.ll-colheader {
+  display: grid;
+  grid-template-columns: 76px 1fr 24px minmax(180px, 1.5fr) 60px;
+  gap: 0.85rem; align-items: center;
+  padding: 0.45rem 0.85rem 0.35rem;
+  font-family: var(--mono); font-size: 0.6rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+@media (max-width: 720px) {
+  .ll-colheader { display: none; }
+}
+
+/* ── List — hairline dividers between rows, no card chrome ────────── */
+.ll-list {
+  display: flex; flex-direction: column;
+}
+.ll-row {
+  display: grid;
+  grid-template-columns: 76px 1fr 24px minmax(180px, 1.5fr) 60px;
+  gap: 0.85rem; align-items: center;
+  padding: 0.85rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  color: var(--text);
+  transition: background 0.1s;
+  min-height: 56px;
+}
+.ll-row:hover { background: var(--bg-elev); }
+.ll-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  background: var(--primary-soft);
+}
+.ll-row:last-child { border-bottom: none; }
+
+/* You-row highlight — subtle tint + 3px primary edge, no heavy border */
+.ll-row-you {
+  background: var(--primary-soft);
+  position: relative;
+}
+.ll-row-you::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--primary);
+}
+.ll-row-you:hover { background: var(--primary-soft); filter: brightness(1.1); }
+
+/* Cells */
+.ll-cell { display: flex; align-items: center; min-width: 0; }
+.ll-cell-rank {
+  gap: 0.4rem;
+  font-family: var(--mono);
+}
+.ll-rank-num { font-weight: 700; font-size: 0.95rem; color: var(--text-sec); }
+.ll-row-you .ll-rank-num { color: var(--primary); }
+.ll-rank-trophy { flex-shrink: 0; }
+.ll-rank-gold { color: #FFC857; }
+.ll-rank-silver { color: #B0B7C3; }
+.ll-rank-bronze { color: #C68A55; }
+.ll-delta {
+  display: inline-flex; align-items: center; gap: 1px;
+  font-family: var(--mono); font-size: 0.65rem; font-weight: 700;
+}
+.ll-delta-up { color: var(--success); }
+.ll-delta-down { color: var(--danger); }
+
+.ll-cell-id { gap: 0.45rem; min-width: 0; }
+.ll-id-name {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  font-weight: 600; font-size: 0.92rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ll-row-you .ll-id-name { font-weight: 700; }
+.ll-id-flag { flex-shrink: 0; font-size: 1.05rem; line-height: 1; }
+.ll-id-you {
+  font-size: 0.6rem; font-weight: 700;
+  background: var(--primary); color: var(--bg);
+  padding: 1px 5px; border-radius: 3px;
+  margin-left: 4px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* Status — single icon, no pill */
+.ll-cell-status { justify-content: center; }
+.ll-status { flex-shrink: 0; }
+.ll-status-ok { color: var(--success); }
+.ll-status-progress { color: var(--amber); }
+.ll-status-none { color: var(--text-dim); }
+
+/* Prediction — inline arrow composition */
+.ll-cell-pred { justify-content: flex-start; }
+.ll-pred {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.84rem; min-width: 0;
+}
+.ll-pred-team {
+  display: inline-flex; align-items: center; gap: 4px;
+  min-width: 0;
+}
+.ll-pred-team-second .ll-pred-name { color: var(--text-sec); }
+.ll-pred-flag { font-size: 1rem; line-height: 1; flex-shrink: 0; }
+.ll-pred-name {
+  font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ll-pred-arrow { color: var(--text-dim); flex-shrink: 0; }
+.ll-pred-empty { color: var(--text-dim); font-size: 0.85rem; }
+
+/* Points */
+.ll-cell-pts { justify-content: flex-end; }
+.ll-pts-num {
+  font-family: var(--mono); font-weight: 700; font-size: 0.95rem;
+  color: var(--primary);
+}
+.ll-row-you .ll-pts-num { color: var(--primary); }
+.ll-pts-empty { color: var(--text-dim); font-family: var(--mono); }
+
+/* Inline action buttons on the user's own row */
+.ll-cell-actions {
+  grid-column: 1 / -1;
+  display: flex; gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding-left: calc(76px + 0.85rem);
+}
+.ll-row-action {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 0.35rem 0.65rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-sec);
+  font-family: var(--font); font-size: 0.74rem; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ll-row-action:hover { color: var(--text); border-color: var(--border-br); }
+.ll-row-action-primary {
+  background: var(--primary); color: var(--bg);
+  border-color: var(--primary);
+}
+.ll-row-action-primary:hover { filter: brightness(1.08); color: var(--bg); }
+
+/* ── Empty / loading ──────────────────────────────────────────────── */
+.ll-empty, .ll-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.6rem; padding: 2.5rem 1rem;
+  color: var(--text-sec); text-align: center;
+}
+.ll-empty p { margin: 0; font-size: 0.88rem; line-height: 1.5; }
+.ll-loading { flex-direction: row; }
+
+/* ── Sticky user-row pinned to viewport bottom on mobile, bottom of
+       leaderboard list on desktop. Apple Music's now-playing analog. ── */
+.ll-stickyrow {
+  position: sticky;
+  bottom: 0;
+  margin-top: 0.5rem;
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  z-index: 10;
+}
+.ll-stickyrow .ll-row { border-bottom: none; }
+@media (min-width: 720px) {
+  .ll-stickyrow {
+    border-radius: 12px;
+    border: 1px solid var(--border-br);
+    box-shadow: var(--shadow);
+  }
+}
+
+/* ── Mobile collapse — drop status column, compress prediction ────── */
+@media (max-width: 720px) {
+  .ll-row, .ll-colheader {
+    grid-template-columns: 52px 1fr auto;
+    gap: 0.55rem;
+    padding: 0.7rem 0.65rem;
+  }
+  .ll-cell-status { display: none; }
+  .ll-cell-pred {
+    grid-column: 1 / -1;
+    padding-left: calc(52px + 0.55rem);
+    margin-top: 4px;
+  }
+  .ll-cell-pred .ll-pred { font-size: 0.78rem; }
+  .ll-pred-flag { font-size: 0.92rem; }
+  .ll-cell-pts { font-size: 0.85rem; }
+  .ll-cell-actions {
+    padding-left: calc(52px + 0.55rem);
+    margin-top: 0.3rem;
+  }
+}

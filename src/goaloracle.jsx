@@ -20,6 +20,7 @@ import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
 import Dashboard from './components/Dashboard';
 import AnimatedCounter from './components/AnimatedCounter';
+import LeagueLeaderboardLayout from './components/LeagueLeaderboardLayout';
 import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
@@ -811,246 +812,50 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         </div>
       )}
 
-      {sTab === 'leaderboard' && (
-        <div className="leaderboard">
-          {/* Invite-friends + Edit-picks action row. Invite is hidden
-              on the global league (open to everyone, nothing to share);
-              edit-picks always shows so users can jump straight into
-              the wizard from the leaderboard. */}
-          <div className="lb-action-row">
-            {!isGlobalView && (() => {
-              const isPrivate = league?.visibility === 'private';
-              const handleInvite = async () => {
-                const code = league?.passcode;
-                const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
-                const refUrl = userData?.id ? `${origin}/?ref=${encodeURIComponent(userData.id)}` : origin;
-                const lines = [
-                  `Join my GoalOracle league "${league?.name || 'our league'}"!`,
-                ];
-                if (isPrivate && code) lines.push('', `Passcode: ${code}`);
-                lines.push('', `Sign up at ${refUrl}`);
-                const text = lines.join('\n');
-                try {
-                  if (typeof navigator !== 'undefined' && navigator.share) {
-                    await navigator.share({ title: 'Join my GoalOracle league', text });
-                    return;
-                  }
-                  await navigator.clipboard.writeText(text);
-                  if (notify) notify(isPrivate ? 'Invite + passcode copied — share with friends' : 'Invite copied — share with friends');
-                } catch {
-                  if (notify) notify('Could not copy invite', 'error');
-                }
-              };
-              return (
-                <button type="button" className="btn btn-secondary btn-sm" onClick={handleInvite}>
-                  <UserPlus size={14} /> Invite friends
-                </button>
-              );
-            })()}
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setSTab('predictions')}>
-              <Target size={14} /> Edit my picks
-            </button>
-          </div>
-
-          {!isGlobalView && (
-            <div className="leaderboard-header leaderboard-header-tabs-left">
-              <h3>Rankings</h3>
-            </div>
-          )}
-
-          {isGlobalView && (
-            <div className="lb-scope-bar">
-              <div className="lb-scope-tabs" role="tablist" aria-label="Leaderboard scope">
-                <button type="button" role="tab" aria-selected={lbScope === 'all'} className={`lb-scope-tab ${lbScope === 'all' ? 'active' : ''}`} onClick={() => setLbScope('all')}>
-                  <Globe size={12} /> Global
-                </button>
-                <button type="button" role="tab" aria-selected={lbScope === 'country'} className={`lb-scope-tab ${lbScope === 'country' ? 'active' : ''}`} onClick={() => setLbScope('country')}>
-                  <MapPin size={12} /> Country
-                </button>
-                <button type="button" role="tab" aria-selected={lbScope === 'friends'} className={`lb-scope-tab ${lbScope === 'friends' ? 'active' : ''}`} onClick={() => setLbScope('friends')}>
-                  <Users size={12} /> Friends
-                </button>
-              </div>
-              {lbScope === 'country' && (
-                <select
-                  className="lb-scope-country-select"
-                  value={lbScopeCountry}
-                  onChange={(e) => setLbScopeCountry(e.target.value)}
-                  aria-label="Filter leaderboard by country"
-                >
-                  <option value="">All countries</option>
-                  {countriesList.map(c => (
-                    <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-                  ))}
-                </select>
-              )}
-              {lbScope === 'friends' && friendIds.size === 0 && (
-                <span className="lb-scope-hint">Join a private league to see friends here.</span>
-              )}
-            </div>
-          )}
-
-          {/* Engagement CTA — sits at the top of the row list so it
-              gets surfaced before the user has to scroll. Hidden in
-              user-created leagues so we don't push them out. The
-              copy-link button uses the user's referral URL so any
-              sign-up that lands via the link is attributable. */}
-          {isGlobalView && (onBrowseLeagues || onCreateLeague) && userData?.id && (() => {
-            const referralUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://goaloracle.io'}/?ref=${encodeURIComponent(userData.id)}`;
-            const copyReferral = async () => {
-              try {
-                await navigator.clipboard.writeText(referralUrl);
-                if (notify) notify('Invite link copied. Share it with friends!');
-              } catch {
-                if (notify) notify('Could not copy link', 'error');
-              }
-            };
-            return (
-              <div className="lb-cta">
-                <div className="lb-cta-text">
-                  <strong>Beat your friends, not strangers.</strong>
-                  <span>Spin up a private league or share your invite — every friend you bring counts.</span>
-                </div>
-                <div className="lb-cta-actions">
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={copyReferral} title={referralUrl}>
-                    <Copy size={14} /> Copy invite link
-                  </button>
-                  {onBrowseLeagues && (
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={onBrowseLeagues}>
-                      Find a league
-                    </button>
-                  )}
-                  {onCreateLeague && (
-                    <button type="button" className="btn btn-primary btn-sm" onClick={onCreateLeague}>
-                      Start one
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
-          {(simLbl ? (
-            <div className="loading-state"><RefreshCw size={24} className="spin" /> Loading...</div>
-          ) : visibleSimLb.length === 0 ? (
-            <div className="empty-state lb-empty-state">
-              {lbScope === 'friends' ? (
-                <>
-                  <Users size={20} aria-hidden="true" />
-                  <p>No friends here yet — invite a few and watch the rankings come alive.</p>
-                  {userData?.id && (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={async () => {
-                        const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://goaloracle.io'}/?ref=${encodeURIComponent(userData.id)}`;
-                        try { await navigator.clipboard.writeText(url); if (notify) notify('Invite link copied!'); }
-                        catch { if (notify) notify('Could not copy link', 'error'); }
-                      }}
-                    >
-                      <Copy size={14} /> Copy invite link
-                    </button>
-                  )}
-                </>
-              ) : lbScope === 'country' ? (
-                <p>No players in {_countryFlag(lbScopeCountry)} {lbScopeCountry || 'this country'} yet. Be the first.</p>
-              ) : (
-                <p>No members yet.</p>
-              )}
-            </div>
-          ) : (
-            <div className="leaderboard-list">
-              {visibleSimLb.map((e, i) => {
-                const isYou = e.userId === userData?.id;
-                const rowClick = () => {
-                  if (isYou) setSTab('predictions');
-                  else setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp, leagueId: league?.id || 'global-simple' });
-                };
-                return (
-                <div
-                  key={e.userId}
-                  className={`leaderboard-item lb-clickable ${isYou ? 'is-you' : ''}`}
-                  onClick={rowClick}
-                  role="button"
-                  tabIndex={0}
-                  title={isYou ? 'Edit your picks' : `View ${e.displayName}'s picks`}
-                >
-                  <div className="rank">
-                    {i === 0 && <Trophy size={20} className="gold" />}
-                    {i === 1 && <Trophy size={20} className="silver" />}
-                    {i === 2 && <Trophy size={20} className="bronze" />}
-                    {i > 2 && <span>#{i + 1}</span>}
-                    <RankDelta delta={simDeltas[e.userId]} />
-                  </div>
-                  <div className="player-info">
-                    <div className="player-avatar">{e.displayName?.[0]?.toUpperCase() || '?'}</div>
-                    <div>
-                      <div className="player-name">
-                        {e.country && <span className="player-country-flag" title={e.country}>{_countryFlag(e.country)}</span>}
-                        {e.displayName}
-                        {isYou && <span className="you-badge">You</span>}
-                      </div>
-                      <div className="player-sub">
-                        {e.isComplete ? (
-                          <><CheckCircle size={11} style={{color:'var(--success)', verticalAlign:'middle'}} /> Complete</>
-                        ) : e.hasSubmitted ? (
-                          <>
-                            <RefreshCw size={11} style={{color:'var(--amber)', verticalAlign:'middle'}} />{' '}
-                            {typeof e.picksLeft === 'number' && e.picksLeft > 0
-                              ? `${e.picksLeft} pick${e.picksLeft === 1 ? '' : 's'} left`
-                              : 'In progress'}
-                          </>
-                        ) : (
-                          <><Clock size={11} style={{color:'var(--text-sec)', verticalAlign:'middle'}} /> Not started</>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {(e.winner || e.runnerUp) && (
-                    <div className="player-picks">
-                      {e.winner && (
-                        <span className="player-pick winner-pick" title="Predicted winner">
-                          <Trophy size={10} /> {_teamFlags[e.winner] || ''} {e.winner}
-                        </span>
-                      )}
-                      {e.runnerUp && (
-                        <span className="player-pick runnerup-pick" title="Predicted runner-up">
-                          <Award size={10} /> {_teamFlags[e.runnerUp] || ''} {e.runnerUp}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <div className="player-points">
-                    <span className="points">{e.totalAccuracy > 0 ? `${e.totalAccuracy}%` : '—'}</span>
-                    <div className="lb-row-actions">
-                      {isYou ? (
-                        <>
-                          <button type="button" className="lb-row-btn lb-row-btn-primary" onClick={(ev) => { ev.stopPropagation(); setSTab('predictions'); }}>
-                            <Target size={11} /> Edit
-                          </button>
-                          <button type="button" className="lb-row-btn" onClick={(ev) => { ev.stopPropagation(); setViewingPicks({ userId: e.userId, displayName: e.displayName, winner: e.winner, runnerUp: e.runnerUp, leagueId: league?.id || 'global-simple' }); }}>
-                            <Eye size={11} /> View
-                          </button>
-                          {/* Share moved off the page header onto the user's
-                              own row — it's a context-attached action,
-                              not a permanent header citizen. */}
-                          <button type="button" className="lb-row-btn" onClick={(ev) => { ev.stopPropagation(); openShareBracket(); }} aria-label="Share my bracket">
-                            <Share2 size={11} /> Share
-                          </button>
-                        </>
-                      ) : (
-                        <span className="lb-row-btn lb-row-btn-view"><Eye size={11} /> View picks</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-          ))}
-
-        </div>
-      )}
+      {sTab === 'leaderboard' && (() => {
+        const isGlobal = league?.id === 'global-simple' || league?.id === 'global' || league?.isGlobal === true;
+        const isPrivate = league?.visibility === 'private';
+        const handleInvite = async () => {
+          const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
+          const refUrl = userData?.id ? `${origin}/?ref=${encodeURIComponent(userData.id)}` : origin;
+          let text;
+          if (isGlobal) {
+            text = `Pick the World Cup 26 winner with me on GoalOracle.\nSign up at ${refUrl}`;
+          } else {
+            const lines = [`Join my GoalOracle league "${league?.name || 'our league'}"!`];
+            if (isPrivate && league?.passcode) lines.push('', `Passcode: ${league.passcode}`);
+            lines.push('', `Sign up at ${refUrl}`);
+            text = lines.join('\n');
+          }
+          try {
+            if (typeof navigator !== 'undefined' && navigator.share) { await navigator.share({ title: isGlobal ? 'GoalOracle' : 'Join my GoalOracle league', text }); return; }
+            await navigator.clipboard.writeText(text);
+            if (notify) notify(isPrivate && league?.passcode ? 'Invite + passcode copied' : 'Invite link copied');
+          } catch { if (notify) notify('Could not copy invite', 'error'); }
+        };
+        const rows = visibleSimLb.map(e => ({ ...e, delta: simDeltas[e.userId] }));
+        return (
+          <LeagueLeaderboardLayout
+            league={league}
+            rows={rows}
+            currentUserId={userData?.id}
+            scope={lbScope}
+            onScopeChange={setLbScope}
+            countryFilter={lbScopeCountry}
+            onCountryFilterChange={setLbScopeCountry}
+            countriesList={countriesList}
+            friendIds={friendIds}
+            onRowClick={(row) => {
+              if (row.userId === userData?.id) setSTab('predictions');
+              else setViewingPicks({ userId: row.userId, displayName: row.displayName, winner: row.winner, runnerUp: row.runnerUp, leagueId: league?.id || 'global-simple' });
+            }}
+            onEdit={() => setSTab('predictions')}
+            onInvite={handleInvite}
+            onShareBracket={openShareBracket}
+            loading={simLbl}
+          />
+        );
+      })()}
 
       {viewingPicks && (
         <PicksViewer
