@@ -1077,8 +1077,29 @@ const useScrollReveal = () => {
 };
 
 const AnimatedCounter = ({ value, prefix = '', suffix = '', decimals = 0 }) => {
+  // Animate from the currently displayed value to the new target —
+  // never reset to 0 on subsequent updates. preds / results stream in
+  // from Firestore in multiple bursts, each one recomputing
+  // totalStats; without this, the dashboard counters visibly blinked
+  // back to 0 and re-ran the ramp-up animation each time.
   const [d, setD] = useState(0);
-  useEffect(() => { if (!value) { setD(0); return; } let cur = 0, step = 0; const inc = value / 60; const t = setInterval(() => { step++; cur = Math.min(cur + inc, value); setD(cur); if (step >= 60) { setD(value); clearInterval(t); } }, 25); return () => clearInterval(t); }, [value]);
+  const dRef = useRef(0);
+  useEffect(() => { dRef.current = d; }, [d]);
+  useEffect(() => {
+    if (value == null || Number.isNaN(value)) { setD(0); dRef.current = 0; return; }
+    const start = dRef.current;
+    if (start === value) return;
+    const span = value - start;
+    const totalSteps = 30;
+    let step = 0;
+    const t = setInterval(() => {
+      step++;
+      if (step >= totalSteps) { setD(value); dRef.current = value; clearInterval(t); return; }
+      const cur = start + (span * step) / totalSteps;
+      setD(cur);
+    }, 25);
+    return () => clearInterval(t);
+  }, [value]);
   return <span>{prefix}{decimals > 0 ? d.toFixed(decimals) : Math.floor(d).toLocaleString()}{suffix}</span>;
 };
 
