@@ -1208,12 +1208,6 @@ const GoalOracle = () => {
   const [notif, setNotif] = useState(null);
   const [stats, setStats] = useState({ totalPlayers: 0, totalPrizePools: 0, activeLeagues: 0 });
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
-  const [showEmailPrompt, setShowEmailPrompt] = useState(false);
-  // Email prompt is deferred until the user has actually engaged with
-  // the product — stacking it on top of the username prompt the moment
-  // they sign in is modal whiplash. This flag carries the intent; the
-  // useEffect below decides when to surface it.
-  const [pendingEmailPrompt, setPendingEmailPrompt] = useState(false);
   const [shareCard, setShareCard] = useState(null); // { matchId, home, away, homeFlag, awayFlag, homeScore, awayScore, result }
   // Lifted from Detail — survives Firestore re-renders
   const [detailTab, setDetailTab] = useState('leaderboard');
@@ -1380,7 +1374,6 @@ const GoalOracle = () => {
         setRole(u.role || 'user');
         setShowLogin(false);
         if (u.usernameSet === false) setShowUsernamePrompt(true);
-        else if (!u.email && !u.emailSkipped) setPendingEmailPrompt(true);
 
         // Backfill country for existing users who signed up before we required
         // it. Product directive: known overrides go first, then IP geolocation,
@@ -1435,26 +1428,6 @@ const GoalOracle = () => {
     }
   }, [view, selLeague, featureFlags.classicEnabled, nav]);
 
-  // Surface the deferred email prompt once the user has engaged with the
-  // product — i.e. they've placed at least one Quick Picks selection or
-  // saved a classic prediction. Falls back to a 90s grace timer so we
-  // still capture the email from users who poke around without picking.
-  useEffect(() => {
-    if (!pendingEmailPrompt) return;
-    if (showUsernamePrompt) return; // never stack on top of the username modal
-    const qpStarted = !!quickPicks && quickPicks.totalRemaining < 52;
-    const classicStarted = Object.values(preds).some(p => p?.result);
-    if (qpStarted || classicStarted) {
-      setShowEmailPrompt(true);
-      setPendingEmailPrompt(false);
-      return;
-    }
-    const t = setTimeout(() => {
-      setShowEmailPrompt(true);
-      setPendingEmailPrompt(false);
-    }, 90000);
-    return () => clearTimeout(t);
-  }, [pendingEmailPrompt, showUsernamePrompt, quickPicks, preds]);
   // Keep selLeague synced with live Firestore data (e.g. memberCount changes) without remounting Detail
   useEffect(() => {
     if (!selLeague?.id) return;
@@ -3738,10 +3711,6 @@ const GoalOracle = () => {
         const updated = await updateUserProfile(uData.id, { displayName: trimmed, usernameSet: true, country: finalCountry });
         if (updated) setUData(updated);
         setShowUsernamePrompt(false);
-        // Email prompt is deferred — we mark it pending and surface it
-        // later, after the user has placed their first pick. Stacking
-        // it on top of the username prompt was modal whiplash.
-        if (updated && !updated.email && !updated.emailSkipped) setPendingEmailPrompt(true);
         notify(`Welcome, ${trimmed}!`);
         // New users go straight to the Quick Picks wizard. They've just
         // spent time picking a username and country — don't make them
@@ -3814,63 +3783,6 @@ const GoalOracle = () => {
   // EMAIL PROMPT (shown once to wallet-only users — we need an email so we
   // can send match reminders + result notifications)
   // ================================
-  const EmailPrompt = () => {
-    const [email, setEmail] = useState('');
-    const [err, setErr] = useState('');
-    const [busy, setBusy] = useState(false);
-
-    const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-
-    const handleSave = async () => {
-      const trimmed = email.trim();
-      if (!validEmail(trimmed)) { setErr('Please enter a valid email address.'); return; }
-      setBusy(true); setErr('');
-      try {
-        const updated = await updateUserProfile(uData.id, { email: trimmed });
-        if (updated) setUData(updated);
-        setShowEmailPrompt(false);
-        notify('Email saved — we\'ll send you match reminders.');
-      } catch(e) { setErr(e.message); } finally { setBusy(false); }
-    };
-
-    const handleSkip = async () => {
-      setBusy(true); setErr('');
-      try {
-        const updated = await updateUserProfile(uData.id, { emailSkipped: true });
-        if (updated) setUData(updated);
-        setShowEmailPrompt(false);
-      } catch(e) { setErr(e.message); } finally { setBusy(false); }
-    };
-
-    return (
-      <div className="modal-overlay" style={{zIndex: 2000}}>
-        <div className="username-modal">
-          <div className="username-modal-icon">✉️</div>
-          <h2 className="username-modal-title">Add your email</h2>
-          <p className="username-modal-desc">We&rsquo;ll only use it to send match reminders before kickoff and result notifications after. No spam — you can unsubscribe anytime.</p>
-
-          <div className="username-input-wrap">
-            <input
-              type="email" value={email}
-              onChange={e => { setEmail(e.target.value); setErr(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleSave()}
-              className="username-input" placeholder="you@example.com"
-              maxLength={120} autoFocus
-            />
-          </div>
-          {err && <div className="username-error"><AlertTriangle size={14} /> {err}</div>}
-
-          <button type="button" className="btn btn-primary btn-lg username-submit" onClick={handleSave} disabled={busy || !email.trim()}>
-            {busy ? <><RefreshCw size={16} className="spin" /> Saving...</> : <>Save email <ChevronRight size={16} /></>}
-          </button>
-
-          <button type="button" className="btn btn-ghost username-email-btn" onClick={handleSkip} disabled={busy}>
-            Skip for now
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   // GoalOracle Logo — Hexagonal GO monogram
   const GoalOracleLogo = ({ size = 24 }) => (
@@ -4084,7 +3996,6 @@ const GoalOracle = () => {
         />
       )}
       {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
-      {showEmailPrompt && !showUsernamePrompt && authenticated && uData && <EmailPrompt />}
       {/* Passcode-first prompt — only fires for freshly created users
           (onboardingComplete === false). Existing users created before
           this flag was added simply lack the field, so the strict

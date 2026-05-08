@@ -80,10 +80,14 @@ export async function createOrUpdateUser(authUser) {
     const userData = { id: userSnap.id, ...userSnap.data() };
     console.log('[auth] loaded user from Firestore:', userData.displayName, userData.role);
 
-    // Background sync: keep email fresh if the auth provider has one
+    // Keep email fresh if the auth provider has one. Reflect the new value
+    // on the returned object too — auth always provides an email now, so
+    // any caller checking `u.email` should see the up-to-date value rather
+    // than a stale or missing one from a pre-migration doc.
     if (emailAddr && emailAddr !== userData.email) {
       updateDoc(userRef, { email: emailAddr, updatedAt: serverTimestamp() })
         .catch(e => console.warn('[auth] background sync failed:', e.message));
+      userData.email = emailAddr;
     }
 
     return userData;
@@ -146,7 +150,6 @@ export async function updateUserProfile(userId, updates) {
   if (updates.displayName && updates.displayName.trim()) safeUpdates.displayName = updates.displayName.trim();
   if (updates.usernameSet === true) safeUpdates.usernameSet = true;
   if (updates.email) safeUpdates.email = updates.email;
-  if (updates.emailSkipped === true) safeUpdates.emailSkipped = true;
   if (updates.onboardingComplete === true) safeUpdates.onboardingComplete = true;
   if (typeof updates.country === 'string' && updates.country.trim()) safeUpdates.country = updates.country.trim().toUpperCase();
   if (updates.walletAddress) safeUpdates.walletAddress = updates.walletAddress;
