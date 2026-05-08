@@ -358,6 +358,27 @@ export async function getSimpleLeaderboard(leagueId) {
   return data;
 }
 
+// In-memory cache for crowd consensus. The endpoint already sets a
+// 5-minute edge cache, but multiple components on one page (rarity
+// card, boldest-call widget, contested-match card) share the data —
+// no point hitting Vercel six times in one render.
+const _consensusCache = new Map(); // leagueId -> { ts, promise }
+const CONSENSUS_TTL_MS = 5 * 60 * 1000;
+
+export async function getSimpleConsensus(leagueId) {
+  const now = Date.now();
+  const cached = _consensusCache.get(leagueId);
+  if (cached && (now - cached.ts) < CONSENSUS_TTL_MS) return cached.promise;
+  const promise = apiCall(`simple-consensus?leagueId=${encodeURIComponent(leagueId)}`)
+    .catch((e) => {
+      // Drop the cache entry on failure so the next caller retries.
+      _consensusCache.delete(leagueId);
+      throw e;
+    });
+  _consensusCache.set(leagueId, { ts: now, promise });
+  return promise;
+}
+
 export function subscribeToSimpleScore(userId, leagueId, callback) {
   const ref = doc(db, 'simplePredictions', simplePredDocId(userId, leagueId), 'scores', leagueId);
   return onSnapshot(ref, (snap) => {
@@ -429,11 +450,13 @@ export async function adminAssignWallet(targetUserId, walletAddress) {
 }
 
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
-// Defaults match the legacy behavior so a missing /settings/featureFlags
-// doc doesn't accidentally hide anything.
+// Defaults: Classic is opt-in. Quick Picks is the product surface; the
+// Classic flow is preserved in code for re-enabling later but stays
+// hidden from the UI unless /settings/featureFlags has classicEnabled
+// set to literal true.
 export const DEFAULT_FEATURE_FLAGS = {
   quickPicksEnabled: true,
-  classicEnabled: true,
+  classicEnabled: false,
 };
 
 export async function fetchFeatureFlags() {
@@ -443,7 +466,7 @@ export async function fetchFeatureFlags() {
     const data = await res.json();
     return {
       quickPicksEnabled: data.quickPicksEnabled !== false,
-      classicEnabled: data.classicEnabled !== false,
+      classicEnabled: data.classicEnabled === true,
     };
   } catch {
     return { ...DEFAULT_FEATURE_FLAGS };
@@ -463,7 +486,7 @@ export function subscribeToFeatureFlags(callback) {
     const data = snap.exists() ? (snap.data() || {}) : {};
     callback({
       quickPicksEnabled: data.quickPicksEnabled !== false,
-      classicEnabled: data.classicEnabled !== false,
+      classicEnabled: data.classicEnabled === true,
     });
   }, (err) => {
     console.warn('[featureFlags] subscription error (keeping last value):', err?.message || err);

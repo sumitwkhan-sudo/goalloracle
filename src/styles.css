@@ -1427,6 +1427,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .leaderboard-header { padding: 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 .leaderboard-header h3 { font-size: 1.1rem; }
 
+/* Action row at the top of the leaderboard tab — Invite friends and
+   Edit my picks. Sits above any header/scope bar so the two primary
+   actions are always reachable without scrolling, regardless of
+   global vs private league. */
+.lb-action-row {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+  padding: 0.75rem 1.25rem 0;
+}
+.lb-action-row .btn { flex: 0 0 auto; }
+@media (max-width: 480px) {
+  .lb-action-row { padding: 0.75rem 1rem 0; }
+  .lb-action-row .btn { flex: 1 1 auto; justify-content: center; }
+}
+
 /* Simple / Classic mode toggle */
 .lb-mode-toggle { display: inline-flex; gap: 0.25rem; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px; padding: 0.2rem; }
 .lb-mode-tab {
@@ -4241,6 +4255,172 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .bracket-hint-tooltip { font-size: 0.72rem; max-width: calc(100vw - 2rem); white-space: normal; text-align: center; }
 }
 /* Cascade-change toast: shown when re-picking a winner wipes downstream. */
+/* Boldest-call dashboard widget — single-line nudge surfacing the
+   user's most contrarian knockout pick relative to global Quick Picks
+   consensus. Compact so it can sit between the CTA stack and the
+   Needs Your Prediction list without making the dashboard feel busy. */
+.boldest-call-card {
+  display: flex; align-items: center; gap: 0.65rem;
+  margin: 0.6rem 0;
+  padding: 0.6rem 0.85rem;
+  background: linear-gradient(135deg, rgba(255,184,0,0.1), rgba(255,45,135,0.04));
+  border: 1px solid rgba(255,184,0,0.3);
+  border-radius: var(--radius);
+  font-size: 0.88rem; color: var(--text);
+}
+.boldest-call-icon {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--amber), var(--magenta)); color: #000;
+}
+.boldest-call-text { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.35; }
+.boldest-call-label {
+  font-family: var(--mono); font-size: 0.62rem;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-dim);
+}
+.boldest-call-body strong { font-weight: 700; }
+
+/* Most-contested-match dashboard card — companion to the boldest-call
+   widget. Same compact one-line shape; cyan accent instead of amber so
+   the two read as related-but-distinct when stacked. */
+.contested-card {
+  display: flex; align-items: center; gap: 0.65rem;
+  margin: 0.6rem 0;
+  padding: 0.6rem 0.85rem;
+  background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(123,97,255,0.05));
+  border: 1px solid rgba(0,212,255,0.3);
+  border-radius: var(--radius);
+  font-size: 0.88rem; color: var(--text);
+}
+.contested-card-icon {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyan), var(--violet)); color: #000;
+}
+.contested-card-text { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.35; }
+.contested-card-label {
+  font-family: var(--mono); font-size: 0.62rem;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-dim);
+}
+.contested-card-body strong { font-weight: 700; }
+
+/* Bracket-survival card — list of remaining-alive picks per round,
+   with a thin progress bar per row that drains as teams the user
+   picked get eliminated. Pre-tournament every row is full and the
+   header shows "Tournament starts in N days." Same compact slot in
+   the dashboard stack as the boldest-call / contested cards above. */
+.bracket-survival-card {
+  margin: 0.6rem 0;
+  padding: 0.75rem 0.85rem 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.bs-card-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.45rem;
+}
+.bs-card-icon {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primary-soft, rgba(124,92,255,0.16));
+  color: var(--primary, #7c5cff);
+}
+.bs-card-title {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text);
+}
+.bs-card-pre {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 0.62rem;
+  color: var(--text-dim);
+}
+.bs-card-rows {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.3rem;
+}
+.bs-card-row {
+  display: grid; grid-template-columns: 36px 1fr 56px;
+  align-items: center; gap: 0.55rem;
+  font-size: 0.78rem;
+}
+.bs-card-round {
+  font-family: var(--mono); font-size: 0.66rem; font-weight: 700;
+  color: var(--text-dim);
+}
+.bs-card-bar {
+  height: 6px; border-radius: 3px;
+  background: rgba(255,255,255,0.06); overflow: hidden;
+}
+.bs-card-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--success));
+  transition: width 0.4s ease;
+}
+.bs-card-count {
+  font-family: var(--mono); font-size: 0.78rem; font-weight: 700;
+  text-align: right; color: var(--text);
+}
+.bs-card-count.is-cracked { color: var(--amber, #ffb800); }
+
+/* Rarity reveal — Step 3 post-Final card showing how unique the
+   user's bracket is vs the global crowd. Sits above the bottom
+   nav, so the user notices the headline number before tapping
+   Continue. */
+.rarity-card {
+  margin: 1.25rem 0 0;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(135deg, rgba(124,92,255,0.12), rgba(0,212,255,0.06) 60%, rgba(255,45,135,0.1));
+  border: 1px solid var(--border-br, var(--border));
+  border-radius: var(--radius-lg);
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.rarity-card-head {
+  display: flex; align-items: center; gap: 0.7rem;
+}
+.rarity-card-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyan), var(--magenta)); color: #000;
+  flex-shrink: 0;
+}
+.rarity-card-headline {
+  font-size: 0.92rem; line-height: 1.4; color: var(--text);
+}
+.rarity-card-headline strong {
+  font-weight: 800; font-size: 1.05rem; color: var(--text);
+  font-family: var(--mono);
+}
+.rarity-card-rows {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+.rarity-card-row {
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px; border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.rarity-card-role {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-family: var(--mono); font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.rarity-card-team { font-weight: 600; color: var(--text); }
+.rarity-card-pct {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--text-sec);
+}
+.rarity-card-share { align-self: flex-start; }
+
 .bracket-cascade-toast {
   position: sticky; bottom: 1rem;
   margin: 1rem auto 0;
@@ -4281,6 +4461,42 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .bracket-row-pill.adv { background: rgba(0,230,118,0.18); color: #00E676; }
 .bracket-row-pill.out { background: rgba(255,82,82,0.14); color: #FF5252; }
 .bracket-row-lock { color: var(--text-dim); }
+
+/* Crowd consensus bar — appears below each picked match showing the
+   relative split of users who picked each team to advance. Only
+   rendered once the user has made their pick (no anchoring). */
+.bracket-consensus {
+  padding: 0.45rem 0.7rem 0.55rem;
+  border-top: 1px dashed var(--border);
+  display: flex; flex-direction: column; gap: 0.2rem;
+}
+.bracket-consensus-bar {
+  display: flex; height: 4px; border-radius: 2px; overflow: hidden;
+  background: rgba(255,255,255,0.05);
+}
+.bracket-consensus-fill { height: 100%; transition: width 0.35s ease; }
+.bracket-consensus-home { background: var(--cyan, #00d4ff); }
+.bracket-consensus-away { background: var(--magenta, #ff2d87); }
+.bracket-consensus-pcts {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim);
+}
+.bracket-consensus-label {
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.58rem;
+}
+.bracket-match.size-compact .bracket-consensus { padding: 0.3rem 0.5rem 0.4rem; }
+.bracket-match.size-compact .bracket-consensus-pcts { font-size: 0.58rem; }
+.bracket-match.size-compact .bracket-consensus-label { font-size: 0.52rem; }
+
+/* Consensus chip on PublicBracket finals rows — small badge next to
+   the team name showing % of users who agree with this end-state. */
+.pb-consensus {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  margin-left: 0.6rem; padding: 0.18rem 0.5rem; border-radius: 999px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.7rem;
+  color: var(--text-sec);
+}
 
 .bracket-match.size-compact .bracket-row { padding: 0.4rem 0.55rem; min-height: 36px; }
 .bracket-match.size-compact .bracket-row-name { font-size: 0.8rem; }

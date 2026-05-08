@@ -29,7 +29,7 @@ function buildShareUrl(userId, leagueId) {
   return origin;
 }
 
-function buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl }) {
+function buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl, rarityPct }) {
   const you = displayName || 'I';
   const lg = leagueName ? ` (${leagueName})` : '';
   const lines = [
@@ -38,6 +38,11 @@ function buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, s
     `Runner-up: ${runnerUp?.flag || ''} ${runnerUp?.name || 'TBD'}`.trim(),
   ];
   if (thirdPlace?.name) lines.push(`Third: ${thirdPlace.flag || ''} ${thirdPlace.name}`.trim());
+  // Drop the rarity hook into the caption when we have it — gives the
+  // share text a contrarian / consensus brag worth retweeting.
+  if (typeof rarityPct === 'number' && rarityPct >= 0 && rarityPct <= 99) {
+    lines.push('', `🎯 ${rarityPct}% more unique than the average bracket`);
+  }
   lines.push('', `Beat ${you === 'I' ? 'me' : you}: ${shareUrl || SITE_URL}`, '#GoalOracle #WorldCup26');
   return lines.join('\n');
 }
@@ -52,6 +57,7 @@ export default function BracketShareModal({
   winner,       // { name, flag }
   runnerUp,     // { name, flag }
   thirdPlace,   // { name, flag } — optional
+  rarityPct,    // optional — rarity score appended to the caption
   notify,
 }) {
   const [copied, setCopied] = useState(false);
@@ -61,7 +67,7 @@ export default function BracketShareModal({
   if (!open) return null;
 
   const shareUrl = buildShareUrl(userId, leagueId);
-  const caption = buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl });
+  const caption = buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl, rarityPct });
   const encoded = encodeURIComponent(caption);
 
   const openX = () => {

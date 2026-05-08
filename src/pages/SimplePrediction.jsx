@@ -21,6 +21,7 @@ import ScrollDownNudge from '../components/simple/ScrollDownNudge';
 import BestThirdSelector from '../components/simple/BestThirdSelector';
 import BracketMobile from '../components/simple/BracketMobile';
 import BracketDesktop from '../components/simple/BracketDesktop';
+import RarityCard from '../components/simple/RarityCard';
 import useSimplePrediction from '../hooks/useSimplePrediction';
 import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
@@ -29,7 +30,7 @@ import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isPredictionLocked } from '../utils/points';
-import { copySimplePrediction, resetSimplePrediction, getSimplePrediction } from '../utils/db';
+import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
@@ -85,6 +86,21 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   const [step, setStep] = useState(initialStep);
   const [showSaved, setShowSaved] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
+  // Crowd consensus for the active league. Lazy-fetched the first time
+  // the user reaches Step 3 (the bracket) — Step 1/2 don't surface
+  // consensus, no need to pay the round-trip up front. The wrapper
+  // memoizes per-leagueId so this won't re-fetch within the cache TTL.
+  const [consensus, setConsensus] = useState(null);
+  useEffect(() => {
+    if (step !== 3) return;
+    if (consensus) return;
+    if (!league?.id) return;
+    let cancelled = false;
+    getSimpleConsensus(league.id)
+      .then((data) => { if (!cancelled) setConsensus(data); })
+      .catch(() => { /* non-fatal — bars just won't render */ });
+    return () => { cancelled = true; };
+  }, [step, league?.id, consensus]);
   const [bracketHintVisible, setBracketHintVisible] = useState(() => {
     try { return localStorage.getItem(BRACKET_HINT_KEY) !== '1'; } catch { return true; }
   });
@@ -504,6 +520,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               matchLookup={matchLookup}
               showHint={bracketHintVisible}
               onDismissHint={dismissBracketHint}
+              consensus={consensus?.knockout}
             />
           ) : (
             <BracketMobile
@@ -515,6 +532,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               matchLookup={matchLookup}
               showHint={bracketHintVisible}
               onDismissHint={dismissBracketHint}
+              consensus={consensus?.knockout}
             />
           )}
 
@@ -523,6 +541,26 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               {cascadeToast}
             </div>
           )}
+
+          {/* Rarity reveal — once the user has picked the Final winner,
+              show how unique their bracket is vs the global crowd. The
+              card collapses gracefully if consensus is still loading or
+              the user is the first to submit. */}
+          {(() => {
+            const finalSlot = bracketState.bracket?.final?.[0];
+            const thirdSlot = bracketState.bracket?.thirdPlace?.[0];
+            if (!finalSlot?.pick?.winnerId) return null;
+            const winnerId = finalSlot.pick.winnerId;
+            const runnerUpId = winnerId === finalSlot.home ? finalSlot.away : finalSlot.home;
+            return (
+              <RarityCard
+                consensus={consensus}
+                champion={winnerId}
+                runnerUp={runnerUpId}
+                thirdPlace={thirdSlot?.pick?.winnerId || null}
+              />
+            );
+          })()}
 
           <div className="simple-step-nav simple-step-nav-split">
             <button type="button" className="btn btn-secondary" onClick={() => goToStep(2)}>

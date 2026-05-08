@@ -15,7 +15,7 @@ function formatMatchDate(dateStr) {
   return `${MONTH_SHORT[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
 
-function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick, readOnly = false }) {
+function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick, readOnly = false, homeAdvancePct, awayAdvancePct }) {
   const homeSelected = winnerId && winnerId === homeTeam;
   const awaySelected = winnerId && winnerId === awayTeam;
 
@@ -83,6 +83,29 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
       {label && <div className="bracket-match-label">{label}</div>}
       <Row isWinner={homeSelected} isLoser={homeIsLoser} isTBD={!homeTeam} flag={homeFlag} team={homeTeam} withLockIcon />
       <Row isWinner={awaySelected} isLoser={awayIsLoser} isTBD={!awayTeam} flag={awayFlag} team={awayTeam} />
+      {(homeAdvancePct != null || awayAdvancePct != null) && homeTeam && awayTeam && (
+        <div
+          className="bracket-consensus"
+          role="img"
+          aria-label={`Crowd consensus: ${homeTeam} ${Math.round((homeAdvancePct || 0) * 100)}%, ${awayTeam} ${Math.round((awayAdvancePct || 0) * 100)}%`}
+        >
+          <div className="bracket-consensus-bar">
+            <div
+              className="bracket-consensus-fill bracket-consensus-home"
+              style={{ width: `${(homeAdvancePct || 0) * 100}%` }}
+            />
+            <div
+              className="bracket-consensus-fill bracket-consensus-away"
+              style={{ width: `${(awayAdvancePct || 0) * 100}%` }}
+            />
+          </div>
+          <div className="bracket-consensus-pcts">
+            <span>{Math.round((homeAdvancePct || 0) * 100)}%</span>
+            <span className="bracket-consensus-label">crowd pick</span>
+            <span>{Math.round((awayAdvancePct || 0) * 100)}%</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

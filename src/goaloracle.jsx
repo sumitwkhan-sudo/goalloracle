@@ -14,7 +14,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -22,6 +22,9 @@ import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
+import BoldestCallCard from './components/simple/BoldestCallCard';
+import MostContestedCard from './components/simple/MostContestedCard';
+import BracketSurvivalCard from './components/simple/BracketSurvivalCard';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -625,6 +628,10 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   const [lbKey, setLbKey] = useState(0);
   const [viewingPicks, setViewingPicks] = useState(null); // { userId, displayName, winner, runnerUp }
   const [shareBracket, setShareBracket] = useState(null); // null | { winner, runnerUp, thirdPlace }
+  // Crowd consensus for the active league — used to surface bracket
+  // rarity in the share-modal caption. Lazy-fetched once the user
+  // opens the share flow; getSimpleConsensus memoizes per-league.
+  const [shareConsensus, setShareConsensus] = useState(null);
   const [countriesList, setCountriesList] = useState([]);
 
   // Lazy-load the countries list only when the filter is first used.
@@ -688,6 +695,11 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         runnerUp: runnerUpName ? { name: runnerUpName, flag: flags[runnerUpName] || '🏳️' } : null,
         thirdPlace: thirdName ? { name: thirdName, flag: flags[thirdName] || '🏳️' } : null,
       });
+      // Fire-and-forget: pull crowd consensus for the league so the
+      // share modal can report bracket rarity in the caption.
+      getSimpleConsensus(league.id)
+        .then((c) => setShareConsensus(c))
+        .catch(() => { /* non-fatal — caption still ships without rarity */ });
     } catch (e) {
       if (notify) notify(e?.message || 'Failed to load bracket', 'error');
     }
@@ -802,6 +814,45 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
       {sTab === 'leaderboard' && (
         <div className="leaderboard">
+          {/* Invite-friends + Edit-picks action row. Invite is hidden
+              on the global league (open to everyone, nothing to share);
+              edit-picks always shows so users can jump straight into
+              the wizard from the leaderboard. */}
+          <div className="lb-action-row">
+            {!isGlobalView && (() => {
+              const isPrivate = league?.visibility === 'private';
+              const handleInvite = async () => {
+                const code = league?.passcode;
+                const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
+                const refUrl = userData?.id ? `${origin}/?ref=${encodeURIComponent(userData.id)}` : origin;
+                const lines = [
+                  `Join my GoalOracle league "${league?.name || 'our league'}"!`,
+                ];
+                if (isPrivate && code) lines.push('', `Passcode: ${code}`);
+                lines.push('', `Sign up at ${refUrl}`);
+                const text = lines.join('\n');
+                try {
+                  if (typeof navigator !== 'undefined' && navigator.share) {
+                    await navigator.share({ title: 'Join my GoalOracle league', text });
+                    return;
+                  }
+                  await navigator.clipboard.writeText(text);
+                  if (notify) notify(isPrivate ? 'Invite + passcode copied — share with friends' : 'Invite copied — share with friends');
+                } catch {
+                  if (notify) notify('Could not copy invite', 'error');
+                }
+              };
+              return (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleInvite}>
+                  <UserPlus size={14} /> Invite friends
+                </button>
+              );
+            })()}
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setSTab('predictions')}>
+              <Target size={14} /> Edit my picks
+            </button>
+          </div>
+
           {!isGlobalView && (
             <div className="leaderboard-header leaderboard-header-tabs-left">
               <h3>Rankings</h3>
@@ -1037,6 +1088,18 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         winner={shareBracket?.winner}
         runnerUp={shareBracket?.runnerUp}
         thirdPlace={shareBracket?.thirdPlace}
+        rarityPct={(() => {
+          if (!shareConsensus || !shareBracket?.winner?.name || !shareBracket?.runnerUp?.name) return undefined;
+          const c = shareConsensus.champion?.[shareBracket.winner.name];
+          const r = shareConsensus.runnerUp?.[shareBracket.runnerUp.name];
+          const t = shareBracket.thirdPlace?.name
+            ? shareConsensus.thirdPlace?.[shareBracket.thirdPlace.name]
+            : null;
+          const known = [c, r, t].filter((v) => typeof v === 'number');
+          if (known.length === 0) return undefined;
+          const avg = known.reduce((a, b) => a + b, 0) / known.length;
+          return Math.min(99, Math.round((1 - avg) * 100));
+        })()}
         notify={notify}
       />
     </div>
@@ -1056,8 +1119,29 @@ const useScrollReveal = () => {
 };
 
 const AnimatedCounter = ({ value, prefix = '', suffix = '', decimals = 0 }) => {
+  // Animate from the currently displayed value to the new target —
+  // never reset to 0 on subsequent updates. preds / results stream in
+  // from Firestore in multiple bursts, each one recomputing
+  // totalStats; without this, the dashboard counters visibly blinked
+  // back to 0 and re-ran the ramp-up animation each time.
   const [d, setD] = useState(0);
-  useEffect(() => { if (!value) { setD(0); return; } let cur = 0, step = 0; const inc = value / 60; const t = setInterval(() => { step++; cur = Math.min(cur + inc, value); setD(cur); if (step >= 60) { setD(value); clearInterval(t); } }, 25); return () => clearInterval(t); }, [value]);
+  const dRef = useRef(0);
+  useEffect(() => { dRef.current = d; }, [d]);
+  useEffect(() => {
+    if (value == null || Number.isNaN(value)) { setD(0); dRef.current = 0; return; }
+    const start = dRef.current;
+    if (start === value) return;
+    const span = value - start;
+    const totalSteps = 30;
+    let step = 0;
+    const t = setInterval(() => {
+      step++;
+      if (step >= totalSteps) { setD(value); dRef.current = value; clearInterval(t); return; }
+      const cur = start + (span * step) / totalSteps;
+      setD(cur);
+    }, 25);
+    return () => clearInterval(t);
+  }, [value]);
   return <span>{prefix}{decimals > 0 ? d.toFixed(decimals) : Math.floor(d).toLocaleString()}{suffix}</span>;
 };
 
@@ -1159,7 +1243,7 @@ const GoalOracle = () => {
   const [pendingEmailPrompt, setPendingEmailPrompt] = useState(false);
   const [shareCard, setShareCard] = useState(null); // { matchId, home, away, homeFlag, awayFlag, homeScore, awayScore, result }
   // Lifted from Detail — survives Firestore re-renders
-  const [detailTab, setDetailTab] = useState('predictions');
+  const [detailTab, setDetailTab] = useState('leaderboard');
   const [detailWeek, setDetailWeek] = useState('week1');
   const [detailStage, setDetailStage] = useState('all');
   const [standingsOpen, setStandingsOpen] = useState(false);
@@ -1234,7 +1318,12 @@ const GoalOracle = () => {
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
   const nav = useCallback((v, l, opts = {}) => {
-    if (l) { setSelLeague(l); setDetailTab(opts.tab || 'predictions'); setDetailWeek('week1'); setDetailStage('all'); }
+    // Default tab when entering a league detail is the leaderboard —
+    // most clicks "into a league" want to see standings first. Call
+    // sites that specifically want the prediction wizard pass
+    // { tab: 'predictions' } explicitly (continue / needs-prediction
+    // CTAs do this).
+    if (l) { setSelLeague(l); setDetailTab(opts.tab || 'leaderboard'); setDetailWeek('week1'); setDetailStage('all'); }
     if (v === 'browse') loadAllLeagues();
     setView(prev => prev === v && !l ? prev : v);
     setMenuOpen(false);
@@ -1811,7 +1900,7 @@ const GoalOracle = () => {
         id: 'global-simple', name: 'Global League', type: 'free',
         predictionMode: 'simple', isGlobal: true,
       };
-      nav('detail', globalSimple);
+      nav('detail', globalSimple, { tab: 'predictions' });
     };
 
     const heroCtas = useMemo(() => {
@@ -2239,7 +2328,7 @@ const GoalOracle = () => {
           title: `Finish your bracket — ${quickPicks.totalRemaining} pick${quickPicks.totalRemaining === 1 ? '' : 's'} left`,
           sub: `About ${etaMin} min · locks when the opener kicks off`,
           cta: 'Continue picking',
-          onClick: () => { if (qpLeague) { setDetailTab('predictions'); nav('detail', qpLeague); } else { nav('simplePredict'); } },
+          onClick: () => { if (qpLeague) { nav('detail', qpLeague, { tab: 'predictions' }); } else { nav('simplePredict'); } },
         };
       }
 
@@ -2264,7 +2353,7 @@ const GoalOracle = () => {
           title: `${soon.home} vs ${soon.away}`,
           sub: `Predict before kickoff to keep your streak alive.`,
           cta: 'Predict match',
-          onClick: () => { if (classicLeague) { setDetailTab('predictions'); nav('detail', classicLeague); } },
+          onClick: () => { if (classicLeague) { nav('detail', classicLeague, { tab: 'predictions' }); } },
         };
       }
 
@@ -2415,7 +2504,7 @@ const GoalOracle = () => {
               </div>
               <button className="btn btn-primary btn-lg" onClick={() => {
                 const simpleL = ml.find(l => l.predictionMode === 'simple') || ml[0];
-                nav('detail', simpleL);
+                nav('detail', simpleL, { tab: 'predictions' });
               }}>
                 Start predicting <ChevronRight size={16} />
               </button>
@@ -2488,8 +2577,7 @@ const GoalOracle = () => {
             className="dv2-cta-primary"
             onClick={() => {
               const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
-              setDetailTab('predictions');
-              nav('detail', gs);
+              nav('detail', gs, { tab: 'predictions' });
             }}
           >
             <span className="dv2-cta-primary-icon"><Target size={18} /></span>
@@ -2507,6 +2595,26 @@ const GoalOracle = () => {
             </button>
           </div>
         </div>
+
+        {/* Surfaces the user's most contrarian knockout pick. Internally
+            gated on having enough other submitters for the % to mean
+            something, and on the user having submitted any picks. Hidden
+            otherwise — never shows a placeholder. */}
+        {uData?.id && (
+          <BoldestCallCard userId={uData.id} leagueId="global-simple" />
+        )}
+        {/* Crowd-level companion to the boldest-call widget: the bracket
+            slot where users are most evenly split. Same MIN_USER threshold
+            and same hidden-when-unavailable behavior, so this won't appear
+            until consensus has substance. */}
+        <MostContestedCard leagueId="global-simple" />
+        {/* Bracket survival — shows how many of the user's predicted
+            advances are still alive given current results. Pre-tournament
+            this is full counts plus a "Tournament starts in N days"
+            ribbon. Hidden if the user has no picks. */}
+        {uData?.id && (
+          <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />
+        )}
 
         {/* Needs Prediction — only render once quickPicks has loaded so the
             section doesn't flicker between "All caught up" and the action
@@ -2530,7 +2638,7 @@ const GoalOracle = () => {
                 const summary = remainingBits.length > 0 ? remainingBits.join(' · ') : 'Finish your picks';
                 const estMin = Math.max(1, Math.round(quickPicks.totalRemaining * 8 / 60));
                 return (
-                  <div key={qpLeague.id} className="dv2-action-card dv2-action-card-qp" onClick={() => { setDetailTab('predictions'); nav('detail', qpLeague); }}>
+                  <div key={qpLeague.id} className="dv2-action-card dv2-action-card-qp" onClick={() => nav('detail', qpLeague, { tab: 'predictions' })}>
                     <div className="dv2-ac-body">
                       <div className="dv2-ac-tags">
                         <span className="dv2-ac-tag dv2-ac-tag-qp"><Target size={10} /> Quick Picks</span>
@@ -4419,8 +4527,7 @@ const GoalOracle = () => {
           onCreateLeague={() => nav('create')}
           onOpenClassic={() => {
             const classic = leagues.find((l) => l.id === 'global') || allLeagues.find((l) => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } };
-            setDetailTab('predictions');
-            nav('detail', classic);
+            nav('detail', classic, { tab: 'predictions' });
           }}
           initialTab={detailTab === 'predictions' ? 'predictions' : 'leaderboard'}
           myLeagues={leagues}
