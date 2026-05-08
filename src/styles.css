@@ -6480,3 +6480,258 @@ body.light .lsd-head,
   .leagues-hero-cta, .leagues-hero-secondary { flex: 1; justify-content: center; }
   .leagues-section-label { padding: 0 0.75rem; }
 }
+
+/* ============================================
+   NEWS TICKER + DASHBOARD NEWS FEED
+   ============================================ */
+
+/* Sits directly under the navbar on every view. Pinned label on the
+   left, marquee track on the right. Pure visual scroller — items are
+   spans, never anchors, so users can't click out. */
+.news-ticker {
+  --news-ticker-duration: 42s;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: 36px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+  z-index: 99; /* sits below navbar (z 100), above page content */
+  user-select: none;
+}
+.news-ticker-label {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0 0.85rem;
+  background: linear-gradient(90deg, var(--bg-card), var(--bg-elev));
+  border-right: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  box-shadow: 4px 0 12px -8px rgba(0, 0, 0, 0.4);
+}
+.news-ticker-label-text { white-space: nowrap; }
+.news-ticker-pulse {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 0 var(--primary);
+  animation: news-ticker-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  flex-shrink: 0;
+}
+@keyframes news-ticker-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.7); transform: scale(1); }
+  70%  { box-shadow: 0 0 0 7px rgba(0, 212, 255, 0); transform: scale(1.15); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); transform: scale(1); }
+}
+[data-theme="fifa2026"] .news-ticker-pulse {
+  animation-name: news-ticker-pulse-fifa;
+}
+@keyframes news-ticker-pulse-fifa {
+  0%   { box-shadow: 0 0 0 0 rgba(2, 185, 6, 0.7); transform: scale(1); }
+  70%  { box-shadow: 0 0 0 7px rgba(2, 185, 6, 0); transform: scale(1.15); }
+  100% { box-shadow: 0 0 0 0 rgba(2, 185, 6, 0); transform: scale(1); }
+}
+
+.news-ticker-viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  /* Soft fade on both ends so items appear/exit without a hard edge. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+.news-ticker-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 0; /* spacing comes from item padding */
+  white-space: nowrap;
+  animation: news-ticker-scroll var(--news-ticker-duration) linear infinite;
+  will-change: transform;
+}
+.news-ticker:hover .news-ticker-track {
+  animation-play-state: paused;
+}
+@keyframes news-ticker-scroll {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+.news-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 1rem;
+  font-size: 0.78rem;
+  line-height: 1;
+  color: var(--text);
+}
+.news-ticker-flag {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.news-ticker-team {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.news-ticker-text {
+  color: var(--text);
+  font-weight: 500;
+}
+.news-ticker-sep {
+  color: var(--text-dim);
+  font-size: 0.55rem;
+  padding: 0 0.15rem;
+}
+
+/* FIFA theme: warmer accent, gold-tinted item separator */
+[data-theme="fifa2026"] .news-ticker {
+  border-bottom-color: rgba(255, 219, 0, 0.18);
+  border-top-color: rgba(255, 219, 0, 0.1);
+}
+[data-theme="fifa2026"] .news-ticker-label {
+  color: #02B906;
+  background: linear-gradient(90deg, #000, #0A0A0A);
+  border-right-color: rgba(255, 219, 0, 0.15);
+}
+[data-theme="fifa2026"] .news-ticker-team { color: #FFDB00; }
+[data-theme="fifa2026"] .news-ticker-sep { color: rgba(255, 219, 0, 0.35); }
+
+@media (max-width: 720px) {
+  .news-ticker {
+    --news-ticker-duration: 32s;
+    height: 32px;
+  }
+  .news-ticker-label { padding: 0 0.6rem; font-size: 0.58rem; gap: 0.3rem; }
+  .news-ticker-label-text { display: none; }
+  .news-ticker-item { padding: 0 0.7rem; font-size: 0.74rem; gap: 0.35rem; }
+  .news-ticker-flag { font-size: 0.85rem; }
+  .news-ticker-team { font-size: 0.66rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .news-ticker-track { animation: none; transform: none; }
+  .news-ticker-pulse { animation: none; }
+}
+
+/* ── Dashboard news feed — three articles per day, clickable. Built
+   around the same dense-row idiom as .td-row / .td-recent-row so it
+   reads as part of the dashboard, not a foreign widget. */
+.news-feed {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.news-feed-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem;
+}
+.news-feed-date {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.news-feed-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+.news-feed-item-wrap { display: block; }
+.news-feed-item {
+  display: grid;
+  grid-template-columns: minmax(80px, 110px) 1fr auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-elev);
+  border: 1px solid transparent;
+  border-left: 3px solid var(--primary);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+.news-feed-item:hover {
+  border-color: var(--border-br);
+  background: var(--bg-card);
+  transform: translateX(2px);
+}
+.news-feed-item:hover .news-feed-meta svg { color: var(--primary); }
+.news-feed-source {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.news-feed-source-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+.news-feed-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.news-feed-meta {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--text-sec);
+  white-space: nowrap;
+}
+.news-feed-team {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.news-feed-meta svg { color: var(--text-dim); transition: color 0.2s; }
+
+[data-theme="fifa2026"] .news-feed-item {
+  border-left-color: #02B906;
+}
+[data-theme="fifa2026"] .news-feed-source { color: #FFDB00; }
+[data-theme="fifa2026"] .news-feed-source-dot { background: #FFDB00; }
+
+@media (max-width: 720px) {
+  .news-feed { padding: 0.75rem 0.85rem 0.55rem; }
+  .news-feed-item {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0.25rem 0.6rem;
+    padding: 0.55rem 0.65rem;
+  }
+  .news-feed-source { grid-column: 1; grid-row: 1; }
+  .news-feed-meta { grid-column: 2; grid-row: 1; }
+  .news-feed-title {
+    grid-column: 1 / -1; grid-row: 2;
+    font-size: 0.82rem; line-height: 1.3;
+  }
+}
