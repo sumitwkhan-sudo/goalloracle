@@ -1427,6 +1427,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .leaderboard-header { padding: 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 .leaderboard-header h3 { font-size: 1.1rem; }
 
+/* Action row at the top of the leaderboard tab — Invite friends and
+   Edit my picks. Sits above any header/scope bar so the two primary
+   actions are always reachable without scrolling, regardless of
+   global vs private league. */
+.lb-action-row {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+  padding: 0.75rem 1.25rem 0;
+}
+.lb-action-row .btn { flex: 0 0 auto; }
+@media (max-width: 480px) {
+  .lb-action-row { padding: 0.75rem 1rem 0; }
+  .lb-action-row .btn { flex: 1 1 auto; justify-content: center; }
+}
+
 /* Simple / Classic mode toggle */
 .lb-mode-toggle { display: inline-flex; gap: 0.25rem; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px; padding: 0.2rem; }
 .lb-mode-tab {

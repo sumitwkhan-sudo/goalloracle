@@ -811,6 +811,45 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
       {sTab === 'leaderboard' && (
         <div className="leaderboard">
+          {/* Invite-friends + Edit-picks action row. Invite is hidden
+              on the global league (open to everyone, nothing to share);
+              edit-picks always shows so users can jump straight into
+              the wizard from the leaderboard. */}
+          <div className="lb-action-row">
+            {!isGlobalView && (() => {
+              const isPrivate = league?.visibility === 'private';
+              const handleInvite = async () => {
+                const code = league?.passcode;
+                const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
+                const refUrl = userData?.id ? `${origin}/?ref=${encodeURIComponent(userData.id)}` : origin;
+                const lines = [
+                  `Join my GoalOracle league "${league?.name || 'our league'}"!`,
+                ];
+                if (isPrivate && code) lines.push('', `Passcode: ${code}`);
+                lines.push('', `Sign up at ${refUrl}`);
+                const text = lines.join('\n');
+                try {
+                  if (typeof navigator !== 'undefined' && navigator.share) {
+                    await navigator.share({ title: 'Join my GoalOracle league', text });
+                    return;
+                  }
+                  await navigator.clipboard.writeText(text);
+                  if (notify) notify(isPrivate ? 'Invite + passcode copied — share with friends' : 'Invite copied — share with friends');
+                } catch {
+                  if (notify) notify('Could not copy invite', 'error');
+                }
+              };
+              return (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleInvite}>
+                  <UserPlus size={14} /> Invite friends
+                </button>
+              );
+            })()}
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setSTab('predictions')}>
+              <Target size={14} /> Edit my picks
+            </button>
+          </div>
+
           {!isGlobalView && (
             <div className="leaderboard-header leaderboard-header-tabs-left">
               <h3>Rankings</h3>
@@ -1193,7 +1232,7 @@ const GoalOracle = () => {
   const [pendingEmailPrompt, setPendingEmailPrompt] = useState(false);
   const [shareCard, setShareCard] = useState(null); // { matchId, home, away, homeFlag, awayFlag, homeScore, awayScore, result }
   // Lifted from Detail — survives Firestore re-renders
-  const [detailTab, setDetailTab] = useState('predictions');
+  const [detailTab, setDetailTab] = useState('leaderboard');
   const [detailWeek, setDetailWeek] = useState('week1');
   const [detailStage, setDetailStage] = useState('all');
   const [standingsOpen, setStandingsOpen] = useState(false);
@@ -1268,7 +1307,12 @@ const GoalOracle = () => {
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
   const nav = useCallback((v, l, opts = {}) => {
-    if (l) { setSelLeague(l); setDetailTab(opts.tab || 'predictions'); setDetailWeek('week1'); setDetailStage('all'); }
+    // Default tab when entering a league detail is the leaderboard —
+    // most clicks "into a league" want to see standings first. Call
+    // sites that specifically want the prediction wizard pass
+    // { tab: 'predictions' } explicitly (continue / needs-prediction
+    // CTAs do this).
+    if (l) { setSelLeague(l); setDetailTab(opts.tab || 'leaderboard'); setDetailWeek('week1'); setDetailStage('all'); }
     if (v === 'browse') loadAllLeagues();
     setView(prev => prev === v && !l ? prev : v);
     setMenuOpen(false);
@@ -1866,7 +1910,7 @@ const GoalOracle = () => {
         id: 'global-simple', name: 'Global League', type: 'free',
         predictionMode: 'simple', isGlobal: true,
       };
-      nav('detail', globalSimple);
+      nav('detail', globalSimple, { tab: 'predictions' });
     };
 
     const heroCtas = useMemo(() => {
@@ -2294,7 +2338,7 @@ const GoalOracle = () => {
           title: `Finish your bracket — ${quickPicks.totalRemaining} pick${quickPicks.totalRemaining === 1 ? '' : 's'} left`,
           sub: `About ${etaMin} min · locks when the opener kicks off`,
           cta: 'Continue picking',
-          onClick: () => { if (qpLeague) { setDetailTab('predictions'); nav('detail', qpLeague); } else { nav('simplePredict'); } },
+          onClick: () => { if (qpLeague) { nav('detail', qpLeague, { tab: 'predictions' }); } else { nav('simplePredict'); } },
         };
       }
 
@@ -2319,7 +2363,7 @@ const GoalOracle = () => {
           title: `${soon.home} vs ${soon.away}`,
           sub: `Predict before kickoff to keep your streak alive.`,
           cta: 'Predict match',
-          onClick: () => { if (classicLeague) { setDetailTab('predictions'); nav('detail', classicLeague); } },
+          onClick: () => { if (classicLeague) { nav('detail', classicLeague, { tab: 'predictions' }); } },
         };
       }
 
@@ -2470,7 +2514,7 @@ const GoalOracle = () => {
               </div>
               <button className="btn btn-primary btn-lg" onClick={() => {
                 const simpleL = ml.find(l => l.predictionMode === 'simple') || ml[0];
-                nav('detail', simpleL);
+                nav('detail', simpleL, { tab: 'predictions' });
               }}>
                 Start predicting <ChevronRight size={16} />
               </button>
@@ -2543,8 +2587,7 @@ const GoalOracle = () => {
             className="dv2-cta-primary"
             onClick={() => {
               const gs = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
-              setDetailTab('predictions');
-              nav('detail', gs);
+              nav('detail', gs, { tab: 'predictions' });
             }}
           >
             <span className="dv2-cta-primary-icon"><Target size={18} /></span>
@@ -2605,7 +2648,7 @@ const GoalOracle = () => {
                 const summary = remainingBits.length > 0 ? remainingBits.join(' · ') : 'Finish your picks';
                 const estMin = Math.max(1, Math.round(quickPicks.totalRemaining * 8 / 60));
                 return (
-                  <div key={qpLeague.id} className="dv2-action-card dv2-action-card-qp" onClick={() => { setDetailTab('predictions'); nav('detail', qpLeague); }}>
+                  <div key={qpLeague.id} className="dv2-action-card dv2-action-card-qp" onClick={() => nav('detail', qpLeague, { tab: 'predictions' })}>
                     <div className="dv2-ac-body">
                       <div className="dv2-ac-tags">
                         <span className="dv2-ac-tag dv2-ac-tag-qp"><Target size={10} /> Quick Picks</span>
@@ -4963,8 +5006,7 @@ const GoalOracle = () => {
           onCreateLeague={() => nav('create')}
           onOpenClassic={() => {
             const classic = leagues.find((l) => l.id === 'global') || allLeagues.find((l) => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } };
-            setDetailTab('predictions');
-            nav('detail', classic);
+            nav('detail', classic, { tab: 'predictions' });
           }}
           initialTab={detailTab === 'predictions' ? 'predictions' : 'leaderboard'}
           myLeagues={leagues}
