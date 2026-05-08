@@ -48,8 +48,12 @@ export default function LoginScreen({ onClose, onSignedIn }) {
     setErr('');
     setBusy(true);
     try {
-      await signInWithGoogle();
-      onSignedIn?.();
+      const user = await signInWithGoogle();
+      // On mobile we use signInWithRedirect, which navigates away. The
+      // function resolves to null and the page reloads back to the origin
+      // a moment later. Don't call onSignedIn here — the redirect-result
+      // handler in goaloracle.jsx finishes the sign-in on the next mount.
+      if (user) onSignedIn?.();
     } catch (e) {
       const msg = e?.message || 'Google sign-in failed';
       if (!msg.includes('popup-closed') && !msg.includes('cancelled')) {

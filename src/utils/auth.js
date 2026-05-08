@@ -2,12 +2,36 @@ import { auth } from '../config/firebase';
 import {
   signInWithCustomToken,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut as fbSignOut,
 } from 'firebase/auth';
 
+// Detect environments where signInWithPopup is unreliable. Mobile browsers
+// (especially in-app webviews like Instagram / FB / Twitter) routinely
+// block popups, close the parent tab, or lose session state across the
+// popup boundary. Firebase's documented fallback is signInWithRedirect.
+function shouldUseRedirect() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  // Touch + small viewport is the strongest signal. UA sniffing is the
+  // backup when the device reports as desktop (e.g. iPad in desktop mode).
+  const isMobileViewport = window.innerWidth <= 820;
+  const isMobileUA = /Android|iPhone|iPad|iPod|webOS|Mobile|Mini|Opera Mini|IEMobile/i.test(ua);
+  // Common in-app browsers — popup behavior is unreliable here even on
+  // tablet form factors.
+  const isInAppBrowser = /FBAN|FBAV|Instagram|Twitter|TikTok|WhatsApp|Line\//i.test(ua);
+  return isMobileViewport || isMobileUA || isInAppBrowser;
+}
+
+// Sentinel used across the redirect round-trip. signInWithRedirect navigates
+// away and reloads the page; in-memory state is lost. sessionStorage carries
+// "we're mid-Google-sign-in, swap UIDs when you come back" across the boundary.
+const REDIRECT_FLAG = 'goaloracle_google_redirect_pending';
+
 // Set true while a Google sign-in is mid-swap from the popup-created
-// Firebase Auth UID to the legacy did:privy:* UID. The auth listener in
+// Firebase Auth user to the API-issued custom token. The auth listener in
 // goaloracle.jsx checks this and skips processing transient states so it
 // doesn't write a spurious /users/{popup-uid} doc and trigger the
 // username prompt for what is actually an existing user.
@@ -36,33 +60,70 @@ export async function verifyEmailCode(email, code) {
   return auth.currentUser;
 }
 
+// Common path for both popup and redirect flows: take the Google ID token
+// from a Firebase auth result, swap it for an API-issued custom token, drop
+// the popup/redirect-managed Firebase user, and sign in with the custom
+// token so the rest of the app sees the canonical legacy UID.
+async function completeGoogleSignIn(result) {
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  const googleIdToken = credential?.idToken;
+  if (!googleIdToken) throw new Error('Google sign-in returned no ID token');
+  const { firebaseToken } = await postJSON('/api/auth/google', { idToken: googleIdToken });
+  await fbSignOut(auth);
+  _swapInFlight = false;
+  await signInWithCustomToken(auth, firebaseToken);
+  return auth.currentUser;
+}
+
 export async function signInWithGoogle() {
-  // signInWithPopup unavoidably creates a Firebase Auth user with a fresh
-  // Firebase-managed UID. We need to throw that UID away and sign in as the
-  // legacy did:privy:* user instead. Suppress the listener for the popup +
-  // sign-out states; let it run for the final custom-token sign-in.
+  const provider = new GoogleAuthProvider();
   _swapInFlight = true;
-  let firebaseToken;
+
+  if (shouldUseRedirect()) {
+    // Redirect flow — does not resume in this function. The app reloads
+    // back to the origin URL and completeGoogleRedirectIfNeeded() picks
+    // up where we left off on the next mount.
+    try {
+      sessionStorage.setItem(REDIRECT_FLAG, '1');
+    } catch {}
+    try {
+      await signInWithRedirect(auth, provider);
+    } catch (e) {
+      _swapInFlight = false;
+      try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
+      throw e;
+    }
+    return null;
+  }
+
+  // Desktop popup flow.
   try {
-    const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const googleIdToken = credential?.idToken;
-    if (!googleIdToken) throw new Error('Google sign-in returned no ID token');
-    const data = await postJSON('/api/auth/google', { idToken: googleIdToken });
-    firebaseToken = data.firebaseToken;
-    // Drop the popup-created Firebase Auth user. The listener for this state
-    // is also suppressed by the flag.
-    await fbSignOut(auth);
+    return await completeGoogleSignIn(result);
   } catch (e) {
     _swapInFlight = false;
     throw e;
   }
-  // Clear the flag before the final sign-in so the listener processes the
-  // legacy UID auth state normally.
-  _swapInFlight = false;
-  await signInWithCustomToken(auth, firebaseToken);
-  return auth.currentUser;
+}
+
+// Called on every app mount. If the user just came back from a Google
+// redirect, this completes the sign-in and writes the canonical session.
+// No-op on every other mount. Returns null if nothing to do, the signed-in
+// user otherwise.
+export async function completeGoogleRedirectIfNeeded() {
+  let pending = false;
+  try { pending = sessionStorage.getItem(REDIRECT_FLAG) === '1'; } catch {}
+  if (!pending) return null;
+  try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
+  _swapInFlight = true;
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result) { _swapInFlight = false; return null; }
+    return await completeGoogleSignIn(result);
+  } catch (e) {
+    _swapInFlight = false;
+    throw e;
+  }
 }
 
 export async function signOut() {
