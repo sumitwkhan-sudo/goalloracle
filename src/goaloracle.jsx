@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Helmet } from 'react-helmet-async';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth as fbAuth } from './config/firebase';
-import { signOut as authSignOut, isAuthSwapInFlight } from './utils/auth';
+import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw } from 'lucide-react';
@@ -1146,6 +1146,19 @@ const GoalOracle = () => {
   // round-trip and is available when createOrUpdateUser writes the
   // new user doc.
   useEffect(() => { captureReferralFromUrl(); }, []);
+
+  // Mobile Google sign-in uses signInWithRedirect (popups are unreliable on
+  // mobile + in-app browsers). When the user comes back from the Google
+  // consent screen this finishes the UID swap and signs them in with the
+  // canonical custom token. No-op on every other mount.
+  useEffect(() => {
+    completeGoogleRedirectIfNeeded().catch(e => {
+      console.error('[auth] Google redirect completion failed:', e?.message || e);
+      notify(e?.message || 'Google sign-in failed', 'error');
+    });
+    // notify is stable via useCallback; safe to omit from deps and run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-join via invite link. captureReferralFromUrl() stashes the league
   // ID + optional passcode in sessionStorage; this effect consumes them
