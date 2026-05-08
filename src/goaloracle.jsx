@@ -1215,11 +1215,25 @@ const GoalOracle = () => {
   // and load/create the matching user doc. On sign-out we clear local state.
   useEffect(() => {
     const unsub = onAuthStateChanged(fbAuth, async (fbUser) => {
-      // Google sign-in unavoidably transits through a popup-created Firebase
-      // Auth UID before we swap to the legacy did:privy:* UID via custom
-      // token. Skip every state change while that swap is in flight so we
-      // don't create a spurious /users/{popup-uid} doc.
+      // Google sign-in (popup or redirect) transits through a Firebase-
+      // managed UID before we swap to the canonical `auth_*` / `did:privy:*`
+      // UID via custom token. Skip every state change while that swap is in
+      // flight so we don't create a spurious /users/{transient-uid} doc.
+      //
+      // Belt-and-suspenders: even if isAuthSwapInFlight() is false (Safari
+      // ITP cleared our sessionStorage flag across the redirect hop), we
+      // can detect the transient state from providerData — a Firebase user
+      // with a google.com provider AND a UID that doesn't match our app's
+      // patterns is mid-swap. completeGoogleRedirectIfNeeded() will resolve
+      // it on the same tick.
       if (isAuthSwapInFlight()) return;
+      if (fbUser
+        && fbUser.providerData?.some(p => p.providerId === 'google.com')
+        && !fbUser.uid.startsWith('auth_')
+        && !fbUser.uid.startsWith('did:privy:')) {
+        console.log('[auth] skipping transient Google UID', fbUser.uid, '— awaiting swap');
+        return;
+      }
       setReady(true);
       if (!fbUser) {
         setAuthenticated(false);
