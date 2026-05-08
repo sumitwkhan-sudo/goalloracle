@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Helmet } from 'react-helmet-async';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth as fbAuth } from './config/firebase';
-import { signOut as authSignOut } from './utils/auth';
+import { signOut as authSignOut, isAuthSwapInFlight } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw } from 'lucide-react';
@@ -1381,6 +1381,11 @@ const GoalOracle = () => {
   // and load/create the matching user doc. On sign-out we clear local state.
   useEffect(() => {
     const unsub = onAuthStateChanged(fbAuth, async (fbUser) => {
+      // Google sign-in unavoidably transits through a popup-created Firebase
+      // Auth UID before we swap to the legacy did:privy:* UID via custom
+      // token. Skip every state change while that swap is in flight so we
+      // don't create a spurious /users/{popup-uid} doc.
+      if (isAuthSwapInFlight()) return;
       setReady(true);
       if (!fbUser) {
         setAuthenticated(false);
