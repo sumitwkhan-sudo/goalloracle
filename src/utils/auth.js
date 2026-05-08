@@ -27,16 +27,33 @@ function shouldUseRedirect() {
 
 // Sentinel used across the redirect round-trip. signInWithRedirect navigates
 // away and reloads the page; in-memory state is lost. sessionStorage carries
-// "we're mid-Google-sign-in, swap UIDs when you come back" across the boundary.
+// "we're mid-Google-sign-in, don't process transient Firebase Auth states"
+// across the boundary so the onAuthStateChanged listener doesn't write a
+// /users/{popup-uid} doc before we swap to the canonical UID.
+//
+// This flag is best-effort. iOS Safari's ITP can clear sessionStorage when
+// the Firebase auth handler hops through goaloracle-XXX.firebaseapp.com.
+// completeGoogleRedirectIfNeeded() therefore calls getRedirectResult()
+// unconditionally — Firebase persists the credential in IndexedDB across
+// the redirect, regardless of whether our flag survives.
 const REDIRECT_FLAG = 'goaloracle_google_redirect_pending';
 
-// Set true while a Google sign-in is mid-swap from the popup-created
-// Firebase Auth user to the API-issued custom token. The auth listener in
+// Set true while a Google sign-in is mid-swap from the Firebase-managed UID
+// (popup or redirect) to the API-issued custom token. The auth listener in
 // goaloracle.jsx checks this and skips processing transient states so it
 // doesn't write a spurious /users/{popup-uid} doc and trigger the
 // username prompt for what is actually an existing user.
 let _swapInFlight = false;
 export function isAuthSwapInFlight() { return _swapInFlight; }
+
+// Synchronous check at module load — sets the flag BEFORE goaloracle.jsx's
+// onAuthStateChanged subscribes. Without this, the listener fires for the
+// transient Google-managed UID before our async redirect handler runs.
+try {
+  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(REDIRECT_FLAG) === '1') {
+    _swapInFlight = true;
+  }
+} catch {}
 
 async function postJSON(url, body) {
   const res = await fetch(url, {
@@ -106,21 +123,34 @@ export async function signInWithGoogle() {
   }
 }
 
-// Called on every app mount. If the user just came back from a Google
-// redirect, this completes the sign-in and writes the canonical session.
-// No-op on every other mount. Returns null if nothing to do, the signed-in
-// user otherwise.
+// Called on every app mount. Always calls getRedirectResult(): Firebase
+// persists the redirect credential in IndexedDB across the OAuth round-trip
+// regardless of whether our sessionStorage flag survived ITP / cross-domain
+// hops. Gating on the flag would silently miss the credential whenever the
+// flag was cleared. Cheap when no redirect is pending (returns null).
 export async function completeGoogleRedirectIfNeeded() {
-  let pending = false;
-  try { pending = sessionStorage.getItem(REDIRECT_FLAG) === '1'; } catch {}
-  if (!pending) return null;
+  let result;
+  try {
+    result = await getRedirectResult(auth);
+  } catch (e) {
+    console.error('[auth] getRedirectResult threw:', e?.code, e?.message);
+    _swapInFlight = false;
+    try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
+    throw e;
+  }
+  // Always drain the flag at this point — either we found a result and we
+  // commit the swap, or there was no result and the flag is stale.
   try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
+  if (!result) {
+    _swapInFlight = false;
+    return null;
+  }
+  console.log('[auth] redirect result received, completing sign-in for', result.user?.email);
   _swapInFlight = true;
   try {
-    const result = await getRedirectResult(auth);
-    if (!result) { _swapInFlight = false; return null; }
     return await completeGoogleSignIn(result);
   } catch (e) {
+    console.error('[auth] redirect swap failed:', e?.message || e);
     _swapInFlight = false;
     throw e;
   }
