@@ -1,36 +1,14 @@
 import { db, auth } from '../config/firebase';
 import { collection, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs, getCountFromServer, documentId } from 'firebase/firestore';
-import { signInWithCustomToken } from 'firebase/auth';
 import WORLD_CUP_MATCHES from '../data/matches';
 
-// ---- Auth token management (kept for admin API calls) ----
+// ---- Auth token management ----
+// Cached Firebase ID token. Refreshed by goaloracle.jsx on auth state changes.
 let _authToken = null;
 export function setAuthToken(token) { _authToken = token; }
 
-// ---- Firebase Auth bridge ----
-let _firebaseAuthed = false;
-
-export async function signIntoFirebase(privyToken) {
-  if (_firebaseAuthed) return true;
-  try {
-    const res = await fetch('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${privyToken}` },
-    });
-    if (!res.ok) throw new Error(`Auth bridge failed (${res.status})`);
-    const { firebaseToken } = await res.json();
-    await signInWithCustomToken(auth, firebaseToken);
-    _firebaseAuthed = true;
-    console.log('[auth] Firebase Auth signed in');
-    return true;
-  } catch (e) {
-    console.error('[auth] Firebase sign-in failed:', e.message);
-    return false;
-  }
-}
-
 export function resetFirebaseAuth() {
-  _firebaseAuthed = false;
+  _authToken = null;
 }
 
 // ---- API helper (kept for admin + leaderboard endpoints only) ----
@@ -82,45 +60,30 @@ function isMatchLocked(matchId) {
 }
 
 // ---- USERS (direct Firestore writes) ----
-export async function createOrUpdateUser(privyUser) {
-  if (!privyUser) return null;
-  const userId = privyUser.id;
+// authUser: { id, email } — id matches Firebase Auth UID (which the server
+// chose at custom-token mint time so existing did:privy:* docs are reused).
+export async function createOrUpdateUser(authUser) {
+  if (!authUser) return null;
+  const userId = authUser.id;
   if (!userId) return null;
 
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
-
-  // Extract email
-  let emailAddr = null;
-  if (typeof privyUser.email === 'string') emailAddr = privyUser.email;
-  else if (privyUser.email?.address) emailAddr = privyUser.email.address;
-  else if (privyUser.google?.email) emailAddr = privyUser.google.email;
-  else {
-    const emailAccount = privyUser.linked_accounts?.find(a => a.type === 'email' || a.type === 'google_oauth');
-    if (emailAccount) emailAddr = emailAccount.email || emailAccount.address;
-  }
-  const walletAddr = typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet?.address || null;
+  const emailAddr = (authUser.email || '').toLowerCase().trim() || null;
 
   // Kick off /api/user in the background — server-side backfills global league
   // membership (leagues/global, leagues/global-simple → members array) which
   // the client can't write through Firestore rules.
-  apiCall('user', 'POST', {
-    email: emailAddr,
-    walletAddress: walletAddr,
-  }).catch(e => console.warn('[auth] /api/user backfill failed:', e.message));
+  apiCall('user', 'POST', { email: emailAddr }).catch(e => console.warn('[auth] /api/user backfill failed:', e.message));
 
   if (userSnap.exists()) {
     const userData = { id: userSnap.id, ...userSnap.data() };
     console.log('[auth] loaded user from Firestore:', userData.displayName, userData.role);
 
-    // Background sync: update email & wallet if provided (fire-and-forget)
-    try {
-      const updates = { updatedAt: serverTimestamp() };
-      if (emailAddr) updates.email = emailAddr;
-      if (walletAddr) updates.walletAddress = walletAddr;
-      updateDoc(userRef, updates).catch(e => console.warn('[auth] background sync failed:', e.message));
-    } catch (e) {
-      console.warn('[auth] email extraction failed:', e.message);
+    // Background sync: keep email fresh if the auth provider has one
+    if (emailAddr && emailAddr !== userData.email) {
+      updateDoc(userRef, { email: emailAddr, updatedAt: serverTimestamp() })
+        .catch(e => console.warn('[auth] background sync failed:', e.message));
     }
 
     return userData;
@@ -129,7 +92,7 @@ export async function createOrUpdateUser(privyUser) {
   // New user — create directly in Firestore
   console.log('[auth] new user, creating in Firestore...');
   try {
-    const displayName = emailAddr?.split('@')[0] || (walletAddr ? walletAddr.slice(0, 8) : 'Anonymous');
+    const displayName = emailAddr?.split('@')[0] || 'Player';
     // Capture the referrer (if any) so admins can see which existing
     // user brought this person in. The ref code is captured client-side
     // from the URL on app load and stashed in sessionStorage; see
@@ -142,8 +105,8 @@ export async function createOrUpdateUser(privyUser) {
       updatedAt: serverTimestamp(),
       role: 'user',
       leagues: ['global', 'global-simple'],
-      email: emailAddr || null,
-      walletAddress: walletAddr || null,
+      email: emailAddr,
+      walletAddress: null,
       displayName,
       usernameSet: false,
       // Gate for the post-signup passcode-first prompt. Existing users
@@ -459,6 +422,10 @@ export async function adminRenameLeague(leagueId, name) {
 
 export async function adminBackfillCountries() {
   return await apiCall('admin', 'POST', { action: 'backfillCountries' });
+}
+
+export async function adminAssignWallet(targetUserId, walletAddress) {
+  return await apiCall('admin', 'POST', { action: 'assignWallet', targetUserId, walletAddress });
 }
 
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
