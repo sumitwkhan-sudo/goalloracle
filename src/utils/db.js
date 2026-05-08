@@ -483,13 +483,10 @@ export async function adminBackfillCountries() {
 }
 
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
-// Defaults: Classic is fully removed from the UI. The flag-based
-// machinery is kept so the feature can be re-enabled later via a
-// one-line client change, but for now we hard-pin classicEnabled to
-// false on every read path. The previous "respect /settings/
-// featureFlags" approach was leaking Classic back into the UI when
-// the production doc still had classicEnabled: true from earlier
-// admin testing.
+// Defaults: Classic is opt-in. Quick Picks is the product surface; the
+// Classic flow is preserved in code for re-enabling later but stays
+// hidden from the UI unless /settings/featureFlags has classicEnabled
+// set to literal true.
 export const DEFAULT_FEATURE_FLAGS = {
   quickPicksEnabled: true,
   classicEnabled: false,
@@ -502,7 +499,7 @@ export async function fetchFeatureFlags() {
     const data = await res.json();
     return {
       quickPicksEnabled: data.quickPicksEnabled !== false,
-      classicEnabled: false,
+      classicEnabled: data.classicEnabled === true,
     };
   } catch {
     return { ...DEFAULT_FEATURE_FLAGS };
@@ -522,7 +519,7 @@ export function subscribeToFeatureFlags(callback) {
     const data = snap.exists() ? (snap.data() || {}) : {};
     callback({
       quickPicksEnabled: data.quickPicksEnabled !== false,
-      classicEnabled: false,
+      classicEnabled: data.classicEnabled === true,
     });
   }, (err) => {
     console.warn('[featureFlags] subscription error (keeping last value):', err?.message || err);
