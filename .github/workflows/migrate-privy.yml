@@ -1,0 +1,87 @@
+name: Run Privy migration script
+
+# Manual-trigger workflow for running the one-time post-Privy migration
+# scripts. Lets the maintainer run them from the Actions tab without a
+# local environment. Reads Firebase Admin credentials from repo secrets.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   FIREBASE_PROJECT_ID
+#   FIREBASE_CLIENT_EMAIL
+#   FIREBASE_PRIVATE_KEY   (paste the full BEGIN...END block, including newlines)
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Which migration to run'
+        type: choice
+        required: true
+        default: 'clearPrivyWallets'
+        options:
+          - clearPrivyWallets
+          - importPrivyEmails
+      dryRun:
+        description: 'Dry run (no writes — just preview what would change)'
+        type: boolean
+        required: true
+        default: true
+      csvUrl:
+        description: 'Privy export CSV — raw URL of a *private* GitHub Gist (only for importPrivyEmails)'
+        type: string
+        required: false
+      overwrite:
+        description: 'Overwrite existing emails (only for importPrivyEmails — leave OFF unless you know why)'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install firebase-admin only
+        # We don't need the full app deps to run the scripts.
+        run: npm install firebase-admin@^12.7.0 --no-save
+
+      - name: Run clearPrivyWallets
+        if: inputs.script == 'clearPrivyWallets'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: |
+          if [ "${{ inputs.dryRun }}" = "true" ]; then
+            node scripts/clearPrivyWallets.js --dry-run
+          else
+            node scripts/clearPrivyWallets.js
+          fi
+
+      - name: Download CSV
+        if: inputs.script == 'importPrivyEmails'
+        run: |
+          if [ -z "${{ inputs.csvUrl }}" ]; then
+            echo "::error::csvUrl is required for importPrivyEmails"
+            exit 1
+          fi
+          curl -fsSL "${{ inputs.csvUrl }}" -o /tmp/privy-export.csv
+          echo "CSV row count: $(wc -l < /tmp/privy-export.csv)"
+
+      - name: Run importPrivyEmails
+        if: inputs.script == 'importPrivyEmails'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: |
+          ARGS="/tmp/privy-export.csv"
+          if [ "${{ inputs.dryRun }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          if [ "${{ inputs.overwrite }}" = "true" ]; then ARGS="$ARGS --overwrite"; fi
+          node scripts/importPrivyEmails.js $ARGS
