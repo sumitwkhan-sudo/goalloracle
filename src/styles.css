@@ -5942,10 +5942,10 @@ body.light .lsd-head,
 /* ── Column header — small caps, low contrast, optional ───────────── */
 .ll-colheader {
   display: grid;
-  grid-template-columns: 76px 1fr 24px minmax(180px, 1.5fr) 60px;
-  gap: 0.85rem; align-items: center;
-  padding: 0.45rem 0.85rem 0.35rem;
-  font-family: var(--mono); font-size: 0.6rem;
+  grid-template-columns: 64px 1fr 20px minmax(180px, 1.4fr) 60px 16px;
+  gap: 0.7rem; align-items: center;
+  padding: 0.4rem 0.85rem 0.3rem;
+  font-family: var(--mono); font-size: 0.58rem;
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-dim);
   border-bottom: 1px solid var(--border);
@@ -5960,9 +5960,9 @@ body.light .lsd-head,
 }
 .ll-row {
   display: grid;
-  grid-template-columns: 76px 1fr 24px minmax(180px, 1.5fr) 60px;
-  gap: 0.85rem; align-items: center;
-  padding: 0.85rem;
+  grid-template-columns: 64px 1fr 20px minmax(180px, 1.4fr) 60px 16px;
+  gap: 0.7rem; align-items: center;
+  padding: 0.55rem 0.85rem;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
@@ -5971,7 +5971,7 @@ body.light .lsd-head,
   font-family: var(--font);
   color: var(--text);
   transition: background 0.1s;
-  min-height: 56px;
+  min-height: 48px;
 }
 .ll-row:hover { background: var(--bg-elev); }
 .ll-row:focus-visible {
@@ -5982,6 +5982,14 @@ body.light .lsd-head,
 .ll-row:last-child { border-bottom: none; }
 
 /* You-row highlight — subtle tint + 3px primary edge, no heavy border */
+/* Chevron — Apple HIG cue that the row is tappable. Hidden on the user's
+   own row (they get explicit Edit/Share buttons instead). */
+.ll-cell-chev {
+  display: flex; justify-content: flex-end; align-items: center;
+  color: var(--text-dim);
+  transition: color 0.12s, transform 0.12s;
+}
+.ll-row:hover .ll-cell-chev { color: var(--text-sec); transform: translateX(2px); }
 .ll-row-you {
   background: var(--primary-soft);
   position: relative;
@@ -5999,7 +6007,7 @@ body.light .lsd-head,
   gap: 0.4rem;
   font-family: var(--mono);
 }
-.ll-rank-num { font-weight: 700; font-size: 0.95rem; color: var(--text-sec); }
+.ll-rank-num { font-weight: 700; font-size: 0.85rem; color: var(--text-sec); }
 .ll-row-you .ll-rank-num { color: var(--primary); }
 .ll-rank-trophy { flex-shrink: 0; }
 .ll-rank-gold { color: #FFC857; }
@@ -6014,8 +6022,8 @@ body.light .lsd-head,
 
 .ll-cell-id { gap: 0.45rem; min-width: 0; }
 .ll-id-name {
-  display: inline-flex; align-items: center; gap: 0.45rem;
-  font-weight: 600; font-size: 0.92rem;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-weight: 600; font-size: 0.85rem;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ll-row-you .ll-id-name { font-weight: 700; }
@@ -6039,8 +6047,8 @@ body.light .lsd-head,
 /* Prediction — inline arrow composition */
 .ll-cell-pred { justify-content: flex-start; }
 .ll-pred {
-  display: inline-flex; align-items: center; gap: 0.35rem;
-  font-size: 0.84rem; min-width: 0;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.78rem; min-width: 0;
 }
 .ll-pred-team {
   display: inline-flex; align-items: center; gap: 4px;
@@ -6058,7 +6066,7 @@ body.light .lsd-head,
 /* Points */
 .ll-cell-pts { justify-content: flex-end; }
 .ll-pts-num {
-  font-family: var(--mono); font-weight: 700; font-size: 0.95rem;
+  font-family: var(--mono); font-weight: 700; font-size: 0.85rem;
   color: var(--primary);
 }
 .ll-row-you .ll-pts-num { color: var(--primary); }
@@ -6123,21 +6131,80 @@ body.light .lsd-head,
 /* ── Mobile collapse — drop status column, compress prediction ────── */
 @media (max-width: 720px) {
   .ll-row, .ll-colheader {
-    grid-template-columns: 52px 1fr auto;
-    gap: 0.55rem;
-    padding: 0.7rem 0.65rem;
+    grid-template-columns: 44px 1fr auto 14px;
+    gap: 0.45rem;
+    padding: 0.55rem 0.7rem;
+    min-height: 56px; /* keep touch target */
   }
   .ll-cell-status { display: none; }
   .ll-cell-pred {
     grid-column: 1 / -1;
-    padding-left: calc(52px + 0.55rem);
-    margin-top: 4px;
+    padding-left: calc(44px + 0.45rem);
+    margin-top: 3px;
   }
-  .ll-cell-pred .ll-pred { font-size: 0.78rem; }
-  .ll-pred-flag { font-size: 0.92rem; }
-  .ll-cell-pts { font-size: 0.85rem; }
+  .ll-cell-pred .ll-pred { font-size: 0.74rem; }
+  .ll-pred-flag { font-size: 0.88rem; }
+  .ll-cell-pts { font-size: 0.82rem; }
   .ll-cell-actions {
-    padding-left: calc(52px + 0.55rem);
+    padding-left: calc(44px + 0.45rem);
     margin-top: 0.3rem;
   }
+  .ll-cell-chev { color: var(--text-dim); }
 }
+
+/* Payout-wallet editor inside the account dropdown */
+.dropdown-wallet-toggle-empty {
+  font-family: var(--mono); font-size: 0.7rem;
+  color: var(--text-sec); padding: 1px 6px;
+  border: 1px dashed var(--border); border-radius: 4px;
+}
+.dropdown-wallet-empty {
+  display: flex; flex-direction: column; gap: 0.6rem;
+  padding: 0.6rem 0.7rem;
+}
+.dropdown-wallet-empty p {
+  margin: 0; font-size: 0.78rem; color: var(--text-sec); line-height: 1.5;
+}
+.dropdown-wallet-editor {
+  display: flex; flex-direction: column; gap: 0.55rem;
+  padding: 0.6rem 0.7rem;
+}
+.dropdown-wallet-label {
+  font-family: var(--mono); font-size: 0.62rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-sec);
+}
+.dropdown-wallet-input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  font-family: var(--mono); font-size: 0.78rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+.dropdown-wallet-input:focus {
+  outline: none; border-color: var(--primary);
+}
+.dropdown-wallet-input.is-invalid {
+  border-color: var(--danger);
+}
+.dropdown-wallet-err {
+  font-size: 0.7rem; color: var(--danger); line-height: 1.4;
+}
+.dropdown-wallet-confirm {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  font-size: 0.74rem; color: var(--text-sec); line-height: 1.5;
+  cursor: pointer; padding: 0.3rem 0;
+}
+.dropdown-wallet-confirm input[type="checkbox"] {
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+.dropdown-wallet-actions {
+  display: flex; gap: 0.4rem; margin-top: 0.2rem;
+}
+.dropdown-wallet-actions .btn { flex: 1; justify-content: center; }
