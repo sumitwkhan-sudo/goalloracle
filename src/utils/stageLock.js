@@ -20,7 +20,7 @@
  * file so there is exactly one source of truth for lock times.
  */
 
-import WORLD_CUP_MATCHES from '../data/matches';
+import WORLD_CUP_MATCHES from '../data/matches.js';
 
 const LOCK_BUFFER_MS = 5 * 60 * 1000;
 
