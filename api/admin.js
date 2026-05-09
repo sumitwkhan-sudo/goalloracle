@@ -440,23 +440,38 @@ export default async function handler(req, res) {
         }
       }
 
-      // 2) api-sports.io: cross-check same fixture by date+team-name
+      // 2) api-sports.io: cross-check same fixture by date+team-name.
+      // Tries the primary season first, falls back to season+1 only on
+      // empty fixtures (some providers name UCL by FINAL year, not start).
+      // Records which season actually matched so the operator can see.
       let asParsed = null;
       if (!AS_KEY) note('api-sports.io key', false, 'APISPORTS_API_KEY not set in Vercel env');
       else if (!fdMatch) note('api-sports.io cross-check', false, 'skipped — no anchor match');
       else {
-        try {
-          const matchDate = fdMatch.utcDate.slice(0, 10);
-          const r = await fetch(
-            `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${comp.asSeason}&date=${matchDate}`,
-            { headers: { 'x-apisports-key': AS_KEY } },
-          );
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const data = await r.json();
-          asParsed = parseApiSportsResponse(data, { homeTeam: fdMatch.homeTeam?.name, awayTeam: fdMatch.awayTeam?.name });
-          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})`);
-        } catch (e) {
-          note('api-sports.io', false, e.message);
+        const matchDate = fdMatch.utcDate.slice(0, 10);
+        const seasonsToTry = comp.asSeason === 2026
+          ? [2026]                                  // WC: just one valid season
+          : [comp.asSeason, comp.asSeason + 1];     // European: start-year, fall back to end-year
+        let lastError = null;
+        let matchedSeason = null;
+        for (const season of seasonsToTry) {
+          try {
+            const r = await fetch(
+              `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${season}&date=${matchDate}`,
+              { headers: { 'x-apisports-key': AS_KEY } },
+            );
+            if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
+            const data = await r.json();
+            asParsed = parseApiSportsResponse(data, { homeTeam: fdMatch.homeTeam?.name, awayTeam: fdMatch.awayTeam?.name });
+            matchedSeason = season;
+            break;
+          } catch (e) { lastError = e.message; }
+        }
+        if (asParsed) {
+          const seasonNote = matchedSeason !== comp.asSeason ? ` [season=${matchedSeason} fallback]` : '';
+          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})${seasonNote}`);
+        } else {
+          note('api-sports.io', false, lastError || `no fixture for league=${comp.asLeague} on ${matchDate} in season ${seasonsToTry.join(' or ')}`);
         }
       }
 
@@ -482,16 +497,26 @@ export default async function handler(req, res) {
         }
       }
       if (AS_KEY) {
-        try {
-          const r = await fetch(`https://v3.football.api-sports.io/standings?league=${comp.asLeague}&season=${comp.asSeason}`, { headers: { 'x-apisports-key': AS_KEY } });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const data = await r.json();
-          const table = data.response?.[0]?.league?.standings?.[0] || [];
-          if (table.length === 0) throw new Error('empty standings');
-          note('api-sports.io standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)`);
-        } catch (e) {
-          note('api-sports.io standings', false, e.message);
+        // Same season fallback as the fixtures lookup, so standings come
+        // from the same season the upstream actually serves rather than
+        // silently returning a year-old table.
+        const seasonsToTry = comp.asSeason === 2026 ? [2026] : [comp.asSeason, comp.asSeason + 1];
+        let standingsOk = false;
+        let lastError = null;
+        for (const season of seasonsToTry) {
+          try {
+            const r = await fetch(`https://v3.football.api-sports.io/standings?league=${comp.asLeague}&season=${season}`, { headers: { 'x-apisports-key': AS_KEY } });
+            if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
+            const data = await r.json();
+            const table = data.response?.[0]?.league?.standings?.[0] || [];
+            if (table.length === 0) { lastError = 'empty standings'; continue; }
+            const seasonNote = season !== comp.asSeason ? ` [season=${season} fallback]` : '';
+            note('api-sports.io standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)${seasonNote}`);
+            standingsOk = true;
+            break;
+          } catch (e) { lastError = e.message; }
         }
+        if (!standingsOk) note('api-sports.io standings', false, lastError);
       }
 
       const failed = checks.filter(c => !c.ok).length;
