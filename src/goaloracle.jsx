@@ -1905,7 +1905,7 @@ const GoalOracle = () => {
         <div className="grad-mesh"></div>
 
         {/* ─── 1. HERO + NEXT MATCH ─── */}
-        <section className={`hero hero-split ${heroAnimated ? 'hero-no-anim' : ''}`}>
+        <section className={`hero hero-split hero-split-anon ${heroAnimated ? 'hero-no-anim' : ''}`}>
           <div className="hero-stadium-bg"></div>
           <div className="hero-stadium-overlay"></div>
           <WorldCupCountdown />
