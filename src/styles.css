@@ -7227,20 +7227,31 @@ body.light .lsd-head,
   position: relative;
 }
 @media (max-width: 700px) {
-  /* Mobile: actions wrap below the name on a second row to keep the
-     primary status / rank / chevron visible without horizontal scroll. */
+  /* Mobile: name + rank on row 1, status pill full-width on row 2,
+     actions full-width on row 3. The previous 4-column row crammed
+     everything into one line and the status pill literally rendered
+     on top of the league name. Row-stacking gives each piece room
+     and stays scrollable-free. */
   .lr-row {
-    grid-template-columns: 1fr auto 70px 14px;
+    grid-template-columns: 1fr auto;
     grid-template-areas:
-      "name status rank chev"
-      "actions actions actions actions";
-    row-gap: 0.4rem;
+      "name rank"
+      "status status"
+      "actions actions";
+    row-gap: 0.45rem;
+    column-gap: 0.6rem;
+    padding: 0.7rem 0.85rem;
   }
   .lr-cell-name    { grid-area: name; }
-  .lr-cell-status  { grid-area: status; }
-  .lr-cell-actions { grid-area: actions; justify-content: flex-start; }
-  .lr-cell-rank    { grid-area: rank; }
-  .lr-cell-chev    { grid-area: chev; }
+  .lr-cell-status  { grid-area: status; justify-content: flex-start; }
+  .lr-cell-actions { grid-area: actions; justify-content: flex-start; flex-wrap: wrap; }
+  .lr-cell-rank    { grid-area: rank; justify-content: flex-end; }
+  /* Drop the chevron on mobile — the row is already a button and
+     each action has its own visible affordance below. */
+  .lr-cell-chev { display: none; }
+  /* Name needs to shrink before truncating since it shares the row
+     with the rank only. */
+  .lr-name { font-size: 1rem; }
 }
 .lr-row:last-child { border-bottom: none; }
 .lr-row:hover { background: var(--bg-elev); }
