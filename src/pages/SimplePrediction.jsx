@@ -512,6 +512,39 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             <p>Pick the winner of each match. The bracket fills forward as you go.</p>
           </div>
 
+          {/* Top nav mirror — the bracket is tall on desktop, so the user
+              shouldn't have to scroll all the way down to find the
+              Save & finish button. Reset stays at the bottom only. */}
+          <div className="simple-step-nav simple-step-nav-top simple-step-nav-split">
+            <button type="button" className="btn btn-secondary" onClick={() => goToStep(2)}>
+              <ArrowLeft size={16} /> Back
+            </button>
+            {(() => {
+              const finalPicked = bracketState.isRoundComplete('final');
+              return (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!finalPicked}
+                  aria-label={finalPicked ? 'Save and finish' : 'Pick the Final winner to continue'}
+                  onClick={async () => {
+                    if (!finalPicked) return;
+                    const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
+                    if (allComplete) {
+                      await saveNow({ isComplete: true });
+                    }
+                    if (onComplete) onComplete();
+                    else if (onExit) onExit();
+                  }}
+                >
+                  {finalPicked
+                    ? <>Save &amp; finish <ArrowRight size={16} /></>
+                    : <>Pick the Final winner</>}
+                </button>
+              );
+            })()}
+          </div>
+
           {layout === 'desktop' ? (
             <BracketDesktop
               bracket={bracketState.bracket}
