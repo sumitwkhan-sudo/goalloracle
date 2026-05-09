@@ -2381,6 +2381,27 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .public-bracket {
   max-width: 36rem; margin: 2rem auto; padding: 0 1rem 3rem;
 }
+/* Top CTA banner shown only to anonymous viewers — converts the
+   "looking at someone's bracket" page into "now make your own". */
+.public-bracket-cta-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.10), rgba(91, 61, 245, 0.10));
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+.public-bracket-cta-banner-text {
+  display: flex; flex-direction: column; gap: 0.15rem; min-width: 0;
+}
+.public-bracket-cta-banner-text strong {
+  color: var(--text); font-size: 0.95rem; font-weight: 700;
+}
+.public-bracket-cta-banner-text span {
+  color: var(--text-sec); font-size: 0.78rem;
+}
+.public-bracket-cta-banner .btn { white-space: nowrap; flex-shrink: 0; }
 .public-bracket-loading,
 .public-bracket-error {
   text-align: center; padding: 3rem 1rem; color: var(--text-sec);

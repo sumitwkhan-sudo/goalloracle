@@ -792,6 +792,26 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   const visibleSimLb = useMemo(() => filterEntries(simLb), [simLb, lbScope, lbScopeCountry, friendIds, userData?.id]);
   const visibleClassicLb = useMemo(() => filterEntries(classicLb), [classicLb, lbScope, lbScopeCountry, friendIds, userData?.id]);
 
+  // Quick share: copies (or invokes navigator.share for) a link to the
+  // user's public bracket page (`/u/:id/bracket`). Used by the
+  // PicksViewer modal "Share" button on own-bracket views — the public
+  // page works without login and already CTAs new visitors to predict.
+  const sharePublicBracketLink = useCallback(async () => {
+    const id = userData?.id;
+    if (!id) return;
+    const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
+    const url = `${origin}/u/${encodeURIComponent(id)}/bracket?ref=${encodeURIComponent(id)}`;
+    const text = `Check out my World Cup 2026 bracket on GoalOracle: ${url}`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: 'My GoalOracle bracket', text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        notify?.('Bracket link copied — share it with friends');
+      }
+    } catch { /* user cancelled native share */ }
+  }, [userData?.id, notify]);
+
   const openShareBracket = useCallback(async () => {
     if (!userData?.id || !league?.id) return;
     try {
@@ -1010,6 +1030,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           target={viewingPicks}
           isOwn={viewingPicks.userId === userData?.id}
           onEdit={viewingPicks.userId === userData?.id ? () => { setViewingPicks(null); setSTab('predictions'); } : undefined}
+          onShare={viewingPicks.userId === userData?.id ? sharePublicBracketLink : undefined}
           onClose={() => setViewingPicks(null)}
         />
       )}
@@ -4247,6 +4268,7 @@ const GoalOracle = () => {
       {view === 'publicBracket' && (
         <PublicBracket
           userId={publicBracketUserId}
+          authenticated={authenticated}
           onSignUp={() => {
             if (authenticated) { nav('dashboard'); }
             else { login(); }
