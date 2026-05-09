@@ -14,7 +14,7 @@ import { BEST_THIRD_REQUIRED } from '../../hooks/useBestThird';
 import { thirdPlaceStrength } from '../../utils/pedigree';
 
 export default function BestThirdSelector({ groupPredictions, flags, picks, isFull, onToggle, onSetPicks }) {
-  const [showGuide, setShowGuide] = useState(true);
+  const [showGuide, setShowGuide] = useState(false);
   const [shakingGroup, setShakingGroup] = useState(null);
   const [showSwapHint, setShowSwapHint] = useState(false);
   const shakeTimer = useRef(null);
