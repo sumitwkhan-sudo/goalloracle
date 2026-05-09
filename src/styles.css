@@ -5665,6 +5665,12 @@ button.invite-option:hover,
 /* Reset-my-picks buttons */
 .simple-page-reset { margin-left: 0.5rem; color: var(--danger, #ff3b5c); border-color: transparent; }
 .simple-page-reset:hover:not(:disabled) { background: rgba(255,59,92,0.08); border-color: rgba(255,59,92,0.25); }
+/* Copy/Replace from Global — accent-coloured ghost button to set it
+   apart from the destructive Reset next to it. */
+.simple-page-replace-global { color: var(--accent, #00d4ff); border-color: transparent; }
+.simple-page-replace-global:hover:not(:disabled) { background: rgba(0, 212, 255, 0.08); border-color: rgba(0, 212, 255, 0.25); }
+[data-theme="light"] .simple-page-replace-global { color: var(--primary, #5b3df5); }
+[data-theme="light"] .simple-page-replace-global:hover:not(:disabled) { background: rgba(91, 61, 245, 0.08); border-color: rgba(91, 61, 245, 0.22); }
 .pib-reset { color: var(--danger, #ff3b5c); }
 .pib-reset:hover:not(:disabled) { background: rgba(255,59,92,0.08); }
 
