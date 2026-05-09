@@ -1,53 +1,157 @@
 /**
  * bracketResolver.js — server-side bracket state from accumulated match
- * results. Lets the auto-poll cron look up knockout matches by actual
- * team name once they're determined, instead of skipping them while
- * placeholders ("W R32-01", "1st Group A") remain in matches.js.
+ * results. Self-contained: does NOT import from src/utils/ because those
+ * client-side files use extensionless imports and a top-level JSON import
+ * (annexe-c.json), both of which crash Vercel's Node ESM runtime at
+ * module load. Vitest tolerates them via Vite's resolver, which is why
+ * unit tests passed but the deployed cron 500'd at import time.
+ *
+ * Lets the auto-poll cron look up knockout matches by actual team name
+ * once they're determined, instead of skipping them while placeholders
+ * ("W R32-01", "1st Group A") remain in matches.js.
  *
  * Flow:
- *   1. Convert matchResults → predictions shape (so bracket.js can reuse
- *      its existing calcGroupStandings).
- *   2. If all 12 groups have completed all 6 matches, run thirdPlaceAllocation
- *      to resolve which 3rd-place team plays which R32 slot via Annexe C.
- *   3. Walk WORLD_CUP_MATCHES forward, resolving placeholders against the
- *      computed standings + accumulated knockout results.
+ *   1. Walk matchResults, compute per-group standings using the FIFA
+ *      Article 11 within-group tiebreaker (points → H2H → GD → GF).
+ *   2. Once all 12 groups have completed all 6 matches, allocate the 8
+ *      best third-placed teams (Article 13: points → GD → GF → group
+ *      letter as deterministic backstop) into R32 slots via Annexe C.
+ *   3. Walk WORLD_CUP_MATCHES forward, resolving placeholders against
+ *      the computed standings + accumulated knockout results.
  *
- * Returns a partial bracket map: { matchId: { home, away } }. Matches that
- * can't be resolved yet (their predecessor isn't done) simply don't appear
- * in the map — the caller treats absence as "skip for now, retry later".
+ * Returns { resolved, allGroupsComplete, errors }. Matches that can't
+ * be resolved yet (their predecessor isn't done) simply don't appear in
+ * `resolved` — the caller treats absence as "skip for now, retry later".
  */
 
-import { calcGroupStandings } from '../../src/utils/bracket.js';
-import {
-  GROUP_LETTERS,
-  allocateThirdsToBrackets,
-} from '../../src/utils/thirdPlaceAllocation.js';
-import { determineWinnerFromResult } from './oracleParsers.js';
+import { createRequire } from 'module';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
+import { determineWinnerFromResult } from './oracleParsers.js';
 
-// matches.js R32 third-place slot id ↔ FIFA Annexe C M-id.
+// Use createRequire so the JSON import works under Node's strict ESM
+// without needing the experimental `with { type: 'json' }` syntax.
+const requireCjs = createRequire(import.meta.url);
+const annexeC = requireCjs('../../src/data/annexe-c.json');
+
+const GROUP_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+
+// ─── matches.js R32 third-place slot id ↔ FIFA Annexe C M-id ───
 const M_TO_R32_ID = {
   M74: 'r32-03', M77: 'r32-06', M79: 'r32-07', M80: 'r32-08',
   M81: 'r32-09', M82: 'r32-10', M85: 'r32-14', M87: 'r32-16',
 };
-
-// Group of 5 letters → which R32 match the 3rd-placed team plays in.
-// Keyed by the 5 letters in the matches.js placeholder string ("3rd ABCDF").
+// Eligibility-letters string in the matches.js placeholder ("3rd ABCDF")
+// → matches.js R32 id. Five letters per slot, sorted into canonical form.
 const ELIGIBILITY_TO_R32_ID = {
   ABCDF: 'r32-03', CDFGH: 'r32-06', CEFHI: 'r32-07', EHIJK: 'r32-08',
   BEFIJ: 'r32-09', AEHIJ: 'r32-10', EFGIJ: 'r32-14', DEIJL: 'r32-16',
 };
 
-function resultsToPredictions(matchResults) {
-  const predictions = {};
-  for (const [matchId, r] of Object.entries(matchResults || {})) {
-    if (!r || r.completed !== true) continue;
-    if (typeof r.homeScore !== 'number' || typeof r.awayScore !== 'number') continue;
-    predictions[matchId] = {
-      score: { home: String(r.homeScore), away: String(r.awayScore) },
-    };
+// ─── Group standings (FIFA Article 11 within-group tiebreaker) ───
+//
+// Server-side equivalent of src/utils/bracket.js's calcGroupStandings,
+// rewritten to take matchResults directly (no predictions adapter) and
+// without dragging in the client-side import chain.
+
+function buildGroupStandings(matchResults) {
+  const groupMatches = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
+  const teams = {};
+
+  groupMatches.forEach((m) => {
+    const g = (m.stage || '').replace('Group ', '');
+    [m.home, m.away].forEach((t) => {
+      if (!teams[t]) {
+        teams[t] = {
+          name: t, group: g, pts: 0, gf: 0, ga: 0, gd: 0, w: 0, d: 0, l: 0,
+          played: 0, matches: [],
+        };
+      }
+    });
+  });
+
+  groupMatches.forEach((m) => {
+    const r = matchResults[m.id];
+    if (!r || r.completed !== true) return;
+    if (typeof r.homeScore !== 'number' || typeof r.awayScore !== 'number') return;
+
+    const home = teams[m.home];
+    const away = teams[m.away];
+    if (!home || !away) return;
+
+    const hs = r.homeScore;
+    const as_ = r.awayScore;
+    home.gf += hs; home.ga += as_; home.played += 1;
+    away.gf += as_; away.ga += hs; away.played += 1;
+    home.matches.push({ vs: m.away, gf: hs, ga: as_ });
+    away.matches.push({ vs: m.home, gf: as_, ga: hs });
+
+    if (hs > as_) { home.pts += 3; home.w += 1; away.l += 1; }
+    else if (hs < as_) { away.pts += 3; away.w += 1; home.l += 1; }
+    else { home.pts += 1; away.pts += 1; home.d += 1; away.d += 1; }
+  });
+
+  Object.values(teams).forEach((t) => { t.gd = t.gf - t.ga; });
+
+  const standings = {};
+  GROUP_LETTERS.forEach((g) => {
+    const groupTeams = Object.values(teams).filter((t) => t.group === g);
+    groupTeams.sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      const h2h = headToHeadDelta(a, b);
+      if (h2h !== 0) return h2h;
+      if (b.gd !== a.gd) return b.gd - a.gd;
+      if (b.gf !== a.gf) return b.gf - a.gf;
+      return 0;
+    });
+    standings[g] = groupTeams;
+  });
+
+  return standings;
+}
+
+// Pairwise head-to-head: 3 pts for the team that beat the other in their
+// direct match, 0 if drawn or unplayed. FIFA's full mini-league applies
+// when 3+ teams are tied; this simpler pairwise variant matches what
+// src/utils/bracket.js was using and is acceptable while genuine 3-way
+// ties at the same point total remain rare in the new 4-team groups.
+function headToHeadDelta(a, b) {
+  const aVsB = a.matches.find((m) => m.vs === b.name);
+  const bVsA = b.matches.find((m) => m.vs === a.name);
+  if (!aVsB || !bVsA) return 0;
+  let ptsA = 0;
+  let ptsB = 0;
+  if (aVsB.gf > aVsB.ga) ptsA += 3;
+  else if (aVsB.gf < aVsB.ga) ptsB += 3;
+  else { ptsA += 1; ptsB += 1; }
+  return ptsB - ptsA; // higher pts → ranked higher (sort wants negative for a)
+}
+
+// ─── Annexe C allocation of best 8 of 12 third-placed teams ───
+
+function allocateThirdsToBracketsLocal(top8, allGroups) {
+  if (!Array.isArray(top8) || top8.length !== 8) {
+    throw new Error(`allocateThirdsToBrackets expects 8 thirds, got ${top8?.length ?? 0}`);
   }
-  return predictions;
+  const key = top8.map((t) => t.group).sort().join('');
+  const routing = annexeC.lookup?.[key];
+  if (!routing) throw new Error(`No Annexe C routing for advancing groups: ${key}`);
+
+  const allocation = {};
+  for (const [matchId, slot] of Object.entries(routing)) {
+    const groupLetter = slot[1]; // "3X" → "X"
+    const thirdFromGroup = allGroups[groupLetter]?.find((t) => t.groupPosition === 3);
+    if (!thirdFromGroup) {
+      throw new Error(`Annexe C routed ${matchId} → 3${groupLetter} but group ${groupLetter} has no 3rd-placed team`);
+    }
+    allocation[matchId] = thirdFromGroup;
+  }
+  return allocation;
+}
+
+function isGroupComplete(standings, letter) {
+  const teams = standings[letter];
+  if (!teams || teams.length !== 4) return false;
+  return teams.every((t) => t.played === 3);
 }
 
 function buildAllGroupsForAnnexeC(standings) {
@@ -69,11 +173,7 @@ function buildAllGroupsForAnnexeC(standings) {
   return allGroups;
 }
 
-function isGroupComplete(standings, letter) {
-  const teams = standings[letter];
-  if (!teams || teams.length !== 4) return false;
-  return teams.every((t) => t.played === 3);
-}
+// ─── Placeholder resolution ───
 
 function resolveR32Placeholder(label, standings, top8ByMatch) {
   if (!label) return null;
@@ -89,8 +189,6 @@ function resolveR32Placeholder(label, standings, top8ByMatch) {
   }
   const m3 = label.match(/^3rd ([A-L]{5})$/i);
   if (m3) {
-    // Third-placed team allocation requires ALL 12 groups to be complete
-    // (top8ByMatch is only computed when allGroupsComplete is true).
     const eligibility = m3[1].toUpperCase().split('').sort().join('');
     const r32Id = ELIGIBILITY_TO_R32_ID[eligibility];
     if (r32Id && top8ByMatch && top8ByMatch[r32Id]) return top8ByMatch[r32Id];
@@ -98,15 +196,13 @@ function resolveR32Placeholder(label, standings, top8ByMatch) {
   return null;
 }
 
-// Map from matches.js id ('r32-01') back to the W/L reference syntax
-// other matches use ("W R32-01") so we can quickly look up.
 function lookupKnockoutResult(label, resolved, matchResults) {
   if (!label) return null;
   const w = label.match(/^W (R32|R16|QF|SF)-?0*(\d+)$/i);
   if (w) {
     const stage = w[1].toLowerCase();
     const num = String(w[2]).padStart(2, '0');
-    const lookupId = `${stage}-${num}`; // r32-01, r16-02, qf-03, sf-04
+    const lookupId = `${stage}-${num}`;
     const teams = resolved[lookupId];
     const result = matchResults[lookupId];
     if (!teams || !result) return null;
@@ -130,21 +226,11 @@ function lookupKnockoutResult(label, resolved, matchResults) {
   return null;
 }
 
-/**
- * Resolve as much of the bracket as the current matchResults allow.
- *
- * @param {object} matchResults  Map of matchId → matchResult document.
- * @returns {{ resolved: Object, allGroupsComplete: boolean, errors: string[] }}
- *   resolved          — { matchId: { home, away } } for every knockout
- *                       match whose teams are now known.
- *   allGroupsComplete — true iff every group has all 6 matches verified.
- *   errors            — non-fatal issues encountered (e.g. Annexe C lookup
- *                       failed because the top-8 thirds combo is malformed).
- */
+// ─── Public entry point ───
+
 export function resolveActualBracket(matchResults) {
   const errors = [];
-  const predictions = resultsToPredictions(matchResults);
-  const standings = calcGroupStandings(predictions);
+  const standings = buildGroupStandings(matchResults || {});
 
   const allGroupsComplete = GROUP_LETTERS.every((letter) => {
     const teams = standings[letter];
@@ -166,8 +252,7 @@ export function resolveActualBracket(matchResults) {
         return a.group.localeCompare(b.group);
       });
       const top8 = thirds.slice(0, 8);
-      const allocation = allocateThirdsToBrackets(top8, allGroups);
-      // allocation is { 'M74': teamObj, 'M77': teamObj, ... }
+      const allocation = allocateThirdsToBracketsLocal(top8, allGroups);
       top8ByMatch = {};
       for (const [mId, teamObj] of Object.entries(allocation)) {
         const r32Id = M_TO_R32_ID[mId];
@@ -180,18 +265,20 @@ export function resolveActualBracket(matchResults) {
 
   const resolved = {};
 
-  // R32: home is "1st/2nd Group X", away is "1st/2nd Group X" or "3rd ABCDF".
+  // R32 — depends on group standings (and Annexe C for 3rd-place spots).
   for (const m of WORLD_CUP_MATCHES.filter((x) => x.id.startsWith('r32-'))) {
     const home = resolveR32Placeholder(m.home, standings, top8ByMatch);
     const away = resolveR32Placeholder(m.away, standings, top8ByMatch);
     if (home && away) resolved[m.id] = { home, away };
   }
 
-  // R16, QF, SF, 3rd, Final — resolved by walking forward in stage order.
-  // Order matters: R16 depends on R32, QF on R16, SF on QF, 3rd/Final on SF.
+  // R16, QF, SF, 3rd, Final — resolve in stage order so each stage's
+  // results can feed the next.
   const knockoutOrder = ['r16-', 'qf-', 'sf-', '3rd', 'final'];
   for (const prefix of knockoutOrder) {
-    for (const m of WORLD_CUP_MATCHES.filter((x) => x.isKnockout && (x.id.startsWith(prefix) || x.id === prefix))) {
+    for (const m of WORLD_CUP_MATCHES.filter((x) =>
+      x.isKnockout && (x.id.startsWith(prefix) || x.id === prefix),
+    )) {
       if (resolved[m.id]) continue;
       const home = lookupKnockoutResult(m.home, resolved, matchResults);
       const away = lookupKnockoutResult(m.away, resolved, matchResults);
