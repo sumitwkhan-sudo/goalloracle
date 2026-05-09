@@ -3,9 +3,10 @@
  *
  * Scoring engine for Simple Mode predictions.
  *
- * Group stage: 1 pt for 1st/2nd correct, 0.5 pt for 3rd/4th correct.
- * Best third:  1 pt per correctly picked qualifying 3rd-place group.
- * Knockouts:   1 pt per correct winner, across all rounds.
+ * Group stage: 3 / 2 / 1 / 1 pts for 1st / 2nd / 3rd / 4th correct.
+ * Best third:  2 pts per correctly picked qualifying 3rd-place group.
+ * Knockouts:   per-pick weight escalates by round — 2 in R32, 3 in R16,
+ *              5 in QF, 8 in SF, 5 in 3rd-place, 12 in the Final.
  *
  * Accuracy = totalScore / maxPossible. Denominator adjusts for partial
  * submissions so users who only filled the group stage can still rank.
@@ -13,12 +14,21 @@
 
 import { GROUPS, ROUND_ORDER } from './bracketUtils';
 
-export const GROUP_STAGE_POINTS_PER_POSITION = { 1: 1, 2: 1, 3: 0.5, 4: 0.5 };
-export const GROUP_STAGE_MAX_PER_GROUP = 3; // 1 + 1 + 0.5 + 0.5
-export const GROUP_STAGE_MAX = GROUP_STAGE_MAX_PER_GROUP * GROUPS.length; // 36
-export const BEST_THIRD_MAX = 8;
+export const GROUP_STAGE_POINTS_PER_POSITION = { 1: 3, 2: 2, 3: 1, 4: 1 };
+export const GROUP_STAGE_MAX_PER_GROUP = 7; // 3 + 2 + 1 + 1
+export const GROUP_STAGE_MAX = GROUP_STAGE_MAX_PER_GROUP * GROUPS.length; // 84
+export const BEST_THIRD_POINTS_PER_PICK = 2;
+export const BEST_THIRD_MAX = 8 * BEST_THIRD_POINTS_PER_PICK; // 16
 
-export const KNOCKOUT_MAX_PER_ROUND = {
+export const KNOCKOUT_POINTS_PER_PICK = {
+  roundOf32: 2,
+  roundOf16: 3,
+  quarterFinals: 5,
+  semiFinals: 8,
+  thirdPlace: 5,
+  final: 12,
+};
+const KNOCKOUT_PICKS_PER_ROUND = {
   roundOf32: 16,
   roundOf16: 8,
   quarterFinals: 4,
@@ -26,8 +36,11 @@ export const KNOCKOUT_MAX_PER_ROUND = {
   thirdPlace: 1,
   final: 1,
 };
-export const KNOCKOUT_MAX = Object.values(KNOCKOUT_MAX_PER_ROUND).reduce((s, n) => s + n, 0); // 32
-export const TOTAL_MAX = GROUP_STAGE_MAX + BEST_THIRD_MAX + KNOCKOUT_MAX; // 76
+export const KNOCKOUT_MAX_PER_ROUND = Object.fromEntries(
+  Object.entries(KNOCKOUT_PICKS_PER_ROUND).map(([r, n]) => [r, n * KNOCKOUT_POINTS_PER_PICK[r]]),
+); // { roundOf32: 32, roundOf16: 24, quarterFinals: 20, semiFinals: 16, thirdPlace: 5, final: 12 }
+export const KNOCKOUT_MAX = Object.values(KNOCKOUT_MAX_PER_ROUND).reduce((s, n) => s + n, 0); // 109
+export const TOTAL_MAX = GROUP_STAGE_MAX + BEST_THIRD_MAX + KNOCKOUT_MAX; // 209
 
 /**
  * Score a single group: compare predicted ranking to actual ranking.
@@ -72,24 +85,28 @@ export function scoreBestThird(picks, actualAdvancing) {
   const actual = new Set(actualAdvancing);
   let pts = 0;
   for (const g of picks) {
-    if (actual.has(g)) pts += 1;
+    if (actual.has(g)) pts += BEST_THIRD_POINTS_PER_PICK;
   }
   return pts;
 }
 
 /**
- * Score a single round of knockouts.
+ * Score a single round of knockouts. Each correct winner earns
+ * `KNOCKOUT_POINTS_PER_PICK[roundKey]` so later rounds are worth more.
  *
  * @param {Array<{matchId,winnerId}>} predictedRound
  * @param {Object<string,{winnerId:string}>} actualResultsByMatchId
+ * @param {string} roundKey  e.g. 'roundOf32', 'final'
  */
-export function scoreKnockoutRound(predictedRound, actualResultsByMatchId) {
+export function scoreKnockoutRound(predictedRound, actualResultsByMatchId, roundKey) {
   if (!Array.isArray(predictedRound)) return 0;
+  const perPick = KNOCKOUT_POINTS_PER_PICK[roundKey] || 0;
+  if (!perPick) return 0;
   let pts = 0;
   for (const pick of predictedRound) {
     if (!pick || !pick.winnerId) continue;
     const actual = actualResultsByMatchId?.[pick.matchId];
-    if (actual && actual.winnerId && actual.winnerId === pick.winnerId) pts += 1;
+    if (actual && actual.winnerId && actual.winnerId === pick.winnerId) pts += perPick;
   }
   return pts;
 }
@@ -100,7 +117,7 @@ export function scoreKnockoutRound(predictedRound, actualResultsByMatchId) {
 export function scoreKnockouts(knockoutPredictions, actualResultsByMatchId) {
   let pts = 0;
   for (const round of ROUND_ORDER) {
-    pts += scoreKnockoutRound(knockoutPredictions?.[round], actualResultsByMatchId);
+    pts += scoreKnockoutRound(knockoutPredictions?.[round], actualResultsByMatchId, round);
   }
   return pts;
 }

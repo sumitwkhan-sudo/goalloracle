@@ -16,7 +16,9 @@ import { ChevronDown, ChevronUp, Award } from 'lucide-react';
 import {
   GROUP_STAGE_POINTS_PER_POSITION,
   GROUP_STAGE_MAX,
+  BEST_THIRD_POINTS_PER_PICK,
   BEST_THIRD_MAX,
+  KNOCKOUT_POINTS_PER_PICK,
   KNOCKOUT_MAX,
   TOTAL_MAX,
 } from '../../utils/scoringSimple';
@@ -55,8 +57,13 @@ export default function QuickPicksScoringPanel() {
           <ul className="qp-scoring-list">
             <li>
               <span className="qp-scoring-bullet">⚽</span>
-              <span>Correct 1st or 2nd place in a group</span>
-              <strong>{GROUP_STAGE_POINTS_PER_POSITION[1]} pt each</strong>
+              <span>Correct 1st place in a group</span>
+              <strong>{GROUP_STAGE_POINTS_PER_POSITION[1]} pts</strong>
+            </li>
+            <li>
+              <span className="qp-scoring-bullet">⚽</span>
+              <span>Correct 2nd place in a group</span>
+              <strong>{GROUP_STAGE_POINTS_PER_POSITION[2]} pts</strong>
             </li>
             <li>
               <span className="qp-scoring-bullet">⚽</span>
@@ -66,12 +73,21 @@ export default function QuickPicksScoringPanel() {
             <li>
               <span className="qp-scoring-bullet">🥉</span>
               <span>Each correct best-third pick (8 picks)</span>
-              <strong>1 pt each</strong>
+              <strong>{BEST_THIRD_POINTS_PER_PICK} pts each</strong>
             </li>
-            <li>
+            <li className="qp-scoring-knockouts">
               <span className="qp-scoring-bullet">🏆</span>
-              <span>Each correct knockout winner (R32 → Final)</span>
-              <strong>1 pt each</strong>
+              <span>Knockout winners — points scale by round</span>
+              <table className="qp-scoring-ko-table">
+                <tbody>
+                  <tr><td>Round of 32</td><td><strong>{KNOCKOUT_POINTS_PER_PICK.roundOf32} pts</strong></td></tr>
+                  <tr><td>Round of 16</td><td><strong>{KNOCKOUT_POINTS_PER_PICK.roundOf16} pts</strong></td></tr>
+                  <tr><td>Quarter-finals</td><td><strong>{KNOCKOUT_POINTS_PER_PICK.quarterFinals} pts</strong></td></tr>
+                  <tr><td>Semi-finals</td><td><strong>{KNOCKOUT_POINTS_PER_PICK.semiFinals} pts</strong></td></tr>
+                  <tr><td>3rd-place</td><td><strong>{KNOCKOUT_POINTS_PER_PICK.thirdPlace} pts</strong></td></tr>
+                  <tr><td>Final</td><td><strong>{KNOCKOUT_POINTS_PER_PICK.final} pts</strong></td></tr>
+                </tbody>
+              </table>
             </li>
           </ul>
           <div className="qp-scoring-totals">
