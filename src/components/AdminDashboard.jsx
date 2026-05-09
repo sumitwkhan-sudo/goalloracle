@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -124,6 +124,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState(null);
 
+  const [smokeTest, setSmokeTest] = useState(null);
+  const [smokeTestLoading, setSmokeTestLoading] = useState(false);
+  const [smokeTestError, setSmokeTestError] = useState(null);
+
   const runHealthCheck = async () => {
     setHealthLoading(true);
     setHealthError(null);
@@ -135,6 +139,19 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       setHealthError(e.message || 'Health check failed');
       notify('Health check failed: ' + e.message, 'error');
     } finally { setHealthLoading(false); }
+  };
+
+  const runSmokeTest = async (competition = 'PL') => {
+    setSmokeTestLoading(true);
+    setSmokeTestError(null);
+    try {
+      const data = await adminRunOracleSmokeTest(competition);
+      setSmokeTest(data);
+      notify(data.failed === 0 ? `Smoke test passed (${data.passed} checks)` : `Smoke test: ${data.failed} of ${data.passed + data.failed} failed`, data.failed === 0 ? 'success' : 'error');
+    } catch (e) {
+      setSmokeTestError(e.message || 'Smoke test failed');
+      notify('Smoke test failed: ' + e.message, 'error');
+    } finally { setSmokeTestLoading(false); }
   };
 
   useEffect(() => {
@@ -711,6 +728,55 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 <span>Both oracles must return matching scores for auto-verification. If they disagree, the result enters dispute state for manual admin review.</span>
               </div>
             </>
+          )}
+
+          {/* ─── Live smoke test ─── */}
+          <div className="admin-panel-head" style={{ marginTop: '2rem' }}>
+            <div>
+              <h2>Live End-to-End Test</h2>
+              <p className="admin-panel-desc">Pick a recent finished match in another league, run both oracles + parsers against it, and confirm they agree. Use this before the World Cup to verify the whole pipeline works.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => runSmokeTest('PL')} disabled={smokeTestLoading}>
+                {smokeTestLoading ? <><RefreshCw size={13} className="spin" /> Running…</> : <>Test EPL</>}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => runSmokeTest('CL')} disabled={smokeTestLoading}>
+                Test UCL
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => runSmokeTest('WC')} disabled={smokeTestLoading}>
+                Test WC
+              </button>
+            </div>
+          </div>
+
+          {smokeTestError && (
+            <div className="admin-oracle-info" style={{ borderColor: 'rgba(255,59,92,0.15)', background: 'rgba(255,59,92,0.04)', color: 'var(--danger)' }}>
+              <AlertTriangle size={14} />
+              <span>{smokeTestError}</span>
+            </div>
+          )}
+
+          {smokeTest && (
+            <div className="admin-contract-card">
+              <div className="admin-contract-row">
+                <span className="admin-contract-lbl">{smokeTest.competition}</span>
+                <span className={`admin-env-status ${smokeTest.failed === 0 ? 'set' : 'missing'}`}>
+                  {smokeTest.failed === 0
+                    ? <><CheckCircle size={12} /> {smokeTest.passed}/{smokeTest.passed} passed</>
+                    : <><AlertTriangle size={12} /> {smokeTest.failed} failed of {smokeTest.passed + smokeTest.failed}</>}
+                </span>
+              </div>
+              {smokeTest.checks?.map((c, i) => (
+                <div key={i} className="admin-contract-row">
+                  <span className="admin-contract-lbl" style={{ paddingLeft: '0.75rem' }}>
+                    {c.ok ? '✓' : '✗'} {c.name}
+                  </span>
+                  <span className="admin-contract-val" style={{ fontSize: '0.8rem', color: c.ok ? 'var(--text-2)' : 'var(--danger)' }}>
+                    {c.detail}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

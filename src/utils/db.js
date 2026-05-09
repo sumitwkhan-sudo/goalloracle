@@ -532,6 +532,14 @@ export async function adminReconcileLeague(leagueId, matchId) {
   });
 }
 
+// One-click oracle smoke test from the admin dashboard. Server-side fetches
+// a recent finished match in `competition` (PL by default), runs both
+// parsers, and verifies the two upstreams agree. Keys never leave the
+// server.
+export async function adminRunOracleSmokeTest(competition = 'PL') {
+  return await apiCall('admin', 'POST', { action: 'oracleSmokeTest', competition });
+}
+
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
 // Defaults: Classic is opt-in. Quick Picks is the product surface; the
 // Classic flow is preserved in code for re-enabling later but stays

@@ -334,6 +334,126 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, migrated, skipped, errors });
     }
 
+    if (action === 'oracleSmokeTest') {
+      // Server-side smoke test of the oracle pipeline against a real
+      // recent match in a chosen competition. Same checks as
+      // scripts/smoke-test-oracle.mjs but invokable from the admin
+      // dashboard (no terminal required, keys stay on the server).
+      const { parseFootballDataResponse, parseApiSportsResponse, compareResults } = await import('./_lib/oracleParsers.js');
+      const COMPETITION_MAP = {
+        PL: { fdCode: 'PL', asLeague: 39, asSeason: 2024, label: 'English Premier League' },
+        CL: { fdCode: 'CL', asLeague: 2, asSeason: 2024, label: 'UEFA Champions League' },
+        BL1: { fdCode: 'BL1', asLeague: 78, asSeason: 2024, label: 'Bundesliga' },
+        PD: { fdCode: 'PD', asLeague: 140, asSeason: 2024, label: 'La Liga' },
+        SA: { fdCode: 'SA', asLeague: 135, asSeason: 2024, label: 'Serie A' },
+        WC: { fdCode: 'WC', asLeague: 1, asSeason: 2026, label: 'FIFA World Cup' },
+      };
+      const comp = COMPETITION_MAP[(req.body.competition || 'PL').toUpperCase()] || COMPETITION_MAP.PL;
+      const FD_KEY = process.env.FOOTBALL_DATA_API_KEY;
+      const AS_KEY = process.env.APISPORTS_API_KEY;
+      const checks = [];
+      const note = (name, ok, detail = '') => checks.push({ name, ok, detail });
+
+      // 1) football-data.org: pick a recent FINISHED match in this comp
+      let fdMatch = null, fdParsed = null;
+      if (!FD_KEY) note('football-data.org key', false, 'FOOTBALL_DATA_API_KEY not set in Vercel env');
+      else {
+        try {
+          const today = new Date().toISOString().slice(0, 10);
+          const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+          const r = await fetch(
+            `https://api.football-data.org/v4/competitions/${comp.fdCode}/matches?dateFrom=${sevenDaysAgo}&dateTo=${today}`,
+            { headers: { 'X-Auth-Token': FD_KEY } },
+          );
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          const finished = (data.matches || []).filter(m => m.status === 'FINISHED');
+          if (finished.length === 0) note('football-data.org list matches', false, 'no FINISHED matches in last 7 days');
+          else {
+            finished.sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate));
+            fdMatch = finished[0];
+            note('football-data.org list matches', true, `picked ${fdMatch.homeTeam?.name} vs ${fdMatch.awayTeam?.name}`);
+            const detail = await fetch(`https://api.football-data.org/v4/matches/${fdMatch.id}`, { headers: { 'X-Auth-Token': FD_KEY } }).then(r => r.json());
+            fdParsed = parseFootballDataResponse(detail);
+            note('football-data.org parser', true, `${fdParsed.homeScore}-${fdParsed.awayScore} (ET=${fdParsed.extraTime}, PEN=${fdParsed.penalties})`);
+          }
+        } catch (e) {
+          note('football-data.org', false, e.message);
+        }
+      }
+
+      // 2) api-sports.io: cross-check same fixture by date+team-name
+      let asParsed = null;
+      if (!AS_KEY) note('api-sports.io key', false, 'APISPORTS_API_KEY not set in Vercel env');
+      else if (!fdMatch) note('api-sports.io cross-check', false, 'skipped — no anchor match');
+      else {
+        try {
+          const matchDate = fdMatch.utcDate.slice(0, 10);
+          const r = await fetch(
+            `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${comp.asSeason}&date=${matchDate}`,
+            { headers: { 'x-apisports-key': AS_KEY } },
+          );
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          asParsed = parseApiSportsResponse(data, { homeTeam: fdMatch.homeTeam?.name, awayTeam: fdMatch.awayTeam?.name });
+          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})`);
+        } catch (e) {
+          note('api-sports.io', false, e.message);
+        }
+      }
+
+      // 3) Cross-source agreement
+      if (fdParsed && asParsed) {
+        const cmp = compareResults(fdParsed, asParsed);
+        note('two sources agree', cmp.match, cmp.match ? `${fdParsed.homeScore}-${fdParsed.awayScore}` : cmp.details);
+      } else {
+        note('two sources agree', false, 'one or both sources failed');
+      }
+
+      // 4) Standings probes
+      if (FD_KEY) {
+        try {
+          const r = await fetch(`https://api.football-data.org/v4/competitions/${comp.fdCode}/standings`, { headers: { 'X-Auth-Token': FD_KEY } });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          const table = data.standings?.find(s => s.type === 'TOTAL')?.table || [];
+          if (table.length === 0) throw new Error('empty TOTAL table');
+          note('football-data.org standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)`);
+        } catch (e) {
+          note('football-data.org standings', false, e.message);
+        }
+      }
+      if (AS_KEY) {
+        try {
+          const r = await fetch(`https://v3.football.api-sports.io/standings?league=${comp.asLeague}&season=${comp.asSeason}`, { headers: { 'x-apisports-key': AS_KEY } });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          const table = data.response?.[0]?.league?.standings?.[0] || [];
+          if (table.length === 0) throw new Error('empty standings');
+          note('api-sports.io standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)`);
+        } catch (e) {
+          note('api-sports.io standings', false, e.message);
+        }
+      }
+
+      const failed = checks.filter(c => !c.ok).length;
+      await db.collection('adminLogs').add({
+        action: 'oracle_smoke_test',
+        adminId: userId,
+        competition: comp.label,
+        passed: checks.length - failed,
+        failed,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({
+        competition: comp.label,
+        runAt: new Date().toISOString(),
+        passed: checks.length - failed,
+        failed,
+        checks,
+      });
+    }
+
     if (action === 'reconcile') {
       // Audit a Quick Picks league. Returns:
       //   - prediction submission stats (total users / submitted / complete)
