@@ -5,7 +5,7 @@ import { auth as fbAuth } from './config/firebase';
 import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
