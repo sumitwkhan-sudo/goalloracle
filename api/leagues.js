@@ -1,9 +1,9 @@
-import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
+import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v)); return res.status(200).json({}); }
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).json({});
 
   // GET: list all leagues (public)
   if (req.method === 'GET') {
@@ -76,7 +76,11 @@ export default async function handler(req, res) {
         name: name.trim(),
         type: type || 'free',
         visibility: visibility || 'public',
-        passcode: visibility === 'private' ? passcode.trim().toUpperCase() : null,
+        // passcode is NOT stored on the public doc anymore — see private
+        // subcollection write below. Field stays null for compatibility
+        // with older readers that only check this property to know whether
+        // a league is private.
+        passcode: null,
         entryFee: entryFee || 0,
         currency: currency || 'USDC',
         prizeDistribution: prizeDistribution || { first: 50, second: 30, third: 20 },
@@ -91,6 +95,15 @@ export default async function handler(req, res) {
         createdAt: FieldValue.serverTimestamp(),
         status: 'active',
       });
+
+      // Private leagues: store the passcode in a server-only subdoc so
+      // it never appears in any client-visible league read.
+      if (visibility === 'private') {
+        await leagueRef.collection('private').doc('auth').set({
+          passcode: passcode.trim().toUpperCase(),
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
 
       // Respond immediately, update user doc in background
       res.status(200).json({ leagueId });
@@ -110,7 +123,12 @@ export default async function handler(req, res) {
 
       if (league.visibility === 'private') {
         if (!passcode) return res.status(403).json({ error: 'This is a private league. A passcode is required to join.' });
-        if (passcode.trim().toUpperCase() !== league.passcode) {
+        // Read the canonical passcode from the private subcollection.
+        // Fall back to the legacy `league.passcode` field for leagues
+        // that haven't been migrated yet (see admin migrateLeaguePasscodes).
+        const privSnap = await leagueRef.collection('private').doc('auth').get();
+        const truePasscode = privSnap.exists ? (privSnap.data().passcode || null) : league.passcode;
+        if (!truePasscode || passcode.trim().toUpperCase() !== truePasscode) {
           return res.status(403).json({ error: 'Incorrect passcode' });
         }
       }

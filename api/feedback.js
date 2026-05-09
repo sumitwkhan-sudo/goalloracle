@@ -13,7 +13,7 @@
  * email you signed up with on Resend).
  */
 
-import { corsHeaders, db } from './_lib/firebase.js';
+import { applyCors, db } from './_lib/firebase.js';
 import { getClientIp, ipHash, escapeHtml, isIpBanned } from './_lib/security.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -38,8 +38,8 @@ async function checkFeedbackRateLimit(ip) {
 }
 
 export default async function handler(req, res) {
+  applyCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).json({});
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 

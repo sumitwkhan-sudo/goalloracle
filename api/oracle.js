@@ -14,11 +14,11 @@
  *   POLYGON_RPC_URL        — Polygon RPC endpoint
  */
 
-import { corsHeaders, verifyAuth, db } from './_lib/firebase.js';
+import { applyCors, verifyAuth, db } from './_lib/firebase.js';
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v)); return res.status(200).json({}); }
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).json({});
 
   const claims = await verifyAuth(req);
   if (!claims) return res.status(401).json({ error: 'Unauthorized' });

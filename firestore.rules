@@ -3,7 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{userId} {
-      allow read: if true;
+      // Self-read only. email / walletAddress / signupIpHash / fingerprint
+      // live on this doc and would otherwise leak to anyone with a Firebase
+      // SDK. Anything that needs another user's display name / country /
+      // role goes through /api/* (admin SDK), which bypasses these rules.
+      allow read: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.role == 'user'
@@ -84,6 +88,14 @@ service cloud.firestore {
     // Server (admin SDK) handles writes on signup/backfill/score update.
     match /leagues/{leagueId}/members/{userId} {
       allow read: if true;
+      allow write: if false;
+    }
+
+    // Private league config — currently holds the passcode for private
+    // leagues, which used to live on the parent doc and was therefore
+    // world-readable. Server-only.
+    match /leagues/{leagueId}/private/{docId} {
+      allow read: if false;
       allow write: if false;
     }
 

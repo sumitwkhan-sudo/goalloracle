@@ -1,4 +1,4 @@
-import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
+import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { ipHash } from './_lib/security.js';
 
@@ -14,8 +14,8 @@ async function isAdmin(userId) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v)); return res.status(200).json({}); }
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).json({});
 
   const claims = await verifyAuth(req);
   if (!claims) return res.status(401).json({ error: 'Unauthorized' });
@@ -295,6 +295,42 @@ export default async function handler(req, res) {
       return res.status(200).json({
         bans: snap.docs.map(d => ({ ipHash: d.id, ...d.data() })),
       });
+    }
+
+    if (action === 'migrateLeaguePasscodes') {
+      // One-shot: walk every league with a non-null `passcode` field on
+      // its public doc, copy that passcode into /leagues/{id}/private/auth
+      // (admin-SDK-only readable per Firestore rules), and clear the field
+      // on the public doc. Idempotent — leagues already migrated have
+      // passcode == null and are skipped.
+      const snap = await db.collection('leagues').get();
+      let migrated = 0;
+      let skipped = 0;
+      const errors = [];
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (!data.passcode) { skipped++; continue; }
+        try {
+          await d.ref.collection('private').doc('auth').set({
+            passcode: String(data.passcode),
+            migratedAt: FieldValue.serverTimestamp(),
+            migratedBy: userId,
+          }, { merge: true });
+          await d.ref.update({ passcode: null });
+          migrated++;
+        } catch (e) {
+          errors.push({ leagueId: d.id, error: e.message });
+        }
+      }
+      await db.collection('adminLogs').add({
+        action: 'migrate_league_passcodes',
+        adminId: userId,
+        migrated,
+        skipped,
+        errorCount: errors.length,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, migrated, skipped, errors });
     }
 
     if (action === 'inspectFingerprint') {

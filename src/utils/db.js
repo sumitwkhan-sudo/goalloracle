@@ -464,15 +464,15 @@ export async function updateMatchResult(matchId, result, adminId) {
 }
 
 // ---- PLATFORM STATS ----
+// Routes through /api/public?type=stats so the client never needs read
+// access to the entire /users collection (Firestore rules now restrict
+// /users reads to the owning user).
 export async function fetchPlatformStats() {
-  const [usersCount, leaguesCount] = await Promise.all([
-    getCountFromServer(collection(db, 'users')),
-    getCountFromServer(collection(db, 'leagues')),
-  ]);
+  const data = await fetch('/api/public?type=stats').then(r => r.json()).catch(() => ({}));
   return {
-    totalPlayers: usersCount.data().count,
-    activeLeagues: leaguesCount.data().count,
-    totalPrizePools: 0,
+    totalPlayers: data.totalPlayers || 0,
+    activeLeagues: data.activeLeagues || 0,
+    totalPrizePools: data.totalPrizePools || 0,
   };
 }
 
@@ -496,6 +496,26 @@ export async function adminBackfillCountries() {
 
 export async function adminAssignWallet(targetUserId, walletAddress) {
   return await apiCall('admin', 'POST', { action: 'assignWallet', targetUserId, walletAddress });
+}
+
+export async function adminMigrateLeaguePasscodes() {
+  return await apiCall('admin', 'POST', { action: 'migrateLeaguePasscodes' });
+}
+
+export async function adminBanIp(ip, reason) {
+  return await apiCall('admin', 'POST', { action: 'banIp', ip, reason });
+}
+
+export async function adminUnbanIp(ip) {
+  return await apiCall('admin', 'POST', { action: 'unbanIp', ip });
+}
+
+export async function adminListBannedIps() {
+  return await apiCall('admin', 'POST', { action: 'listBannedIps' });
+}
+
+export async function adminInspectFingerprint(visitorId) {
+  return await apiCall('admin', 'POST', { action: 'inspectFingerprint', visitorId });
 }
 
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----

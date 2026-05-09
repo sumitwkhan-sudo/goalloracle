@@ -1,4 +1,4 @@
-import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
+import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
@@ -17,11 +17,8 @@ function isMatchLocked(matchId) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') {
-    Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(200).json({});
-  }
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).json({});
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
