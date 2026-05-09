@@ -62,7 +62,7 @@ const VIEW_META = {
   browse: { title: 'Browse Leagues — GoalOracle', path: '/browse', index: false },
   create: { title: 'Create a League — GoalOracle', path: '/create', index: false },
   detail: { title: 'League — GoalOracle', path: '/league', index: false },
-  simplePredict: { title: 'Quick Picks — GoalOracle', path: '/quick-picks', index: false },
+  simplePredict: { title: 'Predictions — GoalOracle', path: '/quick-picks', index: false },
   feedback: { title: 'Feedback — GoalOracle', path: '/feedback', index: false },
   admin: { title: 'Admin — GoalOracle', path: '/admin', index: false },
 };
@@ -321,7 +321,7 @@ function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, grou
             <div className="picks-viewer-avatar">{target.displayName?.[0]?.toUpperCase() || '?'}</div>
             <div>
               <h3>{isOwn ? 'Your bracket' : `${target.displayName}'s picks`}</h3>
-              <span className="picks-viewer-sub">Quick Picks{target.leagueName ? ` · ${target.leagueName}` : ''}</span>
+              <span className="picks-viewer-sub">{target.leagueName || 'Bracket'}</span>
             </div>
           </div>
           <div className="picks-viewer-actions">
@@ -686,7 +686,7 @@ function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify, userId }) {
             <div className="picks-viewer-avatar"><CheckCircle size={20} style={{color:'var(--success)'}} /></div>
             <div>
               <h3>Joined {postJoin.name}</h3>
-              <span className="picks-viewer-sub">{isSimple ? 'Quick Picks' : 'Classic Predictions'} league</span>
+              <span className="picks-viewer-sub">{isSimple ? 'Bracket' : 'Classic Predictions'} league</span>
             </div>
           </div>
           <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
@@ -922,15 +922,13 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         <div className="phc-left">
           {/* Named back button — destination matches what onBack does
               ("Leagues" when authenticated, "Home" otherwise) so the
-              user always knows where the tap takes them. */}
+              user always knows where the tap takes them. The page
+              title + member count + mode pill used to live here too,
+              but they duplicated the LeagueLeaderboardLayout header
+              right below — kept just the back button + leave action. */}
           <button className="btn-back-sm btn-back-sm-named" onClick={onBack}>
             &larr; <span>{authenticated ? 'Leagues' : 'Home'}</span>
           </button>
-          <h1 className="phc-title">{title}</h1>
-          <div className="phc-meta">
-            <span><Users size={14} /> {(league?.memberCount || league?.members?.length || 0).toLocaleString()} members</span>
-            <span className="lv2-mode-pill simple">QUICK PICKS</span>
-          </div>
         </div>
         {/* Leave button is page-level so it's reachable from any
             sTab (Predictions, Leaderboard, etc.) — the user asked
@@ -962,7 +960,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           {/* Breadcrumb-style label — the page-header back already
               returns up the stack; a second "Back to leaderboard"
               affordance here was duplicate nav. */}
-          <span className="predict-inline-crumb"><Target size={13} /> Quick Picks · Predictions</span>
+          <span className="predict-inline-crumb"><Target size={13} /> Predictions</span>
         </div>
       )}
 
@@ -1020,6 +1018,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             onEdit={() => setSTab('predictions')}
             onInvite={handleInvite}
             onShareBracket={openShareBracket}
+            onJoin={!authenticated ? onSignIn : undefined}
             loading={simLbl}
           />
         );
@@ -2111,7 +2110,7 @@ const GoalOracle = () => {
           <div className="editorial-head reveal">
             <div className="editorial-eyebrow">The Ledger</div>
             <h2 className="editorial-title">Two hundred nine points.<br/><span className="editorial-em">One tournament.</span></h2>
-            <div className="editorial-num">Quick Picks scoring</div>
+            <div className="editorial-num">How scoring works</div>
           </div>
           <div className="ledger-grid">
             <article className="ledger-card reveal-float stagger-1">
@@ -2677,7 +2676,7 @@ const GoalOracle = () => {
                       </td>
                       <td className="lt-col-mode">
                         <span className={`lt-mode-pill ${isQuickPicks ? 'is-simple' : 'is-classic'}`}>
-                          {isQuickPicks ? 'Quick Picks' : 'Classic'}
+                          {isQuickPicks ? 'Bracket' : 'Classic'}
                         </span>
                       </td>
                       <td className="lt-col-members">

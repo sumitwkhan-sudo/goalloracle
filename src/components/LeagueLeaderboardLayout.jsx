@@ -130,7 +130,7 @@ function LeaderboardRow({ row, rank, isYou, onRowClick, onEdit, onShareBracket }
 }
 
 // ── header (league name + member count + invite primary CTA) ────────────
-function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite, onLeave, onBack }) {
+function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite, onLeave, onBack, onJoin }) {
   const inviteLabel = isGlobal ? 'Share leaderboard' : 'Invite friends';
   const lockIcon = isPrivate ? <LockIcon size={11} aria-hidden="true" /> : null;
   return (
@@ -147,8 +147,6 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite,
             {league?.name || 'Leaderboard'}
           </h1>
           <div className="ll-header-sub">
-            {league?.predictionMode === 'simple' ? 'QUICK PICKS' : 'CLASSIC PREDICTIONS'}
-            <span className="ll-header-dot" aria-hidden="true">·</span>
             {memberCount.toLocaleString()} {memberCount === 1 ? 'member' : 'members'}
             {isPrivate && (
               <>
@@ -160,6 +158,14 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite,
         </div>
       </div>
       <div className="ll-header-actions">
+        {/* Join CTA — primary affordance for non-signed-up viewers
+            of a public leaderboard. Falls in front of the Share
+            button so it's the obvious next action. */}
+        {onJoin && (
+          <button type="button" className="ll-header-join" onClick={onJoin}>
+            <UserPlus size={14} aria-hidden="true" /> Join now
+          </button>
+        )}
         {onLeave && (
           <button type="button" className="ll-header-leave" onClick={onLeave}>
             Leave
@@ -248,6 +254,7 @@ export default function LeagueLeaderboardLayout({
   onInvite,
   onShareBracket,
   onLeave,
+  onJoin,
   loading = false,
   onBack,
 }) {
@@ -270,6 +277,7 @@ export default function LeagueLeaderboardLayout({
         onInvite={onInvite}
         onLeave={onLeave}
         onBack={onBack}
+        onJoin={onJoin}
       />
 
       {isGlobal && (
