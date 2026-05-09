@@ -19,14 +19,16 @@ import { Coins } from 'lucide-react';
 import { getSimplePrediction } from '../../utils/db';
 
 // Polymarket WC 2026 winner market — approximate implied % from
-// recent share prices. Brazil typically trades lower on Polymarket
-// than at traditional bookmakers; Argentina + France lead.
+// recent share prices on Polymarket's "FIFA World Cup 2026 winner"
+// market. France and Spain currently lead the market, with
+// Argentina and Brazil close behind. Replace with a live Polymarket
+// Gamma API call when an integration lands.
 const MARKET_FAVORITES = [
-  { team: 'Argentina',  flag: '🇦🇷', pct: 0.17 },
-  { team: 'France',     flag: '🇫🇷', pct: 0.17 },
-  { team: 'Brazil',     flag: '🇧🇷', pct: 0.14 },
-  { team: 'Spain',      flag: '🇪🇸', pct: 0.11 },
-  { team: 'England',    flag: '🏴',  pct: 0.10 },
+  { team: 'France',     flag: '🇫🇷', pct: 0.20 },
+  { team: 'Spain',      flag: '🇪🇸', pct: 0.17 },
+  { team: 'Argentina',  flag: '🇦🇷', pct: 0.14 },
+  { team: 'Brazil',     flag: '🇧🇷', pct: 0.12 },
+  { team: 'England',    flag: '🏴',  pct: 0.09 },
   { team: 'Germany',    flag: '🇩🇪', pct: 0.07 },
   { team: 'Portugal',   flag: '🇵🇹', pct: 0.06 },
   { team: 'Netherlands',flag: '🇳🇱', pct: 0.05 },

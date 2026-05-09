@@ -12,6 +12,7 @@ import BoldestCallCard from './simple/BoldestCallCard';
 import MostContestedCard from './simple/MostContestedCard';
 import BracketSurvivalCard from './simple/BracketSurvivalCard';
 import MarketOddsCard from './simple/MarketOddsCard';
+import BracketAlignmentCard from './simple/BracketAlignmentCard';
 import NewsFeed from './NewsFeed';
 
 const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
@@ -273,11 +274,20 @@ export default function Dashboard({
           desktop; stacks on mobile via the .td-insights-row media query. */}
       <section className="td-insights-row" aria-label="Bracket insights">
         <div className="td-section-label td-insights-label">Insights</div>
+        {/* Two-zone layout:
+              .td-insights-pack — 2×2 grid of four equal-size thin cards
+                                  (3 about the user's bracket + 1 vs market).
+              Bracket Survival   — full-height taller card on the right
+                                  whose per-round bars need vertical room
+                                  the four short cards don't. */}
         <div className="td-insights-grid">
-          {uData?.id && <BoldestCallCard userId={uData.id} leagueId="global-simple" />}
-          <MostContestedCard leagueId="global-simple" />
+          <div className="td-insights-pack">
+            {uData?.id && <BoldestCallCard userId={uData.id} leagueId="global-simple" />}
+            <MostContestedCard leagueId="global-simple" />
+            {uData?.id && <BracketAlignmentCard userId={uData.id} leagueId="global-simple" />}
+            {uData?.id && <MarketOddsCard userId={uData.id} leagueId="global-simple" />}
+          </div>
           {uData?.id && <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />}
-          {uData?.id && <MarketOddsCard userId={uData.id} leagueId="global-simple" />}
         </div>
       </section>
 
