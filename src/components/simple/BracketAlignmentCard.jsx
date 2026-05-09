@@ -21,7 +21,7 @@ import { Compass } from 'lucide-react';
 import { getSimplePrediction, getSimpleConsensus } from '../../utils/db';
 
 const ROUND_KEYS = ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final'];
-const MIN_USER_THRESHOLD = 10;
+const MIN_USER_THRESHOLD = 3;
 
 export default function BracketAlignmentCard({ userId, leagueId }) {
   const [stats, setStats] = useState(null); // { aligned, total, pct }

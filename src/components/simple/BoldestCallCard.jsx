@@ -25,10 +25,12 @@ const ROUND_ACTION = {
   final: 'to win it all',
 };
 
-// MIN_USER_THRESHOLD: don't surface a "bold pick" until enough users
-// have submitted that the consensus is statistically meaningful. With
-// fewer than 10 brackets, every pick reads as 5–10% by accident.
-const MIN_USER_THRESHOLD = 10;
+// MIN_USER_THRESHOLD: don't surface a "bold pick" until at least
+// this many users have submitted. Lowered from 10 → 3 so the card
+// renders for early-stage leagues — the % may be noisier with a
+// small denominator but the user gets the engagement loop right
+// away rather than seeing an empty insights row.
+const MIN_USER_THRESHOLD = 3;
 
 export default function BoldestCallCard({ userId, leagueId }) {
   const [boldest, setBoldest] = useState(null); // null = loading or unavailable

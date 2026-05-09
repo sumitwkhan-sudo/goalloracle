@@ -9,10 +9,10 @@ import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints,
 import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
 import AnimatedCounter from './AnimatedCounter';
 import BoldestCallCard from './simple/BoldestCallCard';
-import MostContestedCard from './simple/MostContestedCard';
 import BracketSurvivalCard from './simple/BracketSurvivalCard';
-import MarketOddsCard from './simple/MarketOddsCard';
 import BracketAlignmentCard from './simple/BracketAlignmentCard';
+import GroupBoldnessCard from './simple/GroupBoldnessCard';
+import FifaRanksCard from './simple/FifaRanksCard';
 import NewsFeed from './NewsFeed';
 
 const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
@@ -281,11 +281,18 @@ export default function Dashboard({
                                   whose per-round bars need vertical room
                                   the four short cards don't. */}
         <div className="td-insights-grid">
+          {/* 4 thin cards in a 2×2 pack — three about the user's
+              picks (knockout boldness, group-stage upsets, whole-
+              bracket alignment with the crowd) plus one external
+              comparison against FIFA's world ranking from internal
+              data. Group Boldness + FIFA Ranks don't depend on
+              crowd consensus, so they always render once the user
+              has any picks. */}
           <div className="td-insights-pack">
             {uData?.id && <BoldestCallCard userId={uData.id} leagueId="global-simple" />}
-            <MostContestedCard leagueId="global-simple" />
+            {uData?.id && <GroupBoldnessCard userId={uData.id} leagueId="global-simple" />}
             {uData?.id && <BracketAlignmentCard userId={uData.id} leagueId="global-simple" />}
-            {uData?.id && <MarketOddsCard userId={uData.id} leagueId="global-simple" />}
+            {uData?.id && <FifaRanksCard userId={uData.id} leagueId="global-simple" />}
           </div>
           {uData?.id && <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />}
         </div>
