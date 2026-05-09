@@ -282,6 +282,29 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     }
   }, [userId, league?.id, onRehydrate]);
 
+  // Live "does the user have any picks here yet?" \u2014 drives the label
+  // on the Global-copy button (Replace vs Copy) and whether we need
+  // a destructive confirmation step.
+  const hasAnyPicks = useMemo(
+    () =>
+      groups.touchedCount > 0
+        || bestThird.picks.length > 0
+        || Object.keys(bracketState.picksByMatchId || {}).length > 0,
+    [groups.touchedCount, bestThird.picks.length, bracketState.picksByMatchId],
+  );
+
+  const handleReplaceFromGlobal = useCallback(async () => {
+    if (hasAnyPicks) {
+      const ok = window.confirm(
+        'Replace all of your current picks with your Global league picks?\n\n'
+        + 'This will overwrite your group rankings, best-thirds, and bracket for this league.\n\n'
+        + 'This can\u2019t be undone.',
+      );
+      if (!ok) return;
+    }
+    await handleCopyFromGlobal();
+  }, [hasAnyPicks, handleCopyFromGlobal]);
+
   const handleResetAll = useCallback(async () => {
     if (!userId || !league?.id) return;
     const leagueLabel = league.name || 'this league';
@@ -320,6 +343,19 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             {!error && !saving && showSaved && (
               <span className="simple-page-saved"><Check size={14} /> Saved</span>
             )}
+            {!isGlobalSimple && copyBanner !== 'prompt' && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm simple-page-replace-global"
+                onClick={handleReplaceFromGlobal}
+                disabled={copyBusy}
+                title={hasAnyPicks ? 'Overwrite my picks here with my Global league picks' : 'Use my Global league picks here'}
+              >
+                {copyBusy ? <RefreshCw size={13} className="spin" /> : <Copy size={13} />}
+                {' '}
+                {copyBusy ? 'Copying…' : (hasAnyPicks ? 'Replace with Global picks' : 'Copy Global picks')}
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-ghost btn-sm simple-page-reset"
@@ -338,6 +374,19 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
           {!error && saving && <span className="simple-page-saving">Saving…</span>}
           {!error && !saving && showSaved && (
             <span className="simple-page-saved"><Check size={14} /> Saved</span>
+          )}
+          {!isGlobalSimple && copyBanner !== 'prompt' && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm simple-page-replace-global"
+              onClick={handleReplaceFromGlobal}
+              disabled={copyBusy}
+              title={hasAnyPicks ? 'Overwrite my picks here with my Global league picks' : 'Use my Global league picks here'}
+            >
+              {copyBusy ? <RefreshCw size={13} className="spin" /> : <Copy size={13} />}
+              {' '}
+              {copyBusy ? 'Copying…' : (hasAnyPicks ? 'Replace with Global picks' : 'Copy Global picks')}
+            </button>
           )}
           <button
             type="button"
