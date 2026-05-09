@@ -59,31 +59,76 @@ export function parseFootballDataResponse(data) {
 
 const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN']);
 
+// Normalize team names for comparison: lowercase, strip diacritics, drop
+// common prefixes/suffixes that vary across providers.
+//   "FC Bayern München"     → "bayern"
+//   "Paris Saint-Germain FC" → "paris saint germain"
+//   "Manchester United FC"   → "manchester united"
+//   "AFC Bournemouth"        → "bournemouth"
+function normalizeTeamName(name) {
+  if (typeof name !== 'string') return '';
+  return name
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // strip diacritics
+    .toLowerCase()
+    .replace(/\b(fc|afc|cf|sc|ac|as|sk|bk|fk|nk)\b/g, '') // generic club prefixes
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function parseApiSportsResponse(data, { fixtureId, homeTeam, awayTeam } = {}) {
   if (!data || typeof data !== 'object') {
     throw new Error('api-sports.io: empty or non-object response');
   }
+  // Surface upstream errors so they're not silently swallowed. api-sports.io
+  // returns errors in either an array or a keyed object like
+  // { token: "Invalid API key", plan: "Not subscribed", requests: "..." }.
+  const errs = data.errors;
+  if (errs) {
+    if (Array.isArray(errs) && errs.length > 0) {
+      throw new Error(`api-sports.io upstream error: ${errs.join('; ')}`);
+    }
+    if (!Array.isArray(errs) && typeof errs === 'object' && Object.keys(errs).length > 0) {
+      const msg = Object.entries(errs).map(([k, v]) => `${k}: ${v}`).join('; ');
+      throw new Error(`api-sports.io upstream error: ${msg}`);
+    }
+  }
   const fixtures = data.response;
   if (!Array.isArray(fixtures) || fixtures.length === 0) {
-    throw new Error('api-sports.io: no fixtures returned');
+    const params = data.parameters ? ` (params: ${JSON.stringify(data.parameters)})` : '';
+    throw new Error(`api-sports.io: no fixtures returned${params}`);
   }
 
   let fixture;
   if (fixtureId) {
     fixture = fixtures[0];
   } else {
-    // Search by team name with substring tolerance — upstream sometimes
-    // returns "Korea Republic" where we know "South Korea", etc.
-    const ht = (homeTeam || '').toLowerCase();
-    const at = (awayTeam || '').toLowerCase();
+    // Search by team name. Try strict substring first (preserves diacritics
+    // for an exact provider match), then fall back to normalized matching
+    // that strips diacritics + club prefixes.
+    const htRaw = (homeTeam || '').toLowerCase();
+    const atRaw = (awayTeam || '').toLowerCase();
     fixture = fixtures.find((f) => {
       const h = f.teams?.home?.name?.toLowerCase() || '';
       const a = f.teams?.away?.name?.toLowerCase() || '';
-      return (h.includes(ht) || ht.includes(h)) && (a.includes(at) || at.includes(a));
+      return (h.includes(htRaw) || htRaw.includes(h)) && (a.includes(atRaw) || atRaw.includes(a));
     });
+    if (!fixture) {
+      const htN = normalizeTeamName(homeTeam);
+      const atN = normalizeTeamName(awayTeam);
+      fixture = fixtures.find((f) => {
+        const hN = normalizeTeamName(f.teams?.home?.name);
+        const aN = normalizeTeamName(f.teams?.away?.name);
+        // Both directions: each side's normalized form contained in / contains the other.
+        const homeMatch = hN && htN && (hN.includes(htN) || htN.includes(hN));
+        const awayMatch = aN && atN && (aN.includes(atN) || atN.includes(aN));
+        return homeMatch && awayMatch;
+      });
+    }
   }
   if (!fixture) {
-    throw new Error(`api-sports.io: match not found for ${homeTeam} vs ${awayTeam}`);
+    const sampleNames = fixtures.slice(0, 3).map((f) => `${f.teams?.home?.name} vs ${f.teams?.away?.name}`).join('; ');
+    throw new Error(`api-sports.io: match not found for ${homeTeam} vs ${awayTeam} among ${fixtures.length} fixture(s) [${sampleNames}]`);
   }
 
   const status = fixture.fixture?.status?.short;
