@@ -9,9 +9,14 @@ import {
   isIpBanned,
   checkAndRecordSignupForIp,
   checkFingerprintAllowsNewAccount,
+  checkIpAllowsNewAccount,
   recordFingerprintForUser,
+  recordIpForUser,
+  getMaskedEmailForFingerprint,
+  getMaskedEmailForIp,
   findUserByDedupeKey,
   isValidVisitorId,
+  SUPPORT_EMAIL,
 } from '../_lib/security.js';
 
 function newUserId() {
@@ -49,19 +54,42 @@ export default async function handler(req, res) {
     if (isNewUser) {
       const fpCheck = await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
       if (!fpCheck.allowed) {
-        return res.status(429).json({ error: 'This device has reached the maximum number of accounts.' });
+        const maskedEmail = await getMaskedEmailForFingerprint(db, deviceFingerprint);
+        return res.status(429).json({
+          error: 'device_account_exists',
+          message: "Looks like you've already got an account from this device.",
+          maskedEmail,
+          supportEmail: SUPPORT_EMAIL,
+        });
+      }
+      const ipUniqueCheck = await checkIpAllowsNewAccount(db, ip);
+      if (!ipUniqueCheck.allowed) {
+        const maskedEmail = await getMaskedEmailForIp(db, ip);
+        return res.status(429).json({
+          error: 'ip_account_exists',
+          message: "Looks like you've already got an account from this network.",
+          maskedEmail,
+          supportEmail: SUPPORT_EMAIL,
+        });
       }
       const ipCheck = await checkAndRecordSignupForIp(db, ip);
       if (!ipCheck.allowed) {
-        return res.status(429).json({ error: 'Too many new accounts from this network recently. Try again tomorrow.' });
+        return res.status(429).json({
+          error: 'ip_rate_limit',
+          message: 'Too many new accounts from this network recently. Try again tomorrow.',
+          supportEmail: SUPPORT_EMAIL,
+        });
       }
     }
 
     const uid = existing?.id || newUserId();
     const firebaseToken = await admin.auth().createCustomToken(uid);
 
-    if (isNewUser && isValidVisitorId(deviceFingerprint)) {
-      await recordFingerprintForUser(db, deviceFingerprint, uid, ip);
+    if (isNewUser) {
+      if (isValidVisitorId(deviceFingerprint)) {
+        await recordFingerprintForUser(db, deviceFingerprint, uid, ip);
+      }
+      await recordIpForUser(db, ip, uid);
     }
 
     return res.status(200).json({
