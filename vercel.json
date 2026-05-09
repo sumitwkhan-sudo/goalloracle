@@ -5,7 +5,9 @@
     }
   },
   "crons": [
-    { "path": "/api/cron/cleanup", "schedule": "0 4 * * *" }
+    { "path": "/api/cron/cleanup", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/poll-results", "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/daily-report", "schedule": "0 8 * * *" }
   ],
   "rewrites": [
     { "source": "/__/auth/:path*", "destination": "https://goaloracle-f348f.firebaseapp.com/__/auth/:path*" },

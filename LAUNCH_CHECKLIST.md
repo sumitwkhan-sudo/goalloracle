@@ -174,31 +174,37 @@ hasn't updated):
 
 ## What's NOT automated (real gaps you should know about)
 
-1. **Scheduled match-result polling.** Right now you have to manually push
-   a "Run Oracle" button per match in admin. There's no cron that walks
-   recently-finished matches and pulls scores automatically. This will be
-   tedious during the WC (60+ matches in 4 weeks). **Recommend building
-   this before Jun 11.**
-
-2. **Auto-rescore on result update.** If you correct a match result after
+1. **Auto-rescore on result update.** If you correct a match result after
    it's been first scored (rare — operator typo or retroactive
    disqualification), Quick Picks scores re-render on next page load
-   because scoring is computed on render, but no re-notification or audit
-   log entry. Lower priority; you'd notice the discrepancy from
-   reconciliation.
+   because scoring is computed on render. No re-notification or audit
+   log entry. Lower priority; you'd notice from the daily report email.
 
-3. **Reconciliation UI.** I built `/api/admin?action=reconcile` but didn't
-   wire a button for it. Use it from a tool like Postman or tell me to add
-   the button.
+2. **Knockout-stage auto-polling can't look up matches by team name yet.**
+   The poll-results cron can ingest group-stage matches automatically
+   because team names are known up front. For knockout matches, the
+   home/away fields are placeholders ("W R32-01", "1st Group A", etc.)
+   until the bracket is resolved. The cron skips those — you'd need to
+   manually click "Update Result" for knockout matches in admin, OR I can
+   build a follow-up that resolves the bracket from results and refills
+   the matches.js team names dynamically. Tell me when knockouts approach.
 
 ---
 
 ## TL;DR — What you should actually do this week
 
-1. **Merge PR #51.**
-2. **Set `CRON_SECRET` in Vercel env vars.**
-3. **Open admin dashboard → Oracle tab → click "Run Health Check" then "Test EPL".**
-4. **Tell me to: (a) build the scheduled match-result poller, (b) wire the
-   reconciliation button, (c) run the passcode migration.**
+1. **Merge the new PR** (link in the chat — covers stage locks, oracle
+   parsers, smoke-test buttons, and now auto-poll + daily email).
+2. **Set 3 env vars in Vercel**:
+   - `CRON_SECRET` = any long random string (auths the daily crons)
+   - `REPORT_EMAIL` = your email (where daily reports go; falls back to
+     `FEEDBACK_EMAIL` if unset)
+   - Confirm `FOOTBALL_DATA_API_KEY` and `APISPORTS_API_KEY` are both
+     set (you mentioned only one is, fix the missing one)
+3. **Wait for the next scheduled cron** (or open the admin Oracle tab and
+   click "Test EPL" to verify manually).
+4. **Watch your inbox for the daily email** — it tells you everything's
+   green, or what's broken.
 
-Three of those are buttons. One is me coding.
+That's it. Once the env vars are set, the system runs itself. The email
+is your only required interaction.
