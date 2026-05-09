@@ -1893,6 +1893,77 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .picks-viewer-action { padding: 0.5rem; min-width: 32px; justify-content: center; }
 }
 .picks-viewer-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+/* Progress card — sits above the tabs, summarises pick completeness
+   and (post-kickoff) live scoring. Pre-tournament it doubles as a
+   kickoff countdown so the modal never feels empty. */
+.pv-progress {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.pv-progress-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.pv-progress-title {
+  margin: 0; font-size: 0.9rem; font-weight: 700; color: var(--text);
+  letter-spacing: -0.01em;
+}
+.pv-progress-eyebrow {
+  font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.pv-progress-stats {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+@media (min-width: 560px) {
+  .pv-progress-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.pv-progress-stat {
+  display: flex; flex-direction: column; gap: 0.15rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pv-progress-stat-total {
+  background: rgba(0, 212, 255, 0.06);
+  border-color: rgba(0, 212, 255, 0.25);
+}
+.pv-progress-stat-label {
+  font-size: 0.66rem; color: var(--text-dim);
+  letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
+}
+.pv-progress-stat-value {
+  font-family: var(--mono); font-size: 1rem; font-weight: 700; color: var(--text);
+  display: inline-flex; align-items: baseline;
+}
+.pv-progress-stat-of { color: var(--text-dim); font-weight: 500; font-size: 0.78rem; }
+.pv-progress-stat-total .pv-progress-stat-value { color: var(--cyan); }
+
+.pv-progress-bar {
+  height: 4px; background: var(--bg-card); border-radius: 999px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.pv-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--primary));
+  transition: width 0.25s ease-out;
+}
+.pv-progress-note {
+  margin: 0; font-size: 0.78rem; color: var(--text-sec); line-height: 1.45;
+}
+.pv-progress-note strong { color: var(--text); }
+[data-theme="light"] .pv-progress-stat-total .pv-progress-stat-value { color: var(--primary); }
+[data-theme="light"] .pv-progress-stat-total {
+  background: rgba(91, 61, 245, 0.06);
+  border-color: rgba(91, 61, 245, 0.22);
+}
+
 /* Tabs inside the picks viewer modal — Group stage / Knockout bracket. */
 .pv-tabs {
   display: inline-flex; align-items: center; gap: 0.3rem;
@@ -1962,6 +2033,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 /* Best third chips */
 .picks-viewer-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .pv-chip { padding: 0.3rem 0.7rem; background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.25); border-radius: 999px; font-family: var(--mono); font-size: 0.7rem; color: var(--cyan); }
+/* Third-place chip — group letter as a leading badge, then flag + team
+   name. Lets the user see *which* third-placed team they actually
+   picked, instead of just "Group E". */
+.pv-chip-third { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.55rem 0.25rem 0.3rem; }
+.pv-chip-third .pv-chip-group { background: rgba(0,212,255,0.18); padding: 0.1rem 0.4rem; border-radius: 999px; font-weight: 700; }
+.pv-chip-third .pv-chip-flag { font-size: 0.95rem; line-height: 1; }
+.pv-chip-third .pv-chip-team { font-family: var(--font); font-size: 0.78rem; font-weight: 600; color: var(--text); }
+.pv-chip-third .pv-chip-team-empty { color: var(--text-dim); font-weight: 400; font-style: italic; }
 
 /* Bracket rounds */
 .picks-viewer-rounds { display: flex; flex-direction: column; gap: 0.75rem; }

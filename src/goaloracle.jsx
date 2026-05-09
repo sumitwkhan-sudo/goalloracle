@@ -9,6 +9,8 @@ import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, Trendi
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
+import { teamFlags } from './utils/flags';
+import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX } from './utils/scoringSimple';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
@@ -266,6 +268,31 @@ function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, grou
   const [tab, setTab] = useState('groups');
   const layout = useBracketLayout();
 
+  // Pick completeness — computed from the prediction doc itself, so this
+  // works pre-tournament without any results data. Post-kickoff we'll
+  // also surface running scores in the same card via calculateSimpleScore.
+  const completeness = useMemo(() => {
+    const groupsRanked = groupsLocal.filter(
+      (g) => Array.isArray(data?.groupPredictions?.[g]?.ranking) && data.groupPredictions[g].ranking.filter(Boolean).length === 4,
+    ).length;
+    const thirdsPicked = Array.isArray(data?.bestThirdPicks) ? data.bestThirdPicks.length : 0;
+    let knockoutPicks = 0;
+    for (const r of roundOrder) {
+      const arr = data?.knockoutPredictions?.[r] || [];
+      knockoutPicks += arr.filter((p) => p?.winnerId).length;
+    }
+    const total = groupsRanked + thirdsPicked + knockoutPicks; // out of 52
+    return { groupsRanked, thirdsPicked, knockoutPicks, total, max: 52 };
+  }, [data, groupsLocal, roundOrder]);
+
+  // Days until tournament kickoff. Stays positive pre-tournament, hits 0
+  // on/after kickoff at which point the card flips into live-scoring mode.
+  const daysToKickoff = useMemo(() => {
+    const ms = Date.UTC(2026, 5, 11, 19, 0, 0) - Date.now();
+    return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+  }, []);
+  const tournamentStarted = daysToKickoff === 0;
+
   const matchLookup = useMemo(() => {
     const out = {};
     for (const m of WORLD_CUP_MATCHES) out[m.id] = m;
@@ -358,6 +385,53 @@ function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, grou
               );
             })()}
 
+            {/* Progress card — shows pick completeness always, and either
+                a kickoff countdown (pre-tournament) or live-scoring
+                breakdown (post-tournament). Always visible above the
+                tabs so the headline answer to "how am I doing?" is the
+                first thing the viewer sees. */}
+            <section className="pv-progress" aria-labelledby="pv-progress-heading">
+              <header className="pv-progress-head">
+                <h4 id="pv-progress-heading" className="pv-progress-title">
+                  {tournamentStarted ? 'Live scoring' : 'Picks & progress'}
+                </h4>
+                <span className="pv-progress-eyebrow">
+                  {tournamentStarted
+                    ? `Tournament live`
+                    : `Kicks off in ${daysToKickoff} day${daysToKickoff === 1 ? '' : 's'}`}
+                </span>
+              </header>
+              <div className="pv-progress-stats">
+                <div className="pv-progress-stat">
+                  <span className="pv-progress-stat-label">Groups ranked</span>
+                  <span className="pv-progress-stat-value">{completeness.groupsRanked}<span className="pv-progress-stat-of"> / 12</span></span>
+                </div>
+                <div className="pv-progress-stat">
+                  <span className="pv-progress-stat-label">Best 3rds picked</span>
+                  <span className="pv-progress-stat-value">{completeness.thirdsPicked}<span className="pv-progress-stat-of"> / 8</span></span>
+                </div>
+                <div className="pv-progress-stat">
+                  <span className="pv-progress-stat-label">Bracket picks</span>
+                  <span className="pv-progress-stat-value">{completeness.knockoutPicks}<span className="pv-progress-stat-of"> / 32</span></span>
+                </div>
+                <div className="pv-progress-stat pv-progress-stat-total">
+                  <span className="pv-progress-stat-label">Picks complete</span>
+                  <span className="pv-progress-stat-value">{completeness.total}<span className="pv-progress-stat-of"> / {completeness.max}</span></span>
+                </div>
+              </div>
+              <div className="pv-progress-bar" aria-hidden="true">
+                <div
+                  className="pv-progress-bar-fill"
+                  style={{ width: `${Math.min(100, Math.round((completeness.total / completeness.max) * 100))}%` }}
+                />
+              </div>
+              <p className="pv-progress-note">
+                {tournamentStarted
+                  ? <>Live score updates as matches finish. Max possible: <strong>{TOTAL_MAX} pts</strong> ({GROUP_STAGE_MAX} groups · {BEST_THIRD_MAX} thirds · {KNOCKOUT_MAX} bracket).</>
+                  : <>Live scoring opens at kickoff. Until then, lock in your picks — max possible is <strong>{TOTAL_MAX} pts</strong>.</>}
+              </p>
+            </section>
+
             <div className="pv-tabs" role="tablist" aria-label="Picks view">
               <button
                 type="button"
@@ -408,9 +482,23 @@ function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, grou
                   <h4 className="picks-viewer-h">Best 3rd-place picks</h4>
                   {(data.bestThirdPicks || []).length > 0 ? (
                     <div className="picks-viewer-chips">
-                      {data.bestThirdPicks.map(g => (
-                        <span key={g} className="pv-chip">Group {g}</span>
-                      ))}
+                      {data.bestThirdPicks.map(g => {
+                        const team = data.groupPredictions?.[g]?.ranking?.[2] || null;
+                        const flag = team ? teamFlags[team] : '';
+                        return (
+                          <span key={g} className="pv-chip pv-chip-third">
+                            <span className="pv-chip-group">{g}</span>
+                            {team ? (
+                              <>
+                                <span className="pv-chip-flag" aria-hidden="true">{flag}</span>
+                                <span className="pv-chip-team">{team}</span>
+                              </>
+                            ) : (
+                              <span className="pv-chip-team pv-chip-team-empty">— rank Group {g} to see</span>
+                            )}
+                          </span>
+                        );
+                      })}
                     </div>
                   ) : <span className="picks-viewer-muted">Not selected yet.</span>}
                 </div>
@@ -899,8 +987,15 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             countriesList={countriesList}
             friendIds={friendIds}
             onRowClick={(row) => {
-              if (row.userId === userData?.id) setSTab('predictions');
-              else setViewingPicks({ userId: row.userId, displayName: row.displayName, winner: row.winner, runnerUp: row.runnerUp, leagueId: league?.id || 'global-simple' });
+              const isMine = row.userId === userData?.id;
+              if (isMine) {
+                // Default to the read-only viewer (with progress card)
+                // for own row when picks are complete. Only drop into
+                // the prediction wizard if there's still work to do.
+                const finished = row.isComplete === true || row.picksLeft === 0;
+                if (!finished) { setSTab('predictions'); return; }
+              }
+              setViewingPicks({ userId: row.userId, displayName: row.displayName, winner: row.winner, runnerUp: row.runnerUp, leagueId: league?.id || 'global-simple' });
             }}
             onEdit={() => setSTab('predictions')}
             onInvite={handleInvite}
@@ -913,6 +1008,8 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       {viewingPicks && (
         <PicksViewer
           target={viewingPicks}
+          isOwn={viewingPicks.userId === userData?.id}
+          onEdit={viewingPicks.userId === userData?.id ? () => { setViewingPicks(null); setSTab('predictions'); } : undefined}
           onClose={() => setViewingPicks(null)}
         />
       )}
