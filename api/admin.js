@@ -1,10 +1,15 @@
 import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { ipHash } from './_lib/security.js';
+
+async function getRole(userId) {
+  const userSnap = await db.collection('users').doc(userId).get();
+  if (!userSnap.exists) return null;
+  return userSnap.data().role || null;
+}
 
 async function isAdmin(userId) {
-  const userSnap = await db.collection('users').doc(userId).get();
-  if (!userSnap.exists) return false;
-  const role = userSnap.data().role;
+  const role = await getRole(userId);
   return role === 'admin' || role === 'superadmin';
 }
 
@@ -74,6 +79,17 @@ export default async function handler(req, res) {
       const { targetUserId, newRole } = req.body;
       if (!targetUserId || !newRole) return res.status(400).json({ error: 'Missing user/role' });
       if (!['user', 'admin', 'superadmin'].includes(newRole)) return res.status(400).json({ error: 'Invalid role' });
+
+      // Only superadmins can grant or revoke superadmin. Plain admins can
+      // only flip between 'user' and 'admin'.
+      const callerRole = await getRole(userId);
+      if (newRole === 'superadmin' && callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can assign the superadmin role' });
+      }
+      const targetCurrentRole = await getRole(targetUserId);
+      if (targetCurrentRole === 'superadmin' && callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can change a superadmin' });
+      }
 
       await db.collection('users').doc(targetUserId).update({ role: newRole });
       await db.collection('adminLogs').add({
@@ -235,6 +251,60 @@ export default async function handler(req, res) {
         timestamp: FieldValue.serverTimestamp(),
       });
       return res.status(200).json({ success: true, flag, value });
+    }
+
+    if (action === 'banIp') {
+      // Add an IP (or its raw hash) to the blocklist. Either pass `ip` (the
+      // raw v4/v6 address) or `ipHash` (the sha256 hex) — useful for banning
+      // an IP you only have the hashed form of from the user doc.
+      const { ip, ipHash: rawHash, reason } = req.body;
+      const hash = rawHash || (ip ? ipHash(ip) : null);
+      if (!hash) return res.status(400).json({ error: 'Missing ip or ipHash' });
+      await db.collection('bannedIps').doc(hash).set({
+        bannedBy: userId,
+        bannedAt: FieldValue.serverTimestamp(),
+        reason: (reason || '').toString().slice(0, 200) || null,
+        ipPreview: ip ? `${String(ip).slice(0, 8)}…` : null,
+      });
+      await db.collection('adminLogs').add({
+        action: 'ban_ip',
+        ipHash: hash,
+        adminId: userId,
+        reason: reason || null,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, ipHash: hash });
+    }
+
+    if (action === 'unbanIp') {
+      const { ip, ipHash: rawHash } = req.body;
+      const hash = rawHash || (ip ? ipHash(ip) : null);
+      if (!hash) return res.status(400).json({ error: 'Missing ip or ipHash' });
+      await db.collection('bannedIps').doc(hash).delete().catch(() => {});
+      await db.collection('adminLogs').add({
+        action: 'unban_ip',
+        ipHash: hash,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true });
+    }
+
+    if (action === 'listBannedIps') {
+      const snap = await db.collection('bannedIps').get();
+      return res.status(200).json({
+        bans: snap.docs.map(d => ({ ipHash: d.id, ...d.data() })),
+      });
+    }
+
+    if (action === 'inspectFingerprint') {
+      // Look up which user IDs share a given device fingerprint. Useful for
+      // investigating Sybil reports.
+      const { visitorId } = req.body;
+      if (!visitorId) return res.status(400).json({ error: 'Missing visitorId' });
+      const snap = await db.collection('deviceFingerprints').doc(visitorId).get();
+      if (!snap.exists) return res.status(200).json({ visitorId, userIds: [] });
+      return res.status(200).json({ visitorId, ...snap.data() });
     }
 
     return res.status(400).json({ error: 'Invalid action' });

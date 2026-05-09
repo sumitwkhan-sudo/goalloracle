@@ -1,6 +1,7 @@
 import { db, auth } from '../config/firebase';
 import { collection, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, writeBatch, arrayUnion, arrayRemove, increment, serverTimestamp, getDocs, getCountFromServer, documentId } from 'firebase/firestore';
 import WORLD_CUP_MATCHES from '../data/matches';
+import { getVisitorId } from './fingerprint';
 
 // ---- Auth token management ----
 // Cached Firebase ID token. Refreshed by goaloracle.jsx on auth state changes.
@@ -73,8 +74,13 @@ export async function createOrUpdateUser(authUser) {
 
   // Kick off /api/user in the background — server-side backfills global league
   // membership (leagues/global, leagues/global-simple → members array) which
-  // the client can't write through Firestore rules.
-  apiCall('user', 'POST', { email: emailAddr }).catch(e => console.warn('[auth] /api/user backfill failed:', e.message));
+  // the client can't write through Firestore rules. Passing the device
+  // fingerprint lets the server stamp it onto a freshly-created user doc so
+  // multi-account checks see this account.
+  getVisitorId()
+    .catch(() => null)
+    .then(deviceFingerprint => apiCall('user', 'POST', { deviceFingerprint }))
+    .catch(e => console.warn('[auth] /api/user backfill failed:', e.message));
 
   if (userSnap.exists()) {
     const userData = { id: userSnap.id, ...userSnap.data() };
@@ -171,14 +177,22 @@ export function consumePendingJoin() {
 
 export async function updateUserProfile(userId, updates) {
   const userRef = doc(db, 'users', userId);
+  // walletAddress mutations are blocked by Firestore rules (admin-only).
+  // Route them through /api/user, which validates EVM format and writes
+  // via the admin SDK. Everything else is fine to write client-side.
+  if (updates.walletAddress !== undefined) {
+    await apiCall('user', 'POST', { walletAddress: updates.walletAddress });
+  }
   const safeUpdates = { updatedAt: serverTimestamp() };
   if (updates.displayName && updates.displayName.trim()) safeUpdates.displayName = updates.displayName.trim();
   if (updates.usernameSet === true) safeUpdates.usernameSet = true;
   if (updates.email) safeUpdates.email = updates.email;
   if (updates.onboardingComplete === true) safeUpdates.onboardingComplete = true;
   if (typeof updates.country === 'string' && updates.country.trim()) safeUpdates.country = updates.country.trim().toUpperCase();
-  if (updates.walletAddress) safeUpdates.walletAddress = updates.walletAddress;
-  await updateDoc(userRef, safeUpdates);
+  // Only call updateDoc if there's something other than updatedAt to write.
+  if (Object.keys(safeUpdates).length > 1) {
+    await updateDoc(userRef, safeUpdates);
+  }
   const fresh = await getDoc(userRef);
   return { id: fresh.id, ...fresh.data() };
 }

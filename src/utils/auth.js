@@ -7,6 +7,7 @@ import {
   GoogleAuthProvider,
   signOut as fbSignOut,
 } from 'firebase/auth';
+import { getVisitorId } from './fingerprint';
 
 // Detect environments where signInWithPopup is unreliable. Mobile browsers
 // (especially in-app webviews like Instagram / FB / Twitter) routinely
@@ -67,12 +68,17 @@ async function postJSON(url, body) {
   return data;
 }
 
+async function safeFingerprint() {
+  try { return await getVisitorId(); } catch { return null; }
+}
+
 export async function requestEmailCode(email) {
   return postJSON('/api/auth/request-code', { email });
 }
 
 export async function verifyEmailCode(email, code) {
-  const { firebaseToken } = await postJSON('/api/auth/verify-code', { email, code });
+  const deviceFingerprint = await safeFingerprint();
+  const { firebaseToken } = await postJSON('/api/auth/verify-code', { email, code, deviceFingerprint });
   await signInWithCustomToken(auth, firebaseToken);
   return auth.currentUser;
 }
@@ -85,7 +91,8 @@ async function completeGoogleSignIn(result) {
   const credential = GoogleAuthProvider.credentialFromResult(result);
   const googleIdToken = credential?.idToken;
   if (!googleIdToken) throw new Error('Google sign-in returned no ID token');
-  const { firebaseToken } = await postJSON('/api/auth/google', { idToken: googleIdToken });
+  const deviceFingerprint = await safeFingerprint();
+  const { firebaseToken } = await postJSON('/api/auth/google', { idToken: googleIdToken, deviceFingerprint });
   await fbSignOut(auth);
   _swapInFlight = false;
   await signInWithCustomToken(auth, firebaseToken);

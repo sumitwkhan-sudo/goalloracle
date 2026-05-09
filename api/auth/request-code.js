@@ -1,18 +1,27 @@
 import crypto from 'crypto';
 import { Resend } from 'resend';
 import { db, admin, corsHeaders } from '../_lib/firebase.js';
+import {
+  normalizeEmail,
+  isDisposableEmailDomain,
+  getClientIp,
+  isIpBanned,
+  checkAndRecordCodeRequestForIp,
+} from '../_lib/security.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const MAX_CODES_PER_HOUR = 3;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 
-function hashEmail(email) {
-  return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+// Index code docs by the dedupe key so alias attempts (foo+1@gmail.com,
+// foo+2@gmail.com) all share one rate-limit bucket per real mailbox.
+function hashDedupe(dedupe) {
+  return crypto.createHash('sha256').update(dedupe).digest('hex');
 }
 
-function hashCode(code, email) {
-  return crypto.createHash('sha256').update(`${email.toLowerCase().trim()}:${code}`).digest('hex');
+function hashCode(code, dedupe) {
+  return crypto.createHash('sha256').update(`${dedupe}:${code}`).digest('hex');
 }
 
 function isValidEmail(email) {
@@ -40,9 +49,18 @@ export default async function handler(req, res) {
 
   const { email } = req.body || {};
   if (!isValidEmail(email)) return res.status(400).json({ error: 'Invalid email' });
+  if (isDisposableEmailDomain(email)) return res.status(400).json({ error: 'Please use a real email address' });
 
-  const normalized = email.toLowerCase().trim();
-  const docId = hashEmail(normalized);
+  const ip = getClientIp(req);
+  if (await isIpBanned(db, ip)) return res.status(403).json({ error: 'Access denied' });
+
+  const ipCheck = await checkAndRecordCodeRequestForIp(db, ip);
+  if (!ipCheck.allowed) {
+    return res.status(429).json({ error: 'Too many sign-in attempts from this network. Try again later.' });
+  }
+
+  const dedupe = normalizeEmail(email);
+  const docId = hashDedupe(dedupe);
   const now = Date.now();
 
   try {
@@ -50,7 +68,7 @@ export default async function handler(req, res) {
     const snap = await ref.get();
     const existing = snap.exists ? snap.data() : null;
 
-    // Rate limit: max 3 codes per email per hour
+    // Rate limit: max 3 codes per dedupe-key per hour
     if (existing?.history) {
       const recent = existing.history.filter(t => now - t < RATE_WINDOW_MS);
       if (recent.length >= MAX_CODES_PER_HOUR) {
@@ -59,12 +77,13 @@ export default async function handler(req, res) {
     }
 
     const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-    const codeHash = hashCode(code, normalized);
+    const codeHash = hashCode(code, dedupe);
 
     const newHistory = [...(existing?.history || []).filter(t => now - t < RATE_WINDOW_MS), now];
 
     await ref.set({
-      email: normalized,
+      email: email.toLowerCase().trim(),
+      dedupe,
       codeHash,
       expiresAt: now + CODE_TTL_MS,
       attempts: 0,
@@ -74,13 +93,13 @@ export default async function handler(req, res) {
 
     if (!process.env.RESEND_API_KEY) {
       // Dev fallback: log code to server logs so local dev still works.
-      console.log(`[auth] DEV: code for ${normalized} = ${code}`);
+      console.log(`[auth] DEV: code for ${email} = ${code}`);
     } else {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const from = process.env.RESEND_FROM_EMAIL || 'GoalOracle <noreply@goaloracle.com>';
       const result = await resend.emails.send({
         from,
-        to: normalized,
+        to: email.toLowerCase().trim(),
         subject: `${code} is your GoalOracle sign-in code`,
         html: buildEmailHtml(code),
       });

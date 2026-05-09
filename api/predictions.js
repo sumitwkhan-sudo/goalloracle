@@ -146,6 +146,14 @@ export default async function handler(req, res) {
   const { leagueId, predictions } = req.body;
 
   if (!leagueId || !predictions) return res.status(400).json({ error: 'Missing leagueId or predictions' });
+  if (typeof predictions !== 'object' || Array.isArray(predictions)) {
+    return res.status(400).json({ error: 'Invalid predictions payload' });
+  }
+  // Cap batch size — the WC has 104 matches, so 200 is a generous ceiling
+  // that still rules out abusive payloads aimed at racking up function time.
+  if (Object.keys(predictions).length > 200) {
+    return res.status(400).json({ error: 'Too many predictions in one request' });
+  }
 
   // Verify user is a member of this league
   const leagueSnap = await db.collection('leagues').doc(leagueId).get();

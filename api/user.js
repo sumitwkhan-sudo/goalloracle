@@ -1,4 +1,12 @@
 import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
+import {
+  validateDisplayNameServer,
+  normalizeEmail,
+  getClientIp,
+  ipHash,
+  isValidVisitorId,
+  recordFingerprintForUser,
+} from './_lib/security.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 // Ensure global leagues exist (called once, cached)
@@ -74,9 +82,34 @@ export default async function handler(req, res) {
   if (!claims) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    const { email, walletAddress, displayName, usernameSet } = req.body;
+    const { displayName, usernameSet, deviceFingerprint, walletAddress } = req.body;
     const userId = claims.userId || claims.sub;
     if (!userId) return res.status(500).json({ error: 'No user ID in auth claims' });
+
+    // Wallet self-link: allow the user to set their own walletAddress
+    // through this server path (rules block direct client writes), but
+    // validate format here so the field is never garbage.
+    let walletUpdate;
+    if (walletAddress !== undefined) {
+      const trimmed = String(walletAddress || '').trim();
+      if (trimmed === '') {
+        walletUpdate = null; // explicit clear
+      } else if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+        walletUpdate = trimmed;
+      } else {
+        return res.status(400).json({ error: 'Invalid EVM wallet address' });
+      }
+    }
+
+    // Trust the verified token's email over anything in the body — the body
+    // value is attacker-controlled and could otherwise overwrite the address
+    // tied to the account.
+    const email = (claims.email || '').toLowerCase().trim() || null;
+
+    if (displayName !== undefined) {
+      const err = validateDisplayNameServer(displayName);
+      if (err) return res.status(400).json({ error: err });
+    }
 
     await ensureGlobalLeague();
 
@@ -86,6 +119,7 @@ export default async function handler(req, res) {
     if (!userSnap.exists) {
       // New user
       console.log(`[user] NEW: ${userId}, email=${email}`);
+      const ip = getClientIp(req);
       await userRef.set({
         id: userId,
         createdAt: FieldValue.serverTimestamp(),
@@ -93,12 +127,18 @@ export default async function handler(req, res) {
         role: 'user',
         leagues: ['global', 'global-simple'],
         email: email || null,
-        walletAddress: walletAddress || null,
-        displayName: email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous'),
+        emailDedupeKey: email ? normalizeEmail(email) : null,
+        walletAddress: null,
+        displayName: email?.split('@')[0] || 'Anonymous',
         usernameSet: false,
+        signupIpHash: ipHash(ip),
+        deviceFingerprint: isValidVisitorId(deviceFingerprint) ? deviceFingerprint : null,
       });
+      if (isValidVisitorId(deviceFingerprint)) {
+        await recordFingerprintForUser(db, deviceFingerprint, userId, ip).catch(() => {});
+      }
       // Add to both global leagues' member lists + subcollection
-      const displayName = email?.split('@')[0] || (walletAddress ? walletAddress.slice(0, 8) : 'Anonymous');
+      const memberDisplayName = email?.split('@')[0] || 'Anonymous';
       await Promise.all([
         db.collection('leagues').doc('global').update({
           members: FieldValue.arrayUnion(userId),
@@ -110,7 +150,7 @@ export default async function handler(req, res) {
         }),
         db.collection('leagues').doc('global-simple').collection('members').doc(userId).set({
           userId,
-          displayName,
+          displayName: memberDisplayName,
           joinedAt: FieldValue.serverTimestamp(),
           totalAccuracy: 0,
           submittedAt: null,
@@ -121,8 +161,11 @@ export default async function handler(req, res) {
       // Existing user — sync updates
       console.log(`[user] EXISTING: ${userId}, role=${userSnap.data().role}, name=${userSnap.data().displayName}`);
       const updates = { updatedAt: FieldValue.serverTimestamp() };
-      if (email) updates.email = email;
-      if (walletAddress) updates.walletAddress = walletAddress;
+      if (email) {
+        updates.email = email;
+        updates.emailDedupeKey = normalizeEmail(email);
+      }
+      if (walletUpdate !== undefined) updates.walletAddress = walletUpdate;
       if (displayName && displayName.trim()) updates.displayName = displayName.trim();
       if (usernameSet === true) updates.usernameSet = true;
 
