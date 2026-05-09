@@ -43,13 +43,22 @@ const SKIP_STANDINGS = flag('--no-standings');
 const FD_KEY = process.env.FOOTBALL_DATA_API_KEY;
 const AS_KEY = process.env.APISPORTS_API_KEY;
 
+// European league seasons run Aug → May, named by the START year. So
+// "season 2025" on api-sports.io = the 2025-26 season. Auto-compute
+// from today so we don't query stale data after the calendar flips.
+function currentEuropeanSeason() {
+  const now = new Date();
+  return now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+}
+const SEASON = currentEuropeanSeason();
+
 // football-data.org uses 2-letter codes; api-sports.io uses numeric league IDs.
 const COMPETITION_MAP = {
-  PL: { fdCode: 'PL', asLeague: 39, asSeason: 2024, label: 'English Premier League' },
-  CL: { fdCode: 'CL', asLeague: 2, asSeason: 2024, label: 'UEFA Champions League' },
-  BL1: { fdCode: 'BL1', asLeague: 78, asSeason: 2024, label: 'Bundesliga' },
-  PD: { fdCode: 'PD', asLeague: 140, asSeason: 2024, label: 'La Liga' },
-  SA: { fdCode: 'SA', asLeague: 135, asSeason: 2024, label: 'Serie A' },
+  PL: { fdCode: 'PL', asLeague: 39, asSeason: SEASON, label: 'English Premier League' },
+  CL: { fdCode: 'CL', asLeague: 2, asSeason: SEASON, label: 'UEFA Champions League' },
+  BL1: { fdCode: 'BL1', asLeague: 78, asSeason: SEASON, label: 'Bundesliga' },
+  PD: { fdCode: 'PD', asLeague: 140, asSeason: SEASON, label: 'La Liga' },
+  SA: { fdCode: 'SA', asLeague: 135, asSeason: SEASON, label: 'Serie A' },
   WC: { fdCode: 'WC', asLeague: 1, asSeason: 2026, label: 'FIFA World Cup' },
 };
 const config = COMPETITION_MAP[COMPETITION];

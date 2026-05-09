@@ -4,6 +4,18 @@ import { ipHash } from './_lib/security.js';
 import { sendOperatorAlert } from './_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
+// European league seasons run Aug → May, named by the START year. So
+// "season 2025" on api-sports.io = the 2025-26 season. Auto-compute
+// from the current date so the smoke-test still works year-on-year
+// without code edits.
+function currentEuropeanSeason() {
+  const now = new Date();
+  // Months are 0-indexed. Treat July (6) and earlier as previous season,
+  // August (7) and later as current. Matches what football-data.org and
+  // api-sports.io use as the "season starts in August" convention.
+  return now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+}
+
 async function getRole(userId) {
   const userSnap = await db.collection('users').doc(userId).get();
   if (!userSnap.exists) return null;
@@ -382,12 +394,16 @@ export default async function handler(req, res) {
       // scripts/smoke-test-oracle.mjs but invokable from the admin
       // dashboard (no terminal required, keys stay on the server).
       const { parseFootballDataResponse, parseApiSportsResponse, compareResults } = await import('./_lib/oracleParsers.js');
+      // For the WC, season is fixed at 2026. For league competitions, use
+      // the auto-computed current season so the smoke-test always queries
+      // the correct year without needing yearly code updates.
+      const europeanSeason = currentEuropeanSeason();
       const COMPETITION_MAP = {
-        PL: { fdCode: 'PL', asLeague: 39, asSeason: 2024, label: 'English Premier League' },
-        CL: { fdCode: 'CL', asLeague: 2, asSeason: 2024, label: 'UEFA Champions League' },
-        BL1: { fdCode: 'BL1', asLeague: 78, asSeason: 2024, label: 'Bundesliga' },
-        PD: { fdCode: 'PD', asLeague: 140, asSeason: 2024, label: 'La Liga' },
-        SA: { fdCode: 'SA', asLeague: 135, asSeason: 2024, label: 'Serie A' },
+        PL: { fdCode: 'PL', asLeague: 39, asSeason: europeanSeason, label: 'English Premier League' },
+        CL: { fdCode: 'CL', asLeague: 2, asSeason: europeanSeason, label: 'UEFA Champions League' },
+        BL1: { fdCode: 'BL1', asLeague: 78, asSeason: europeanSeason, label: 'Bundesliga' },
+        PD: { fdCode: 'PD', asLeague: 140, asSeason: europeanSeason, label: 'La Liga' },
+        SA: { fdCode: 'SA', asLeague: 135, asSeason: europeanSeason, label: 'Serie A' },
         WC: { fdCode: 'WC', asLeague: 1, asSeason: 2026, label: 'FIFA World Cup' },
       };
       const comp = COMPETITION_MAP[(req.body.competition || 'PL').toUpperCase()] || COMPETITION_MAP.PL;
