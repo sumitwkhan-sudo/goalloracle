@@ -1987,33 +1987,33 @@ const GoalOracle = () => {
         <section className="ledger-section"><div className="container">
           <div className="editorial-head reveal">
             <div className="editorial-eyebrow">The Ledger</div>
-            <h2 className="editorial-title">Seventy-six points.<br/><span className="editorial-em">One tournament.</span></h2>
+            <h2 className="editorial-title">Two hundred nine points.<br/><span className="editorial-em">One tournament.</span></h2>
             <div className="editorial-num">Quick Picks scoring</div>
           </div>
           <div className="ledger-grid">
             <article className="ledger-card reveal-float stagger-1">
               <header><span className="ledger-idx">I.</span><span className="ledger-stage">Group stage</span></header>
-              <div className="ledger-points"><span className="ledger-num">36</span><span className="ledger-unit">pts</span></div>
-              <p className="ledger-desc">Twelve groups, four teams each. <strong>1 point</strong> for each correctly ranked 1st or 2nd place, <strong>0.5</strong> for 3rd and 4th.</p>
-              <div className="ledger-math"><span>12 groups</span><i>×</i><span>4 positions</span></div>
+              <div className="ledger-points"><span className="ledger-num">84</span><span className="ledger-unit">pts</span></div>
+              <p className="ledger-desc">Twelve groups, four teams each. <strong>3 pts</strong> for the group winner, <strong>2</strong> for 2nd, <strong>1 pt</strong> each for 3rd and 4th.</p>
+              <div className="ledger-math"><span>12 groups</span><i>×</i><span>7 pts</span></div>
             </article>
             <article className="ledger-card ledger-accent reveal-float stagger-2">
               <header><span className="ledger-idx">II.</span><span className="ledger-stage">Best thirds</span></header>
-              <div className="ledger-points"><span className="ledger-num">8</span><span className="ledger-unit">pts</span></div>
-              <p className="ledger-desc">Eight third-place finishers advance to the Round of 32. <strong>1 point</strong> for each correct pick.</p>
-              <div className="ledger-math"><span>8 slots</span><i>×</i><span>1 pt</span></div>
+              <div className="ledger-points"><span className="ledger-num">16</span><span className="ledger-unit">pts</span></div>
+              <p className="ledger-desc">Eight third-place finishers advance to the Round of 32. <strong>2 pts</strong> for each correct pick.</p>
+              <div className="ledger-math"><span>8 slots</span><i>×</i><span>2 pts</span></div>
             </article>
             <article className="ledger-card reveal-float stagger-3">
               <header><span className="ledger-idx">III.</span><span className="ledger-stage">Knockout rounds</span></header>
-              <div className="ledger-points"><span className="ledger-num">32</span><span className="ledger-unit">pts</span></div>
-              <p className="ledger-desc">Round of 32 through the Final. <strong>1 point</strong> per correct winner across all 32 knockout fixtures.</p>
-              <div className="ledger-math"><span>R32: 16</span><i>·</i><span>R16: 8</span><i>·</i><span>QF: 4</span><i>·</i><span>SF+: 4</span></div>
+              <div className="ledger-points"><span className="ledger-num">109</span><span className="ledger-unit">pts</span></div>
+              <p className="ledger-desc">Picks scale up: <strong>2</strong> in R32, <strong>3</strong> in R16, <strong>5</strong> in QF, <strong>8</strong> in SF, <strong>12</strong> in the Final.</p>
+              <div className="ledger-math"><span>R32: 32</span><i>·</i><span>R16: 24</span><i>·</i><span>QF: 20</span><i>·</i><span>SF+: 33</span></div>
             </article>
             <article className="ledger-card ledger-total reveal-float stagger-4">
               <header><span className="ledger-idx">&Sigma;</span><span className="ledger-stage">Perfect ledger</span></header>
-              <div className="ledger-points"><span className="ledger-num">76</span><span className="ledger-unit">pts</span></div>
+              <div className="ledger-points"><span className="ledger-num">209</span><span className="ledger-unit">pts</span></div>
               <p className="ledger-desc">The upper bound. Tiebreaker: earliest submission wins.</p>
-              <div className="ledger-math ledger-math-all"><span>36</span><i>+</i><span>8</span><i>+</i><span>32</span><i>=</i><span className="ledger-sum">76</span></div>
+              <div className="ledger-math ledger-math-all"><span>84</span><i>+</i><span>16</span><i>+</i><span>109</span><i>=</i><span className="ledger-sum">209</span></div>
             </article>
           </div>
         </div></section>

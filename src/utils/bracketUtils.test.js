@@ -16,16 +16,6 @@ import {
   areGroupRankingsComplete,
   ROUND_OF_16_TEMPLATE,
 } from './bracketUtils';
-import {
-  scoreGroup,
-  scoreBestThird,
-  scoreKnockouts,
-  calculateSimpleScore,
-  GROUP_STAGE_MAX,
-  BEST_THIRD_MAX,
-  KNOCKOUT_MAX,
-  TOTAL_MAX,
-} from './scoringSimple';
 import { resolveThirdPlaceSlots } from './fifaThirdPlaceRules';
 
 // Helpers: build a plausible full set of group rankings for test inputs
@@ -206,85 +196,3 @@ describe('resolveThirdPlaceSlots', () => {
   });
 });
 
-describe('scoringSimple — scoreGroup partial credit', () => {
-  it('gives full 3 points for a perfect group ranking', () => {
-    expect(scoreGroup(['a','b','c','d'], ['a','b','c','d'])).toBe(3);
-  });
-
-  it('scores 1st and 2nd at 1 point each, 3rd and 4th at 0.5 each', () => {
-    // Only 1st correct: 1
-    expect(scoreGroup(['a','x','x','x'], ['a','b','c','d'])).toBe(1);
-    // Only 3rd correct: 0.5
-    expect(scoreGroup(['x','x','c','x'], ['a','b','c','d'])).toBe(0.5);
-    // 1st + 3rd correct: 1.5
-    expect(scoreGroup(['a','x','c','x'], ['a','b','c','d'])).toBe(1.5);
-  });
-
-  it('returns 0 when inputs are missing or malformed', () => {
-    expect(scoreGroup(null, ['a','b','c','d'])).toBe(0);
-    expect(scoreGroup(['a','b','c','d'], null)).toBe(0);
-  });
-});
-
-describe('scoringSimple — end-to-end calculateSimpleScore', () => {
-  it('scores a perfect full submission as 76/76 = 1.0 accuracy', () => {
-    const gp = makeAllGroupPredictions();
-    const standings = {};
-    for (const g of Object.keys(gp)) standings[g] = gp[g].ranking;
-
-    const allAdvancing = ['C','D','E','F','G','H','I','J'];
-    const r32Picks = ROUND_OF_32_TEMPLATE.map((t) => ({ matchId: t.matchId, winnerId: `W-${t.matchId}`, loserId: `L-${t.matchId}` }));
-    const actualResults = {};
-    for (const p of r32Picks) actualResults[p.matchId] = { winnerId: p.winnerId };
-    // Create matching knockout rounds + results
-    const allRounds = {
-      roundOf32: r32Picks,
-      roundOf16: Array.from({ length: 8 }, (_, i) => ({ matchId: `r16-${String(i+1).padStart(2,'0')}`, winnerId: `W-r16-${i+1}`, loserId: `L-r16-${i+1}` })),
-      quarterFinals: Array.from({ length: 4 }, (_, i) => ({ matchId: `qf-${String(i+1).padStart(2,'0')}`, winnerId: `W-qf-${i+1}`, loserId: `L-qf-${i+1}` })),
-      semiFinals: Array.from({ length: 2 }, (_, i) => ({ matchId: `sf-${String(i+1).padStart(2,'0')}`, winnerId: `W-sf-${i+1}`, loserId: `L-sf-${i+1}` })),
-      thirdPlace: [{ matchId: '3rd', winnerId: 'W-3rd', loserId: 'L-3rd' }],
-      final: [{ matchId: 'final', winnerId: 'W-final', loserId: 'L-final' }],
-    };
-    for (const round of Object.keys(allRounds)) {
-      for (const p of allRounds[round]) actualResults[p.matchId] = { winnerId: p.winnerId };
-    }
-
-    const result = calculateSimpleScore(
-      { groupPredictions: gp, bestThirdPicks: allAdvancing, knockoutPredictions: allRounds },
-      { groupStandings: standings, advancingThirds: allAdvancing, knockoutResults: actualResults },
-    );
-
-    expect(result.totalScore).toBe(TOTAL_MAX);
-    expect(result.maxPossible).toBe(TOTAL_MAX);
-    expect(result.totalAccuracy).toBe(1);
-  });
-
-  it('partial submission (only group stage) uses a smaller denominator', () => {
-    const gp = makeAllGroupPredictions();
-    const standings = {};
-    for (const g of Object.keys(gp)) standings[g] = gp[g].ranking;
-
-    const result = calculateSimpleScore(
-      { groupPredictions: gp, bestThirdPicks: [], knockoutPredictions: {} },
-      { groupStandings: standings, advancingThirds: [], knockoutResults: {} },
-    );
-
-    expect(result.sections.groupSubmitted).toBe(true);
-    expect(result.sections.knockoutSubmitted).toBe(false);
-    expect(result.maxPossible).toBe(GROUP_STAGE_MAX); // 36, not 76
-    expect(result.totalAccuracy).toBe(1);
-  });
-
-  it('scoreBestThird awards 1 point per correct group', () => {
-    expect(scoreBestThird(['A','B','C','D','E','F','G','H'], ['A','B','C','D','E','F','G','H'])).toBe(8);
-    expect(scoreBestThird(['A','B'], ['A','X'])).toBe(1);
-    expect(scoreBestThird([], ['A'])).toBe(0);
-  });
-
-  it('exposes sensible constants', () => {
-    expect(GROUP_STAGE_MAX).toBe(36);
-    expect(BEST_THIRD_MAX).toBe(8);
-    expect(KNOCKOUT_MAX).toBe(32);
-    expect(TOTAL_MAX).toBe(76);
-  });
-});

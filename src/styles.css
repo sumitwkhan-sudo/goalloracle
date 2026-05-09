@@ -4517,6 +4517,26 @@ button.invite-option:hover,
   white-space: nowrap;
 }
 .qp-scoring-bullet { font-size: 1rem; line-height: 1; }
+/* Knockout breakdown nests inside its <li>. Override the row grid so the
+   table can sit on a second line below the bullet + label. */
+.qp-scoring-list li.qp-scoring-knockouts {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  row-gap: 0.5rem;
+}
+.qp-scoring-ko-table {
+  grid-column: 1 / -1;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.qp-scoring-ko-table td {
+  padding: 0.2rem 0.55rem;
+  border-top: 1px dashed var(--border-subtle, var(--border));
+}
+.qp-scoring-ko-table tr:first-child td { border-top: none; }
+.qp-scoring-ko-table td:last-child { text-align: right; font-family: var(--mono); }
+.qp-scoring-ko-table td:last-child strong { color: var(--primary); font-size: 0.72rem; white-space: nowrap; }
 .qp-scoring-totals {
   display: flex; flex-wrap: wrap; gap: 0.35rem;
   font-family: var(--mono);
