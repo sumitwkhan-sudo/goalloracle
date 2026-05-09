@@ -5,8 +5,7 @@ import {
 } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { calculateXP, getLevelInfo } from '../utils/xp';
-import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints, getMatchStatus, sortLeaderboard } from '../utils/points';
-import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
+import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints, getMatchStatus } from '../utils/points';
 import AnimatedCounter from './AnimatedCounter';
 import InsightsCarousel from './simple/InsightsCarousel';
 import BracketInsightsRow from './BracketInsightsRow';
@@ -158,50 +157,9 @@ export default function Dashboard({
     return completed.slice(-10);
   }, [preds, results]);
 
-  // Fetch league ranks on mount + when results change. Same effect as before
-  // the rebuild — just lifted to the new layout.
-  useEffect(() => {
-    if (!uData?.id || ml.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      for (const league of ml.slice(0, 20)) {
-        if (leagueRanks[league.id] || cancelled) continue;
-        try {
-          if (league.predictionMode === 'simple') {
-            const data = await getSimpleLeaderboard(league.id);
-            const lb = data.leaderboard || [];
-            const myIdx = lb.findIndex(e => e.userId === uData.id);
-            // Pull per-league picks-left + complete flag off the user's
-            // own leaderboard entry. The endpoint already computes both
-            // (simple-leaderboard.js, lines ~85–100); the previous code
-            // dropped them, which is why the leagues list was reporting
-            // every QP league as "all picks in" the moment global-simple
-            // was complete — predStatus had nowhere else to look.
-            const myEntry = myIdx >= 0 ? lb[myIdx] : null;
-            if (!cancelled) setLeagueRanks(prev => ({
-              ...prev,
-              [league.id]: {
-                rank: myIdx >= 0 ? myIdx + 1 : lb.length + 1,
-                total: lb.length,
-                myPicksLeft: typeof myEntry?.picksLeft === 'number' ? myEntry.picksLeft : null,
-                myIsComplete: !!myEntry?.isComplete,
-              },
-            }));
-          } else {
-            const { leaderboard: bu } = await getLeagueLeaderboard(league.id);
-            const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || DEFAULT_PS) }));
-            const sorted = sortLeaderboard(entries);
-            const myIdx = sorted.findIndex(e => e.userId === uData.id);
-            const myPreds = bu[uData.id] || {};
-            const myPredCount = Object.values(myPreds).filter(p => p?.result).length;
-            if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0, myPredCount } }));
-          }
-        } catch {}
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uData?.id, ml.length, results]);
+  // League ranks (rank, total, myPicksLeft / myPredCount) are fetched at the
+  // App level so they're populated regardless of which view the user lands on.
+  // We just consume `leagueRanks` here.
 
   // Onboarding banner is a separate row above the strip — doesn't replace
   // the dashboard; first-time users still see their (zeroed) state too.
