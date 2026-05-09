@@ -4,18 +4,6 @@ import { ipHash } from './_lib/security.js';
 import { sendOperatorAlert } from './_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
-// European league seasons run Aug → May, named by the START year. So
-// "season 2025" on api-sports.io = the 2025-26 season. Auto-compute
-// from the current date so the smoke-test still works year-on-year
-// without code edits.
-function currentEuropeanSeason() {
-  const now = new Date();
-  // Months are 0-indexed. Treat July (6) and earlier as previous season,
-  // August (7) and later as current. Matches what football-data.org and
-  // api-sports.io use as the "season starts in August" convention.
-  return now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
-}
-
 async function getRole(userId) {
   const userSnap = await db.collection('users').doc(userId).get();
   if (!userSnap.exists) return null;
@@ -390,29 +378,26 @@ export default async function handler(req, res) {
 
     if (action === 'oracleSmokeTest') {
       // Server-side smoke test of the oracle pipeline against a real
-      // recent match in a chosen competition. Same checks as
-      // scripts/smoke-test-oracle.mjs but invokable from the admin
-      // dashboard (no terminal required, keys stay on the server).
-      const { parseFootballDataResponse, parseApiSportsResponse, compareResults } = await import('./_lib/oracleParsers.js');
-      // For the WC, season is fixed at 2026. For league competitions, use
-      // the auto-computed current season so the smoke-test always queries
-      // the correct year without needing yearly code updates.
-      const europeanSeason = currentEuropeanSeason();
+      // recent match in a chosen competition. Single source: football-
+      // data.org. (We dropped api-sports.io because their free tier
+      // doesn't include current World Cup data; results can be contested
+      // by users via support@goaloracle.io and superadmins can override
+      // a wrong score via /api/admin → updateResult.)
+      const { parseFootballDataResponse } = await import('./_lib/oracleParsers.js');
       const COMPETITION_MAP = {
-        PL: { fdCode: 'PL', asLeague: 39, asSeason: europeanSeason, label: 'English Premier League' },
-        CL: { fdCode: 'CL', asLeague: 2, asSeason: europeanSeason, label: 'UEFA Champions League' },
-        BL1: { fdCode: 'BL1', asLeague: 78, asSeason: europeanSeason, label: 'Bundesliga' },
-        PD: { fdCode: 'PD', asLeague: 140, asSeason: europeanSeason, label: 'La Liga' },
-        SA: { fdCode: 'SA', asLeague: 135, asSeason: europeanSeason, label: 'Serie A' },
-        WC: { fdCode: 'WC', asLeague: 1, asSeason: 2026, label: 'FIFA World Cup' },
+        PL: { fdCode: 'PL', label: 'English Premier League' },
+        CL: { fdCode: 'CL', label: 'UEFA Champions League' },
+        BL1: { fdCode: 'BL1', label: 'Bundesliga' },
+        PD: { fdCode: 'PD', label: 'La Liga' },
+        SA: { fdCode: 'SA', label: 'Serie A' },
+        WC: { fdCode: 'WC', label: 'FIFA World Cup' },
       };
       const comp = COMPETITION_MAP[(req.body.competition || 'PL').toUpperCase()] || COMPETITION_MAP.PL;
       const FD_KEY = process.env.FOOTBALL_DATA_API_KEY;
-      const AS_KEY = process.env.APISPORTS_API_KEY;
       const checks = [];
       const note = (name, ok, detail = '') => checks.push({ name, ok, detail });
 
-      // 1) football-data.org: pick a recent FINISHED match in this comp
+      // 1) Pick a recent FINISHED match in this competition
       let fdMatch = null, fdParsed = null;
       if (!FD_KEY) note('football-data.org key', false, 'FOOTBALL_DATA_API_KEY not set in Vercel env');
       else {
@@ -426,81 +411,22 @@ export default async function handler(req, res) {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           const data = await r.json();
           const finished = (data.matches || []).filter(m => m.status === 'FINISHED');
-          if (finished.length === 0) note('football-data.org list matches', false, 'no FINISHED matches in last 7 days');
+          if (finished.length === 0) note('list recent matches', false, 'no FINISHED matches in last 7 days');
           else {
             finished.sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate));
             fdMatch = finished[0];
-            note('football-data.org list matches', true, `picked ${fdMatch.homeTeam?.name} vs ${fdMatch.awayTeam?.name}`);
+            note('list recent matches', true, `picked ${fdMatch.homeTeam?.name} vs ${fdMatch.awayTeam?.name}`);
             const detail = await fetch(`https://api.football-data.org/v4/matches/${fdMatch.id}`, { headers: { 'X-Auth-Token': FD_KEY } }).then(r => r.json());
             fdParsed = parseFootballDataResponse(detail);
-            note('football-data.org parser', true, `${fdParsed.homeScore}-${fdParsed.awayScore} (ET=${fdParsed.extraTime}, PEN=${fdParsed.penalties})`);
+            note('parse match detail', true, `${fdParsed.homeScore}-${fdParsed.awayScore} (ET=${fdParsed.extraTime}, PEN=${fdParsed.penalties})`);
           }
         } catch (e) {
           note('football-data.org', false, e.message);
         }
       }
 
-      // 2) api-sports.io: cross-check same fixture by date+team-name.
-      // Tries season×date combinations defensively because upstream
-      // providers can disagree on:
-      //   (a) season numbering — start-year (2025) vs end-year (2026)
-      //   (b) date assignment — a 21:00 CEST kickoff might be filed
-      //       as the next UTC day, etc.
-      // Strategy: primary (season, date) → primary (season, ±1d range)
-      //           → fallback (season+1, date) → fallback (season+1, ±1d).
-      let asParsed = null;
-      if (!AS_KEY) note('api-sports.io key', false, 'APISPORTS_API_KEY not set in Vercel env');
-      else if (!fdMatch) note('api-sports.io cross-check', false, 'skipped — no anchor match');
-      else {
-        const matchDate = fdMatch.utcDate.slice(0, 10);
-        const dayBefore = new Date(new Date(matchDate + 'T00:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
-        const dayAfter = new Date(new Date(matchDate + 'T00:00:00Z').getTime() + 86400000).toISOString().slice(0, 10);
-        const seasonsToTry = comp.asSeason === 2026
-          ? [2026]                                  // WC: single edition
-          : [comp.asSeason, comp.asSeason + 1];     // European: start-year, fall back to end-year
-
-        const attempts = [];
-        for (const season of seasonsToTry) {
-          attempts.push({ season, urlSuffix: `&date=${matchDate}`, label: `date=${matchDate}` });
-          attempts.push({ season, urlSuffix: `&from=${dayBefore}&to=${dayAfter}`, label: `from=${dayBefore}&to=${dayAfter}` });
-        }
-
-        const errorTrail = [];
-        let matched = null;
-        for (const a of attempts) {
-          const url = `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${a.season}${a.urlSuffix}`;
-          try {
-            const r = await fetch(url, { headers: { 'x-apisports-key': AS_KEY } });
-            if (!r.ok) { errorTrail.push(`season=${a.season} ${a.label}: HTTP ${r.status}`); continue; }
-            const data = await r.json();
-            asParsed = parseApiSportsResponse(data, { homeTeam: fdMatch.homeTeam?.name, awayTeam: fdMatch.awayTeam?.name });
-            matched = a;
-            break;
-          } catch (e) {
-            errorTrail.push(`season=${a.season} ${a.label}: ${e.message}`);
-          }
-        }
-        if (asParsed) {
-          const fallbackNote = (matched.season !== comp.asSeason || !matched.label.startsWith('date='))
-            ? ` [matched via season=${matched.season} ${matched.label}]` : '';
-          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})${fallbackNote}`);
-        } else {
-          // Surface the last error in the row label, plus the full trail in
-          // diagnostic context so the operator can see exactly what we tried.
-          const lastErr = errorTrail[errorTrail.length - 1] || 'no upstream response';
-          note('api-sports.io', false, `${lastErr} [tried ${errorTrail.length} combinations]`);
-        }
-      }
-
-      // 3) Cross-source agreement
-      if (fdParsed && asParsed) {
-        const cmp = compareResults(fdParsed, asParsed);
-        note('two sources agree', cmp.match, cmp.match ? `${fdParsed.homeScore}-${fdParsed.awayScore}` : cmp.details);
-      } else {
-        note('two sources agree', false, 'one or both sources failed');
-      }
-
-      // 4) Standings probes
+      // 2) Standings probe — confirms we can also pull live group/league
+      // tables from the same provider.
       if (FD_KEY) {
         try {
           const r = await fetch(`https://api.football-data.org/v4/competitions/${comp.fdCode}/standings`, { headers: { 'X-Auth-Token': FD_KEY } });
@@ -508,32 +434,10 @@ export default async function handler(req, res) {
           const data = await r.json();
           const table = data.standings?.find(s => s.type === 'TOTAL')?.table || [];
           if (table.length === 0) throw new Error('empty TOTAL table');
-          note('football-data.org standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)`);
+          note('standings probe', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)`);
         } catch (e) {
-          note('football-data.org standings', false, e.message);
+          note('standings probe', false, e.message);
         }
-      }
-      if (AS_KEY) {
-        // Same season fallback as the fixtures lookup, so standings come
-        // from the same season the upstream actually serves rather than
-        // silently returning a year-old table.
-        const seasonsToTry = comp.asSeason === 2026 ? [2026] : [comp.asSeason, comp.asSeason + 1];
-        let standingsOk = false;
-        let lastError = null;
-        for (const season of seasonsToTry) {
-          try {
-            const r = await fetch(`https://v3.football.api-sports.io/standings?league=${comp.asLeague}&season=${season}`, { headers: { 'x-apisports-key': AS_KEY } });
-            if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
-            const data = await r.json();
-            const table = data.response?.[0]?.league?.standings?.[0] || [];
-            if (table.length === 0) { lastError = 'empty standings'; continue; }
-            const seasonNote = season !== comp.asSeason ? ` [season=${season} fallback]` : '';
-            note('api-sports.io standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)${seasonNote}`);
-            standingsOk = true;
-            break;
-          } catch (e) { lastError = e.message; }
-        }
-        if (!standingsOk) note('api-sports.io standings', false, lastError);
       }
 
       const failed = checks.filter(c => !c.ok).length;

@@ -166,7 +166,7 @@ if (LIVE) {
 }
 
 // ─────────────────── 5. ORACLE SMOKE TEST (optional) ───────────────────
-if (process.env.FOOTBALL_DATA_API_KEY && process.env.APISPORTS_API_KEY) {
+if (process.env.FOOTBALL_DATA_API_KEY) {
   console.log('\n[5] Oracle smoke-test against a live league (--no-standings to keep it short)…');
   const r = spawnSync('node', ['scripts/smoke-test-oracle.mjs', '--competition', 'PL', '--no-standings'], {
     cwd: ROOT,
@@ -185,7 +185,7 @@ if (process.env.FOOTBALL_DATA_API_KEY && process.env.APISPORTS_API_KEY) {
     console.log(r.stdout.split('\n').slice(-30).join('\n'));
   }
 } else {
-  console.log('\n[5] Oracle smoke-test — skipped (set FOOTBALL_DATA_API_KEY + APISPORTS_API_KEY to enable)');
+  console.log('\n[5] Oracle smoke-test — skipped (set FOOTBALL_DATA_API_KEY to enable)');
 }
 
 // ─────────────────────────── SUMMARY ───────────────────────────

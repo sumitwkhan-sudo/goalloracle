@@ -17,7 +17,7 @@
  */
 
 import { db, applyCors, verifyAuth } from '../_lib/firebase.js';
-import { parseFootballDataResponse, parseApiSportsResponse, compareResults } from '../_lib/oracleParsers.js';
+import { parseFootballDataResponse } from '../_lib/oracleParsers.js';
 import { sendOperatorAlert } from '../_lib/alerts.js';
 import { resolveActualBracket } from '../_lib/bracketResolver.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
@@ -66,33 +66,6 @@ async function fetchFootballDataByDateAndTeams({ date, homeTeam, awayTeam }) {
   return parseFootballDataResponse(detail);
 }
 
-async function fetchApiSportsByDateAndTeams({ date, homeTeam, awayTeam }) {
-  const apiKey = process.env.APISPORTS_API_KEY;
-  if (!apiKey) throw new Error('APISPORTS_API_KEY not set');
-
-  // Try exact UTC date first, fall back to a ±1 day window to absorb
-  // timezone discrepancies (api-sports.io may file a 21:00 CEST kickoff
-  // under the next UTC day depending on their internal timezone).
-  const dayBefore = new Date(new Date(date + 'T00:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
-  const dayAfter = new Date(new Date(date + 'T00:00:00Z').getTime() + 86400000).toISOString().slice(0, 10);
-  const urls = [
-    `https://v3.football.api-sports.io/fixtures?league=1&season=2026&date=${date}`,
-    `https://v3.football.api-sports.io/fixtures?league=1&season=2026&from=${dayBefore}&to=${dayAfter}`,
-  ];
-  let lastErr = null;
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { headers: { 'x-apisports-key': apiKey } });
-      if (!r.ok) { lastErr = `HTTP ${r.status}`; continue; }
-      const data = await r.json();
-      return parseApiSportsResponse(data, { homeTeam, awayTeam });
-    } catch (e) {
-      lastErr = e.message;
-    }
-  }
-  throw new Error(`api-sports.io: ${lastErr || 'unknown error'}`);
-}
-
 export default async function handler(req, res) {
   applyCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).json({});
@@ -104,8 +77,6 @@ export default async function handler(req, res) {
     runAt: new Date().toISOString(),
     candidates: 0,
     ingested: 0,
-    disputed: 0,
-    partial: 0,
     skipped: 0,
     errors: [],
   };
@@ -152,59 +123,29 @@ export default async function handler(req, res) {
         const lookupHome = resolvedTeams?.home || m.home;
         const lookupAway = resolvedTeams?.away || m.away;
 
-        let s1 = null, s2 = null;
-        try { s1 = await fetchFootballDataByDateAndTeams({ date, homeTeam: lookupHome, awayTeam: lookupAway }); }
+        let s = null;
+        try { s = await fetchFootballDataByDateAndTeams({ date, homeTeam: lookupHome, awayTeam: lookupAway }); }
         catch (e) { summary.errors.push({ matchId: m.id, source: 'football-data.org', error: e.message }); }
-        try { s2 = await fetchApiSportsByDateAndTeams({ date, homeTeam: lookupHome, awayTeam: lookupAway }); }
-        catch (e) { summary.errors.push({ matchId: m.id, source: 'api-sports.io', error: e.message }); }
 
-        if (!s1 && !s2) { summary.skipped += 1; continue; }
-        if (!s1 || !s2) {
-          // Only one source — record as partial; manual admin can finalize.
-          await db.collection('matchResults').doc(m.id).set({
-            matchId: m.id,
-            status: 'partial',
-            availableSource: s1 || s2,
-            missingSource: !s1 ? 'football-data.org' : 'api-sports.io',
-            checkedAt: new Date().toISOString(),
-            updatedBy: 'cron/poll-results',
-            updatedAt: FieldValue.serverTimestamp(),
-          }, { merge: true });
-          summary.partial += 1;
-          continue;
-        }
+        if (!s) { summary.skipped += 1; continue; }
 
-        const cmp = compareResults(s1, s2);
-        if (!cmp.match) {
-          await db.collection('matchResults').doc(m.id).set({
-            matchId: m.id,
-            status: 'disputed',
-            source1: s1,
-            source2: s2,
-            disagreement: cmp.details,
-            checkedAt: new Date().toISOString(),
-            updatedBy: 'cron/poll-results',
-            updatedAt: FieldValue.serverTimestamp(),
-          }, { merge: true });
-          summary.disputed += 1;
-          continue;
-        }
-
-        // Agreement — write the verified result.
+        // Single-source ingestion: football-data.org is the source of
+        // truth. Operator can override via /api/admin → updateResult and
+        // users can dispute via support@goaloracle.io.
         await db.collection('matchResults').doc(m.id).set({
           matchId: m.id,
-          homeScore: s1.homeScore,
-          awayScore: s1.awayScore,
-          extraTime: s1.extraTime || false,
-          penalties: s1.penalties || false,
-          penHome: s1.penHome || 0,
-          penAway: s1.penAway || 0,
+          homeScore: s.homeScore,
+          awayScore: s.awayScore,
+          extraTime: s.extraTime || false,
+          penalties: s.penalties || false,
+          penHome: s.penHome || 0,
+          penAway: s.penAway || 0,
           completed: true,
           verified: true,
           status: 'verified',
           verifiedAt: new Date().toISOString(),
-          sources: ['football-data.org', 'api-sports.io'],
-          confirmations: 2,
+          sources: ['football-data.org'],
+          confirmations: 1,
           updatedBy: 'cron/poll-results',
           updatedAt: FieldValue.serverTimestamp(),
         });
@@ -223,21 +164,15 @@ export default async function handler(req, res) {
     // Specific alerts — only fire when a candidate match exists, so we
     // don't spam pre-tournament when there's nothing to ingest anyway.
     if (summary.candidates > 0) {
-      const fdMissing = !process.env.FOOTBALL_DATA_API_KEY;
-      const asMissing = !process.env.APISPORTS_API_KEY;
-      if (fdMissing || asMissing) {
+      if (!process.env.FOOTBALL_DATA_API_KEY) {
         await sendOperatorAlert(
           `Oracle API key missing — ${summary.candidates} match(es) cannot be ingested`,
           {
-            what: `The auto-poll cron found ${summary.candidates} finished match(es) waiting to be ingested but is missing required API key(s). Until you set the missing key, results will not appear on leaderboards.`,
-            why: [
-              fdMissing ? 'FOOTBALL_DATA_API_KEY is not set in Vercel env' : null,
-              asMissing ? 'APISPORTS_API_KEY is not set in Vercel env' : null,
-            ].filter(Boolean),
+            what: `The auto-poll cron found ${summary.candidates} finished match(es) waiting to be ingested but FOOTBALL_DATA_API_KEY is not set. Until you add it, results will not appear on leaderboards.`,
+            why: ['FOOTBALL_DATA_API_KEY is not set in Vercel env'],
             resolution: [
               'Open Vercel → your project → Settings → Environment Variables.',
-              fdMissing ? 'Add FOOTBALL_DATA_API_KEY (get one free at https://www.football-data.org/client/register).' : 'FOOTBALL_DATA_API_KEY is fine.',
-              asMissing ? 'Add APISPORTS_API_KEY (get one free at https://dashboard.api-football.com).' : 'APISPORTS_API_KEY is fine.',
+              'Add FOOTBALL_DATA_API_KEY (get one free at https://www.football-data.org/client/register — emailed instantly).',
               'Redeploy is NOT needed — Vercel picks up env changes for the next cron run (within 30 minutes).',
             ],
             context: {
@@ -247,48 +182,25 @@ export default async function handler(req, res) {
           },
         );
       } else if (summary.errors.length > summary.ingested && summary.ingested === 0) {
-        // Both keys are set but nothing got through — likely an API outage
-        // or schema drift.
+        // Key is set but nothing got through — likely an API outage,
+        // rate limit, or schema drift. football-data.org free tier:
+        // 10 requests / minute, plenty of headroom for our use.
         await sendOperatorAlert(
           `Oracle pipeline producing no results — ${summary.errors.length} error(s) on ${summary.candidates} candidate(s)`,
           {
-            what: 'The auto-poll cron found finished matches but every fetch attempt is failing. Either an upstream API is down or the response shape has drifted from what our parsers expect.',
+            what: 'The auto-poll cron found finished matches but every fetch attempt is failing. Either football-data.org is down or the response shape has drifted from what our parser expects.',
             why: [
-              'football-data.org or api-sports.io is temporarily unavailable',
-              'Free-tier rate limit reached (football-data.org: 10/min; api-sports.io: 100/day)',
+              'football-data.org is temporarily unavailable',
+              'Free-tier rate limit reached (10 req/min)',
               'Schema drift — the upstream changed a response field name or type',
             ],
             resolution: [
-              'Check https://status.football-data.org and api-sports.io status page.',
+              'Check https://status.football-data.org for incidents.',
               'Wait until the next cron run (30 min) — most outages self-recover.',
               'If it persists past tomorrow morning, the daily report will show the same red flags. Reply to that email and I can investigate the parser errors.',
             ],
             context: {
               firstFewErrors: JSON.stringify(summary.errors.slice(0, 3)),
-            },
-          },
-        );
-      }
-
-      // Disputed result alert — needs human review every time it happens.
-      if (summary.disputed > 0) {
-        await sendOperatorAlert(
-          `${summary.disputed} match result(s) in dispute — both sources disagree`,
-          {
-            what: `Both oracle APIs returned a result for ${summary.disputed} match(es), but they disagreed on the score (or ET / penalty status). Until resolved, these matches won't be scored on user leaderboards.`,
-            why: [
-              'One source already reflects a VAR review the other hasn\'t picked up yet (usually self-resolves within 30 min)',
-              'A penalty shootout was reported with different shootout scores',
-              'Schema mismatch in how one source reports extra-time vs regulation',
-            ],
-            resolution: [
-              'Wait one cron cycle (30 min). Most disputes auto-resolve when the lagging source updates.',
-              'If still disputed: open admin → Matches → click Edit Result for the disputed match and enter the score manually. This overrides both sources.',
-              'Cross-check with FIFA\'s official site if both APIs persistently disagree.',
-            ],
-            context: {
-              disputedCount: summary.disputed,
-              partialCount: summary.partial,
             },
           },
         );

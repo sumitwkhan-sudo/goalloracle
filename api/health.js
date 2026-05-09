@@ -1,6 +1,6 @@
 /**
  * /api/health.js — Oracle API health check
- * Tests connectivity to both data sources without consuming match data.
+ * Tests connectivity to football-data.org without consuming match data.
  * Admin-only endpoint.
  */
 
@@ -23,20 +23,15 @@ export default async function handler(req, res) {
     timestamp: new Date().toISOString(),
     firebase: { status: 'connected', latency: null },
     oracle1: { name: 'Football-Data.org', status: 'unknown', latency: null, error: null, keySet: false },
-    oracle2: { name: 'API-Sports.io', status: 'unknown', latency: null, error: null, keySet: false },
     contract: { address: process.env.VERIFIER_CONTRACT || null, deployed: !!process.env.VERIFIER_CONTRACT, rpc: !!process.env.POLYGON_RPC_URL },
     envVars: {},
   };
 
-  // Firebase is already connected if we got here
   results.firebase.status = 'connected';
 
-  // Check env vars
   const envKeys = [
     'FOOTBALL_DATA_API_KEY',
-    'APISPORTS_API_KEY',
     'ORACLE_PRIVATE_KEY_1',
-    'ORACLE_PRIVATE_KEY_2',
     'VERIFIER_CONTRACT',
     'POLYGON_RPC_URL',
   ];
@@ -44,7 +39,7 @@ export default async function handler(req, res) {
     results.envVars[k] = !!process.env[k];
   });
 
-  // Test Oracle 1: Football-Data.org — ping competitions endpoint (lightweight, no match data)
+  // Ping competitions endpoint (lightweight, no match data) to confirm key + connectivity.
   const key1 = process.env.FOOTBALL_DATA_API_KEY;
   results.oracle1.keySet = !!key1;
   if (key1) {
@@ -75,40 +70,6 @@ export default async function handler(req, res) {
   } else {
     results.oracle1.status = 'no_key';
     results.oracle1.error = 'FOOTBALL_DATA_API_KEY not set in environment';
-  }
-
-  // Test Oracle 2: API-Sports.io — ping status endpoint (free, doesn't count toward quota)
-  const key2 = process.env.APISPORTS_API_KEY;
-  results.oracle2.keySet = !!key2;
-  if (key2) {
-    const t2 = Date.now();
-    try {
-      const resp = await fetch('https://v3.football.api-sports.io/status', {
-        headers: { 'x-apisports-key': key2 },
-        signal: AbortSignal.timeout(8000),
-      });
-      results.oracle2.latency = Date.now() - t2;
-      if (resp.ok) {
-        const data = await resp.json();
-        const account = data.response?.account || {};
-        const subscription = data.response?.subscription || {};
-        const requests = data.response?.requests || {};
-        results.oracle2.status = 'connected';
-        results.oracle2.plan = subscription.plan || 'Free';
-        results.oracle2.requestsToday = requests.current || 0;
-        results.oracle2.requestsLimit = requests.limit_day || 100;
-      } else {
-        results.oracle2.status = 'error';
-        results.oracle2.error = `HTTP ${resp.status}`;
-      }
-    } catch (e) {
-      results.oracle2.latency = Date.now() - t2;
-      results.oracle2.status = 'error';
-      results.oracle2.error = e.message || 'Connection failed';
-    }
-  } else {
-    results.oracle2.status = 'no_key';
-    results.oracle2.error = 'APISPORTS_API_KEY not set in environment';
   }
 
   return res.status(200).json(results);
