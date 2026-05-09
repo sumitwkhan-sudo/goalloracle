@@ -7278,7 +7278,9 @@ body.light .lsd-head,
   border-bottom: 1px solid var(--border);
   background: var(--bg-card);
   border-radius: 10px;
-  overflow: hidden;
+  /* No `overflow: hidden` here — that was clipping action-button
+     tooltips that extend above/below the row. The first/last rows
+     round their own corners below to preserve the look. */
 }
 .lr-row {
   display: grid;
@@ -7324,6 +7326,10 @@ body.light .lsd-head,
   .lr-name { font-size: 1rem; }
 }
 .lr-row:last-child { border-bottom: none; }
+/* Round corners on the outer rows so the wrapper doesn't need
+   `overflow: hidden` (which would clip action-button tooltips). */
+.lr-row:first-child { border-top-left-radius: 10px; border-top-right-radius: 10px; }
+.lr-row:last-child { border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; }
 .lr-row:hover { background: var(--bg-elev); }
 .lr-row:focus-visible {
   outline: 2px solid var(--primary);
