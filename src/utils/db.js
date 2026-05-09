@@ -540,6 +540,19 @@ export async function adminRunOracleSmokeTest(competition = 'PL') {
   return await apiCall('admin', 'POST', { action: 'oracleSmokeTest', competition });
 }
 
+// Trigger the auto-poll cron now (uses the operator's superadmin Bearer
+// token instead of CRON_SECRET, so this works for verification without
+// extra env config). Same handler runs on schedule.
+export async function adminRunAutoPoll() {
+  return await apiCall('cron/poll-results', 'POST');
+}
+
+// Trigger the daily report email now. Same handler that runs at 08:00 UTC,
+// just on demand. Use this once after deploy to confirm the email lands.
+export async function adminRunDailyReport() {
+  return await apiCall('cron/daily-report', 'POST');
+}
+
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
 // Defaults: Classic is opt-in. Quick Picks is the product surface; the
 // Classic flow is preserved in code for re-enabling later but stays

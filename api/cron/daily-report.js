@@ -20,6 +20,7 @@
 import { db, admin, applyCors, verifyAuth } from '../_lib/firebase.js';
 import { parseFootballDataResponse, parseApiSportsResponse } from '../_lib/oracleParsers.js';
 import { escapeHtml } from '../_lib/security.js';
+import { sendOperatorAlert } from '../_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -72,6 +73,32 @@ export default async function handler(req, res) {
 
   if (!(await isAuthorized(req))) return res.status(401).json({ error: 'Unauthorized' });
 
+  try {
+    return await runReport(req, res);
+  } catch (e) {
+    console.error('[cron/daily-report] fatal:', e);
+    await sendOperatorAlert(
+      'Daily health report crashed — no email today',
+      {
+        what: 'The /api/cron/daily-report endpoint threw an uncaught error before it could send the daily summary. You did not receive the normal daily-health email. The cron will run again tomorrow at 08:00 UTC.',
+        why: [
+          'Database read failure (Firestore admin SDK timeout or quota)',
+          'Resend API issue',
+          'Code bug in the report generator',
+        ],
+        resolution: [
+          'Check Vercel → Functions → Logs for /api/cron/daily-report.',
+          'If it crashes a second day in a row, reply to this email and I can investigate.',
+          'Meanwhile, open the admin → Oracle tab and click "Run Health Check" + "Test EPL" to do the same checks manually.',
+        ],
+        context: { error: e.message, stack: (e.stack || '').slice(0, 500) },
+      },
+    );
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+async function runReport(req, res) {
   const now = Date.now();
   const FT_GRACE_MS = 3 * 60 * 60 * 1000;
 
