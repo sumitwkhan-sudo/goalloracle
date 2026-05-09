@@ -105,7 +105,7 @@ export default function LeagueListRow({
           <ActionButton icon={LayoutGrid} label="View my bracket" onClick={onViewBracket} />
           <ActionButton icon={Pencil} label="Edit my picks" onClick={onEditPicks} />
           <ActionButton icon={TrendingUp} label="View leaderboard" onClick={onLeaderboard} />
-          <ActionButton icon={LogOut} label="Leave league" onClick={onLeave} danger />
+          <ActionButton icon={LogOut} label="Leave League" onClick={onLeave} danger />
           {/* note: ActionButton already short-circuits when onClick is missing */}
         </div>
       )}

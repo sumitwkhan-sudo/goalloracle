@@ -3875,7 +3875,7 @@ button.invite-option:hover,
 .cr-ko-label span { user-select: none; }
 
 @media (max-width: 768px) {
-  .page-header-compact { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .page-header-compact { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
   .pred-inline-bar { flex-wrap: wrap; gap: 0.3rem; }
   .pib-view-toggle { margin-left: 0; }
 }
