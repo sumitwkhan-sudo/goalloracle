@@ -19,6 +19,7 @@
 import React, { useMemo } from 'react';
 import {
   Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus,
+  Award,
   CheckCircle, RefreshCw, Clock, Globe, MapPin, Users, Target, Share2,
   ChevronRight,
 } from 'lucide-react';
@@ -47,22 +48,41 @@ function StatusIcon({ row }) {
   return <Clock size={12} className="ll-status ll-status-none" aria-label="Not started" />;
 }
 
-// Inline-arrow prediction column — chosen direction (b) from the brief.
-// The arrow encodes "winner → runner-up" semantics; column header teaches
-// the convention once.
-function PredictionCell({ winner, runnerUp }) {
+// Prediction column — Trophy (gold) next to the champion pick, Award
+// (silver) next to the runner-up. Replaces the previous arrow which
+// required a header gloss to explain what the order meant. Optional
+// `uniqueness` chip surfaces how rare the bracket pair is vs the
+// global crowd — `Rare` (≤5%), `Bold` (≤20%), default no chip.
+function uniquenessLabel(pct) {
+  if (pct == null) return null;
+  if (pct <= 0.05) return { label: 'Rare', tier: 'rare' };
+  if (pct <= 0.20) return { label: 'Bold', tier: 'bold' };
+  return null;
+}
+
+function PredictionCell({ winner, runnerUp, uniqueness }) {
   if (!winner && !runnerUp) return <span className="ll-pred-empty">—</span>;
+  const u = uniquenessLabel(uniqueness);
   return (
     <span className="ll-pred">
-      <span className="ll-pred-team">
+      <span className="ll-pred-team ll-pred-team-winner">
+        <Trophy size={12} className="ll-pred-medal ll-pred-medal-gold" aria-label="Champion" />
         <span className="ll-pred-flag" aria-hidden="true">{teamFlags[winner] || ''}</span>
         <span className="ll-pred-name">{winner || '—'}</span>
       </span>
-      <ArrowRight size={11} className="ll-pred-arrow" aria-label="winner to runner-up" />
       <span className="ll-pred-team ll-pred-team-second">
+        <Award size={12} className="ll-pred-medal ll-pred-medal-silver" aria-label="Runner-up" />
         <span className="ll-pred-flag" aria-hidden="true">{teamFlags[runnerUp] || ''}</span>
         <span className="ll-pred-name">{runnerUp || '—'}</span>
       </span>
+      {u && (
+        <span
+          className={`ll-pred-rare ll-pred-rare-${u.tier}`}
+          title={`Only ${Math.round(uniqueness * 100)}% of players picked the same champion + runner-up`}
+        >
+          {u.label}
+        </span>
+      )}
     </span>
   );
 }
@@ -94,7 +114,7 @@ function LeaderboardRow({ row, rank, isYou, onRowClick, onEdit, onShareBracket }
         <StatusIcon row={row} />
       </div>
       <div className="ll-cell ll-cell-pred">
-        <PredictionCell winner={row.winner} runnerUp={row.runnerUp} />
+        <PredictionCell winner={row.winner} runnerUp={row.runnerUp} uniqueness={row.uniqueness} />
       </div>
       <div className="ll-cell ll-cell-pts">
         {row.totalAccuracy > 0 ? <span className="ll-pts-num">{Math.round(row.totalAccuracy * 100)}%</span> : <span className="ll-pts-empty">—</span>}

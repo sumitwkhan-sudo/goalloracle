@@ -7140,8 +7140,9 @@ body.light .lsd-head,
 /* Prediction — inline arrow composition */
 .ll-cell-pred { justify-content: flex-start; }
 .ll-pred {
-  display: inline-flex; align-items: center; gap: 0.3rem;
+  display: inline-flex; align-items: center; gap: 0.55rem;
   font-size: 0.78rem; min-width: 0;
+  flex-wrap: wrap;
 }
 .ll-pred-team {
   display: inline-flex; align-items: center; gap: 4px;
@@ -7153,6 +7154,36 @@ body.light .lsd-head,
   font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Inline medal icons replace the previous arrow — gold trophy on
+   the champion side, silver Award icon on the runner-up side. */
+.ll-pred-medal { flex-shrink: 0; }
+.ll-pred-medal-gold { color: #d4a017; }
+.ll-pred-medal-silver { color: #9ca3af; }
+[data-theme="dark"] .ll-pred-medal-gold { color: #f4c430; }
+[data-theme="dark"] .ll-pred-medal-silver { color: #c2c8d1; }
+/* Uniqueness chip — small badge that appears only when the
+   bracket pair is in the top quartile of rarity. Plain Common
+   pairs render no chip so the table stays calm. */
+.ll-pred-rare {
+  display: inline-flex; align-items: center;
+  font-family: var(--mono);
+  font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px;
+  flex-shrink: 0;
+}
+.ll-pred-rare-rare {
+  background: rgba(255, 184, 0, 0.14);
+  color: #b88400;
+  border: 1px solid rgba(255, 184, 0, 0.35);
+}
+[data-theme="dark"] .ll-pred-rare-rare { color: #ffc94a; }
+.ll-pred-rare-bold {
+  background: rgba(0, 212, 255, 0.10);
+  color: var(--cyan, #06b6d4);
+  border: 1px solid rgba(0, 212, 255, 0.32);
+}
+[data-theme="light"] .ll-pred-rare-bold { color: var(--primary, #5b3df5); border-color: rgba(91, 61, 245, 0.30); background: rgba(91, 61, 245, 0.08); }
 .ll-pred-arrow { color: var(--text-dim); flex-shrink: 0; }
 .ll-pred-empty { color: var(--text-dim); font-size: 0.85rem; }
 
