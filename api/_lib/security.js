@@ -11,8 +11,13 @@
 //   findUserByDedupeKey          — replacement for findUserByEmail that respects normalisation
 //   countAccountsForFingerprint  — Sybil deterrent
 //   recordFingerprintForUser     — index device → users
+//   checkIpAllowsNewAccount      — 1-account-per-IP enforcement
+//   recordIpForUser              — index ip → users
+//   maskEmail(email)             — half-masked email for "you already have an account" UX
 //   escapeHtml(str)              — for safely interpolating user input into emails
 //   validateDisplayNameServer    — server-side username validation incl. reserved names
+
+export const SUPPORT_EMAIL = 'support@goaloracle.io';
 
 import crypto from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -154,7 +159,10 @@ export async function checkAndRecordCodeRequestForIp(db, ip) {
 
 // ────────────────────────── DEVICE FINGERPRINT ──────────────────────────
 
-const MAX_ACCOUNTS_PER_FINGERPRINT = 2;
+// One account per device fingerprint. Bumped from 2 → 1 to stop the same
+// browser from creating multiple accounts. Users hitting the wall are shown
+// the masked email of the existing account and pointed at SUPPORT_EMAIL.
+const MAX_ACCOUNTS_PER_FINGERPRINT = 1;
 
 export function isValidVisitorId(v) {
   return typeof v === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(v);
@@ -181,6 +189,75 @@ export async function recordFingerprintForUser(db, visitorId, userId, ip) {
     lastIp: ip || null,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
+}
+
+// ────────────────────────── PER-IP UNIQUE ACCOUNT ──────────────────────────
+
+// One account per IP. This is stricter than the 24-h sliding window above —
+// it persists forever. Shared-NAT users (family, dorm, office) hitting this
+// wall must email SUPPORT_EMAIL for an override.
+const MAX_ACCOUNTS_PER_IP = 1;
+
+export async function checkIpAllowsNewAccount(db, ip) {
+  if (!ip) return { allowed: true, count: 0, reason: 'no-ip' };
+  const ref = db.collection('signupIps').doc(ipHash(ip));
+  const snap = await ref.get();
+  if (!snap.exists) return { allowed: true, count: 0 };
+  const userIds = snap.data().userIds || [];
+  if (userIds.length >= MAX_ACCOUNTS_PER_IP) {
+    return { allowed: false, count: userIds.length, userIds };
+  }
+  return { allowed: true, count: userIds.length };
+}
+
+export async function recordIpForUser(db, ip, userId) {
+  if (!ip || !userId) return;
+  const ref = db.collection('signupIps').doc(ipHash(ip));
+  await ref.set({
+    ipHash: ipHash(ip),
+    userIds: FieldValue.arrayUnion(userId),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+// ────────────────────────── MASKED EMAIL LOOKUP ──────────────────────────
+
+// Show ~half of the local-part so the user can recognise the account they
+// already own, without leaking the full address to a stranger.
+//   john.doe@gmail.com → john****@gmail.com
+//   a@b.com            → a***@b.com
+export function maskEmail(email) {
+  if (typeof email !== 'string' || !email.includes('@')) return null;
+  const [local, ...rest] = email.split('@');
+  const domain = rest.join('@');
+  if (!domain || !local) return null;
+  const half = Math.max(1, Math.ceil(local.length / 2));
+  const visible = local.slice(0, half);
+  const hiddenCount = Math.max(3, Math.max(local.length - half, 3));
+  return `${visible}${'*'.repeat(hiddenCount)}@${domain}`;
+}
+
+async function lookupMaskedEmailForUserIds(db, userIds) {
+  if (!Array.isArray(userIds) || userIds.length === 0) return null;
+  // Pick the most recently active one if available; fall back to first.
+  const userId = userIds[0];
+  const snap = await db.collection('users').doc(userId).get();
+  const email = snap.exists ? snap.data().email : null;
+  return maskEmail(email);
+}
+
+export async function getMaskedEmailForFingerprint(db, visitorId) {
+  if (!isValidVisitorId(visitorId)) return null;
+  const snap = await db.collection('deviceFingerprints').doc(visitorId).get();
+  if (!snap.exists) return null;
+  return lookupMaskedEmailForUserIds(db, snap.data().userIds || []);
+}
+
+export async function getMaskedEmailForIp(db, ip) {
+  if (!ip) return null;
+  const snap = await db.collection('signupIps').doc(ipHash(ip)).get();
+  if (!snap.exists) return null;
+  return lookupMaskedEmailForUserIds(db, snap.data().userIds || []);
 }
 
 // ────────────────────────── EMAIL DEDUPE LOOKUP ──────────────────────────
