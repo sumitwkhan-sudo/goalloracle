@@ -712,6 +712,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* ─── SPLIT HERO ─── */
 .hero-split { min-height: auto; padding-bottom: 0; }
+/* Anonymous landing variant only — `.hero` is display:flex (row) for the
+   legacy single-pane hero, but the marketing hero stacks two in-flow
+   children (.hero-split-inner above .hero-stats-band). Without this
+   override they sit side-by-side and the stats band renders as a third
+   column to the right of the leaderboard. The authed home keeps the
+   default centered-flex behavior so home-shell stays vertically centered. */
+.hero-split-anon { flex-direction: column; align-items: stretch; }
 .hero-split .hero-stadium-overlay { background: linear-gradient(135deg, rgba(5,5,8,0.72) 50%, rgba(5,5,8,0.45)); }
 [data-theme="light"] .hero-split .hero-stadium-overlay { background: linear-gradient(135deg, rgba(0,0,0,0.65) 50%, rgba(0,0,0,0.35)); }
 .hero-split-inner {
