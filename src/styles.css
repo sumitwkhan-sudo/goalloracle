@@ -362,6 +362,32 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .hero-chip:active { transform: translateY(1px); }
 .hero-chip svg { color: currentColor; flex-shrink: 0; }
+/* Accent chip — leads the row with the user's most-useful next action
+   (continue / finish / edit bracket). Primary-tinted background so it
+   reads as the priority without breaking the chip-row visual rhythm. */
+.hero-chip-accent {
+  background: var(--grad);
+  color: #000;
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0,212,255,0.22);
+}
+.hero-chip-accent:hover {
+  background: var(--grad);
+  border-color: transparent;
+  color: #000;
+  filter: brightness(1.05);
+}
+/* Urgent variant — subtle pulse so the "N picks left" reads as a
+   gentle nudge while staying inside the chip-row visual language. */
+.hero-chip-urgent {
+  animation: hero-chip-pulse 2.4s ease-in-out infinite;
+}
+@keyframes hero-chip-pulse {
+  0%, 100% { box-shadow: 0 4px 14px rgba(0,212,255,0.22); }
+  50%      { box-shadow: 0 4px 22px rgba(255,184,0,0.4); }
+}
+
 /* Invite stands out slightly — primary-tinted accent ring so it reads
    as the growth-oriented action without dominating the row. */
 .hero-chip-invite {
@@ -2255,6 +2281,145 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
   z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem;
 }
+
+/* ─── Invite-friends modal — three-option picker ────────────────── */
+.invite-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%; max-width: 480px;
+  max-height: 92vh; overflow-y: auto;
+  padding: 1.25rem 1.25rem 1rem;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.invite-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.invite-modal-head h2 {
+  font-size: 1.1rem; margin: 0; color: var(--text);
+}
+.invite-modal-sub {
+  font-size: 0.82rem; color: var(--text-sec); line-height: 1.4;
+  margin: 0 0 0.4rem;
+}
+/* Option row — interactive button-style except the "static" variant
+   used for the league-picker which expands inline. */
+.invite-option {
+  display: grid; grid-template-columns: 32px 1fr auto;
+  align-items: center; gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s, background 0.15s;
+  touch-action: manipulation;
+}
+button.invite-option:hover,
+.invite-option-row:hover {
+  border-color: var(--border-br, var(--text-dim));
+  background: var(--bg-card);
+}
+.invite-option-static {
+  display: block;
+  padding: 0;
+  cursor: default;
+  background: var(--bg-elev);
+}
+.invite-option-static.is-open { border-color: var(--primary, #7c5cff); }
+.invite-option-row {
+  display: grid; grid-template-columns: 32px 1fr auto;
+  align-items: center; gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.invite-option-row:disabled { cursor: not-allowed; opacity: 0.55; }
+.invite-option-icon {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyan, #00d4ff), var(--violet, #7b61ff));
+  color: #000;
+  flex-shrink: 0;
+}
+.invite-option-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.invite-option-title {
+  font-weight: 700; font-size: 0.9rem; color: var(--text);
+}
+.invite-option-count { font-family: var(--mono); color: var(--text-dim); font-weight: 600; }
+.invite-option-desc {
+  font-size: 0.74rem; color: var(--text-sec); line-height: 1.35;
+}
+.invite-option-cta {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
+  color: var(--primary, #7c5cff);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.invite-chev-flip { transform: rotate(180deg); }
+
+.invite-league-picker {
+  padding: 0 0.85rem 0.85rem;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+.invite-league-picker-list {
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+  padding-top: 0.65rem;
+}
+.invite-league-pill {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.78rem; font-weight: 600;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  touch-action: manipulation;
+}
+.invite-league-pill:hover { border-color: var(--text-dim); }
+.invite-league-pill.is-picked {
+  background: var(--primary-soft, rgba(124,92,255,0.12));
+  border-color: var(--primary, #7c5cff);
+  color: var(--primary, #7c5cff);
+}
+.invite-league-pill-pass {
+  font-family: var(--mono); font-size: 0.66rem;
+  color: var(--text-dim); letter-spacing: 0.04em;
+  padding: 0.05rem 0.3rem; border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+}
+.invite-league-pill.is-picked .invite-league-pill-pass {
+  background: rgba(124,92,255,0.18); color: var(--primary, #7c5cff);
+}
+.invite-league-share-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--grad);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font: inherit; font-size: 0.85rem; font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.12s, transform 0.12s;
+  touch-action: manipulation;
+}
+.invite-league-share-btn:hover:not(:disabled) { filter: brightness(1.05); }
+.invite-league-share-btn:active:not(:disabled) { transform: translateY(1px); }
+.invite-league-share-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .fund-modal {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
   width: 100%; max-width: 440px; padding: 1.75rem;
@@ -3245,6 +3410,29 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   padding: 0.6rem 0 0.4rem; gap: 0.75rem;
 }
 .phc-left { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; min-width: 0; }
+
+/* Leave-league button — page-level so it's reachable from any tab
+   inside SimpleDetail (Predictions, Leaderboard, etc.) instead of
+   being buried inside the leaderboard header. Subtle ghost style
+   so it doesn't compete with the back-button or Invite primary. */
+.phc-leave {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.4rem 0.75rem; min-height: 32px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-sec);
+  font: inherit; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+.phc-leave:hover {
+  color: var(--danger, #ff3b5c);
+  border-color: var(--danger, #ff3b5c);
+  background: rgba(255,59,92,0.06);
+}
 .btn-back-sm { background: none; border: none; font-size: 1rem; color: var(--text-sec); cursor: pointer; padding: 0; }
 /* Named variant — adds a label next to the arrow so the user knows
    the destination ("← Leagues" / "← Home") instead of a bare glyph. */
@@ -6933,6 +7121,11 @@ body.light .lsd-head,
 .lr-action-btn:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
+}
+.lr-action-btn-danger:hover {
+  color: var(--danger, #ff3b5c);
+  border-color: var(--danger, #ff3b5c);
+  background: rgba(255,59,92,0.06);
 }
 .lr-pill {
   display: inline-flex; align-items: center; gap: 4px;

@@ -10,7 +10,7 @@
  */
 
 import React from 'react';
-import { ChevronRight, Target, CheckCircle, Flag, LayoutGrid, Pencil, TrendingUp } from 'lucide-react';
+import { ChevronRight, Target, CheckCircle, Flag, LayoutGrid, Pencil, TrendingUp, LogOut } from 'lucide-react';
 
 // ── State pill — exactly one renders per row ─────────────────────────────
 // Priority cascade: ended → done (100%) → in-progress (% complete) → none.
@@ -74,11 +74,12 @@ export default function LeagueListRow({
   onLeaderboard,
   onEditPicks,
   onViewBracket,
+  onLeave,
 }) {
   const handleKey = (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); }
   };
-  const hasActions = !!(onLeaderboard || onEditPicks || onViewBracket);
+  const hasActions = !!(onLeaderboard || onEditPicks || onViewBracket || onLeave);
   return (
     <div
       className={`lr-row ${urgent ? 'lr-row-urgent' : ''} ${status?.ended ? 'lr-row-ended' : ''}`}
@@ -101,6 +102,17 @@ export default function LeagueListRow({
           <ActionButton icon={LayoutGrid} label="View bracket" onClick={onViewBracket} />
           <ActionButton icon={Pencil} label="Edit picks" onClick={onEditPicks} />
           <ActionButton icon={TrendingUp} label="Leaderboard" onClick={onLeaderboard} />
+          {onLeave && (
+            <button
+              type="button"
+              className="lr-action-btn lr-action-btn-danger"
+              onClick={(e) => { e.stopPropagation(); onLeave(); }}
+              aria-label="Leave league"
+              title="Leave league"
+            >
+              <LogOut size={13} aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
       <div className="lr-cell lr-cell-rank">
