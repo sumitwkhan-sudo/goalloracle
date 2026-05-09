@@ -45,7 +45,7 @@ function buildTeamFlags() {
   return flags;
 }
 
-export default function PublicBracket({ userId, onSignUp }) {
+export default function PublicBracket({ userId, onSignUp, authenticated = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -133,6 +133,21 @@ export default function PublicBracket({ userId, onSignUp }) {
 
   return (
     <div className="public-bracket">
+      {/* Top CTA banner for visitors who aren't signed in. The bottom
+          "Make your own bracket" button alone was easy to miss above
+          the fold; a banner up here makes the value prop the first
+          thing they see. */}
+      {!authenticated && (
+        <div className="public-bracket-cta-banner" role="region" aria-label="Make your prediction">
+          <div className="public-bracket-cta-banner-text">
+            <strong>Want to beat {data.displayName}?</strong>
+            <span>Free FIFA World Cup 26 prediction game — make your bracket in 2 minutes.</span>
+          </div>
+          <button type="button" className="btn btn-primary" onClick={onSignUp}>
+            Make my prediction <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
       <div className="public-bracket-card">
         <div className="public-bracket-head">
           <div className="public-bracket-who">
@@ -199,7 +214,7 @@ export default function PublicBracket({ userId, onSignUp }) {
 
         <div className="public-bracket-actions">
           <button type="button" className="btn btn-primary btn-lg" onClick={onSignUp}>
-            Make your own bracket <ChevronRight size={16} />
+            {authenticated ? <>Open my dashboard <ChevronRight size={16} /></> : <>Make my prediction <ChevronRight size={16} /></>}
           </button>
           <div className="public-bracket-share">
             <button type="button" className="btn btn-secondary btn-sm" onClick={shareTwitter}>
