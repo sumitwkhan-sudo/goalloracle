@@ -28,6 +28,8 @@ import InviteFriendsModal from './components/InviteFriendsModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import MyPicksCard from './components/MyPicksCard';
+import HomeHeroCard from './components/HomeHeroCard';
+import QuickActionsTiles from './components/QuickActionsTiles';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -1835,6 +1837,69 @@ const GoalOracle = () => {
     // Community predictions mock
     const communityMatch = WORLD_CUP_MATCHES.find(m => m.id === 'gs17');
 
+    // ─── Logged-in personal dashboard ─────────────────────────────
+    // Single centered container, frosted-glass cards over a strongly-
+    // overlaid stadium photo. Replaces the previous side-by-side
+    // hero (Welcome / MyPicksCard / HeroLeaderboardPreview / chip
+    // row / stats band) which had three competing focal points and
+    // mixed card styles. Calm hierarchy, one primary CTA, uniform
+    // type scale.
+    if (authenticated) {
+      const onLeaderboardFull = () => {
+        const gs = leagues.find((l) => l.id === 'global-simple') || allLeagues.find((l) => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
+        setDetailTab('leaderboard');
+        nav('detail', gs);
+      };
+      return (
+        <div className="landing-page">
+          <div className="grad-mesh"></div>
+          {/* Stadium photo stays — but the authed overlay is
+              strong + uniform so cards float above it consistently
+              instead of fighting the bright crowd image. */}
+          <section className="hero hero-split hero-no-anim">
+            <div className="hero-stadium-bg"></div>
+            <div className="hero-stadium-overlay hero-stadium-overlay-authed"></div>
+            <div className="home-shell">
+              <HomeHeroCard
+                displayName={uData?.displayName}
+                quickPicks={quickPicks}
+                rank={leagueRanks?.['global-simple']}
+                onPrimary={startSimplePredicting}
+              />
+              <QuickActionsTiles
+                onDashboard={() => nav('dashboard')}
+                onMyLeagues={() => nav('leagues')}
+                onLeaderboard={goLeaderboardLanding}
+                onJoin={() => nav('browse')}
+                onInvite={() => setInviteOpen(true)}
+              />
+              <div className="home-card home-leaderboard">
+                <HeroLeaderboardPreview onViewFull={onLeaderboardFull} />
+              </div>
+            </div>
+          </section>
+          <div className="home-footer-strip">
+            <span><AnimatedCounter value={stats.totalPlayers ? stats.totalPlayers * 12 : 13402} /> predictions today</span>
+            <span className="home-footer-strip-divider">·</span>
+            <span>82 countries</span>
+            <span className="home-footer-strip-divider">·</span>
+            <span>Free to play</span>
+            <span className="home-footer-strip-divider">·</span>
+            <span>FIFA-compliant</span>
+          </div>
+          <InviteFriendsModal
+            open={inviteOpen}
+            onClose={() => setInviteOpen(false)}
+            userId={uData?.id}
+            leagues={leagues}
+            notify={notify}
+            onCreateLeague={() => nav('create')}
+          />
+        </div>
+      );
+    }
+
+    // ─── Anonymous marketing landing (unchanged) ──────────────────
     return (
       <div className="landing-page">
         <div className="grad-mesh"></div>
@@ -1844,98 +1909,23 @@ const GoalOracle = () => {
           <div className="hero-stadium-bg"></div>
           <div className="hero-stadium-overlay"></div>
           <WorldCupCountdown />
-          <div className={`hero-split-inner ${authenticated ? 'hero-split-inner-authed' : ''}`} ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
+          <div className="hero-split-inner" ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
             <div className="hero-left">
-              {/* Smaller title for authed users — they're on a personal
-                  dashboard, not a marketing landing. The full-pitch
-                  title + tagline + Become-the-Oracle line stays for
-                  anonymous visitors. */}
-              {authenticated ? (
-                <h1 className="hero-title hero-title-compact">Welcome back<span className="highlight">.</span></h1>
-              ) : (
-                <>
-                  <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
-                  <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
-                </>
-              )}
-              {/* Anonymous users keep the original sign-up pitch — two
-                  big buttons (Start Predicting / Create a League). */}
-              {!authenticated && anonCtas && (
+              <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
+              <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
+              {anonCtas && (
                 <div className="hero-cta">
                   <button className="btn btn-primary btn-lg" onClick={anonCtas.primary.onClick}>{anonCtas.primary.label}</button>
                   <button className="btn btn-secondary btn-lg" onClick={anonCtas.secondary.onClick}>{anonCtas.secondary.label}</button>
                 </div>
               )}
-              {/* Logged-in users get a primary action + secondary nav
-                  chips. The primary (Edit / Finish bracket) is bumped
-                  to a clearly larger size so it leads visually; the
-                  five secondaries are smaller chips for nav surfaces
-                  that would otherwise be hidden behind the hamburger. */}
-              {authenticated && (
-                <>
-                  {accentChip && (
-                    <div className="hero-primary-cta-row">
-                      <button
-                        type="button"
-                        className={`hero-primary-cta ${accentChip.urgent ? 'hero-primary-cta-urgent' : ''}`}
-                        onClick={accentChip.onClick}
-                      >
-                        <Target size={16} aria-hidden="true" /> {accentChip.label}
-                      </button>
-                    </div>
-                  )}
-                  <div className="hero-cta-chips" role="group" aria-label="Quick navigation">
-                    <button type="button" className="hero-chip" onClick={() => nav('dashboard')}>
-                      <Trophy size={13} aria-hidden="true" /> Dashboard
-                    </button>
-                    <button type="button" className="hero-chip" onClick={() => nav('leagues')}>
-                      <Users size={13} aria-hidden="true" /> My leagues
-                    </button>
-                    <button type="button" className="hero-chip" onClick={goLeaderboardLanding}>
-                      <TrendingUp size={13} aria-hidden="true" /> Global leaderboard
-                    </button>
-                    <button type="button" className="hero-chip" onClick={() => nav('browse')}>
-                      <Search size={13} aria-hidden="true" /> Join a league
-                    </button>
-                    <button type="button" className="hero-chip hero-chip-invite" onClick={() => setInviteOpen(true)}>
-                      <UserPlus size={13} aria-hidden="true" /> Invite friends
-                    </button>
-                  </div>
-                </>
-              )}
             </div>
             <div className="hero-right">
-              {/* Personal status first — user's bracket + global rank. */}
-              {authenticated && (
-                <MyPicksCard
-                  quickPicks={quickPicks}
-                  rank={leagueRanks?.['global-simple']}
-                  isPreTournament={Date.now() < Date.UTC(2026, 5, 11, 19, 0, 0)}
-                  onComplete={startSimplePredicting}
-                  onViewLeaderboard={goLeaderboardLanding}
-                />
-              )}
-              {/* Global context second — the league preview the page
-                  always rendered. Same component, just stacked under
-                  MyPicksCard for authed users. */}
               <HeroLeaderboardPreview
-                onViewFull={() => {
-                  if (authenticated) {
-                    const gs = leagues.find((l) => l.id === 'global-simple') || allLeagues.find((l) => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
-                    setDetailTab('leaderboard');
-                    nav('detail', gs);
-                  } else {
-                    login();
-                  }
-                }}
+                onViewFull={() => login()}
               />
             </div>
           </div>
-          {/* Stats band — social proof + FIFA compliance. Pulled out
-              of the left column so it doesn't push the columns out
-              of vertical alignment. Sits as a compact band beneath
-              the two columns, full-width inside the same max-width
-              container. */}
           <div className="hero-stats-band">
             <div className="hero-stats-band-inner">
               <div className="hero-social-proof">
@@ -2220,17 +2210,9 @@ const GoalOracle = () => {
             </div>
           </div>
         </footer>
-
-        {authenticated && (
-          <InviteFriendsModal
-            open={inviteOpen}
-            onClose={() => setInviteOpen(false)}
-            userId={uData?.id}
-            leagues={leagues}
-            notify={notify}
-            onCreateLeague={() => nav('create')}
-          />
-        )}
+        {/* InviteFriendsModal mount lives in the authed early-return
+            above; this branch only renders for anonymous users who
+            can't trigger the modal anyway. */}
       </div>
     );
   };
