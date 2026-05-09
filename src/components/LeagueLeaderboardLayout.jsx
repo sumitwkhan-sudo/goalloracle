@@ -130,7 +130,7 @@ function LeaderboardRow({ row, rank, isYou, onRowClick, onEdit, onShareBracket }
 }
 
 // ── header (league name + member count + invite primary CTA) ────────────
-function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite, onBack }) {
+function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite, onLeave, onBack }) {
   const inviteLabel = isGlobal ? 'Share leaderboard' : 'Invite friends';
   const lockIcon = isPrivate ? <LockIcon size={11} aria-hidden="true" /> : null;
   return (
@@ -159,11 +159,18 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite,
           </div>
         </div>
       </div>
-      {onInvite && (
-        <button type="button" className="ll-header-invite" onClick={onInvite}>
-          <UserPlus size={14} aria-hidden="true" /> {inviteLabel}
-        </button>
-      )}
+      <div className="ll-header-actions">
+        {onLeave && (
+          <button type="button" className="ll-header-leave" onClick={onLeave}>
+            Leave
+          </button>
+        )}
+        {onInvite && (
+          <button type="button" className="ll-header-invite" onClick={onInvite}>
+            <UserPlus size={14} aria-hidden="true" /> {inviteLabel}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -240,6 +247,7 @@ export default function LeagueLeaderboardLayout({
   onEdit,
   onInvite,
   onShareBracket,
+  onLeave,
   loading = false,
   onBack,
 }) {
@@ -260,6 +268,7 @@ export default function LeagueLeaderboardLayout({
         isGlobal={isGlobal}
         memberCount={memberCount}
         onInvite={onInvite}
+        onLeave={onLeave}
         onBack={onBack}
       />
 

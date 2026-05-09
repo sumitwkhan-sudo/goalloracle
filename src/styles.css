@@ -1602,6 +1602,44 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   cursor: pointer; padding: 0.3rem; display: flex; align-items: center;
 }
 .picks-viewer-close:hover { color: var(--text); }
+
+/* Edit + Share affordances rendered alongside the close button when
+   the user is viewing their OWN bracket via PicksViewer (e.g. from
+   the leagues list "View bracket" action). Hidden in the read-only
+   case where another user's picks are open. */
+.picks-viewer-actions {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.picks-viewer-action {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.45rem 0.7rem; min-height: 32px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-sec);
+  font: inherit; font-size: 0.8rem; font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  touch-action: manipulation;
+}
+.picks-viewer-action:hover {
+  color: var(--text);
+  border-color: var(--border-br, var(--text-dim));
+  background: var(--bg-elev);
+}
+.picks-viewer-action-primary {
+  background: var(--primary, #7c5cff); border-color: var(--primary, #7c5cff);
+  color: #fff;
+}
+.picks-viewer-action-primary:hover {
+  background: var(--primary, #7c5cff); border-color: var(--primary, #7c5cff);
+  color: #fff; filter: brightness(1.05);
+}
+@media (max-width: 480px) {
+  .picks-viewer-action span,
+  .picks-viewer-action svg + span { display: none; }
+  .picks-viewer-action { padding: 0.5rem; min-width: 32px; justify-content: center; }
+}
 .picks-viewer-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1.25rem; }
 /* Tabs inside the picks viewer modal — Group stage / Knockout bracket. */
 .pv-tabs {
@@ -6372,11 +6410,38 @@ body.light .lsd-head,
 }
 .ll-header-invite:hover { filter: brightness(1.05); }
 .ll-header-invite:active { transform: translateY(1px); }
+
+/* Header action cluster — Leave (secondary, neutral) + Invite
+   (primary CTA). Renders only when SimpleDetail's onLeaveLeague
+   prop is wired AND the league is non-global, so the global
+   leagues never expose a meaningless Leave button. */
+.ll-header-actions {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  flex-shrink: 0;
+}
+.ll-header-leave {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.95rem;
+  font-family: var(--font); font-weight: 600; font-size: 0.82rem;
+  color: var(--text-sec);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  touch-action: manipulation;
+}
+.ll-header-leave:hover {
+  color: var(--danger, #ff3b5c);
+  border-color: var(--danger, #ff3b5c);
+  background: rgba(255,59,92,0.06);
+}
+
 @media (max-width: 720px) {
   .ll-header { flex-wrap: nowrap; gap: 0.5rem; }
   .ll-header-title { font-size: 1.05rem; }
   .ll-header-sub { font-size: 0.62rem; }
   .ll-header-invite { padding: 0.5rem 0.75rem; font-size: 0.78rem; }
+  .ll-header-leave { padding: 0.5rem 0.7rem; font-size: 0.75rem; }
 }
 
 /* ── Scope bar (global only) ──────────────────────────────────────── */

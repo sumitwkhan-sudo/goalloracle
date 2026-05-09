@@ -89,6 +89,22 @@ export default function Dashboard({
   const simpleLeagues = useMemo(() => ml.filter(l => l.predictionMode === 'simple'), [ml]);
   const quickPicksIncomplete = !!quickPicks && !quickPicks.isComplete && simpleLeagues.length > 0;
 
+  // Per-league incomplete check. The dashboard used to show "All caught
+  // up" the moment the global Quick Picks doc was complete, even if the
+  // user had unfinished picks in private/public QP leagues — each league
+  // has its own /simplePredictions/{userId}__{leagueId} doc, so global
+  // completion ≠ all leagues complete. Pull from leagueRanks (populated
+  // by the league-rank fetch effect below); the field was added to the
+  // store in the Your-leagues progress fix.
+  const incompleteOtherLeagues = useMemo(() => {
+    return simpleLeagues.filter(l => {
+      if (l.id === 'global-simple') return false; // global handled by quickPicksIncomplete
+      const rk = leagueRanks[l.id];
+      return rk && typeof rk.myPicksLeft === 'number' && rk.myPicksLeft > 0;
+    });
+  }, [simpleLeagues, leagueRanks]);
+  const outstandingOtherLeaguesCount = incompleteOtherLeagues.length;
+
   const isFirstTime = quickPicks !== null
     && quickPicks.totalRemaining === 52
     && Object.keys(preds).length === 0
@@ -232,6 +248,8 @@ export default function Dashboard({
           <NextLockRow lock={nextLock} now={now} buffer={LOCK_BUFFER_MS} simpleLeagues={simpleLeagues} ml={ml} nav={nav} />
         ) : quickPicksIncomplete ? (
           <QuickPicksLockRow quickPicks={quickPicks} simpleLeagues={simpleLeagues} nav={nav} />
+        ) : outstandingOtherLeaguesCount > 0 ? (
+          <OutstandingPicksRow leagues={incompleteOtherLeagues} leagueRanks={leagueRanks} nav={nav} />
         ) : (
           <CaughtUpRow nav={nav} />
         )}
@@ -457,6 +475,34 @@ function CaughtUpRow({ nav }) {
       </div>
       <button className="td-row-cta td-row-cta-ghost" onClick={() => nav('browse')}>
         Browse leagues <ChevronRight size={11} />
+      </button>
+    </div>
+  );
+}
+
+// Reuses .td-row-lock styling from QuickPicksLockRow so the warning
+// reads as urgent. Surfaces total outstanding picks across the user's
+// non-global QP leagues and routes to the first incomplete one — the
+// user can finish there and the row updates as data refreshes.
+function OutstandingPicksRow({ leagues, leagueRanks, nav }) {
+  const totalLeft = leagues.reduce((sum, l) => sum + (leagueRanks[l.id]?.myPicksLeft || 0), 0);
+  const first = leagues[0];
+  const eta = Math.max(1, Math.round(totalLeft * 8 / 60));
+  return (
+    <div className="td-row td-row-lock">
+      <Target size={14} className="td-row-icon" />
+      <div className="td-row-body">
+        <div className="td-row-title">
+          {leagues.length === 1
+            ? `Picks pending in ${first.name}`
+            : `Picks pending across ${leagues.length} leagues`}
+        </div>
+        <div className="td-row-sub">
+          <strong>{totalLeft}</strong> pick{totalLeft === 1 ? '' : 's'} left · ~{eta} min · each league has its own bracket
+        </div>
+      </div>
+      <button className="td-row-cta" onClick={() => nav('detail', first, { tab: 'predictions' })}>
+        Finish {first.name} <ChevronRight size={11} />
       </button>
     </div>
   );
