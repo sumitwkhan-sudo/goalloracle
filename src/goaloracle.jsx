@@ -4037,7 +4037,7 @@ const GoalOracle = () => {
               const cur = themes[theme] || themes.light;
               const nxt = themes[nextId];
               return (
-                <button type="button" className="theme-opt theme-cycle active" title={`Theme: ${cur.label} — click for ${nxt.label}`} aria-label={`Theme: ${cur.label}. Click to switch to ${nxt.label}`} onClick={cycleTheme}>
+                <button type="button" className="theme-opt theme-cycle active" data-tooltip={`Theme: ${cur.label} — click for ${nxt.label}`} aria-label={`Theme: ${cur.label}. Click to switch to ${nxt.label}`} onClick={cycleTheme}>
                   {cur.icon}
                 </button>
               );

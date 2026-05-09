@@ -207,9 +207,31 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   border-color: rgba(0, 212, 255, 0.25); opacity: 1;
 }
 /* Single-button theme cycle: icon-only circle */
-.theme-opt.theme-cycle { width: 30px; height: 30px; padding: 0; border-radius: 50%; }
+.theme-opt.theme-cycle { width: 30px; height: 30px; padding: 0; border-radius: 50%; position: relative; }
 .theme-opt.theme-cycle:hover { transform: rotate(12deg); opacity: 1; }
 [data-theme="light"] .theme-opt.active { background: rgba(0,0,0,0.08); color: #333; border-color: rgba(0,0,0,0.15); }
+/* Custom tooltip — native `title` tooltips render at the OS level and get
+   clipped when the app is embedded in an iframe (preview deploys, etc).
+   This keeps the hint inside the page DOM so it always stays visible. */
+.theme-opt[data-tooltip] { position: relative; }
+.theme-opt[data-tooltip]:hover::after,
+.theme-opt[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--bg-elev, #1a1d2e);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
 
 /* ---- BUTTONS ---- */
 .btn {
