@@ -1821,7 +1821,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 
 /* PicksViewer modal */
 .picks-viewer-backdrop {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; inset: 0; z-index: 1000;
   background: rgba(5,5,8,0.7); backdrop-filter: blur(6px);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 2.5rem 1rem; overflow-y: auto;
