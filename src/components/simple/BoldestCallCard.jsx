@@ -1,39 +1,37 @@
 /**
  * BoldestCallCard
  *
- * Dashboard widget that surfaces the user's most contrarian pick
- * relative to global Quick Picks consensus. Loops the user's
- * knockout picks (champion, runner-up, 3rd, and every R32→Final
- * advance), looks each up in the consensus payload, and returns
- * the single line with the lowest agreement.
+ * Surfaces the user's top three most contrarian knockout picks
+ * relative to global Quick Picks consensus. For each pick the user
+ * made (R32 → Final), we look up the team's consensus advance %
+ * and rank by lowest %. The card renders the three coldest picks
+ * as a compact list — flag + team + round + crowd %.
  *
- * Hidden when the user hasn't submitted, or when consensus isn't
- * available yet — never renders a misleading number.
+ * Hidden when the league has fewer than MIN_USER_THRESHOLD
+ * submitters (consensus too noisy at small scale), or when the
+ * user hasn't picked anything yet.
  */
 
 import React, { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { getSimplePrediction, getSimpleConsensus } from '../../utils/db';
+import { teamFlags } from '../../utils/flags';
 
 const ROUND_KEYS = ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final'];
-const ROUND_ACTION = {
-  roundOf32: 'to advance from R32',
-  roundOf16: 'to advance from R16',
-  quarterFinals: 'to win their quarterfinal',
-  semiFinals: 'to reach the Final',
-  thirdPlace: 'to take 3rd place',
-  final: 'to win it all',
+const ROUND_LABEL = {
+  roundOf32: 'R32',
+  roundOf16: 'R16',
+  quarterFinals: 'QF',
+  semiFinals: 'SF',
+  thirdPlace: '3rd',
+  final: 'Final',
 };
 
-// MIN_USER_THRESHOLD: don't surface a "bold pick" until at least
-// this many users have submitted. Lowered from 10 → 3 so the card
-// renders for early-stage leagues — the % may be noisier with a
-// small denominator but the user gets the engagement loop right
-// away rather than seeing an empty insights row.
 const MIN_USER_THRESHOLD = 3;
+const TOP_N = 3;
 
 export default function BoldestCallCard({ userId, leagueId }) {
-  const [boldest, setBoldest] = useState(null); // null = loading or unavailable
+  const [picks, setPicks] = useState(null); // null = loading; [] = no picks
 
   useEffect(() => {
     if (!userId || !leagueId) return;
@@ -48,8 +46,7 @@ export default function BoldestCallCard({ userId, leagueId }) {
         if (!pred || !consensus || (consensus.totalUsers || 0) < MIN_USER_THRESHOLD) return;
 
         const ko = pred.knockoutPredictions || {};
-        let best = null; // { teamId, pct, round, label }
-
+        const candidates = [];
         for (const round of ROUND_KEYS) {
           const slots = Array.isArray(ko[round]) ? ko[round] : [];
           for (const slot of slots) {
@@ -58,10 +55,23 @@ export default function BoldestCallCard({ userId, leagueId }) {
             if (!teamId || !matchId) continue;
             const pct = consensus.knockout?.[round]?.[matchId]?.[teamId];
             if (typeof pct !== 'number') continue;
-            if (!best || pct < best.pct) best = { teamId, pct, round, action: ROUND_ACTION[round] || 'to advance' };
+            candidates.push({ teamId, pct, round });
           }
         }
-        if (best) setBoldest(best);
+        candidates.sort((a, b) => a.pct - b.pct);
+        // Deduplicate by team — same team appearing in multiple rounds
+        // would otherwise dominate the list. Keep the lowest-pct
+        // appearance per team so the user sees their boldest call for
+        // each underdog rather than three rows of the same name.
+        const seen = new Set();
+        const top = [];
+        for (const c of candidates) {
+          if (seen.has(c.teamId)) continue;
+          seen.add(c.teamId);
+          top.push(c);
+          if (top.length >= TOP_N) break;
+        }
+        if (top.length > 0) setPicks(top);
       } catch {
         // non-fatal — widget just won't render
       }
@@ -69,20 +79,27 @@ export default function BoldestCallCard({ userId, leagueId }) {
     return () => { cancelled = true; };
   }, [userId, leagueId]);
 
-  if (!boldest) return null;
-
-  const pctRound = Math.max(1, Math.round(boldest.pct * 100));
+  if (!picks) return null;
 
   return (
-    <div className="boldest-call-card" role="status">
-      <span className="boldest-call-icon" aria-hidden="true"><Sparkles size={14} /></span>
-      <div className="boldest-call-text">
-        <span className="boldest-call-label">Your boldest pick</span>
-        <span className="boldest-call-body">
-          <strong>{boldest.teamId}</strong> {boldest.action} — only{' '}
-          <strong>{pctRound}%</strong> agree
-        </span>
+    <div className="boldest-call-card insight-card" role="status">
+      <div className="boldest-call-head">
+        <span className="boldest-call-icon" aria-hidden="true"><Sparkles size={11} /></span>
+        <span className="boldest-call-label">Your boldest picks</span>
       </div>
+      <ul className="boldest-call-list">
+        {picks.map((p) => {
+          const pctRound = Math.max(1, Math.round(p.pct * 100));
+          return (
+            <li key={`${p.round}-${p.teamId}`} className="boldest-call-row">
+              <span className="boldest-call-flag" aria-hidden="true">{teamFlags[p.teamId] || '🏳️'}</span>
+              <span className="boldest-call-team">{p.teamId}</span>
+              <span className="boldest-call-round">{ROUND_LABEL[p.round]}</span>
+              <span className="boldest-call-pct">{pctRound}%</span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

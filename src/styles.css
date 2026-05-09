@@ -4255,31 +4255,55 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .bracket-hint-tooltip { font-size: 0.72rem; max-width: calc(100vw - 2rem); white-space: normal; text-align: center; }
 }
 /* Cascade-change toast: shown when re-picking a winner wipes downstream. */
-/* Boldest-call dashboard widget — single-line nudge surfacing the
-   user's most contrarian knockout pick relative to global Quick Picks
-   consensus. Compact so it can sit between the CTA stack and the
-   Needs Your Prediction list without making the dashboard feel busy. */
+/* Boldest-picks card — list of the user's three most contrarian
+   knockout picks relative to crowd consensus. Same row pattern as
+   .market-odds-card / .group-boldness-card so the three list-style
+   insights read as a set. */
 .boldest-call-card {
-  display: flex; align-items: center; gap: 0.65rem;
-  margin: 0.6rem 0;
-  padding: 0.6rem 0.85rem;
   background: linear-gradient(135deg, rgba(255,184,0,0.1), rgba(255,45,135,0.04));
   border: 1px solid rgba(255,184,0,0.3);
-  border-radius: var(--radius);
-  font-size: 0.88rem; color: var(--text);
+  color: var(--text);
+}
+.boldest-call-head {
+  display: flex; align-items: center; gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3rem;
 }
 .boldest-call-icon {
-  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--amber), var(--magenta)); color: #000;
+  background: linear-gradient(135deg, var(--amber, #ffb800), var(--magenta, #ff2d87));
+  color: #000;
 }
-.boldest-call-text { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.35; }
+.boldest-call-icon svg { width: 10px; height: 10px; }
 .boldest-call-label {
-  font-family: var(--mono); font-size: 0.62rem;
+  font-family: var(--mono); font-size: 0.56rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.07em;
-  color: var(--text-dim);
+  color: var(--text);
 }
-.boldest-call-body strong { font-weight: 700; }
+.boldest-call-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.boldest-call-row {
+  display: grid; grid-template-columns: 16px 1fr auto auto;
+  align-items: center; gap: 0.35rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0;
+}
+.boldest-call-flag { font-size: 0.85rem; line-height: 1; }
+.boldest-call-team {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.boldest-call-round {
+  font-family: var(--mono); font-size: 0.6rem;
+  color: var(--text-dim); padding: 0 0.25rem;
+  border-left: 1px solid var(--border);
+}
+.boldest-call-pct {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+  color: var(--amber, #ffb800);
+}
 
 /* Most-contested-match dashboard card — companion to the boldest-call
    widget. Same compact one-line shape; cyan accent instead of amber so
@@ -5763,18 +5787,29 @@ body.light .lsd-head,
   text-transform: uppercase; letter-spacing: 0.07em;
   color: var(--text);
 }
-.group-boldness-body {
-  display: flex; flex-direction: column; gap: 0.15rem;
-  font-size: 0.76rem; line-height: 1.3;
+.group-boldness-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.1rem;
 }
-.group-boldness-pct strong {
-  font-family: var(--mono); font-size: 0.95rem; font-weight: 800;
-  color: var(--text); margin-right: 0.25rem;
+.group-boldness-row {
+  display: grid; grid-template-columns: 16px 1fr auto auto;
+  align-items: center; gap: 0.35rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0;
 }
-.group-boldness-meta {
-  font-size: 0.65rem; color: var(--text-dim);
+.group-boldness-flag { font-size: 0.85rem; line-height: 1; }
+.group-boldness-team {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.group-boldness-meta strong { color: var(--text); }
+.group-boldness-group {
+  font-family: var(--mono); font-size: 0.6rem;
+  color: var(--text-dim); padding: 0 0.25rem;
+  border-left: 1px solid var(--border);
+}
+.group-boldness-rank {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+  color: var(--cyan, #00d4ff);
+}
 
 /* FIFA ranks card — top-3 ranked side from src/data/fifaRankings.js
    plus a footer line that locates the user's champion in the table. */

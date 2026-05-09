@@ -12,7 +12,7 @@ import BoldestCallCard from './simple/BoldestCallCard';
 import BracketSurvivalCard from './simple/BracketSurvivalCard';
 import BracketAlignmentCard from './simple/BracketAlignmentCard';
 import GroupBoldnessCard from './simple/GroupBoldnessCard';
-import FifaRanksCard from './simple/FifaRanksCard';
+import MarketOddsCard from './simple/MarketOddsCard';
 import NewsFeed from './NewsFeed';
 
 const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
@@ -292,7 +292,7 @@ export default function Dashboard({
             {uData?.id && <BoldestCallCard userId={uData.id} leagueId="global-simple" />}
             {uData?.id && <GroupBoldnessCard userId={uData.id} leagueId="global-simple" />}
             {uData?.id && <BracketAlignmentCard userId={uData.id} leagueId="global-simple" />}
-            {uData?.id && <FifaRanksCard userId={uData.id} leagueId="global-simple" />}
+            {uData?.id && <MarketOddsCard userId={uData.id} leagueId="global-simple" />}
           </div>
           {uData?.id && <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />}
         </div>
