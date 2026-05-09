@@ -1265,6 +1265,20 @@ const GoalOracle = () => {
   // every QP league).
   const [quickPicks, setQuickPicks] = useState(null);
 
+  // Global consensus (champion / runner-up / 3rd-place distributions).
+  // Used by HomeHeroCard insights to compute "crowd alignment" — how
+  // many other players agree with the user's champion pick. Cached
+  // per-league inside getSimpleConsensus, so this is essentially free.
+  const [globalConsensus, setGlobalConsensus] = useState(null);
+  useEffect(() => {
+    if (!authenticated) return;
+    let cancelled = false;
+    getSimpleConsensus('global-simple')
+      .then((c) => { if (!cancelled) setGlobalConsensus(c); })
+      .catch(() => { /* non-fatal — insights chip just hides */ });
+    return () => { cancelled = true; };
+  }, [authenticated]);
+
   // Fetch once per user. Max totalRemaining is 12 groups + 8 thirds + 32
   // bracket winners = 52 (sentinel for brand-new users in Dashboard).
   useEffect(() => {
@@ -1303,6 +1317,10 @@ const GoalOracle = () => {
           isComplete: totalRemaining === 0,
           winner: finalSlot?.winnerId || null,
           runnerUp: finalSlot?.loserId || null,
+          // Raw knockout picks kept so HomeHeroCard insights can
+          // derive "biggest upset" (lowest-ranked team picked to
+          // advance furthest) without needing a second fetch.
+          knockoutPredictions: ko,
         });
       } catch {
         if (!cancelled) setQuickPicks(null);
@@ -2022,7 +2040,11 @@ const GoalOracle = () => {
                 displayName={uData?.displayName}
                 quickPicks={quickPicks}
                 rank={leagueRanks?.['global-simple']}
-                onPrimary={startSimplePredicting}
+                leagueCount={leagues?.length || 0}
+                consensus={globalConsensus}
+                onView={() => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
+                onEdit={startSimplePredicting}
+                onShare={handleShareOwnBracket}
               />
               <QuickActionsTiles
                 onDashboard={() => nav('dashboard')}
@@ -4219,6 +4241,8 @@ const GoalOracle = () => {
           leagueRanks={leagueRanks}
           setLeagueRanks={setLeagueRanks}
           nav={nav}
+          consensus={globalConsensus}
+          onShare={handleShareOwnBracket}
         />
       )}
       {view === 'leagues' && <LeaguesList />}
