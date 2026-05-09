@@ -152,7 +152,22 @@ export default function Dashboard({
             const data = await getSimpleLeaderboard(league.id);
             const lb = data.leaderboard || [];
             const myIdx = lb.findIndex(e => e.userId === uData.id);
-            if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx >= 0 ? myIdx + 1 : lb.length + 1, total: lb.length } }));
+            // Pull per-league picks-left + complete flag off the user's
+            // own leaderboard entry. The endpoint already computes both
+            // (simple-leaderboard.js, lines ~85–100); the previous code
+            // dropped them, which is why the leagues list was reporting
+            // every QP league as "all picks in" the moment global-simple
+            // was complete — predStatus had nowhere else to look.
+            const myEntry = myIdx >= 0 ? lb[myIdx] : null;
+            if (!cancelled) setLeagueRanks(prev => ({
+              ...prev,
+              [league.id]: {
+                rank: myIdx >= 0 ? myIdx + 1 : lb.length + 1,
+                total: lb.length,
+                myPicksLeft: typeof myEntry?.picksLeft === 'number' ? myEntry.picksLeft : null,
+                myIsComplete: !!myEntry?.isComplete,
+              },
+            }));
           } else {
             const { leaderboard: bu } = await getLeagueLeaderboard(league.id);
             const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || DEFAULT_PS) }));
