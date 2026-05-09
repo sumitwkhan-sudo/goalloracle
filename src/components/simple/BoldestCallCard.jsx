@@ -2,14 +2,16 @@
  * BoldestCallCard
  *
  * Surfaces the user's top three most contrarian knockout picks
- * relative to global Quick Picks consensus. For each pick the user
- * made (R32 → Final), we look up the team's consensus advance %
- * and rank by lowest %. The card renders the three coldest picks
- * as a compact list — flag + team + round + crowd %.
+ * relative to the broadest meaningful crowd: the Global Quick Picks
+ * consensus. The user's PICKS are pulled per-league (so Team-X's
+ * bracket gets compared correctly), but the COMPARISON crowd is
+ * always global-simple — comparing a per-league bracket against a
+ * 3-person private-league crowd is statistical noise; comparing
+ * against thousands of submitters is signal.
  *
- * Hidden when the league has fewer than MIN_USER_THRESHOLD
- * submitters (consensus too noisy at small scale), or when the
- * user hasn't picked anything yet.
+ * Hidden when the user hasn't picked anything yet, or when global-
+ * simple itself has fewer than MIN_USER_THRESHOLD submitters
+ * (early-stage tournament with almost no users).
  */
 
 import React, { useEffect, useState } from 'react';
@@ -38,9 +40,12 @@ export default function BoldestCallCard({ userId, leagueId }) {
     let cancelled = false;
     (async () => {
       try {
+        // Per-league prediction (the user's picks for THIS league)
+        // but always the global-simple consensus as the comparison
+        // crowd. See file header for why.
         const [pred, consensus] = await Promise.all([
           getSimplePrediction(userId, leagueId),
-          getSimpleConsensus(leagueId),
+          getSimpleConsensus('global-simple'),
         ]);
         if (cancelled) return;
         if (!pred || !consensus || (consensus.totalUsers || 0) < MIN_USER_THRESHOLD) return;
