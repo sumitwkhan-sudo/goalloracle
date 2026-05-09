@@ -1102,6 +1102,15 @@ const GoalOracle = () => {
   // navigating to the full leaderboard page.
   const [lbScope, setLbScope] = useState('all');
   const [lbScopeCountry, setLbScopeCountry] = useState('');
+  // "View bracket" modal target. Lifted to root because the inner
+  // LeaguesList component is defined inline in GoalOracle's render
+  // body — every parent re-render creates a fresh function ref,
+  // which makes React unmount/remount the LeaguesList instance and
+  // resets any local useState. The previous bug: clicking the
+  // View-bracket icon set the local state, parent re-rendered for
+  // some other reason, LeaguesList re-mounted with state=null, the
+  // PicksViewer never appeared. Hoisting fixes that.
+  const [viewingOwnBracket, setViewingOwnBracket] = useState(null); // null | league
   // Quick Picks completion summary — lives at App level so Dashboard AND
   // LeaguesList can both read it (Quick Picks share one pick doc across
   // every QP league).
@@ -1899,7 +1908,7 @@ const GoalOracle = () => {
       );
     }
 
-    // ─── Anonymous marketing landing (unchanged) ──────────────────
+    // ─── Anonymous marketing landing (unchanged from pre-redesign) ──
     return (
       <div className="landing-page">
         <div className="grad-mesh"></div>
@@ -1919,22 +1928,23 @@ const GoalOracle = () => {
                   <button className="btn btn-secondary btn-lg" onClick={anonCtas.secondary.onClick}>{anonCtas.secondary.label}</button>
                 </div>
               )}
-            </div>
-            <div className="hero-right">
-              <HeroLeaderboardPreview
-                onViewFull={() => login()}
-              />
-            </div>
-          </div>
-          <div className="hero-stats-band">
-            <div className="hero-stats-band-inner">
+              {/* Social proof + FIFA compliance live INSIDE the left
+                  column (their original home) — putting them in a
+                  sibling .hero-stats-band caused them to render as
+                  a horizontal flex item next to the columns since
+                  .hero is display: flex, breaking the layout. */}
               <div className="hero-social-proof">
                 <div className="hero-avatars">
                   {['🇧🇷','🇩🇪','🇦🇷','🇫🇷'].map((f,i) => <span key={i} className="hero-avatar">{f}</span>)}
                 </div>
                 <span className="hero-proof-text"><AnimatedCounter value={stats.totalPlayers ? stats.totalPlayers * 12 : 13402} /> predictions made today &middot; 82 countries &middot; Free to play</span>
               </div>
-              <p className="hero-compliance"><Shield size={12} /> Compliant with the official FIFA World Cup 26&trade; rulebook</p>
+              <p className="hero-compliance"><Shield size={12} /> GoalOracle&rsquo;s prediction engine is compliant with the official FIFA World Cup 26&trade; rulebook</p>
+            </div>
+            <div className="hero-right">
+              <HeroLeaderboardPreview
+                onViewFull={() => login()}
+              />
             </div>
           </div>
         </section>
@@ -2224,26 +2234,15 @@ const GoalOracle = () => {
   // dividers, chevron-only nav, one-state-pill cascade. Tap = navigate.
   const LeaguesList = () => {
     // "View bracket" opens the read-only PicksViewer with the user's
-    // own prediction doc — better UX than dumping them into the wizard.
-    // Edit + Share affordances are wired through to the existing nav
-    // and a lightweight referral-link share so we don't need to lift
-    // the BracketShareModal up to the root for one extra entry point.
-    const [viewingOwnBracket, setViewingOwnBracket] = useState(null);
-    const handleShareFromViewer = useCallback(async () => {
-      const userId = uData?.id;
-      if (!userId) return;
-      const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
-      const url = `${origin}/u/${encodeURIComponent(userId)}/bracket?ref=${encodeURIComponent(userId)}`;
-      const text = `Check out my World Cup 2026 bracket on GoalOracle: ${url}`;
-      try {
-        if (typeof navigator !== 'undefined' && navigator.share) {
-          await navigator.share({ title: 'My GoalOracle bracket', text, url });
-        } else {
-          await navigator.clipboard.writeText(url);
-          notify?.('Bracket link copied — share it with friends');
-        }
-      } catch { /* user cancelled native share */ }
-    }, []);
+    // viewingOwnBracket state + the PicksViewer mount + the
+    // handleShareFromViewer handler all live at GoalOracle root
+    // (search for viewingOwnBracket above). Kept there because
+    // LeaguesList is defined inline as `const LeaguesList = () =>`
+    // inside GoalOracle's render body — every parent re-render
+    // creates a fresh function reference, React unmounts and
+    // remounts the LeaguesList tree, and any local useState here
+    // resets to its initial value. Hoisting + root-level mount
+    // makes the modal survive the re-mount cycle.
     const seedAll = leagues.length > 0 ? leagues : [
       { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
     ];
@@ -2454,24 +2453,9 @@ const GoalOracle = () => {
           </div>
         )}
 
-        {viewingOwnBracket && uData?.id && (
-          <PicksViewer
-            target={{
-              userId: uData.id,
-              displayName: uData.displayName || 'You',
-              leagueId: viewingOwnBracket.id,
-              leagueName: viewingOwnBracket.name,
-            }}
-            isOwn
-            onEdit={() => {
-              const league = viewingOwnBracket;
-              setViewingOwnBracket(null);
-              nav('detail', league, { tab: 'predictions' });
-            }}
-            onShare={handleShareFromViewer}
-            onClose={() => setViewingOwnBracket(null)}
-          />
-        )}
+        {/* PicksViewer for own-bracket "view" lives at the GoalOracle
+            root level (search for viewingOwnBracket below) so it
+            doesn't get destroyed every time LeaguesList re-mounts. */}
       </div>
     );
   };
@@ -4203,6 +4187,44 @@ const GoalOracle = () => {
         />
       )}
       <ShareCardModal />
+      {/* Own-bracket PicksViewer modal. Mounted at root so the inline-
+          defined LeaguesList component re-mounting (which it does on
+          every parent render — it's a fresh fn ref each time) doesn't
+          destroy the modal mid-flight. State is also at root for the
+          same reason — see viewingOwnBracket / setViewingOwnBracket
+          above. */}
+      {viewingOwnBracket && uData?.id && (
+        <PicksViewer
+          target={{
+            userId: uData.id,
+            displayName: uData.displayName || 'You',
+            leagueId: viewingOwnBracket.id,
+            leagueName: viewingOwnBracket.name,
+          }}
+          isOwn
+          onEdit={() => {
+            const league = viewingOwnBracket;
+            setViewingOwnBracket(null);
+            nav('detail', league, { tab: 'predictions' });
+          }}
+          onShare={async () => {
+            const userId = uData?.id;
+            if (!userId) return;
+            const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
+            const url = `${origin}/u/${encodeURIComponent(userId)}/bracket?ref=${encodeURIComponent(userId)}`;
+            const text = `Check out my World Cup 2026 bracket on GoalOracle: ${url}`;
+            try {
+              if (typeof navigator !== 'undefined' && navigator.share) {
+                await navigator.share({ title: 'My GoalOracle bracket', text, url });
+              } else {
+                await navigator.clipboard.writeText(url);
+                notify?.('Bracket link copied — share it with friends');
+              }
+            } catch { /* user cancelled native share */ }
+          }}
+          onClose={() => setViewingOwnBracket(null)}
+        />
+      )}
       {/* Live Standings drawer — rendered at App root so it survives Detail's
           re-mount cycle (every preds update re-creates the Detail function,
           which would otherwise destroy the drawer's DOM and reset its scroll

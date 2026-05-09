@@ -717,18 +717,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .hero-split-inner {
   position: relative; z-index: 3; max-width: 1200px; margin: 0 auto;
   display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem;
-  /* Top-aligned columns so MyPicksCard + HeroLeaderboardPreview on
-     the right share the same baseline as the title on the left.
-     Vertical centering pushed the right column lower than the title
-     and made the page read as misaligned. */
-  align-items: start;
-  /* Wider horizontal padding (3rem vs 2rem) so the title doesn't
-     bleed against the viewport edge on standard desktop widths. */
-  padding: 7rem 3rem 1.5rem;
+  align-items: center; padding: 8rem 2rem 4rem;
 }
-/* Authed variant — shorter top padding since there's no marketing
-   pitch to lead with, and the Welcome-back title is smaller. */
-.hero-split-inner-authed { padding: 5.5rem 3rem 1.25rem; }
 .hero-left .hero-title { text-align: left; font-size: 3.2rem; }
 .hero-left .hero-subtitle { text-align: left; max-width: 480px; }
 .hero-left .hero-cta { justify-content: flex-start; }
