@@ -5552,6 +5552,56 @@ body.light .lsd-head,
   gap: 0.4rem;
 }
 .td-insights-label { padding: 0 0.1rem; }
+
+/* Carousel header — section label on the left, league switcher
+   chevrons + counter on the right. Hidden when the user belongs to
+   only one Quick Picks league since there's nothing to switch to. */
+.td-insights-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.1rem;
+}
+.td-insights-league {
+  font-family: var(--font);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+.td-insights-nav {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.td-insights-counter {
+  font-family: var(--mono); font-size: 0.6rem;
+  color: var(--text-dim); letter-spacing: 0.04em;
+}
+.td-insights-nav-btn {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-sec);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  touch-action: manipulation;
+}
+.td-insights-nav-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-br, var(--text-dim));
+  background: var(--bg-elev, transparent);
+}
+.td-insights-nav-btn:disabled { opacity: 0.35; cursor: default; }
+/* Soft fade on each league swap to signal the data has changed.
+   Keyed via React's key={leagueId} on the .td-insights-grid so the
+   animation re-runs. */
+.td-insights-grid {
+  animation: td-insights-fade 220ms ease;
+}
+@keyframes td-insights-fade {
+  from { opacity: 0.4; transform: translateY(2px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
 .td-insights-grid {
   display: grid;
   /* Two zones at desktop: a left "pack" that holds 4 thin cards
