@@ -10,6 +10,7 @@ import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
 import { teamFlags } from './utils/flags';
+import { getRank as getFifaRank } from './data/fifaRankings';
 import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX } from './utils/scoringSimple';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
@@ -1016,7 +1017,17 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             const cr = shareConsensus.runnerUp?.[e.runnerUp];
             if (typeof cw === 'number' && typeof cr === 'number') uniqueness = cw * cr;
           }
-          return { ...e, delta: simDeltas[e.userId], uniqueness };
+          // Upset signal: FIFA rank > 16 = outside the conventional
+          // top tier. Picking such a team to make the final reads as
+          // bold (one upset). Both outside top 16 = very bold (two).
+          // Full bracket-level upsets would need the picks doc — this
+          // is the lightweight signal computable from leaderboard data.
+          let upsetCount = 0;
+          const wRank = e.winner ? getFifaRank(e.winner) : null;
+          const rRank = e.runnerUp ? getFifaRank(e.runnerUp) : null;
+          if (wRank && wRank > 16) upsetCount += 1;
+          if (rRank && rRank > 16) upsetCount += 1;
+          return { ...e, delta: simDeltas[e.userId], uniqueness, upsetCount };
         });
         return (
           <LeagueLeaderboardLayout
@@ -1254,6 +1265,20 @@ const GoalOracle = () => {
   // every QP league).
   const [quickPicks, setQuickPicks] = useState(null);
 
+  // Global consensus (champion / runner-up / 3rd-place distributions).
+  // Used by HomeHeroCard insights to compute "crowd alignment" — how
+  // many other players agree with the user's champion pick. Cached
+  // per-league inside getSimpleConsensus, so this is essentially free.
+  const [globalConsensus, setGlobalConsensus] = useState(null);
+  useEffect(() => {
+    if (!authenticated) return;
+    let cancelled = false;
+    getSimpleConsensus('global-simple')
+      .then((c) => { if (!cancelled) setGlobalConsensus(c); })
+      .catch(() => { /* non-fatal — insights chip just hides */ });
+    return () => { cancelled = true; };
+  }, [authenticated]);
+
   // Fetch once per user. Max totalRemaining is 12 groups + 8 thirds + 32
   // bracket winners = 52 (sentinel for brand-new users in Dashboard).
   useEffect(() => {
@@ -1292,6 +1317,10 @@ const GoalOracle = () => {
           isComplete: totalRemaining === 0,
           winner: finalSlot?.winnerId || null,
           runnerUp: finalSlot?.loserId || null,
+          // Raw knockout picks kept so HomeHeroCard insights can
+          // derive "biggest upset" (lowest-ranked team picked to
+          // advance furthest) without needing a second fetch.
+          knockoutPredictions: ko,
         });
       } catch {
         if (!cancelled) setQuickPicks(null);
@@ -2011,7 +2040,11 @@ const GoalOracle = () => {
                 displayName={uData?.displayName}
                 quickPicks={quickPicks}
                 rank={leagueRanks?.['global-simple']}
-                onPrimary={startSimplePredicting}
+                leagueCount={leagues?.length || 0}
+                consensus={globalConsensus}
+                onView={() => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
+                onEdit={startSimplePredicting}
+                onShare={handleShareOwnBracket}
               />
               <QuickActionsTiles
                 onDashboard={() => nav('dashboard')}
@@ -4208,6 +4241,8 @@ const GoalOracle = () => {
           leagueRanks={leagueRanks}
           setLeagueRanks={setLeagueRanks}
           nav={nav}
+          consensus={globalConsensus}
+          onShare={handleShareOwnBracket}
         />
       )}
       {view === 'leagues' && <LeaguesList />}

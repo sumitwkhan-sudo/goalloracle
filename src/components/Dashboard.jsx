@@ -9,6 +9,7 @@ import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints,
 import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
 import AnimatedCounter from './AnimatedCounter';
 import InsightsCarousel from './simple/InsightsCarousel';
+import BracketInsightsRow from './BracketInsightsRow';
 import NewsFeed from './NewsFeed';
 
 const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
@@ -66,6 +67,8 @@ export default function Dashboard({
   leagueRanks,
   setLeagueRanks,
   nav,
+  consensus,
+  onShare,
 }) {
   useTick(60_000);
 
@@ -224,6 +227,17 @@ export default function Dashboard({
   return (
     <div className="td-shell">
       <h1 className="td-page-title">Dashboard</h1>
+
+      {/* Bracket insights — same row HomeHeroCard renders, mirrored
+          here so the user sees their headline stats from either page.
+          Hidden until the user has at least picked a champion. */}
+      <BracketInsightsRow
+        quickPicks={quickPicks}
+        consensus={consensus}
+        leagueCount={leagues?.length || 0}
+        onShare={onShare}
+        variant="dashboard"
+      />
 
       {/* Top dense strip — every cell carries one piece of canonical state. */}
       <DashboardStrip

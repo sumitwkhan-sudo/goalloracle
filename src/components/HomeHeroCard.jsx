@@ -12,15 +12,17 @@
  *   Welcome back, {name}                       ← display heading
  *   🏆 Champion · 🥈 Runner-up                  ← inline picks
  *   Your rank: #1,247 of 12,500                ← rank line
- *   [Edit your bracket]                        ← single primary CTA
+ *   [Insights row: leagues · biggest upset · crowd alignment]
+ *   [View my bracket]  [Edit picks]            ← primary + secondary CTA
  *
- * One card, one primary action. Empty / mid-bracket states swap the
- * picks line for an explanatory line and adjust the CTA copy.
+ * One card, two clear actions: View (default) and Edit (secondary).
+ * Insights row only appears when the user has a complete bracket.
  */
 
 import React, { useEffect, useState } from 'react';
-import { Clock, Trophy, Award, Target } from 'lucide-react';
+import { Clock, Trophy, Award, Target, Eye } from 'lucide-react';
 import { teamFlags } from '../utils/flags';
+import BracketInsightsRow from './BracketInsightsRow';
 
 const KICKOFF_MS = Date.UTC(2026, 5, 11, 19, 0, 0);
 
@@ -44,9 +46,13 @@ function useCountdown() {
 
 export default function HomeHeroCard({
   displayName,    // string — user's display name
-  quickPicks,     // null = loading | { isComplete, totalRemaining, winner, runnerUp }
+  quickPicks,     // null = loading | { isComplete, totalRemaining, winner, runnerUp, knockoutPredictions }
   rank,           // { rank, total } | undefined
-  onPrimary,      // () => void — primary CTA destination
+  leagueCount,    // number — leagues the user is in
+  consensus,      // null | { champion: {Team: pct}, runnerUp: {Team: pct}, ... }
+  onView,         // () => void — open read-only viewer (primary CTA)
+  onEdit,         // () => void — open the wizard (secondary CTA)
+  onShare,        // () => void — share the bracket / insights
 }) {
   const countdown = useCountdown();
   const isPreTournament = !!countdown;
@@ -55,12 +61,13 @@ export default function HomeHeroCard({
   const runnerUp = quickPicks?.runnerUp;
   const finalsKnown = !!winner && !!runnerUp;
 
-  // CTA copy adapts to state.
-  let ctaLabel = 'Edit your bracket';
-  if (quickPicks && !quickPicks.isComplete) {
-    if (quickPicks.totalRemaining === 52) ctaLabel = 'Make your first picks';
-    else ctaLabel = `Finish your bracket — ${quickPicks.totalRemaining} left`;
-  }
+  // Adapt the pair of CTAs to bracket completeness:
+  //  - In progress → "Continue picks" primary, no view (nothing to view yet)
+  //  - Complete    → "View my bracket" primary, "Edit picks" secondary
+  const inProgress = quickPicks && !quickPicks.isComplete;
+  const continueLabel = quickPicks?.totalRemaining === 52
+    ? 'Make my first picks'
+    : `Continue — ${quickPicks?.totalRemaining || 0} left`;
 
   return (
     <div className="home-card home-hero" role="region" aria-label="Your bracket">
@@ -123,11 +130,32 @@ export default function HomeHeroCard({
         )}
       </div>
 
+      <BracketInsightsRow
+        quickPicks={quickPicks}
+        consensus={consensus}
+        leagueCount={leagueCount}
+        onShare={onShare}
+        variant="home"
+      />
+
       <div className="home-hero-cta-row">
-        <button type="button" className="home-hero-primary" onClick={onPrimary}>
-          <Target size={16} aria-hidden="true" />
-          {ctaLabel}
-        </button>
+        {inProgress || !onView ? (
+          <button type="button" className="home-hero-primary" onClick={onEdit}>
+            <Target size={16} aria-hidden="true" />
+            {continueLabel}
+          </button>
+        ) : (
+          <>
+            <button type="button" className="home-hero-primary" onClick={onView}>
+              <Eye size={16} aria-hidden="true" />
+              View my bracket
+            </button>
+            <button type="button" className="home-hero-secondary" onClick={onEdit}>
+              <Target size={14} aria-hidden="true" />
+              Edit picks
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
