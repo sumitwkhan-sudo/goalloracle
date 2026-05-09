@@ -4,6 +4,18 @@ import { ipHash } from './_lib/security.js';
 import { sendOperatorAlert } from './_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
+// European league seasons run Aug → May, named by the START year. So
+// "season 2025" on api-sports.io = the 2025-26 season. Auto-compute
+// from the current date so the smoke-test still works year-on-year
+// without code edits.
+function currentEuropeanSeason() {
+  const now = new Date();
+  // Months are 0-indexed. Treat July (6) and earlier as previous season,
+  // August (7) and later as current. Matches what football-data.org and
+  // api-sports.io use as the "season starts in August" convention.
+  return now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+}
+
 async function getRole(userId) {
   const userSnap = await db.collection('users').doc(userId).get();
   if (!userSnap.exists) return null;
@@ -382,12 +394,16 @@ export default async function handler(req, res) {
       // scripts/smoke-test-oracle.mjs but invokable from the admin
       // dashboard (no terminal required, keys stay on the server).
       const { parseFootballDataResponse, parseApiSportsResponse, compareResults } = await import('./_lib/oracleParsers.js');
+      // For the WC, season is fixed at 2026. For league competitions, use
+      // the auto-computed current season so the smoke-test always queries
+      // the correct year without needing yearly code updates.
+      const europeanSeason = currentEuropeanSeason();
       const COMPETITION_MAP = {
-        PL: { fdCode: 'PL', asLeague: 39, asSeason: 2024, label: 'English Premier League' },
-        CL: { fdCode: 'CL', asLeague: 2, asSeason: 2024, label: 'UEFA Champions League' },
-        BL1: { fdCode: 'BL1', asLeague: 78, asSeason: 2024, label: 'Bundesliga' },
-        PD: { fdCode: 'PD', asLeague: 140, asSeason: 2024, label: 'La Liga' },
-        SA: { fdCode: 'SA', asLeague: 135, asSeason: 2024, label: 'Serie A' },
+        PL: { fdCode: 'PL', asLeague: 39, asSeason: europeanSeason, label: 'English Premier League' },
+        CL: { fdCode: 'CL', asLeague: 2, asSeason: europeanSeason, label: 'UEFA Champions League' },
+        BL1: { fdCode: 'BL1', asLeague: 78, asSeason: europeanSeason, label: 'Bundesliga' },
+        PD: { fdCode: 'PD', asLeague: 140, asSeason: europeanSeason, label: 'La Liga' },
+        SA: { fdCode: 'SA', asLeague: 135, asSeason: europeanSeason, label: 'Serie A' },
         WC: { fdCode: 'WC', asLeague: 1, asSeason: 2026, label: 'FIFA World Cup' },
       };
       const comp = COMPETITION_MAP[(req.body.competition || 'PL').toUpperCase()] || COMPETITION_MAP.PL;
@@ -424,23 +440,38 @@ export default async function handler(req, res) {
         }
       }
 
-      // 2) api-sports.io: cross-check same fixture by date+team-name
+      // 2) api-sports.io: cross-check same fixture by date+team-name.
+      // Tries the primary season first, falls back to season+1 only on
+      // empty fixtures (some providers name UCL by FINAL year, not start).
+      // Records which season actually matched so the operator can see.
       let asParsed = null;
       if (!AS_KEY) note('api-sports.io key', false, 'APISPORTS_API_KEY not set in Vercel env');
       else if (!fdMatch) note('api-sports.io cross-check', false, 'skipped — no anchor match');
       else {
-        try {
-          const matchDate = fdMatch.utcDate.slice(0, 10);
-          const r = await fetch(
-            `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${comp.asSeason}&date=${matchDate}`,
-            { headers: { 'x-apisports-key': AS_KEY } },
-          );
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const data = await r.json();
-          asParsed = parseApiSportsResponse(data, { homeTeam: fdMatch.homeTeam?.name, awayTeam: fdMatch.awayTeam?.name });
-          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})`);
-        } catch (e) {
-          note('api-sports.io', false, e.message);
+        const matchDate = fdMatch.utcDate.slice(0, 10);
+        const seasonsToTry = comp.asSeason === 2026
+          ? [2026]                                  // WC: just one valid season
+          : [comp.asSeason, comp.asSeason + 1];     // European: start-year, fall back to end-year
+        let lastError = null;
+        let matchedSeason = null;
+        for (const season of seasonsToTry) {
+          try {
+            const r = await fetch(
+              `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${season}&date=${matchDate}`,
+              { headers: { 'x-apisports-key': AS_KEY } },
+            );
+            if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
+            const data = await r.json();
+            asParsed = parseApiSportsResponse(data, { homeTeam: fdMatch.homeTeam?.name, awayTeam: fdMatch.awayTeam?.name });
+            matchedSeason = season;
+            break;
+          } catch (e) { lastError = e.message; }
+        }
+        if (asParsed) {
+          const seasonNote = matchedSeason !== comp.asSeason ? ` [season=${matchedSeason} fallback]` : '';
+          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})${seasonNote}`);
+        } else {
+          note('api-sports.io', false, lastError || `no fixture for league=${comp.asLeague} on ${matchDate} in season ${seasonsToTry.join(' or ')}`);
         }
       }
 
@@ -466,16 +497,26 @@ export default async function handler(req, res) {
         }
       }
       if (AS_KEY) {
-        try {
-          const r = await fetch(`https://v3.football.api-sports.io/standings?league=${comp.asLeague}&season=${comp.asSeason}`, { headers: { 'x-apisports-key': AS_KEY } });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const data = await r.json();
-          const table = data.response?.[0]?.league?.standings?.[0] || [];
-          if (table.length === 0) throw new Error('empty standings');
-          note('api-sports.io standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)`);
-        } catch (e) {
-          note('api-sports.io standings', false, e.message);
+        // Same season fallback as the fixtures lookup, so standings come
+        // from the same season the upstream actually serves rather than
+        // silently returning a year-old table.
+        const seasonsToTry = comp.asSeason === 2026 ? [2026] : [comp.asSeason, comp.asSeason + 1];
+        let standingsOk = false;
+        let lastError = null;
+        for (const season of seasonsToTry) {
+          try {
+            const r = await fetch(`https://v3.football.api-sports.io/standings?league=${comp.asLeague}&season=${season}`, { headers: { 'x-apisports-key': AS_KEY } });
+            if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
+            const data = await r.json();
+            const table = data.response?.[0]?.league?.standings?.[0] || [];
+            if (table.length === 0) { lastError = 'empty standings'; continue; }
+            const seasonNote = season !== comp.asSeason ? ` [season=${season} fallback]` : '';
+            note('api-sports.io standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)${seasonNote}`);
+            standingsOk = true;
+            break;
+          } catch (e) { lastError = e.message; }
         }
+        if (!standingsOk) note('api-sports.io standings', false, lastError);
       }
 
       const failed = checks.filter(c => !c.ok).length;
