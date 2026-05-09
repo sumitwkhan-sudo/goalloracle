@@ -12,6 +12,10 @@ import {
   parseFootballDataResponse,
   parseApiSportsResponse,
   compareResults,
+  parseApiSportsStandings,
+  parseFootballDataStandings,
+  rankThirdPlacedTeamsFromStandings,
+  determineWinnerFromResult,
 } from './oracleParsers.js';
 
 // ────────────────────────── football-data.org ──────────────────────────
@@ -303,5 +307,206 @@ describe('cross-parser equivalence — both parsers agree on the same match', ()
       { fixtureId: 2 },
     );
     expect(compareResults(fd, as)).toEqual({ match: true });
+  });
+});
+
+// ────────────────────────── STANDINGS PARSERS ──────────────────────────
+
+describe('api-sports.io standings parser', () => {
+  function asStandings(groups) {
+    // groups: { 'A': [{rank, name, played, won, drawn, lost, gf, ga, gd, pts}, ...] }
+    const arr = [];
+    for (const [letter, rows] of Object.entries(groups)) {
+      arr.push(rows.map((r) => ({
+        rank: r.rank,
+        team: { id: 100 + letter.charCodeAt(0), name: r.name },
+        points: r.pts,
+        goalsDiff: r.gd,
+        group: `Group ${letter}`,
+        form: r.form || 'WDL',
+        all: {
+          played: r.played,
+          win: r.won,
+          draw: r.drawn,
+          lose: r.lost,
+          goals: { for: r.gf, against: r.ga },
+        },
+      })));
+    }
+    return { response: [{ league: { id: 1, name: 'World Cup', season: 2026, standings: arr } }] };
+  }
+
+  test('extracts groups A & B with normalised fields', () => {
+    const data = asStandings({
+      A: [
+        { rank: 1, name: 'Mexico', played: 3, won: 3, drawn: 0, lost: 0, gf: 7, ga: 1, gd: 6, pts: 9 },
+        { rank: 2, name: 'South Korea', played: 3, won: 2, drawn: 0, lost: 1, gf: 5, ga: 3, gd: 2, pts: 6 },
+        { rank: 3, name: 'Czechia', played: 3, won: 1, drawn: 0, lost: 2, gf: 2, ga: 4, gd: -2, pts: 3 },
+        { rank: 4, name: 'South Africa', played: 3, won: 0, drawn: 0, lost: 3, gf: 1, ga: 7, gd: -6, pts: 0 },
+      ],
+      B: [
+        { rank: 1, name: 'Switzerland', played: 3, won: 3, drawn: 0, lost: 0, gf: 6, ga: 2, gd: 4, pts: 9 },
+        { rank: 2, name: 'Canada', played: 3, won: 2, drawn: 0, lost: 1, gf: 5, ga: 3, gd: 2, pts: 6 },
+        { rank: 3, name: 'Bosnia and Herzegovina', played: 3, won: 1, drawn: 0, lost: 2, gf: 4, ga: 4, gd: 0, pts: 3 },
+        { rank: 4, name: 'Qatar', played: 3, won: 0, drawn: 0, lost: 3, gf: 1, ga: 7, gd: -6, pts: 0 },
+      ],
+    });
+    const out = parseApiSportsStandings(data);
+    expect(out.source).toBe('api-sports.io');
+    expect(Object.keys(out.groups).sort()).toEqual(['A', 'B']);
+    expect(out.groups.A).toHaveLength(4);
+    expect(out.groups.A[0]).toMatchObject({
+      rank: 1, teamName: 'Mexico', points: 9, goalDiff: 6, goalsFor: 7, goalsAgainst: 1,
+      played: 3, won: 3, drawn: 0, lost: 0,
+    });
+  });
+
+  test('throws on missing response', () => {
+    expect(() => parseApiSportsStandings({})).toThrow();
+    expect(() => parseApiSportsStandings(null)).toThrow();
+    expect(() => parseApiSportsStandings({ response: [{}] })).toThrow();
+  });
+
+  test('throws when no group letter can be extracted', () => {
+    const bogus = {
+      response: [{
+        league: {
+          standings: [[{
+            rank: 1, team: { name: 'X' }, points: 0, goalsDiff: 0,
+            all: { played: 0, win: 0, draw: 0, lose: 0, goals: { for: 0, against: 0 } },
+            group: 'Some Random Label',
+          }]],
+        },
+      }],
+    };
+    expect(() => parseApiSportsStandings(bogus)).toThrow(/no group/i);
+  });
+});
+
+describe('football-data.org standings parser', () => {
+  test('extracts GROUP_STAGE TOTAL standings, ignores HOME/AWAY breakdowns', () => {
+    const data = {
+      standings: [
+        {
+          stage: 'GROUP_STAGE', type: 'TOTAL', group: 'GROUP_A',
+          table: [
+            { position: 1, team: { name: 'Mexico' }, playedGames: 3, won: 3, draw: 0, lost: 0, goalsFor: 7, goalsAgainst: 1, goalDifference: 6, points: 9 },
+            { position: 2, team: { name: 'South Korea' }, playedGames: 3, won: 2, draw: 0, lost: 1, goalsFor: 5, goalsAgainst: 3, goalDifference: 2, points: 6 },
+            { position: 3, team: { name: 'Czechia' }, playedGames: 3, won: 1, draw: 0, lost: 2, goalsFor: 2, goalsAgainst: 4, goalDifference: -2, points: 3 },
+            { position: 4, team: { name: 'South Africa' }, playedGames: 3, won: 0, draw: 0, lost: 3, goalsFor: 1, goalsAgainst: 7, goalDifference: -6, points: 0 },
+          ],
+        },
+        // HOME/AWAY breakdowns must be ignored.
+        { stage: 'GROUP_STAGE', type: 'HOME', group: 'GROUP_A', table: [{ position: 1, team: { name: 'IGNORED' }, points: 99 }] },
+        {
+          stage: 'GROUP_STAGE', type: 'TOTAL', group: 'GROUP_B',
+          table: [{ position: 1, team: { name: 'Switzerland' }, playedGames: 3, won: 3, draw: 0, lost: 0, goalsFor: 6, goalsAgainst: 2, goalDifference: 4, points: 9 }],
+        },
+      ],
+    };
+    const out = parseFootballDataStandings(data);
+    expect(out.source).toBe('football-data.org');
+    expect(Object.keys(out.groups).sort()).toEqual(['A', 'B']);
+    expect(out.groups.A[0].teamName).toBe('Mexico');
+    expect(out.groups.A[0].rank).toBe(1);
+    expect(out.groups.A[0].points).toBe(9);
+    expect(out.groups.B).toHaveLength(1);
+  });
+
+  test('throws on missing standings array', () => {
+    expect(() => parseFootballDataStandings({})).toThrow();
+    expect(() => parseFootballDataStandings(null)).toThrow();
+    expect(() => parseFootballDataStandings({ standings: 'not array' })).toThrow();
+  });
+
+  test('throws when no GROUP_STAGE TOTAL entries exist', () => {
+    expect(() => parseFootballDataStandings({
+      standings: [{ stage: 'GROUP_STAGE', type: 'HOME', group: 'GROUP_A', table: [] }],
+    })).toThrow(/no group/i);
+  });
+});
+
+// ─────────── third-place ranking (FIFA Article 13 cross-group) ───────────
+
+describe('rankThirdPlacedTeamsFromStandings', () => {
+  function makeStandings(thirds) {
+    // thirds: [{ letter, pts, gd, gf, name }]
+    const groups = {};
+    for (const t of thirds) {
+      groups[t.letter] = [
+        { rank: 1, teamName: 'top-' + t.letter, points: 9, goalDiff: 5, goalsFor: 7, goalsAgainst: 2, played: 3 },
+        { rank: 2, teamName: 'mid-' + t.letter, points: 6, goalDiff: 2, goalsFor: 5, goalsAgainst: 3, played: 3 },
+        { rank: 3, teamName: t.name, points: t.pts, goalDiff: t.gd, goalsFor: t.gf, goalsAgainst: 0, played: 3 },
+        { rank: 4, teamName: 'bot-' + t.letter, points: 0, goalDiff: -7, goalsFor: 0, goalsAgainst: 7, played: 3 },
+      ];
+    }
+    return { source: 'test', groups };
+  }
+
+  test('orders thirds by points → GD → GF', () => {
+    const standings = makeStandings([
+      { letter: 'A', name: 'A3', pts: 4, gd: 1, gf: 2 },
+      { letter: 'B', name: 'B3', pts: 4, gd: 2, gf: 3 }, // higher GD wins
+      { letter: 'C', name: 'C3', pts: 3, gd: 5, gf: 5 },
+      { letter: 'D', name: 'D3', pts: 6, gd: 0, gf: 1 }, // higher pts wins overall
+    ]);
+    const sorted = rankThirdPlacedTeamsFromStandings(standings);
+    expect(sorted.map((t) => t.teamName)).toEqual(['D3', 'B3', 'A3', 'C3']);
+  });
+
+  test('ties resolve to alphabetical group letter (deterministic)', () => {
+    const standings = makeStandings([
+      { letter: 'B', name: 'B3', pts: 4, gd: 2, gf: 3 },
+      { letter: 'A', name: 'A3', pts: 4, gd: 2, gf: 3 }, // identical to B3 — A wins
+    ]);
+    const sorted = rankThirdPlacedTeamsFromStandings(standings);
+    expect(sorted[0].groupLetter).toBe('A');
+    expect(sorted[1].groupLetter).toBe('B');
+  });
+
+  test('returns one entry per group', () => {
+    const standings = makeStandings([
+      { letter: 'A', name: 'A3', pts: 4, gd: 1, gf: 2 },
+      { letter: 'B', name: 'B3', pts: 3, gd: 0, gf: 1 },
+      { letter: 'C', name: 'C3', pts: 5, gd: 3, gf: 4 },
+    ]);
+    const sorted = rankThirdPlacedTeamsFromStandings(standings);
+    expect(sorted).toHaveLength(3);
+  });
+});
+
+// ─────────────── determineWinnerFromResult ───────────────
+
+describe('determineWinnerFromResult', () => {
+  test('home wins regulation', () => {
+    expect(determineWinnerFromResult({ homeScore: 2, awayScore: 1, extraTime: false, penalties: false }))
+      .toBe('home');
+  });
+  test('away wins regulation', () => {
+    expect(determineWinnerFromResult({ homeScore: 0, awayScore: 1, extraTime: false, penalties: false }))
+      .toBe('away');
+  });
+  test('regulation draw without penalties returns null (impossible in knockout)', () => {
+    expect(determineWinnerFromResult({ homeScore: 1, awayScore: 1, extraTime: false, penalties: false }))
+      .toBeNull();
+  });
+  test('extra-time winner determined by score', () => {
+    expect(determineWinnerFromResult({ homeScore: 2, awayScore: 1, extraTime: true, penalties: false }))
+      .toBe('home');
+  });
+  test('penalty shootout: home wins on pens', () => {
+    expect(determineWinnerFromResult({
+      homeScore: 1, awayScore: 1, extraTime: true, penalties: true, penHome: 4, penAway: 3,
+    })).toBe('home');
+  });
+  test('penalty shootout: away wins on pens', () => {
+    expect(determineWinnerFromResult({
+      homeScore: 1, awayScore: 1, extraTime: true, penalties: true, penHome: 3, penAway: 5,
+    })).toBe('away');
+  });
+  test('null/undefined safe', () => {
+    expect(determineWinnerFromResult(null)).toBeNull();
+    expect(determineWinnerFromResult(undefined)).toBeNull();
+    expect(determineWinnerFromResult({})).toBeNull();
   });
 });

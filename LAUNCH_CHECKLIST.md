@@ -172,22 +172,33 @@ hasn't updated):
 
 ---
 
-## What's NOT automated (real gaps you should know about)
+## What's automated end-to-end now
 
-1. **Auto-rescore on result update.** If you correct a match result after
-   it's been first scored (rare — operator typo or retroactive
-   disqualification), Quick Picks scores re-render on next page load
-   because scoring is computed on render. No re-notification or audit
-   log entry. Lower priority; you'd notice from the daily report email.
+The system now handles the full tournament lifecycle without operator
+clicks (assuming env vars are set):
 
-2. **Knockout-stage auto-polling can't look up matches by team name yet.**
-   The poll-results cron can ingest group-stage matches automatically
-   because team names are known up front. For knockout matches, the
-   home/away fields are placeholders ("W R32-01", "1st Group A", etc.)
-   until the bracket is resolved. The cron skips those — you'd need to
-   manually click "Update Result" for knockout matches in admin, OR I can
-   build a follow-up that resolves the bracket from results and refills
-   the matches.js team names dynamically. Tell me when knockouts approach.
+- **Group-stage results**: auto-poll cron ingests every 30 min once a
+  match has been finished for 3+ hours.
+- **Group standings**: the daily report email fetches live standings from
+  api-football (or football-data.org as fallback) and includes a per-group
+  table so you can spot-check that the upstream agrees with our results.
+- **Third-place qualification**: the daily report includes the FIFA Article
+  13 cross-group ranking with a clear cutoff line between rows 8 and 9
+  (advances vs eliminated).
+- **Knockout-stage results**: as group-stage results land, the bracket
+  resolver figures out who's playing in each R32 match. Once R32 results
+  land, R16 matchups resolve. Same for QF, SF, 3rd place, Final. The
+  auto-poll cron then ingests each knockout match by the resolved real
+  team names.
+
+## What still needs human input (rare cases)
+
+1. **Disputed match results** — when both oracle APIs disagree, you get an
+   alert email immediately. Open admin → Matches → Edit Result for that
+   match and enter the score manually.
+2. **Auto-rescore on operator correction** — if you fix a typo'd result
+   you'll get an alert email so you know it happened. Quick Picks scores
+   self-correct on the next leaderboard render.
 
 ---
 

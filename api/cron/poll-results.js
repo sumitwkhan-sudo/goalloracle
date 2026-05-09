@@ -19,6 +19,7 @@
 import { db, applyCors, verifyAuth } from '../_lib/firebase.js';
 import { parseFootballDataResponse, parseApiSportsResponse, compareResults } from '../_lib/oracleParsers.js';
 import { sendOperatorAlert } from '../_lib/alerts.js';
+import { resolveActualBracket } from '../_lib/bracketResolver.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -99,28 +100,46 @@ export default async function handler(req, res) {
     const existing = {};
     resultsSnap.docs.forEach((d) => { existing[d.id] = d.data(); });
 
+    // Resolve as much of the bracket as the accumulated results allow.
+    // Knockout matches whose teams are now known get their actual home/
+    // away substituted for the placeholder strings ("W R32-01", "1st
+    // Group A", "3rd ABCDF") so the team-name lookup against the upstream
+    // can succeed. Matches still pending earlier results stay placeholder
+    // and are skipped.
+    const { resolved: resolvedKnockouts, allGroupsComplete, errors: bracketErrors } = resolveActualBracket(existing);
+    bracketErrors.forEach((e) => summary.errors.push({ source: 'bracket-resolver', error: e }));
+
     // Candidates: matches that finished long enough ago and aren't already
-    // marked completed: true.
+    // marked completed: true. For knockouts, also need teams resolved.
     const candidates = WORLD_CUP_MATCHES.filter((m) => {
       const k = kickoffUtcMs(m);
       if (k > now - FT_GRACE_MS) return false; // still in progress
       const cur = existing[m.id];
       if (cur && cur.completed === true && cur.verified === true) return false; // already done
-      // Knockout match without resolved teams (home/away starts with 'W ' or '1st ' etc.)
-      // can't be looked up by team name. Skip those — admin still has the
-      // manual override for resolved knockout matches.
-      if (m.isKnockout && /^(W |L |1st |2nd |3rd )/.test(m.home || '')) return false;
+      // Knockout match without resolved teams: skip until predecessors finish.
+      if (m.isKnockout && /^(W |L |1st |2nd |3rd )/.test(m.home || '')) {
+        return !!resolvedKnockouts[m.id];
+      }
       return true;
     });
     summary.candidates = candidates.length;
+    summary.knockoutsResolved = Object.keys(resolvedKnockouts).length;
+    summary.allGroupsComplete = allGroupsComplete;
 
     for (const m of candidates) {
       try {
         const date = m.date;
+        // For knockout matches, swap placeholder team names for the
+        // actually-resolved team names. For group matches, m.home/m.away
+        // already are the real names.
+        const resolvedTeams = m.isKnockout ? resolvedKnockouts[m.id] : null;
+        const lookupHome = resolvedTeams?.home || m.home;
+        const lookupAway = resolvedTeams?.away || m.away;
+
         let s1 = null, s2 = null;
-        try { s1 = await fetchFootballDataByDateAndTeams({ date, homeTeam: m.home, awayTeam: m.away }); }
+        try { s1 = await fetchFootballDataByDateAndTeams({ date, homeTeam: lookupHome, awayTeam: lookupAway }); }
         catch (e) { summary.errors.push({ matchId: m.id, source: 'football-data.org', error: e.message }); }
-        try { s2 = await fetchApiSportsByDateAndTeams({ date, homeTeam: m.home, awayTeam: m.away }); }
+        try { s2 = await fetchApiSportsByDateAndTeams({ date, homeTeam: lookupHome, awayTeam: lookupAway }); }
         catch (e) { summary.errors.push({ matchId: m.id, source: 'api-sports.io', error: e.message }); }
 
         if (!s1 && !s2) { summary.skipped += 1; continue; }

@@ -118,7 +118,7 @@ export function parseApiSportsResponse(data, { fixtureId, homeTeam, awayTeam } =
   };
 }
 
-// ────────────────────────────── compare ────────────────────────────────
+// ────────────────────────── compare ────────────────────────────────
 
 export function compareResults(s1, s2) {
   const checks = [
@@ -137,4 +137,171 @@ export function compareResults(s1, s2) {
     match: false,
     details: failures.map((f) => `${f.field}: src1=${f.a}, src2=${f.b}`).join('; '),
   };
+}
+
+// ───────────────────────── STANDINGS PARSERS ─────────────────────────
+//
+// Both football-data.org v4 and api-football v3 expose group standings
+// for tournament-style competitions. We normalise into a common shape so
+// the daily email and bracket resolver don't care which source fed them:
+//
+//   {
+//     source: 'api-sports.io' | 'football-data.org',
+//     groups: {
+//       'A': [
+//         { rank, teamName, played, won, drawn, lost,
+//           goalsFor, goalsAgainst, goalDiff, points, form? },
+//         ... (one entry per team in the group, sorted by rank)
+//       ],
+//       'B': [...],
+//       ...
+//     }
+//   }
+//
+// Group letters are extracted from the upstream's group label
+// ("Group A", "GROUP_A", "Group A - 1") and normalised to single
+// uppercase letters A–L.
+
+function extractGroupLetter(raw) {
+  if (typeof raw !== 'string') return null;
+  // Tolerates "Group A", "GROUP_A", "Group A - 1", "A", etc.
+  const m = raw.match(/^(?:GROUP[_\s]+)?([A-L])(?:\b|\s|$|[-_])/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
+// ─── api-football v3 ───
+// GET /v3/standings?league={id}&season={s}
+// Response shape (for tournaments with groups):
+//   { response: [{ league: { standings: [ [groupA rows], [groupB rows], ... ] } }] }
+// Each row: { rank, team: { id, name }, points, goalsDiff, all: { played,
+//             win, draw, lose, goals: { for, against } }, form, group }
+export function parseApiSportsStandings(data) {
+  if (!data || typeof data !== 'object') {
+    throw new Error('api-sports.io standings: empty or non-object response');
+  }
+  const league = data.response?.[0]?.league;
+  if (!league || !Array.isArray(league.standings)) {
+    throw new Error('api-sports.io standings: missing league.standings');
+  }
+  // For tournaments with groups, league.standings is an array-of-arrays
+  // (one per group). For league competitions it's [[...allTeams]] with
+  // a single entry. We treat single-array case as "no groups".
+  const groups = {};
+  for (const groupRows of league.standings) {
+    if (!Array.isArray(groupRows) || groupRows.length === 0) continue;
+    // The group letter lives on each row (`row.group` = "Group A").
+    const letter = extractGroupLetter(groupRows[0]?.group) || extractGroupLetter(groupRows[0]?.team?.name);
+    if (!letter) continue;
+    groups[letter] = groupRows.map((row) => ({
+      rank: row.rank,
+      teamName: row.team?.name || '',
+      played: row.all?.played ?? 0,
+      won: row.all?.win ?? 0,
+      drawn: row.all?.draw ?? 0,
+      lost: row.all?.lose ?? 0,
+      goalsFor: row.all?.goals?.for ?? 0,
+      goalsAgainst: row.all?.goals?.against ?? 0,
+      goalDiff: row.goalsDiff ?? ((row.all?.goals?.for ?? 0) - (row.all?.goals?.against ?? 0)),
+      points: row.points ?? 0,
+      form: row.form || null,
+    }));
+  }
+  if (Object.keys(groups).length === 0) {
+    throw new Error('api-sports.io standings: no group data extracted');
+  }
+  return { source: 'api-sports.io', groups };
+}
+
+// ─── football-data.org v4 ───
+// GET /v4/competitions/{code}/standings
+// Response shape (tournaments emit one standings entry per group):
+//   { standings: [
+//       { stage: 'GROUP_STAGE', type: 'TOTAL', group: 'GROUP_A',
+//         table: [{ position, team: {name}, playedGames, won, draw, lost,
+//                   points, goalsFor, goalsAgainst, goalDifference }, ...] },
+//       ... (one per group)
+//     ] }
+export function parseFootballDataStandings(data) {
+  if (!data || typeof data !== 'object') {
+    throw new Error('football-data.org standings: empty or non-object response');
+  }
+  const all = data.standings;
+  if (!Array.isArray(all)) {
+    throw new Error('football-data.org standings: missing standings array');
+  }
+  const groups = {};
+  for (const s of all) {
+    if (s.type !== 'TOTAL') continue; // skip HOME / AWAY breakdowns
+    const letter = extractGroupLetter(s.group);
+    if (!letter) continue;
+    if (!Array.isArray(s.table)) continue;
+    groups[letter] = s.table.map((row) => ({
+      rank: row.position,
+      teamName: row.team?.name || '',
+      played: row.playedGames ?? 0,
+      won: row.won ?? 0,
+      drawn: row.draw ?? 0,
+      lost: row.lost ?? 0,
+      goalsFor: row.goalsFor ?? 0,
+      goalsAgainst: row.goalsAgainst ?? 0,
+      goalDiff: row.goalDifference ?? 0,
+      points: row.points ?? 0,
+      form: row.form || null,
+    }));
+  }
+  if (Object.keys(groups).length === 0) {
+    throw new Error('football-data.org standings: no group data extracted');
+  }
+  return { source: 'football-data.org', groups };
+}
+
+// ─── Cross-group third-place ranking (FIFA Article 13) ───
+//
+// FIFA WC 2026: top 2 from each group + best 8 of 12 third-placed teams.
+// This helper takes a parsed standings object and returns the third-placed
+// teams ordered by FIFA tiebreaker: points → GD → goals scored → fair-play
+// (we don't have card data so this collapses to FIFA ranking input, which
+// we don't fetch either — so for now it falls through to a stable order
+// by group letter for ties below GF).
+//
+// Returns an array of { groupLetter, team } sorted top-to-bottom. The first
+// 8 entries are the qualifiers; the rest are eliminated.
+export function rankThirdPlacedTeamsFromStandings(standings) {
+  const thirds = [];
+  for (const [letter, rows] of Object.entries(standings.groups || {})) {
+    const third = rows.find((r) => r.rank === 3) || rows[2];
+    if (third) thirds.push({ groupLetter: letter, ...third });
+  }
+  thirds.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.goalDiff !== a.goalDiff) return b.goalDiff - a.goalDiff;
+    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+    return a.groupLetter.localeCompare(b.groupLetter); // deterministic tiebreaker
+  });
+  return thirds;
+}
+
+// ─── Determine knockout fixture winner ───
+//
+// Given a standardized result object (the shape both parsers above
+// produce), returns 'home' or 'away' or null if the match wasn't decided.
+// For penalty shootouts, uses penHome/penAway. For ET-decided matches,
+// uses homeScore/awayScore (which already reflect ET goals — both
+// parsers fold ET into homeScore/awayScore in our standardized shape).
+export function determineWinnerFromResult(result) {
+  if (!result) return null;
+  // Penalty shootout: shootout score is the tiebreaker.
+  if (result.penalties === true) {
+    if (typeof result.penHome === 'number' && typeof result.penAway === 'number') {
+      if (result.penHome > result.penAway) return 'home';
+      if (result.penAway > result.penHome) return 'away';
+    }
+    return null;
+  }
+  // Regular or ET — homeScore/awayScore already include ET goals.
+  if (typeof result.homeScore === 'number' && typeof result.awayScore === 'number') {
+    if (result.homeScore > result.awayScore) return 'home';
+    if (result.awayScore > result.homeScore) return 'away';
+  }
+  return null;
 }
