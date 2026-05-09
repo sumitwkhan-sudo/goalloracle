@@ -6942,7 +6942,8 @@ body.light .lsd-head,
 .ll-header-dot { color: var(--text-dim); }
 .ll-header-invite {
   background: var(--grad);
-  color: #000;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   border: none;
   border-radius: 8px;
   padding: 0.6rem 1.05rem;
@@ -6990,6 +6991,7 @@ body.light .lsd-head,
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
   touch-action: manipulation;
+  display: inline-flex; align-items: center; gap: 6px;
 }
 .ll-header-leave:hover {
   color: var(--danger, #ff3b5c);
@@ -7171,6 +7173,35 @@ body.light .lsd-head,
   letter-spacing: 0.06em; text-transform: uppercase;
   padding: 2px 7px; border-radius: 999px;
   flex-shrink: 0;
+  position: relative;
+  cursor: help;
+}
+/* Custom tooltip — native title gets clipped under iframes; this
+   stays in-DOM and explains what Rare / Bold actually mean. */
+.ll-pred-rare[data-tooltip]:hover::after,
+.ll-pred-rare[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elev, #1a1d2e);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  font-family: var(--font);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+  white-space: normal;
+  width: max-content;
+  max-width: 22rem;
+  pointer-events: none;
+  z-index: 200;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 .ll-pred-rare-rare {
   background: rgba(255, 184, 0, 0.14);

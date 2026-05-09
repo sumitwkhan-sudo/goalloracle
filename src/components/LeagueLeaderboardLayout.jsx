@@ -18,7 +18,7 @@
 
 import React, { useMemo } from 'react';
 import {
-  Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus,
+  Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus, LogOut,
   Award,
   CheckCircle, RefreshCw, Clock, Globe, MapPin, Users, Target, Share2,
   ChevronRight,
@@ -53,16 +53,42 @@ function StatusIcon({ row }) {
 // required a header gloss to explain what the order meant. Optional
 // `uniqueness` chip surfaces how rare the bracket pair is vs the
 // global crowd — `Rare` (≤5%), `Bold` (≤20%), default no chip.
-function uniquenessLabel(pct) {
-  if (pct == null) return null;
-  if (pct <= 0.05) return { label: 'Rare', tier: 'rare' };
-  if (pct <= 0.20) return { label: 'Bold', tier: 'bold' };
-  return null;
+function uniquenessLabel(pct, upsetCount = 0) {
+  // Combine raw consensus with upset count: a bracket with multiple
+  // big upsets reads as Bold even if its champion+runner-up pair is
+  // popular. Conversely, a vanilla pair with no upsets stays neutral.
+  let tier = null;
+  if (pct != null) {
+    if (pct <= 0.05) tier = 'rare';
+    else if (pct <= 0.20) tier = 'bold';
+  }
+  if (upsetCount >= 3) tier = 'rare';
+  else if (upsetCount >= 1 && !tier) tier = 'bold';
+  if (!tier) return null;
+  return tier === 'rare'
+    ? { label: 'Rare', tier: 'rare' }
+    : { label: 'Bold', tier: 'bold' };
 }
 
-function PredictionCell({ winner, runnerUp, uniqueness }) {
+function PredictionCell({ winner, runnerUp, uniqueness, upsetCount = 0 }) {
   if (!winner && !runnerUp) return <span className="ll-pred-empty">—</span>;
-  const u = uniquenessLabel(uniqueness);
+  const u = uniquenessLabel(uniqueness, upsetCount);
+  // Tooltip explains both halves of the score: how many other players
+  // picked the same pair (consensus) AND how many lower-ranked teams
+  // advanced (upset count).
+  const tip = u
+    ? [
+        typeof uniqueness === 'number'
+          ? `${Math.round(uniqueness * 100)}% of players picked the same champion + runner-up`
+          : null,
+        upsetCount > 0
+          ? `${upsetCount} upset${upsetCount === 1 ? '' : 's'} called (lower-ranked teams advancing)`
+          : null,
+        u.tier === 'rare'
+          ? 'Rare = top-tier bold + uncommon picks'
+          : 'Bold = at least one underdog or non-consensus pick',
+      ].filter(Boolean).join(' · ')
+    : null;
   return (
     <span className="ll-pred">
       <span className="ll-pred-team ll-pred-team-winner">
@@ -78,7 +104,8 @@ function PredictionCell({ winner, runnerUp, uniqueness }) {
       {u && (
         <span
           className={`ll-pred-rare ll-pred-rare-${u.tier}`}
-          title={`Only ${Math.round(uniqueness * 100)}% of players picked the same champion + runner-up`}
+          data-tooltip={tip}
+          aria-label={tip}
         >
           {u.label}
         </span>
@@ -114,7 +141,7 @@ function LeaderboardRow({ row, rank, isYou, onRowClick, onEdit, onShareBracket }
         <StatusIcon row={row} />
       </div>
       <div className="ll-cell ll-cell-pred">
-        <PredictionCell winner={row.winner} runnerUp={row.runnerUp} uniqueness={row.uniqueness} />
+        <PredictionCell winner={row.winner} runnerUp={row.runnerUp} uniqueness={row.uniqueness} upsetCount={row.upsetCount || 0} />
       </div>
       <div className="ll-cell ll-cell-pts">
         {row.totalAccuracy > 0 ? <span className="ll-pts-num">{Math.round(row.totalAccuracy * 100)}%</span> : <span className="ll-pts-empty">—</span>}
@@ -188,7 +215,7 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite,
         )}
         {onLeave && (
           <button type="button" className="ll-header-leave" onClick={onLeave}>
-            Leave
+            <LogOut size={13} aria-hidden="true" /> Leave league
           </button>
         )}
         {onInvite && (

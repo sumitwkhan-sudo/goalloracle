@@ -10,6 +10,7 @@ import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
 import { teamFlags } from './utils/flags';
+import { getRank as getFifaRank } from './data/fifaRankings';
 import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX } from './utils/scoringSimple';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
@@ -1016,7 +1017,17 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             const cr = shareConsensus.runnerUp?.[e.runnerUp];
             if (typeof cw === 'number' && typeof cr === 'number') uniqueness = cw * cr;
           }
-          return { ...e, delta: simDeltas[e.userId], uniqueness };
+          // Upset signal: FIFA rank > 16 = outside the conventional
+          // top tier. Picking such a team to make the final reads as
+          // bold (one upset). Both outside top 16 = very bold (two).
+          // Full bracket-level upsets would need the picks doc — this
+          // is the lightweight signal computable from leaderboard data.
+          let upsetCount = 0;
+          const wRank = e.winner ? getFifaRank(e.winner) : null;
+          const rRank = e.runnerUp ? getFifaRank(e.runnerUp) : null;
+          if (wRank && wRank > 16) upsetCount += 1;
+          if (rRank && rRank > 16) upsetCount += 1;
+          return { ...e, delta: simDeltas[e.userId], uniqueness, upsetCount };
         });
         return (
           <LeagueLeaderboardLayout
