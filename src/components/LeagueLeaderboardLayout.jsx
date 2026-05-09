@@ -215,7 +215,7 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite,
         )}
         {onLeave && (
           <button type="button" className="ll-header-leave" onClick={onLeave}>
-            <LogOut size={13} aria-hidden="true" /> Leave league
+            <LogOut size={13} aria-hidden="true" /> Leave League
           </button>
         )}
         {onInvite && (

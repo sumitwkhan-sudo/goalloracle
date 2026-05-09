@@ -488,7 +488,7 @@ function CaughtUpRow({ nav }) {
         <div className="td-row-sub">No picks due right now. Come back when a match is close to kickoff.</div>
       </div>
       <button className="td-row-cta td-row-cta-ghost" onClick={() => nav('browse')}>
-        Browse leagues <ChevronRight size={11} />
+        Join another league <ChevronRight size={11} />
       </button>
     </div>
   );
