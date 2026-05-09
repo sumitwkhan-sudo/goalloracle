@@ -12,7 +12,7 @@ const MODES = [
   {
     key: 'simple',
     icon: '⚽',
-    title: 'Quick Picks',
+    title: 'Bracket',
     recommended: true,
     description: 'Pick group rankings + bracket winners. No score predictions. Great for casual fans.',
     scoring: '% prediction accuracy',

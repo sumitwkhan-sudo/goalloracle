@@ -338,7 +338,7 @@ export default function Dashboard({
               nav('detail', gs, { tab: 'predictions' });
             }}>
               <Target size={14} aria-hidden="true" />
-              <span>{quickPicks?.isComplete ? 'Edit your Quick Picks' : 'Continue Quick Picks'}</span>
+              <span>{quickPicks?.isComplete ? 'Edit my picks' : 'Continue my picks'}</span>
               <ChevronRight size={12} aria-hidden="true" />
             </button>
             <button type="button" className="td-action" onClick={() => nav('create')}>
@@ -398,7 +398,7 @@ function DashboardStrip({ qpRank, points, accuracy, totalCompleted, streak, stre
         <span className="td-sub">{lvl.title}</span>
       </div>
       <div className="td-strip-cell">
-        <span className="td-label">Quick Picks</span>
+        <span className="td-label">My picks</span>
         {quickPicks === null ? (
           <span className="td-num"><span className="td-skel">—</span></span>
         ) : quickPicksIncomplete ? (

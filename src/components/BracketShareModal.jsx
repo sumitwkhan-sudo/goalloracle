@@ -142,7 +142,7 @@ export default function BracketShareModal({
           <div className="bsc-brand">
             <span className="bsc-brand-name">GoalOracle</span>
             <span className="bsc-brand-dot">•</span>
-            <span className="bsc-brand-mode">Quick Picks</span>
+            <span className="bsc-brand-mode">World Cup 26</span>
           </div>
           <div className="bsc-heading">
             My World Cup 26 bracket

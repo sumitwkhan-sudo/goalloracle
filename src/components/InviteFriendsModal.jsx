@@ -138,7 +138,7 @@ export default function InviteFriendsModal({
           <span className="invite-option-text">
             <span className="invite-option-title">Share GoalOracle</span>
             <span className="invite-option-desc">
-              Copies a referral link so signups join Global Quick Picks. Earn XP for every friend who joins.
+              Copies a referral link so signups join the Global League. Earn XP for every friend who joins.
             </span>
           </span>
           <span className="invite-option-cta">

@@ -1824,7 +1824,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   position: fixed; inset: 0; z-index: 1000;
   background: rgba(5,5,8,0.7); backdrop-filter: blur(6px);
   display: flex; align-items: flex-start; justify-content: center;
-  padding: 2.5rem 1rem; overflow-y: auto;
+  /* 6.5rem top clears the sticky navbar (~60px) + news ticker (~36px)
+     so the modal header isn't hidden behind them when the user
+     opens the viewer. */
+  padding: 6.5rem 1rem 2rem;
+  overflow-y: auto;
   animation: pv-fade 0.18s ease-out;
 }
 @keyframes pv-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -6950,6 +6954,23 @@ body.light .lsd-head,
 }
 .ll-header-invite:hover { filter: brightness(1.05); }
 .ll-header-invite:active { transform: translateY(1px); }
+/* Join CTA — primary affordance for non-signed-up viewers. Solid
+   accent fill so it reads as "the action to take here", with the
+   Share button alongside as a secondary option. */
+.ll-header-join {
+  background: var(--primary, #5b3df5);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.05rem;
+  font-family: var(--font); font-weight: 700; font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+  transition: filter 0.12s, transform 0.12s;
+}
+.ll-header-join:hover { filter: brightness(1.08); }
+.ll-header-join:active { transform: translateY(1px); }
 
 /* Header action cluster — Leave (secondary, neutral) + Invite
    (primary CTA). Renders only when SimpleDetail's onLeaveLeague

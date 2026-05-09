@@ -68,7 +68,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     try {
       const next = !(featureFlags[flag] !== false);
       await adminSetFeatureFlag(flag, next);
-      notify(`${flag === 'classicEnabled' ? 'Classic Predictions' : 'Quick Picks'} ${next ? 'enabled' : 'disabled'}`);
+      notify(`${flag === 'classicEnabled' ? 'Classic Predictions' : 'Bracket'} ${next ? 'enabled' : 'disabled'}`);
     } catch (e) {
       notify('Toggle failed: ' + e.message, 'error');
     } finally {
@@ -759,7 +759,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           <div className="admin-flag-card">
             <div className="admin-flag-row">
               <div className="admin-flag-text">
-                <strong>Quick Picks league</strong>
+                <strong>Bracket league</strong>
                 <span>Group rankings + best thirds + knockout bracket. The fast on-ramp for new users.</span>
               </div>
               <button
@@ -768,7 +768,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 onClick={() => toggleFeatureFlag('quickPicksEnabled')}
                 disabled={flagBusy === 'quickPicksEnabled'}
                 aria-pressed={featureFlags.quickPicksEnabled !== false}
-                aria-label="Toggle Quick Picks league"
+                aria-label="Toggle Bracket league"
               >
                 <span className="admin-flag-switch-knob" />
                 <span className="admin-flag-switch-label">{featureFlags.quickPicksEnabled !== false ? 'ON' : 'OFF'}</span>
