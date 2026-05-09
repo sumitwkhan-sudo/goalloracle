@@ -89,7 +89,7 @@ export default function BracketSurvivalCard({ userId, leagueId = 'global-simple'
         <span className="bs-card-icon" aria-hidden="true"><Shield size={14} /></span>
         <span className="bs-card-title">Bracket survival</span>
         {pre && days > 0 && (
-          <span className="bs-card-pre">Tournament starts in {days} day{days === 1 ? '' : 's'}</span>
+          <span className="bs-card-pre">Starts in {days}d</span>
         )}
       </div>
       <ul className="bs-card-rows">

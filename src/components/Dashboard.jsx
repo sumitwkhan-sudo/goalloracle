@@ -11,6 +11,7 @@ import AnimatedCounter from './AnimatedCounter';
 import BoldestCallCard from './simple/BoldestCallCard';
 import MostContestedCard from './simple/MostContestedCard';
 import BracketSurvivalCard from './simple/BracketSurvivalCard';
+import MarketOddsCard from './simple/MarketOddsCard';
 import NewsFeed from './NewsFeed';
 
 const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
@@ -276,6 +277,7 @@ export default function Dashboard({
           {uData?.id && <BoldestCallCard userId={uData.id} leagueId="global-simple" />}
           <MostContestedCard leagueId="global-simple" />
           {uData?.id && <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />}
+          {uData?.id && <MarketOddsCard userId={uData.id} leagueId="global-simple" />}
         </div>
       </section>
 

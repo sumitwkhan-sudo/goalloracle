@@ -5530,17 +5530,145 @@ body.light .lsd-head,
 .td-insights-label { padding: 0 0.1rem; }
 .td-insights-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.65rem;
-  align-items: stretch;
+  /* 3 thin cards + 1 wider Bracket Survival on the right. The
+     survival card needs the extra width so its "Tournament starts
+     in N days" header and per-round "16 / 16" counts fit on a
+     single line without wrapping. */
+  grid-template-columns: 1fr 1fr 1fr 1.6fr;
+  gap: 0.5rem;
+  align-items: start;
 }
 .td-insights-grid > * {
   margin: 0;
-  height: 100%;
+  min-width: 0;
 }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
+  .td-insights-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
   .td-insights-grid { grid-template-columns: 1fr; }
 }
+
+/* ─── Insight card density overrides ─────────────────────────────────
+   The 3 short insights (boldest-call, contested, market-odds) collapse
+   to a tight ~50% of their stand-alone height — they only carry a
+   label + a single body line, so the original padding read as bloated
+   in the dashboard row. Bracket Survival keeps its full height so the
+   per-round breakdown bars stay readable. */
+.td-insights-grid .boldest-call-card,
+.td-insights-grid .contested-card,
+.td-insights-grid .market-odds-card {
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.78rem;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-height: 0;
+}
+.td-insights-grid .boldest-call-icon,
+.td-insights-grid .contested-card-icon {
+  width: 20px; height: 20px;
+}
+.td-insights-grid .boldest-call-icon svg,
+.td-insights-grid .contested-card-icon svg {
+  width: 11px; height: 11px;
+}
+.td-insights-grid .boldest-call-text,
+.td-insights-grid .contested-card-text { gap: 0.1rem; }
+.td-insights-grid .boldest-call-label,
+.td-insights-grid .contested-card-label,
+.td-insights-grid .market-odds-label,
+.td-insights-grid .bs-card-title {
+  font-size: 0.56rem;
+}
+.td-insights-grid .boldest-call-body,
+.td-insights-grid .contested-card-body { font-size: 0.76rem; line-height: 1.3; }
+
+/* Bracket Survival — keep full height, but tighten the row so
+   "16 / 16" doesn't wrap into two lines. Wider count column,
+   nowrap on the count text, and a shorter "Tournament starts" copy
+   handled in the JSX below. */
+.td-insights-grid .bracket-survival-card {
+  margin: 0;
+  padding: 0.7rem 0.85rem 0.85rem;
+}
+.td-insights-grid .bs-card-head {
+  padding-bottom: 0.4rem; gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.td-insights-grid .bs-card-icon { width: 22px; height: 22px; }
+.td-insights-grid .bs-card-pre {
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+.td-insights-grid .bs-card-rows { gap: 0.25rem; }
+.td-insights-grid .bs-card-row {
+  grid-template-columns: 32px 1fr 56px;
+  font-size: 0.74rem;
+  align-items: center;
+}
+.td-insights-grid .bs-card-round { font-size: 0.62rem; }
+.td-insights-grid .bs-card-count {
+  font-size: 0.74rem;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* Market odds card — top market favorites + user comparison row.
+   Same compact frame as the other insights. */
+.market-odds-card {
+  background: linear-gradient(135deg, rgba(255,184,0,0.08), rgba(0,212,255,0.05));
+  border: 1px solid rgba(255,184,0,0.28);
+  color: var(--text);
+}
+.market-odds-head {
+  display: flex; align-items: center; gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3rem;
+}
+.market-odds-icon {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--amber, #ffb800), var(--cyan, #00d4ff));
+  color: #000;
+}
+.market-odds-icon svg { width: 10px; height: 10px; }
+.market-odds-label {
+  font-family: var(--mono); font-size: 0.56rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text);
+}
+.market-odds-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.market-odds-row {
+  display: grid; grid-template-columns: 16px 1fr auto;
+  align-items: center; gap: 0.35rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0;
+}
+.market-odds-row.is-mine {
+  font-weight: 700;
+  color: var(--primary, #7c5cff);
+}
+.market-odds-flag { font-size: 0.85rem; line-height: 1; }
+.market-odds-team {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.market-odds-pct {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+  color: var(--text-sec);
+}
+.market-odds-row.is-mine .market-odds-pct { color: var(--primary); }
+.market-odds-foot {
+  font-size: 0.62rem; line-height: 1.3; color: var(--text-sec);
+  border-top: 1px solid var(--border);
+  padding-top: 0.3rem;
+}
+.market-odds-foot strong { color: var(--text); }
 
 /* ── Top strip — six canonical state cells ─────────────────────────── */
 .td-strip {
