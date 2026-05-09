@@ -6630,21 +6630,11 @@ a.news-ticker-item:focus-visible {
 [data-theme="fifa2026"] .news-ticker-sep { color: rgba(255, 219, 0, 0.35); }
 
 @media (max-width: 720px) {
-  .news-ticker {
-    --news-ticker-duration: 120s;
-    height: 36px;
-  }
-  /* Mobile sizes: bumped from cramped 0.66–0.85rem trio to a single
-     0.82rem text body with the flag marginally larger for visual
-     weight. Keeps the trio visually consistent so the marquee no
-     longer reads as three different type sizes. */
-  .news-ticker-label { padding: 0 0.65rem; font-size: 0.6rem; gap: 0.3rem; }
-  .news-ticker-label-text { display: none; }
-  .news-ticker-item { padding: 0 0.85rem; font-size: 0.82rem; gap: 0.4rem; }
-  .news-ticker-flag { font-size: 0.95rem; }
-  .news-ticker-team { font-size: 0.72rem; }
-  .news-ticker-text { font-size: 0.82rem; }
-  .news-ticker-sep { font-size: 0.6rem; }
+  /* Hidden on mobile — the marquee competes with the navbar for
+     attention on a small viewport and headlines pass faster than
+     they can comfortably be read. Dashboard NewsFeed remains
+     visible. */
+  .news-ticker { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
