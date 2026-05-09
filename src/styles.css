@@ -5504,6 +5504,44 @@ body.light .lsd-head,
   .td-shell { padding: 1.25rem 1.5rem 2.5rem; gap: 1rem; }
 }
 
+/* Page-level header. Sits above the strip so the user always knows
+   which surface they're on; mirrors the convention used in the
+   league-leaderboard rebuild. */
+.td-page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.15rem;
+  color: var(--text);
+}
+@media (min-width: 720px) {
+  .td-page-title { font-size: 1.85rem; }
+}
+
+/* Insights row — three cards across on desktop, stacked on mobile.
+   Replaces the previous right-side rail (.td-pane-side) which was
+   taller than the time-sensitive pane and left a long vertical void
+   below the left content. */
+.td-insights-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.td-insights-label { padding: 0 0.1rem; }
+.td-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+  align-items: stretch;
+}
+.td-insights-grid > * {
+  margin: 0;
+  height: 100%;
+}
+@media (max-width: 900px) {
+  .td-insights-grid { grid-template-columns: 1fr; }
+}
+
 /* ── Top strip — six canonical state cells ─────────────────────────── */
 .td-strip {
   display: grid;
@@ -6668,6 +6706,9 @@ a.news-ticker-item:focus-visible {
   display: flex; align-items: center; justify-content: space-between;
   gap: 0.5rem;
 }
+.news-feed-head-right {
+  display: flex; align-items: center; gap: 0.55rem;
+}
 .news-feed-date {
   font-family: var(--mono);
   font-size: 0.62rem;
@@ -6675,9 +6716,35 @@ a.news-ticker-item:focus-visible {
   color: var(--text-dim);
   text-transform: uppercase;
 }
+/* Carousel arrows for news pagination — kept subtle (text-dim border,
+   no hover lift) so they don't compete with the article rows for
+   attention. Small fade animates each page swap via the keyed list. */
+.news-feed-nav { display: inline-flex; gap: 0.2rem; }
+.news-feed-nav-btn {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-sec);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  touch-action: manipulation;
+}
+.news-feed-nav-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-br, var(--text-dim));
+  background: var(--bg-elev, transparent);
+}
+.news-feed-nav-btn:disabled { opacity: 0.35; cursor: default; }
+@keyframes news-feed-fade {
+  from { opacity: 0.4; transform: translateY(2px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
 .news-feed-list {
   list-style: none; padding: 0; margin: 0;
   display: flex; flex-direction: column; gap: 0.35rem;
+  animation: news-feed-fade 220ms ease;
 }
 .news-feed-item-wrap { display: block; }
 .news-feed-item {
