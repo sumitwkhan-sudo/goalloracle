@@ -252,6 +252,21 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 [data-theme="light"] .hero-stadium-overlay {
   background: linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.15) 30%, rgba(245,245,248,0.7) 70%, var(--bg) 100%);
 }
+/* Authed-home overlay variant — stronger, more uniform veil so the
+   redesigned cards read consistently anywhere in the hero column.
+   The original overlay above was tuned for a marketing pitch where
+   the bright stadium was a feature; a personal dashboard wants the
+   photo as ambient mood, not visual competition. */
+.hero-stadium-overlay-authed {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(8, 12, 22, 0.55) 0%, rgba(0, 0, 0, 0.78) 70%),
+    linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.7) 60%, var(--bg) 100%) !important;
+}
+[data-theme="light"] .hero-stadium-overlay-authed {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.78) 70%),
+    linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.7) 60%, var(--bg) 100%) !important;
+}
 .hero-content {
   position: relative; z-index: 5; max-width: 780px; margin: 0 auto; padding: 2rem; text-align: center;
 }
@@ -7743,6 +7758,288 @@ a.news-ticker-item:focus-visible {
   .news-feed-title {
     grid-column: 1 / -1; grid-row: 2;
     font-size: 0.82rem; line-height: 1.3;
+  }
+}
+
+/* ╔════════════════════════════════════════════════════════════════════╗
+   ║  HOME (logged-in) — calm dashboard layout over the stadium photo.   ║
+   ║                                                                     ║
+   ║  Single centered container, max-width 1100px, vertically stacked    ║
+   ║  with one card style (frosted glass) used uniformly. The stadium    ║
+   ║  photo becomes ambient mood via a stronger overlay; cards float     ║
+   ║  above it with backdrop-blur. Type scale is exactly 4 sizes. One    ║
+   ║  primary button (Edit your bracket); everything else is secondary.  ║
+   ╚════════════════════════════════════════════════════════════════════╝ */
+
+:root {
+  --home-card-bg: rgba(8, 10, 16, 0.6);
+  --home-card-border: rgba(255, 255, 255, 0.1);
+  --home-card-blur: 18px;
+  --home-card-radius: 16px;
+  --home-card-pad: 1.5rem 1.75rem;
+  --home-card-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --home-text: rgba(255, 255, 255, 0.95);
+  --home-text-sec: rgba(255, 255, 255, 0.65);
+  --home-text-dim: rgba(255, 255, 255, 0.45);
+  --home-divider: rgba(255, 255, 255, 0.08);
+  --home-gap: 1.25rem;
+  /* Type scale — 4 sizes, no more. */
+  --home-fs-display: 1.75rem;
+  --home-fs-large:   1.05rem;
+  --home-fs-body:    0.9rem;
+  --home-fs-caption: 0.72rem;
+}
+[data-theme="light"] {
+  --home-card-bg: rgba(255, 255, 255, 0.94);
+  --home-card-border: rgba(0, 0, 0, 0.08);
+  --home-text: #1A1A2E;
+  --home-text-sec: #4A4A60;
+  --home-text-dim: #888899;
+  --home-divider: rgba(0, 0, 0, 0.08);
+}
+
+/* Container — centered, stacked, generous spacing. */
+.home-shell {
+  position: relative; z-index: 5;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 5rem 1.5rem 3rem;
+  display: flex; flex-direction: column;
+  gap: var(--home-gap);
+}
+@media (max-width: 720px) {
+  .home-shell { padding: 4rem 1rem 2rem; gap: 1rem; }
+}
+
+/* Base card — frosted glass over the stadium photo. Used uniformly:
+   hero card, each quick-action tile, leaderboard preview. No mixing
+   of card styles. */
+.home-card {
+  background: var(--home-card-bg);
+  border: 1px solid var(--home-card-border);
+  border-radius: var(--home-card-radius);
+  padding: var(--home-card-pad);
+  backdrop-filter: blur(var(--home-card-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--home-card-blur)) saturate(140%);
+  box-shadow: var(--home-card-shadow);
+  color: var(--home-text);
+}
+
+/* HERO CARD — combines countdown + greeting + picks + rank + CTA. */
+.home-hero {
+  display: flex; flex-direction: column;
+  gap: 1.1rem;
+}
+.home-hero-meta {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: var(--home-fs-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--home-text-sec);
+}
+.home-hero-meta-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--amber, #ffb800);
+  box-shadow: 0 0 0 4px rgba(255, 184, 0, 0.18);
+  animation: home-hero-meta-pulse 2.4s ease-in-out infinite;
+}
+@keyframes home-hero-meta-pulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+.home-hero-greeting {
+  font-size: var(--home-fs-display);
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: -0.01em;
+  color: var(--home-text);
+}
+.home-hero-greeting-name {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.home-hero-picks {
+  display: flex; flex-wrap: wrap; gap: 0.65rem 1.5rem;
+  align-items: center;
+  font-size: var(--home-fs-body);
+}
+.home-hero-pick {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.home-hero-pick-label {
+  font-family: var(--mono);
+  font-size: var(--home-fs-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--home-text-dim);
+}
+.home-hero-pick-flag { font-size: 1.15rem; line-height: 1; }
+.home-hero-pick-team {
+  font-weight: 700;
+  color: var(--home-text);
+}
+.home-hero-pick-empty {
+  color: var(--home-text-dim); font-style: italic;
+  font-weight: 500;
+}
+.home-hero-rank {
+  display: flex; align-items: baseline; gap: 0.5rem;
+  font-size: var(--home-fs-body);
+  color: var(--home-text-sec);
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--home-divider);
+}
+.home-hero-rank strong {
+  font-family: var(--mono);
+  font-size: var(--home-fs-large);
+  font-weight: 800;
+  color: var(--home-text);
+}
+.home-hero-cta-row {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+/* Primary CTA — the ONE primary on the page. Filled cyan accent. */
+.home-hero-primary {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem 1.4rem;
+  min-height: 46px;
+  background: var(--primary);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  font-family: var(--font);
+  font-size: var(--home-fs-large);
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.12s;
+  touch-action: manipulation;
+}
+.home-hero-primary:hover { filter: brightness(1.08); }
+.home-hero-primary:active { transform: translateY(1px); }
+
+/* QUICK ACTIONS — 5 equal-weight icon tiles. Same card style as
+   the hero, just sized down and arranged in a grid. */
+.home-tiles {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.6rem;
+}
+.home-tile {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1rem 0.5rem;
+  background: var(--home-card-bg);
+  border: 1px solid var(--home-card-border);
+  border-radius: var(--home-card-radius);
+  backdrop-filter: blur(var(--home-card-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--home-card-blur)) saturate(140%);
+  box-shadow: var(--home-card-shadow);
+  color: var(--home-text);
+  font-family: var(--font);
+  font-size: var(--home-fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.12s;
+  touch-action: manipulation;
+  text-align: center;
+}
+.home-tile:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(8, 10, 16, 0.75);
+  transform: translateY(-2px);
+}
+[data-theme="light"] .home-tile:hover {
+  border-color: rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 1);
+}
+.home-tile-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--primary);
+}
+[data-theme="light"] .home-tile-icon {
+  background: rgba(0, 144, 192, 0.1);
+}
+.home-tile-label {
+  font-size: var(--home-fs-body);
+  line-height: 1.2;
+}
+
+/* Mobile: 2x3 grid (5th tile spans both columns on the bottom row
+   for a clean visual). */
+@media (max-width: 720px) {
+  .home-tiles {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .home-tile { padding: 0.85rem 0.4rem; }
+  .home-tile-icon { width: 32px; height: 32px; }
+  /* 5th tile spans full width on its row so we don't have a
+     ragged orphan tile on the bottom row of the 2x3 grid. */
+  .home-tile:nth-child(5) { grid-column: 1 / -1; }
+}
+
+/* GLOBAL LEAGUE PREVIEW — wraps existing HeroLeaderboardPreview
+   so it inherits the home-card frame and matches the rest of the
+   page visually. */
+.home-leaderboard {
+  padding: var(--home-card-pad);
+}
+.home-leaderboard .hero-lb-card {
+  /* Strip the inner card chrome — the .home-card wrapper provides
+     it now. Inner content keeps its layout but loses the duplicate
+     border / background / padding. */
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: inherit;
+}
+.home-leaderboard .hero-lb-label,
+.home-leaderboard .hero-lb-name,
+.home-leaderboard .hero-lb-pts { color: var(--home-text); }
+.home-leaderboard .hero-lb-view {
+  color: var(--home-text-sec);
+}
+.home-leaderboard .hero-lb-view:hover { color: var(--home-text); }
+
+/* FOOTER STRIP — single muted line. */
+.home-footer-strip {
+  position: relative; z-index: 5;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 2rem;
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: var(--home-fs-caption);
+  letter-spacing: 0.05em;
+  color: var(--home-text-dim);
+  text-align: center;
+}
+.home-footer-strip-divider {
+  color: rgba(255,255,255,0.2);
+  margin: 0 0.15rem;
+}
+[data-theme="light"] .home-footer-strip-divider {
+  color: rgba(0,0,0,0.2);
+}
+@media (max-width: 720px) {
+  .home-footer-strip {
+    padding: 1.25rem 1rem 1.5rem;
+    flex-wrap: wrap;
+    line-height: 1.6;
   }
 }
 
