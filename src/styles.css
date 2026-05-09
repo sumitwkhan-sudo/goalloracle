@@ -6491,7 +6491,7 @@ body.light .lsd-head,
 .news-ticker {
   /* Slow enough that headlines are readable as they move. ~5s per item
      on desktop with ~25 items in a doubled track. */
-  --news-ticker-duration: 125s;
+  --news-ticker-duration: 135s;
   position: relative;
   display: flex;
   align-items: stretch;
@@ -6631,14 +6631,20 @@ a.news-ticker-item:focus-visible {
 
 @media (max-width: 720px) {
   .news-ticker {
-    --news-ticker-duration: 95s;
-    height: 32px;
+    --news-ticker-duration: 120s;
+    height: 36px;
   }
-  .news-ticker-label { padding: 0 0.6rem; font-size: 0.58rem; gap: 0.3rem; }
+  /* Mobile sizes: bumped from cramped 0.66–0.85rem trio to a single
+     0.82rem text body with the flag marginally larger for visual
+     weight. Keeps the trio visually consistent so the marquee no
+     longer reads as three different type sizes. */
+  .news-ticker-label { padding: 0 0.65rem; font-size: 0.6rem; gap: 0.3rem; }
   .news-ticker-label-text { display: none; }
-  .news-ticker-item { padding: 0 0.7rem; font-size: 0.74rem; gap: 0.35rem; }
-  .news-ticker-flag { font-size: 0.85rem; }
-  .news-ticker-team { font-size: 0.66rem; }
+  .news-ticker-item { padding: 0 0.85rem; font-size: 0.82rem; gap: 0.4rem; }
+  .news-ticker-flag { font-size: 0.95rem; }
+  .news-ticker-team { font-size: 0.72rem; }
+  .news-ticker-text { font-size: 0.82rem; }
+  .news-ticker-sep { font-size: 0.6rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
