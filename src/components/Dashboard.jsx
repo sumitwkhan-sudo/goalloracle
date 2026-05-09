@@ -194,6 +194,8 @@ export default function Dashboard({
 
   return (
     <div className="td-shell">
+      <h1 className="td-page-title">Dashboard</h1>
+
       {/* Top dense strip — every cell carries one piece of canonical state. */}
       <DashboardStrip
         qpRank={qpRank}
@@ -207,70 +209,75 @@ export default function Dashboard({
         quickPicksIncomplete={quickPicksIncomplete}
       />
 
-      <div className="td-grid">
-        {/* Time-sensitive pane — what needs your attention now */}
-        <div className="td-pane">
-          {nextLock && featureFlags.classicEnabled !== false ? (
-            <NextLockRow lock={nextLock} now={now} buffer={LOCK_BUFFER_MS} simpleLeagues={simpleLeagues} ml={ml} nav={nav} />
-          ) : quickPicksIncomplete ? (
-            <QuickPicksLockRow quickPicks={quickPicks} simpleLeagues={simpleLeagues} nav={nav} />
-          ) : (
-            <CaughtUpRow nav={nav} />
-          )}
+      {/* Time-sensitive pane — what needs your attention now. Single
+          full-width column instead of being half a 2-column grid;
+          previously the right insights rail was much taller than this
+          pane and left a long vertical void on desktop. Insights now
+          flow below as a 3-column row, eliminating that empty space. */}
+      <div className="td-pane">
+        {nextLock && featureFlags.classicEnabled !== false ? (
+          <NextLockRow lock={nextLock} now={now} buffer={LOCK_BUFFER_MS} simpleLeagues={simpleLeagues} ml={ml} nav={nav} />
+        ) : quickPicksIncomplete ? (
+          <QuickPicksLockRow quickPicks={quickPicks} simpleLeagues={simpleLeagues} nav={nav} />
+        ) : (
+          <CaughtUpRow nav={nav} />
+        )}
 
-          {liveMatches.length > 0 && (
-            <div className="td-live-stack">
-              {liveMatches.map(m => <LiveRow key={m.id} match={m} pred={preds[m.id]} now={now} />)}
-            </div>
-          )}
-
-          <div className="td-resultsblock">
-            <div className="td-section-label"><Flame size={12} /> Streak {streak}{streakBadge && <span className={`streak-badge streak-badge-${streakBadge.tier}`}>{streakBadge.emoji} {streakBadge.name}</span>}</div>
-            <div className="td-dots">
-              {[...Array(10)].map((_, i) => {
-                const dot = streakDots[i];
-                return <span key={i} className={`td-dot ${dot ? (dot.correct ? 'td-dot-c' : 'td-dot-w') : 'td-dot-x'}`}>{dot ? (dot.correct ? '✓' : '✗') : ''}</span>;
-              })}
-              <span className="td-dotcap">last {streakDots.length || 0} · best {bestStreak}</span>
-            </div>
-
-            {recentResults.length > 0 && (
-              <>
-                <div className="td-section-label">Recent · last {Math.min(recentResults.length, 5)}</div>
-                <div className="td-recent">
-                  {recentResults.map(m => {
-                    const res = results[m.id];
-                    const pred = preds[m.id];
-                    const pts = pred ? calculatePoints(pred, res, ps) : 0;
-                    const ok = pts > 0;
-                    return (
-                      <div key={m.id} className={`td-recent-row td-recent-${ok ? 'ok' : 'miss'}`}>
-                        <span className="td-recent-when">{new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                        <span className="td-recent-match">
-                          <span>{m.homeFlag} {m.home}</span>
-                          <strong>{res.homeScore}-{res.awayScore}</strong>
-                          <span>{m.away} {m.awayFlag}</span>
-                        </span>
-                        <span className="td-recent-pts">+{pts}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
+        {liveMatches.length > 0 && (
+          <div className="td-live-stack">
+            {liveMatches.map(m => <LiveRow key={m.id} match={m} pred={preds[m.id]} now={now} />)}
           </div>
-        </div>
+        )}
 
-        {/* Insights pane — meta-commentary on the user's bracket. Each card
-            self-gates on having enough data to be meaningful, so the pane
-            collapses gracefully when consensus is thin. */}
-        <aside className="td-pane td-pane-side">
-          <div className="td-section-label">Insights</div>
+        <div className="td-resultsblock">
+          <div className="td-section-label"><Flame size={12} /> Streak {streak}{streakBadge && <span className={`streak-badge streak-badge-${streakBadge.tier}`}>{streakBadge.emoji} {streakBadge.name}</span>}</div>
+          <div className="td-dots">
+            {[...Array(10)].map((_, i) => {
+              const dot = streakDots[i];
+              return <span key={i} className={`td-dot ${dot ? (dot.correct ? 'td-dot-c' : 'td-dot-w') : 'td-dot-x'}`}>{dot ? (dot.correct ? '✓' : '✗') : ''}</span>;
+            })}
+            <span className="td-dotcap">last {streakDots.length || 0} · best {bestStreak}</span>
+          </div>
+
+          {recentResults.length > 0 && (
+            <>
+              <div className="td-section-label">Recent · last {Math.min(recentResults.length, 5)}</div>
+              <div className="td-recent">
+                {recentResults.map(m => {
+                  const res = results[m.id];
+                  const pred = preds[m.id];
+                  const pts = pred ? calculatePoints(pred, res, ps) : 0;
+                  const ok = pts > 0;
+                  return (
+                    <div key={m.id} className={`td-recent-row td-recent-${ok ? 'ok' : 'miss'}`}>
+                      <span className="td-recent-when">{new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      <span className="td-recent-match">
+                        <span>{m.homeFlag} {m.home}</span>
+                        <strong>{res.homeScore}-{res.awayScore}</strong>
+                        <span>{m.away} {m.awayFlag}</span>
+                      </span>
+                      <span className="td-recent-pts">+{pts}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Insights — meta-commentary on the user's bracket. Each card
+          self-gates on having enough data to be meaningful, so the row
+          collapses gracefully when consensus is thin. Three across on
+          desktop; stacks on mobile via the .td-insights-row media query. */}
+      <section className="td-insights-row" aria-label="Bracket insights">
+        <div className="td-section-label td-insights-label">Insights</div>
+        <div className="td-insights-grid">
           {uData?.id && <BoldestCallCard userId={uData.id} leagueId="global-simple" />}
           <MostContestedCard leagueId="global-simple" />
           {uData?.id && <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />}
-        </aside>
-      </div>
+        </div>
+      </section>
 
       <NewsFeed />
 

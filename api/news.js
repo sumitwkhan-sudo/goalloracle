@@ -136,7 +136,10 @@ export default async function handler(req, res) {
       source: e.source,
     }));
 
-    const articles = enriched.slice(0, 3).map((e, i) => ({
+    // Up to 12 articles so the dashboard NewsFeed can paginate three at
+     // a time through four pages without re-fetching. Older comment said
+     // "3 items" — bumped intentionally for the carousel.
+    const articles = enriched.slice(0, 12).map((e, i) => ({
       id: `live-${i}`,
       title: e.title,
       url: e.link,
