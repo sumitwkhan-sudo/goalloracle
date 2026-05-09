@@ -76,17 +76,32 @@ export default async function handler(req, res) {
     const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
     const codeHash = hashCode(code, dedupe);
 
+    // Bind the code to this browser session: a random token in an
+    // httpOnly cookie, with its sha256 stored on the authCodes doc.
+    // verify-code requires the same cookie value, so an intercepted code
+    // can't be redeemed from a different device or tab.
+    const sessionToken = crypto.randomBytes(24).toString('base64url');
+    const sessionTokenHash = crypto.createHash('sha256').update(sessionToken).digest('hex');
+
     const newHistory = [...(existing?.history || []).filter(t => now - t < RATE_WINDOW_MS), now];
 
     await ref.set({
       email: email.toLowerCase().trim(),
       dedupe,
       codeHash,
+      sessionTokenHash,
       expiresAt: now + CODE_TTL_MS,
       attempts: 0,
       createdAt: FieldValue.serverTimestamp(),
       history: newHistory,
     }, { merge: false });
+
+    // 600s = slightly longer than CODE_TTL_MS so the cookie outlives the
+    // code itself and we can produce clean error messages on retries.
+    const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+    res.setHeader('Set-Cookie',
+      `goaloracle_signin_session=${sessionToken}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax${isProd ? '; Secure' : ''}`
+    );
 
     if (!process.env.RESEND_API_KEY) {
       // Dev fallback: log code to server logs so local dev still works.

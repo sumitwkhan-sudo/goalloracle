@@ -15,7 +15,8 @@ service cloud.firestore {
       // Block self-mutation of fields that must come from the server (admin SDK).
       // walletAddress + assignment trail are admin-managed; deviceFingerprint /
       // signupIpHash / banned* are anti-Sybil bookkeeping; verified is a future
-      // hook. usernameSet flips once via /api/user with profanity validation.
+      // hook. displayName / displayNameLower are routed through /api/user so
+      // the server can enforce uniqueness + profanity + reserved-name rules.
       allow update: if request.auth != null
                     && request.auth.uid == userId
                     && !request.resource.data.diff(resource.data).affectedKeys()
@@ -29,6 +30,9 @@ service cloud.firestore {
                          'deviceFingerprint',
                          'signupIpHash',
                          'emailDedupeKey',
+                         'displayName',
+                         'displayNameLower',
+                         'usernameSet',
                          'banned',
                          'bannedReason',
                          'bannedAt'

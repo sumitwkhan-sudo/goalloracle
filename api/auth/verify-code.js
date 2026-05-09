@@ -65,8 +65,31 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Incorrect code' });
     }
 
-    // Success — invalidate the code immediately
+    // Verify the session-binding cookie matches the one set in request-code.
+    // Defends against codes intercepted in transit (forwarded mail, etc.) —
+    // they can't be redeemed from a different browser session.
+    if (data.sessionTokenHash) {
+      const cookieHeader = req.headers.cookie || '';
+      const cookies = Object.fromEntries(
+        cookieHeader.split(';').map(s => {
+          const idx = s.indexOf('=');
+          if (idx < 0) return [s.trim(), ''];
+          return [s.slice(0, idx).trim(), s.slice(idx + 1).trim()];
+        }).filter(([k]) => k)
+      );
+      const sessionToken = cookies['goaloracle_signin_session'] || '';
+      if (!sessionToken) {
+        return res.status(400).json({ error: 'Sign-in session expired. Request a new code from this browser.' });
+      }
+      const candidateSessionHash = crypto.createHash('sha256').update(sessionToken).digest('hex');
+      if (!constantTimeEqualHex(candidateSessionHash, data.sessionTokenHash)) {
+        return res.status(400).json({ error: 'Sign-in session does not match. Request a new code from this browser.' });
+      }
+    }
+
+    // Success — invalidate the code immediately + clear the session cookie.
     await ref.delete().catch(() => {});
+    res.setHeader('Set-Cookie', 'goaloracle_signin_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax');
 
     const existing = await findUserByDedupeKey(db, email);
     const isNewUser = !existing;

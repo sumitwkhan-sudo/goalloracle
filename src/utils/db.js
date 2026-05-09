@@ -118,6 +118,9 @@ export async function createOrUpdateUser(authUser) {
       email: emailAddr,
       walletAddress: null,
       displayName,
+      // Lower-case index used by server-side uniqueness checks. Kept in
+      // sync everywhere displayName is written.
+      displayNameLower: displayName.toLowerCase(),
       usernameSet: false,
       // Gate for the post-signup passcode-first prompt. Existing users
       // created before this field was added simply lack it (undefined),
@@ -177,19 +180,23 @@ export function consumePendingJoin() {
 
 export async function updateUserProfile(userId, updates) {
   const userRef = doc(db, 'users', userId);
-  // walletAddress mutations are blocked by Firestore rules (admin-only).
-  // Route them through /api/user, which validates EVM format and writes
-  // via the admin SDK. Everything else is fine to write client-side.
-  if (updates.walletAddress !== undefined) {
-    await apiCall('user', 'POST', { walletAddress: updates.walletAddress });
+  // walletAddress, displayName, and usernameSet flow through /api/user so
+  // the server can validate format, profanity, reserved-name overlaps, and
+  // uniqueness. Direct client writes for these fields are blocked by
+  // Firestore rules. Country / email / onboardingComplete still go via
+  // Firestore direct write (cheap, no validation needed).
+  const apiPayload = {};
+  if (updates.walletAddress !== undefined) apiPayload.walletAddress = updates.walletAddress;
+  if (updates.displayName && updates.displayName.trim()) apiPayload.displayName = updates.displayName.trim();
+  if (updates.usernameSet === true) apiPayload.usernameSet = true;
+  if (Object.keys(apiPayload).length > 0) {
+    await apiCall('user', 'POST', apiPayload);
   }
+
   const safeUpdates = { updatedAt: serverTimestamp() };
-  if (updates.displayName && updates.displayName.trim()) safeUpdates.displayName = updates.displayName.trim();
-  if (updates.usernameSet === true) safeUpdates.usernameSet = true;
   if (updates.email) safeUpdates.email = updates.email;
   if (updates.onboardingComplete === true) safeUpdates.onboardingComplete = true;
   if (typeof updates.country === 'string' && updates.country.trim()) safeUpdates.country = updates.country.trim().toUpperCase();
-  // Only call updateDoc if there's something other than updatedAt to write.
   if (Object.keys(safeUpdates).length > 1) {
     await updateDoc(userRef, safeUpdates);
   }
