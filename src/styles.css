@@ -410,6 +410,175 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   border-color: rgba(0,160,200,0.5);
   color: #0080a0;
 }
+
+/* ─── Primary CTA for authed users ───────────────────────────────
+   The previous design squashed Edit/Finish-bracket into the chip
+   row alongside five secondary nav chips, which left the primary
+   action visually equal-weight. Bumped to a larger pill that
+   leads visually before the chip row. */
+.hero-primary-cta-row {
+  display: flex; justify-content: flex-start;
+  margin: 0.4rem 0 0.85rem;
+  animation: fadeUp 0.6s 0.6s both;
+}
+.hero-no-anim .hero-primary-cta-row { animation: none !important; opacity: 1; transform: none; }
+.hero-primary-cta {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  min-height: 48px;
+  background: var(--grad);
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  font-family: var(--font); font-weight: 800; font-size: 0.98rem;
+  cursor: pointer;
+  box-shadow: 0 6px 22px rgba(0,212,255,0.25);
+  transition: filter 0.12s, transform 0.12s, box-shadow 0.2s;
+  touch-action: manipulation;
+}
+.hero-primary-cta:hover { filter: brightness(1.05); }
+.hero-primary-cta:active { transform: translateY(1px); }
+.hero-primary-cta-urgent {
+  animation: hero-primary-pulse 2.6s ease-in-out infinite;
+}
+@keyframes hero-primary-pulse {
+  0%, 100% { box-shadow: 0 6px 22px rgba(0,212,255,0.25); }
+  50%      { box-shadow: 0 6px 30px rgba(255,184,0,0.45); }
+}
+.hero-no-anim .hero-primary-cta-urgent { animation: none !important; }
+
+/* ─── MyPicksCard — personal status (right column, top of stack) ── */
+.my-picks-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-br);
+  border-radius: var(--radius-lg);
+  padding: 0.95rem 1.1rem 1rem;
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.my-picks-card-ready { border-color: rgba(0,230,118,0.35); }
+.my-picks-card-progress { border-color: rgba(255,184,0,0.4); }
+.my-picks-head {
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.45rem;
+}
+.my-picks-label {
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--primary, #7c5cff);
+}
+.my-picks-leaderboard {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  font-family: var(--mono); font-size: 0.65rem;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-sec); padding: 0;
+}
+.my-picks-leaderboard:hover { color: var(--text); }
+.my-picks-rank-row { display: flex; align-items: baseline; gap: 0.5rem; }
+.my-picks-rank { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.15; }
+.my-picks-rank strong {
+  font-family: var(--mono); font-size: 1.45rem; font-weight: 800;
+  color: var(--text);
+}
+.my-picks-rank-sub {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim);
+}
+.my-picks-podium {
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+.my-picks-podium-row {
+  display: grid; grid-template-columns: 18px 70px 1fr;
+  align-items: center; gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.my-picks-podium-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--amber, #ffb800);
+}
+.my-picks-podium-row:nth-child(2) .my-picks-podium-icon { color: var(--text-sec); }
+.my-picks-podium-label {
+  font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.my-picks-podium-team {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-weight: 700;
+}
+.my-picks-podium-flag { font-size: 1.1rem; line-height: 1; }
+.my-picks-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  margin-top: 0.25rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--primary-soft, rgba(124,92,255,0.12));
+  border: 1px solid var(--primary, #7c5cff);
+  border-radius: 8px;
+  color: var(--primary, #7c5cff);
+  font-family: var(--font); font-size: 0.82rem; font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  touch-action: manipulation;
+}
+.my-picks-cta:hover {
+  background: var(--primary, #7c5cff); color: #fff;
+}
+.my-picks-cta-warn {
+  background: rgba(255,184,0,0.1);
+  border-color: rgba(255,184,0,0.5);
+  color: var(--amber, #ffb800);
+}
+.my-picks-cta-warn:hover { background: var(--amber, #ffb800); color: #000; }
+/* Skeleton */
+.my-picks-card-loading { opacity: 0.6; }
+.mp-skel {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  background-size: 200% 100%;
+  animation: mp-shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+.mp-skel-label { width: 90px; height: 12px; }
+.mp-skel-line { height: 22px; }
+@keyframes mp-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Stats band — moved out of the left column ─────────────────
+   Was inline below the chip row, which made the left column taller
+   than the right and broke the column baseline. Now sits as a
+   compact band beneath the two columns, full-width inside the same
+   max-width container. */
+.hero-stats-band {
+  position: relative; z-index: 3;
+  max-width: 1200px; margin: 0 auto;
+  padding: 0 3rem 3rem;
+  animation: fadeUp 0.6s 0.85s both;
+}
+.hero-no-anim .hero-stats-band { animation: none !important; opacity: 1; transform: none; }
+.hero-stats-band-inner {
+  display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 0.85rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.hero-stats-band-inner .hero-social-proof { margin: 0; }
+.hero-stats-band-inner .hero-compliance { margin: 0; }
+[data-theme="light"] .hero-stats-band-inner {
+  border-top-color: rgba(0,0,0,0.08);
+}
+
+@media (max-width: 720px) {
+  .hero-split-inner,
+  .hero-split-inner-authed { padding: 6rem 1.25rem 1rem; }
+  .hero-stats-band { padding: 0 1.25rem 2rem; }
+  .hero-stats-band-inner { justify-content: center; text-align: center; }
+  .hero-primary-cta-row { justify-content: center; }
+  .my-picks-card { padding: 0.85rem 0.95rem 0.9rem; }
+}
+
 .hero-stats {
   display: flex; justify-content: center; gap: 4rem; margin-top: 4rem; padding-top: 2rem;
   border-top: 1px solid rgba(255,255,255,0.1); animation: fadeUp 0.6s 0.7s both;
@@ -533,11 +702,24 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .hero-split-inner {
   position: relative; z-index: 3; max-width: 1200px; margin: 0 auto;
   display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem;
-  align-items: center; padding: 8rem 2rem 4rem;
+  /* Top-aligned columns so MyPicksCard + HeroLeaderboardPreview on
+     the right share the same baseline as the title on the left.
+     Vertical centering pushed the right column lower than the title
+     and made the page read as misaligned. */
+  align-items: start;
+  /* Wider horizontal padding (3rem vs 2rem) so the title doesn't
+     bleed against the viewport edge on standard desktop widths. */
+  padding: 7rem 3rem 1.5rem;
 }
+/* Authed variant — shorter top padding since there's no marketing
+   pitch to lead with, and the Welcome-back title is smaller. */
+.hero-split-inner-authed { padding: 5.5rem 3rem 1.25rem; }
 .hero-left .hero-title { text-align: left; font-size: 3.2rem; }
 .hero-left .hero-subtitle { text-align: left; max-width: 480px; }
 .hero-left .hero-cta { justify-content: flex-start; }
+/* Compact title for logged-in users — they're on a personal
+   dashboard, not a sign-up pitch. */
+.hero-title-compact { font-size: 2.2rem !important; margin-bottom: 1.1rem; }
 .hero-social-proof { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.5rem; }
 .hero-avatars { display: flex; }
 .hero-avatar {

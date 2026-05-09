@@ -27,6 +27,7 @@ import BracketShareModal from './components/BracketShareModal';
 import InviteFriendsModal from './components/InviteFriendsModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
+import MyPicksCard from './components/MyPicksCard';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -1128,7 +1129,21 @@ const GoalOracle = () => {
         const thirdsRemaining = Math.max(0, 8 - thirds.filter(Boolean).length);
         const bracketRemaining = Math.max(0, bracketTotal - bracketFilled);
         const totalRemaining = groupsRemaining + thirdsRemaining + bracketRemaining;
-        setQuickPicks({ groupsRemaining, thirdsRemaining, bracketRemaining, totalRemaining, isComplete: totalRemaining === 0 });
+        // Pull champion + runner-up off the user's Final pick if they
+        // got that far — landing-page MyPicksCard renders these as the
+        // "your bracket" headline. Same source the share modal uses;
+        // we just preserve them on the quickPicks state so the
+        // landing card doesn't need a second fetch.
+        const finalSlot = (ko.final || []).find((p) => p?.matchId === 'final');
+        setQuickPicks({
+          groupsRemaining,
+          thirdsRemaining,
+          bracketRemaining,
+          totalRemaining,
+          isComplete: totalRemaining === 0,
+          winner: finalSlot?.winnerId || null,
+          runnerUp: finalSlot?.loserId || null,
+        });
       } catch {
         if (!cancelled) setQuickPicks(null);
       }
@@ -1829,10 +1844,20 @@ const GoalOracle = () => {
           <div className="hero-stadium-bg"></div>
           <div className="hero-stadium-overlay"></div>
           <WorldCupCountdown />
-          <div className="hero-split-inner" ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
+          <div className={`hero-split-inner ${authenticated ? 'hero-split-inner-authed' : ''}`} ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
             <div className="hero-left">
-              <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
-              <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
+              {/* Smaller title for authed users — they're on a personal
+                  dashboard, not a marketing landing. The full-pitch
+                  title + tagline + Become-the-Oracle line stays for
+                  anonymous visitors. */}
+              {authenticated ? (
+                <h1 className="hero-title hero-title-compact">Welcome back<span className="highlight">.</span></h1>
+              ) : (
+                <>
+                  <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
+                  <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
+                </>
+              )}
               {/* Anonymous users keep the original sign-up pitch — two
                   big buttons (Start Predicting / Create a League). */}
               {!authenticated && anonCtas && (
@@ -1841,50 +1866,58 @@ const GoalOracle = () => {
                   <button className="btn btn-secondary btn-lg" onClick={anonCtas.secondary.onClick}>{anonCtas.secondary.label}</button>
                 </div>
               )}
-              {/* Logged-in users get a unified chip row instead of a
-                  big-button-plus-chips combo. The accent chip leads
-                  with the most useful action (finish / edit bracket);
-                  the rest expose nav surfaces that would otherwise be
-                  hidden behind the mobile hamburger. Same visual
-                  language across all six chips so nothing reads as a
-                  random standalone CTA. */}
+              {/* Logged-in users get a primary action + secondary nav
+                  chips. The primary (Edit / Finish bracket) is bumped
+                  to a clearly larger size so it leads visually; the
+                  five secondaries are smaller chips for nav surfaces
+                  that would otherwise be hidden behind the hamburger. */}
               {authenticated && (
-                <div className="hero-cta-chips" role="group" aria-label="Quick navigation">
+                <>
                   {accentChip && (
-                    <button
-                      type="button"
-                      className={`hero-chip hero-chip-accent ${accentChip.urgent ? 'hero-chip-urgent' : ''}`}
-                      onClick={accentChip.onClick}
-                    >
-                      <Target size={13} aria-hidden="true" /> {accentChip.label}
-                    </button>
+                    <div className="hero-primary-cta-row">
+                      <button
+                        type="button"
+                        className={`hero-primary-cta ${accentChip.urgent ? 'hero-primary-cta-urgent' : ''}`}
+                        onClick={accentChip.onClick}
+                      >
+                        <Target size={16} aria-hidden="true" /> {accentChip.label}
+                      </button>
+                    </div>
                   )}
-                  <button type="button" className="hero-chip" onClick={() => nav('dashboard')}>
-                    <Trophy size={13} aria-hidden="true" /> Dashboard
-                  </button>
-                  <button type="button" className="hero-chip" onClick={() => nav('leagues')}>
-                    <Users size={13} aria-hidden="true" /> My leagues
-                  </button>
-                  <button type="button" className="hero-chip" onClick={goLeaderboardLanding}>
-                    <TrendingUp size={13} aria-hidden="true" /> Global leaderboard
-                  </button>
-                  <button type="button" className="hero-chip" onClick={() => nav('browse')}>
-                    <Search size={13} aria-hidden="true" /> Join a league
-                  </button>
-                  <button type="button" className="hero-chip hero-chip-invite" onClick={() => setInviteOpen(true)}>
-                    <UserPlus size={13} aria-hidden="true" /> Invite friends
-                  </button>
-                </div>
+                  <div className="hero-cta-chips" role="group" aria-label="Quick navigation">
+                    <button type="button" className="hero-chip" onClick={() => nav('dashboard')}>
+                      <Trophy size={13} aria-hidden="true" /> Dashboard
+                    </button>
+                    <button type="button" className="hero-chip" onClick={() => nav('leagues')}>
+                      <Users size={13} aria-hidden="true" /> My leagues
+                    </button>
+                    <button type="button" className="hero-chip" onClick={goLeaderboardLanding}>
+                      <TrendingUp size={13} aria-hidden="true" /> Global leaderboard
+                    </button>
+                    <button type="button" className="hero-chip" onClick={() => nav('browse')}>
+                      <Search size={13} aria-hidden="true" /> Join a league
+                    </button>
+                    <button type="button" className="hero-chip hero-chip-invite" onClick={() => setInviteOpen(true)}>
+                      <UserPlus size={13} aria-hidden="true" /> Invite friends
+                    </button>
+                  </div>
+                </>
               )}
-              <div className="hero-social-proof">
-                <div className="hero-avatars">
-                  {['🇧🇷','🇩🇪','🇦🇷','🇫🇷'].map((f,i) => <span key={i} className="hero-avatar">{f}</span>)}
-                </div>
-                <span className="hero-proof-text"><AnimatedCounter value={stats.totalPlayers ? stats.totalPlayers * 12 : 13402} /> predictions made today &middot; 82 countries &middot; Free to play</span>
-              </div>
-              <p className="hero-compliance"><Shield size={12} /> GoalOracle&rsquo;s prediction engine is compliant with the official FIFA World Cup 26&trade; rulebook</p>
             </div>
             <div className="hero-right">
+              {/* Personal status first — user's bracket + global rank. */}
+              {authenticated && (
+                <MyPicksCard
+                  quickPicks={quickPicks}
+                  rank={leagueRanks?.['global-simple']}
+                  isPreTournament={Date.now() < Date.UTC(2026, 5, 11, 19, 0, 0)}
+                  onComplete={startSimplePredicting}
+                  onViewLeaderboard={goLeaderboardLanding}
+                />
+              )}
+              {/* Global context second — the league preview the page
+                  always rendered. Same component, just stacked under
+                  MyPicksCard for authed users. */}
               <HeroLeaderboardPreview
                 onViewFull={() => {
                   if (authenticated) {
@@ -1896,6 +1929,22 @@ const GoalOracle = () => {
                   }
                 }}
               />
+            </div>
+          </div>
+          {/* Stats band — social proof + FIFA compliance. Pulled out
+              of the left column so it doesn't push the columns out
+              of vertical alignment. Sits as a compact band beneath
+              the two columns, full-width inside the same max-width
+              container. */}
+          <div className="hero-stats-band">
+            <div className="hero-stats-band-inner">
+              <div className="hero-social-proof">
+                <div className="hero-avatars">
+                  {['🇧🇷','🇩🇪','🇦🇷','🇫🇷'].map((f,i) => <span key={i} className="hero-avatar">{f}</span>)}
+                </div>
+                <span className="hero-proof-text"><AnimatedCounter value={stats.totalPlayers ? stats.totalPlayers * 12 : 13402} /> predictions made today &middot; 82 countries &middot; Free to play</span>
+              </div>
+              <p className="hero-compliance"><Shield size={12} /> Compliant with the official FIFA World Cup 26&trade; rulebook</p>
             </div>
           </div>
         </section>
