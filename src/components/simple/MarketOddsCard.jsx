@@ -1,32 +1,35 @@
 /**
  * MarketOddsCard
  *
- * Compares the user's predicted World Cup champion against bookmaker
- * market favorites. The numbers are hardcoded from publicly-available
- * pre-tournament odds for the top contenders — replace with a live
- * feed (The Odds API or similar) when an API key is provisioned by
- * setting it through a /api/market-odds endpoint.
+ * Compares the user's predicted World Cup champion against current
+ * prediction-market favorites. The numbers below are an approximation
+ * of Polymarket's "FIFA World Cup 2026 winner" market implied
+ * probabilities — share prices on Polymarket trade in cents and read
+ * directly as % to win. Replace with a live Polymarket Gamma API
+ * feed (e.g. /events/fifa-world-cup-2026-winner) when an API
+ * integration lands; the file is the single source of truth.
  *
- * Hidden until we know the user's champion (no submit → no comparison
- * to draw). Same compact frame as the other insight cards so it sits
- * cleanly in the dashboard insights row.
+ * Hidden until we know the user's champion (no submit → no
+ * comparison to draw). Same compact frame as the other insight
+ * cards so it sits cleanly in the dashboard insights row.
  */
 
 import React, { useEffect, useState } from 'react';
 import { Coins } from 'lucide-react';
 import { getSimplePrediction } from '../../utils/db';
 
-// Snapshot of consensus pre-tournament market odds aggregated across
-// major books, expressed as implied probability. Values are
-// illustrative — see comment block above for the real-API path.
+// Polymarket WC 2026 winner market — approximate implied % from
+// recent share prices. Brazil typically trades lower on Polymarket
+// than at traditional bookmakers; Argentina + France lead.
 const MARKET_FAVORITES = [
-  { team: 'Brazil',     flag: '🇧🇷', pct: 0.22 },
-  { team: 'France',     flag: '🇫🇷', pct: 0.16 },
-  { team: 'Argentina',  flag: '🇦🇷', pct: 0.14 },
+  { team: 'Argentina',  flag: '🇦🇷', pct: 0.17 },
+  { team: 'France',     flag: '🇫🇷', pct: 0.17 },
+  { team: 'Brazil',     flag: '🇧🇷', pct: 0.14 },
   { team: 'Spain',      flag: '🇪🇸', pct: 0.11 },
-  { team: 'England',    flag: '🏴',  pct: 0.09 },
+  { team: 'England',    flag: '🏴',  pct: 0.10 },
   { team: 'Germany',    flag: '🇩🇪', pct: 0.07 },
   { team: 'Portugal',   flag: '🇵🇹', pct: 0.06 },
+  { team: 'Netherlands',flag: '🇳🇱', pct: 0.05 },
 ];
 
 const TOP_N = 3;
