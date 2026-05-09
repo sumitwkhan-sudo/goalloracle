@@ -366,18 +366,20 @@ export async function getSimplePrediction(userId, leagueId) {
   return null;
 }
 
+// Quick Picks saves go through /api/simple-predictions, which enforces
+// stage locks (group stage / R32 / R16 / QF / SF / 3rd / Final each freeze
+// 5 minutes before that stage's first match kicks off). Direct Firestore
+// writes are blocked by rules — without the server check a user could
+// edit picks for matches already in progress.
 export async function saveSimplePrediction(userId, leagueId, partial) {
   if (!userId) throw new Error('Missing userId');
   if (!leagueId) throw new Error('Missing leagueId');
-  const ref = doc(db, 'simplePredictions', simplePredDocId(userId, leagueId));
-
-  const payload = { userId, leagueId, updatedAt: serverTimestamp() };
-  if (partial.groupPredictions !== undefined) payload.groupPredictions = partial.groupPredictions;
-  if (partial.bestThirdPicks !== undefined) payload.bestThirdPicks = partial.bestThirdPicks;
-  if (partial.knockoutPredictions !== undefined) payload.knockoutPredictions = partial.knockoutPredictions;
-  if (partial.isComplete !== undefined) payload.isComplete = partial.isComplete;
-
-  await setDoc(ref, payload, { merge: true });
+  const body = { leagueId, partial: {} };
+  if (partial.groupPredictions !== undefined) body.partial.groupPredictions = partial.groupPredictions;
+  if (partial.bestThirdPicks !== undefined) body.partial.bestThirdPicks = partial.bestThirdPicks;
+  if (partial.knockoutPredictions !== undefined) body.partial.knockoutPredictions = partial.knockoutPredictions;
+  if (partial.isComplete !== undefined) body.partial.isComplete = partial.isComplete;
+  await apiCall('simple-predictions', 'POST', body);
 }
 
 // Replace the current user's simple prediction for a league with the payload
@@ -398,15 +400,12 @@ export async function copySimplePrediction(userId, sourceLeagueId, targetLeagueI
   return { copied: 1 };
 }
 
-// Clear a user's simple prediction for a specific league (resets the doc).
+// Reset a user's simple prediction for a specific league. Server enforces
+// that no stage has locked yet; once any stage starts, reset returns 403
+// with the locked sections listed.
 export async function resetSimplePrediction(userId, leagueId) {
   if (!userId || !leagueId) return;
-  await saveSimplePrediction(userId, leagueId, {
-    groupPredictions: {},
-    bestThirdPicks: [],
-    knockoutPredictions: { roundOf32: [], roundOf16: [], quarterFinals: [], semiFinals: [], thirdPlace: [], final: [] },
-    isComplete: false,
-  });
+  await apiCall('simple-predictions', 'DELETE', { leagueId });
 }
 
 export async function getSimpleLeaderboard(leagueId) {

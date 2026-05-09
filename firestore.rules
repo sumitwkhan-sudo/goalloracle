@@ -59,29 +59,20 @@ service cloud.firestore {
                    && request.resource.data.userId == request.auth.uid;
     }
 
-    // Simple Mode predictions — one doc per (user, league) pair with composite
-    // doc ID `${userId}__${leagueId}`. Legacy docs with doc ID == userId
-    // (pre-per-league refactor) represent the user's Global Simple picks and
-    // are still writable by that user.
-    // Reads are public so leaderboards work.
+    // Quick Picks predictions — one doc per (user, league) pair with composite
+    // doc ID `${userId}__${leagueId}`. Reads are public so leaderboards and
+    // public bracket views work.
+    //
+    // Writes are SERVER-ONLY via /api/simple-predictions, which validates
+    // stage locks (group stage / R32 / R16 / QF / SF / 3rd / Final each
+    // freeze 5 minutes before that stage's first match kicks off). Without
+    // server enforcement a user with devtools could edit picks for matches
+    // already in progress.
     match /simplePredictions/{docId} {
       allow read: if true;
-      // Create / update: the auth'd user must own the doc (resource.data.userId
-      // matches their uid). The legacy path (docId == userId) is still supported.
-      allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid
-                    && (docId == request.auth.uid
-                        || docId.matches('^' + request.auth.uid + '__.+'));
-      allow update: if request.auth != null
-                    && resource.data.userId == request.auth.uid
-                    && request.resource.data.userId == request.auth.uid
-                    // submittedAt is the tiebreaker — never overwrite once set
-                    && (!('submittedAt' in resource.data)
-                        || resource.data.submittedAt == null
-                        || request.resource.data.submittedAt == resource.data.submittedAt);
+      allow write: if false;
 
-      // Per-league score docs under the prediction doc.
-      // Writes come from the server (admin SDK bypasses rules); clients only read.
+      // Per-league score docs under the prediction doc. Server-only writes.
       match /scores/{leagueId} {
         allow read: if true;
         allow write: if false;

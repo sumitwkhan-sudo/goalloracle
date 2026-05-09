@@ -29,7 +29,7 @@ import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { isPredictionLocked } from '../utils/points';
+import { isMatchStageLocked } from '../utils/stageLock';
 import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
@@ -144,11 +144,10 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     return out;
   }, []);
 
-  const isMatchLocked = useCallback((matchId) => {
-    const m = matchLookup[matchId];
-    if (!m) return false;
-    return isPredictionLocked(m.date, m.time);
-  }, [matchLookup]);
+  // Stage-based lock: every match in a stage freezes simultaneously when the
+  // first match of that stage kicks off (5-min buffer). Lets users keep
+  // editing later-stage picks even after earlier stages have started.
+  const isMatchLocked = useCallback((matchId) => isMatchStageLocked(matchId), []);
 
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
