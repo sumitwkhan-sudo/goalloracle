@@ -943,7 +943,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
               but they duplicated the LeagueLeaderboardLayout header
               right below — kept just the back button + leave action. */}
           <button className="btn-back-sm btn-back-sm-named" onClick={onBack}>
-            &larr; <span>{authenticated ? 'Leagues' : 'Home'}</span>
+            &larr; <span>{authenticated ? 'Back to My Leagues' : 'Home'}</span>
           </button>
         </div>
         {/* Leave button is page-level so it's reachable from any
@@ -958,7 +958,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             onClick={onLeaveLeague}
             title="Leave this league"
           >
-            <LogOut size={13} aria-hidden="true" /> Leave
+            <LogOut size={13} aria-hidden="true" /> Leave League
           </button>
         )}
       </div>
@@ -2574,7 +2574,7 @@ const GoalOracle = () => {
             ))}
           </div>
           <button type="button" className="leagues-browse" onClick={() => nav('browse')}>
-            <Search size={13} aria-hidden="true" /> Browse
+            <Search size={13} aria-hidden="true" /> Join another league
           </button>
         </div>
 
@@ -2596,7 +2596,7 @@ const GoalOracle = () => {
                 Open Global <ChevronRight size={14} aria-hidden="true" />
               </button>
               <button type="button" className="leagues-hero-secondary" onClick={() => nav('browse')}>
-                Browse leagues
+                Join another league
               </button>
             </div>
           </div>
