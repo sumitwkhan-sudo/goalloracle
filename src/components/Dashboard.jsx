@@ -8,11 +8,7 @@ import { calculateXP, getLevelInfo } from '../utils/xp';
 import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints, getMatchStatus, sortLeaderboard } from '../utils/points';
 import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
 import AnimatedCounter from './AnimatedCounter';
-import BoldestCallCard from './simple/BoldestCallCard';
-import BracketSurvivalCard from './simple/BracketSurvivalCard';
-import BracketAlignmentCard from './simple/BracketAlignmentCard';
-import GroupBoldnessCard from './simple/GroupBoldnessCard';
-import MarketOddsCard from './simple/MarketOddsCard';
+import InsightsCarousel from './simple/InsightsCarousel';
 import NewsFeed from './NewsFeed';
 
 const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
@@ -268,35 +264,11 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Insights — meta-commentary on the user's bracket. Each card
-          self-gates on having enough data to be meaningful, so the row
-          collapses gracefully when consensus is thin. Three across on
-          desktop; stacks on mobile via the .td-insights-row media query. */}
-      <section className="td-insights-row" aria-label="Bracket insights">
-        <div className="td-section-label td-insights-label">Insights</div>
-        {/* Two-zone layout:
-              .td-insights-pack — 2×2 grid of four equal-size thin cards
-                                  (3 about the user's bracket + 1 vs market).
-              Bracket Survival   — full-height taller card on the right
-                                  whose per-round bars need vertical room
-                                  the four short cards don't. */}
-        <div className="td-insights-grid">
-          {/* 4 thin cards in a 2×2 pack — three about the user's
-              picks (knockout boldness, group-stage upsets, whole-
-              bracket alignment with the crowd) plus one external
-              comparison against FIFA's world ranking from internal
-              data. Group Boldness + FIFA Ranks don't depend on
-              crowd consensus, so they always render once the user
-              has any picks. */}
-          <div className="td-insights-pack">
-            {uData?.id && <BoldestCallCard userId={uData.id} leagueId="global-simple" />}
-            {uData?.id && <GroupBoldnessCard userId={uData.id} leagueId="global-simple" />}
-            {uData?.id && <BracketAlignmentCard userId={uData.id} leagueId="global-simple" />}
-            {uData?.id && <MarketOddsCard userId={uData.id} leagueId="global-simple" />}
-          </div>
-          {uData?.id && <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />}
-        </div>
-      </section>
+      {/* Insights — per-league carousel. Defaults to Global QP and
+          lets the user swipe / arrow through every other Quick Picks
+          league they're a member of. Each card refetches per league
+          via key remount inside the carousel. */}
+      <InsightsCarousel userId={uData?.id} leagues={ml} />
 
       <NewsFeed />
 
