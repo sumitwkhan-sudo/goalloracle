@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -152,6 +152,31 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       setSmokeTestError(e.message || 'Smoke test failed');
       notify('Smoke test failed: ' + e.message, 'error');
     } finally { setSmokeTestLoading(false); }
+  };
+
+  const [cronStatus, setCronStatus] = useState(null);
+  const [cronLoading, setCronLoading] = useState(null);
+  const runAutoPollNow = async () => {
+    setCronLoading('poll');
+    try {
+      const data = await adminRunAutoPoll();
+      setCronStatus({ kind: 'poll', data });
+      notify(`Auto-poll done: ${data.ingested} ingested, ${data.disputed} disputed, ${data.partial} partial, ${data.candidates} candidate(s)`);
+    } catch (e) {
+      setCronStatus({ kind: 'poll', error: e.message });
+      notify('Auto-poll failed: ' + e.message, 'error');
+    } finally { setCronLoading(null); }
+  };
+  const runDailyReportNow = async () => {
+    setCronLoading('report');
+    try {
+      const data = await adminRunDailyReport();
+      setCronStatus({ kind: 'report', data });
+      notify(data.emailed ? 'Daily report sent to your inbox' : `Report ran but email FAILED: ${data.emailError || 'unknown'}`, data.emailed ? 'success' : 'error');
+    } catch (e) {
+      setCronStatus({ kind: 'report', error: e.message });
+      notify('Daily report failed: ' + e.message, 'error');
+    } finally { setCronLoading(null); }
   };
 
   useEffect(() => {
@@ -776,6 +801,62 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* ─── Manual cron triggers (post-deploy verification) ─── */}
+          <div className="admin-panel-head" style={{ marginTop: '2rem' }}>
+            <div>
+              <h2>Verify Automation</h2>
+              <p className="admin-panel-desc">Click these once after deploy to confirm the scheduled crons are wired up correctly. Both run automatically on schedule otherwise — these buttons just trigger the same handler now so you get instant feedback.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={runAutoPollNow} disabled={cronLoading !== null}>
+                {cronLoading === 'poll' ? <><RefreshCw size={13} className="spin" /> Running…</> : <>Run Auto-Poll Now</>}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={runDailyReportNow} disabled={cronLoading !== null}>
+                {cronLoading === 'report' ? <><RefreshCw size={13} className="spin" /> Sending…</> : <>Email Daily Report Now</>}
+              </button>
+            </div>
+          </div>
+
+          {cronStatus?.error && (
+            <div className="admin-oracle-info" style={{ borderColor: 'rgba(255,59,92,0.15)', background: 'rgba(255,59,92,0.04)', color: 'var(--danger)' }}>
+              <AlertTriangle size={14} />
+              <span>{cronStatus.kind === 'poll' ? 'Auto-poll' : 'Daily report'} error: {cronStatus.error}</span>
+            </div>
+          )}
+
+          {cronStatus?.data && cronStatus.kind === 'poll' && (
+            <div className="admin-contract-card">
+              <div className="admin-contract-row">
+                <span className="admin-contract-lbl">Auto-poll result</span>
+                <span className="admin-env-status set"><CheckCircle size={12} /> ran at {new Date(cronStatus.data.runAt).toLocaleString()}</span>
+              </div>
+              <div className="admin-contract-row"><span className="admin-contract-lbl" style={{ paddingLeft: '0.75rem' }}>Candidates (matches finished, not yet ingested)</span><span className="admin-contract-val">{cronStatus.data.candidates}</span></div>
+              <div className="admin-contract-row"><span className="admin-contract-lbl" style={{ paddingLeft: '0.75rem' }}>Newly ingested</span><span className="admin-contract-val">{cronStatus.data.ingested}</span></div>
+              <div className="admin-contract-row"><span className="admin-contract-lbl" style={{ paddingLeft: '0.75rem' }}>Disputed (sources disagree)</span><span className="admin-contract-val" style={{ color: cronStatus.data.disputed > 0 ? 'var(--danger)' : 'var(--text-2)' }}>{cronStatus.data.disputed}</span></div>
+              <div className="admin-contract-row"><span className="admin-contract-lbl" style={{ paddingLeft: '0.75rem' }}>Partial (only one source)</span><span className="admin-contract-val">{cronStatus.data.partial}</span></div>
+              {cronStatus.data.errors?.length > 0 && (
+                <div className="admin-contract-row"><span className="admin-contract-lbl" style={{ paddingLeft: '0.75rem' }}>Errors</span><span className="admin-contract-val" style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{cronStatus.data.errors.length} — see Vercel logs</span></div>
+              )}
+            </div>
+          )}
+
+          {cronStatus?.data && cronStatus.kind === 'report' && (
+            <div className="admin-contract-card">
+              <div className="admin-contract-row">
+                <span className="admin-contract-lbl">Daily report</span>
+                <span className={`admin-env-status ${cronStatus.data.emailed ? 'set' : 'missing'}`}>
+                  {cronStatus.data.emailed
+                    ? <><CheckCircle size={12} /> Email sent — check your inbox</>
+                    : <><AlertTriangle size={12} /> Email FAILED: {cronStatus.data.emailError || 'unknown'}</>}
+                </span>
+              </div>
+              <div className="admin-contract-row"><span className="admin-contract-lbl" style={{ paddingLeft: '0.75rem' }}>Status</span><span className="admin-contract-val" style={{ color: cronStatus.data.allGreen ? 'var(--text-2)' : 'var(--danger)' }}>{cronStatus.data.allGreen ? 'All green' : `${cronStatus.data.issues?.length || 0} issue(s)`}</span></div>
+              {cronStatus.data.missing?.length > 0 && (
+                <div className="admin-contract-row"><span className="admin-contract-lbl" style={{ paddingLeft: '0.75rem' }}>Missing match results</span><span className="admin-contract-val" style={{ fontSize: '0.75rem' }}>{cronStatus.data.missing.slice(0, 5).join(', ')}{cronStatus.data.missing.length > 5 ? '…' : ''}</span></div>
+              )}
             </div>
           )}
         </div>

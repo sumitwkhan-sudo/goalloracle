@@ -172,39 +172,89 @@ hasn't updated):
 
 ---
 
-## What's NOT automated (real gaps you should know about)
+## What's automated end-to-end now
 
-1. **Auto-rescore on result update.** If you correct a match result after
-   it's been first scored (rare — operator typo or retroactive
-   disqualification), Quick Picks scores re-render on next page load
-   because scoring is computed on render. No re-notification or audit
-   log entry. Lower priority; you'd notice from the daily report email.
+The system now handles the full tournament lifecycle without operator
+clicks (assuming env vars are set):
 
-2. **Knockout-stage auto-polling can't look up matches by team name yet.**
-   The poll-results cron can ingest group-stage matches automatically
-   because team names are known up front. For knockout matches, the
-   home/away fields are placeholders ("W R32-01", "1st Group A", etc.)
-   until the bracket is resolved. The cron skips those — you'd need to
-   manually click "Update Result" for knockout matches in admin, OR I can
-   build a follow-up that resolves the bracket from results and refills
-   the matches.js team names dynamically. Tell me when knockouts approach.
+- **Group-stage results**: auto-poll cron ingests every 30 min once a
+  match has been finished for 3+ hours.
+- **Group standings**: the daily report email fetches live standings from
+  api-football (or football-data.org as fallback) and includes a per-group
+  table so you can spot-check that the upstream agrees with our results.
+- **Third-place qualification**: the daily report includes the FIFA Article
+  13 cross-group ranking with a clear cutoff line between rows 8 and 9
+  (advances vs eliminated).
+- **Knockout-stage results**: as group-stage results land, the bracket
+  resolver figures out who's playing in each R32 match. Once R32 results
+  land, R16 matchups resolve. Same for QF, SF, 3rd place, Final. The
+  auto-poll cron then ingests each knockout match by the resolved real
+  team names.
+
+## What still needs human input (rare cases)
+
+1. **Disputed match results** — when both oracle APIs disagree, you get an
+   alert email immediately. Open admin → Matches → Edit Result for that
+   match and enter the score manually.
+2. **Auto-rescore on operator correction** — if you fix a typo'd result
+   you'll get an alert email so you know it happened. Quick Picks scores
+   self-correct on the next leaderboard render.
 
 ---
 
 ## TL;DR — What you should actually do this week
 
-1. **Merge the new PR** (link in the chat — covers stage locks, oracle
-   parsers, smoke-test buttons, and now auto-poll + daily email).
-2. **Set 3 env vars in Vercel**:
-   - `CRON_SECRET` = any long random string (auths the daily crons)
-   - `REPORT_EMAIL` = your email (where daily reports go; falls back to
-     `FEEDBACK_EMAIL` if unset)
-   - Confirm `FOOTBALL_DATA_API_KEY` and `APISPORTS_API_KEY` are both
-     set (you mentioned only one is, fix the missing one)
-3. **Wait for the next scheduled cron** (or open the admin Oracle tab and
-   click "Test EPL" to verify manually).
-4. **Watch your inbox for the daily email** — it tells you everything's
-   green, or what's broken.
+After deploy, do these in order. All are clicks; no terminal.
 
-That's it. Once the env vars are set, the system runs itself. The email
-is your only required interaction.
+### 1. Set env vars in Vercel
+
+Go to Vercel → your project → Settings → Environment Variables. Confirm
+or add:
+
+| Var | Value |
+|---|---|
+| `CRON_SECRET` | Any 32+ char random string. Just mash your keyboard. |
+| `REPORT_EMAIL` | Your email (skip if you want it to use `FEEDBACK_EMAIL`) |
+| `FOOTBALL_DATA_API_KEY` | The one currently missing |
+| `APISPORTS_API_KEY` | Already set per your message |
+| `RESEND_API_KEY` | Already set (used for sign-in emails too) |
+
+### 2. Open admin → Oracle tab and click 4 buttons
+
+Each button gives instant pass/fail feedback so you don't need to wait
+for a scheduled cron run.
+
+1. **Run Health Check** at the top — both rows should turn green.
+2. **Test EPL** under "Live End-to-End Test" — should show ~6 green ✓
+   rows. The bottom row "two sources agree" is the critical one.
+3. **Run Auto-Poll Now** under "Verify Automation" — pre-tournament,
+   this should report `0 candidates, 0 ingested`. That's correct: no
+   matches have happened yet, so nothing to ingest.
+4. **Email Daily Report Now** under "Verify Automation" — within 1
+   minute, you should get an email titled `[GoalOracle] Daily — all
+   green (0 matches verified in 24h)`. **If the email arrives, the
+   entire automation chain works. If it doesn't, check spam, then ping
+   me.**
+
+If anything goes wrong, the system also sends an alert email
+automatically with a "What to do" section walking you through the fix.
+You should never get the alert email **unless something is genuinely
+broken**.
+
+### 3. After June 11 — do nothing
+
+Crons run themselves. You'll get one daily email at 08:00 UTC saying
+either "all green" or listing what needs attention. If a match result
+goes disputed (oracles disagree), an alert email fires immediately
+with steps to resolve it.
+
+The only things that still need human input during the tournament:
+
+- **Disputed match results** — when both oracles disagree, you'll get
+  an alert. Open admin → Matches → Edit Result for that match and
+  enter the score manually.
+- **Knockout matches** — auto-polling currently skips matches whose
+  teams aren't yet known (placeholder team names like "W R32-01"). For
+  those, click admin → Matches → Edit Result and enter the score
+  yourself. I'll build automatic knockout polling between R32 and R16
+  if you want.

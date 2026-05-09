@@ -1,6 +1,7 @@
 import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { ipHash } from './_lib/security.js';
+import { sendOperatorAlert } from './_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
 async function getRole(userId) {
@@ -54,16 +55,57 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing match data' });
       }
 
+      // Detect re-score: if a verified result already exists with different
+      // numbers, this is a correction (operator typo or retroactive
+      // disciplinary action). Quick Picks scoring re-renders on every page
+      // load so user leaderboards self-correct, but the operator should
+      // know this happened — alert email plus extended audit log entry.
+      const prevSnap = await db.collection('matchResults').doc(matchId).get();
+      const prev = prevSnap.exists ? prevSnap.data() : null;
+      const newH = parseInt(homeScore);
+      const newA = parseInt(awayScore);
+      const isCorrection = prev?.completed === true && (
+        prev.homeScore !== newH ||
+        prev.awayScore !== newA ||
+        !!prev.extraTime !== !!extraTime ||
+        !!prev.penalties !== !!penalties
+      );
+
       await db.collection('matchResults').doc(matchId).set({
         matchId,
-        homeScore: parseInt(homeScore),
-        awayScore: parseInt(awayScore),
+        homeScore: newH,
+        awayScore: newA,
         extraTime: extraTime || false,
         penalties: penalties || false,
         completed: true,
         updatedBy: userId,
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      if (isCorrection) {
+        await sendOperatorAlert(
+          `Match result corrected: ${matchId}`,
+          {
+            what: `An admin (${userId}) just changed a previously-verified match result. Quick Picks scoring is computed on every leaderboard render, so user leaderboards will reflect the new numbers automatically on the next page load. No manual rescore needed — but you should know this happened in case it was unintended.`,
+            why: [
+              'Operator typo on the original result entry',
+              'VAR overturn / retroactive disciplinary action that the oracle hadn\'t picked up',
+              'Manual override of an oracle-verified score',
+            ],
+            resolution: [
+              'If this was you and intentional: ignore this email.',
+              'If this was unexpected: check adminLogs for `update_match_result` entries on this match to see who changed it and when.',
+              `Match: ${matchId}. Previous: ${prev.homeScore}-${prev.awayScore} (ET=${!!prev.extraTime}, PEN=${!!prev.penalties}). New: ${newH}-${newA} (ET=${!!extraTime}, PEN=${!!penalties}).`,
+            ],
+            context: {
+              matchId,
+              previous: `${prev.homeScore}-${prev.awayScore} ET=${!!prev.extraTime} PEN=${!!prev.penalties}`,
+              new: `${newH}-${newA} ET=${!!extraTime} PEN=${!!penalties}`,
+              changedBy: userId,
+            },
+          },
+        );
+      }
 
       // Log admin action
       await db.collection('adminLogs').add({

@@ -18,8 +18,13 @@
  */
 
 import { db, admin, applyCors, verifyAuth } from '../_lib/firebase.js';
-import { parseFootballDataResponse, parseApiSportsResponse } from '../_lib/oracleParsers.js';
+import {
+  parseFootballDataResponse, parseApiSportsResponse,
+  parseApiSportsStandings, parseFootballDataStandings,
+  rankThirdPlacedTeamsFromStandings,
+} from '../_lib/oracleParsers.js';
 import { escapeHtml } from '../_lib/security.js';
+import { sendOperatorAlert } from '../_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -66,17 +71,77 @@ async function probeOracle2() {
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
+// Pulls live group standings. Tries api-sports.io first (better group
+// structure for tournament standings), falls back to football-data.org.
+// Either source's failure surfaces as `null` so the email still ships.
+async function fetchStandings() {
+  const asKey = process.env.APISPORTS_API_KEY;
+  if (asKey) {
+    try {
+      const r = await fetch('https://v3.football.api-sports.io/standings?league=1&season=2026', {
+        headers: { 'x-apisports-key': asKey },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        return parseApiSportsStandings(data);
+      }
+    } catch { /* fall through */ }
+  }
+  const fdKey = process.env.FOOTBALL_DATA_API_KEY;
+  if (fdKey) {
+    try {
+      const r = await fetch('https://api.football-data.org/v4/competitions/WC/standings', {
+        headers: { 'X-Auth-Token': fdKey },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        return parseFootballDataStandings(data);
+      }
+    } catch { /* fall through */ }
+  }
+  return null;
+}
+
 export default async function handler(req, res) {
   applyCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).json({});
 
   if (!(await isAuthorized(req))) return res.status(401).json({ error: 'Unauthorized' });
 
+  try {
+    return await runReport(req, res);
+  } catch (e) {
+    console.error('[cron/daily-report] fatal:', e);
+    await sendOperatorAlert(
+      'Daily health report crashed — no email today',
+      {
+        what: 'The /api/cron/daily-report endpoint threw an uncaught error before it could send the daily summary. You did not receive the normal daily-health email. The cron will run again tomorrow at 08:00 UTC.',
+        why: [
+          'Database read failure (Firestore admin SDK timeout or quota)',
+          'Resend API issue',
+          'Code bug in the report generator',
+        ],
+        resolution: [
+          'Check Vercel → Functions → Logs for /api/cron/daily-report.',
+          'If it crashes a second day in a row, reply to this email and I can investigate.',
+          'Meanwhile, open the admin → Oracle tab and click "Run Health Check" + "Test EPL" to do the same checks manually.',
+        ],
+        context: { error: e.message, stack: (e.stack || '').slice(0, 500) },
+      },
+    );
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+async function runReport(req, res) {
   const now = Date.now();
   const FT_GRACE_MS = 3 * 60 * 60 * 1000;
 
   // ── 1. Oracle health ──
-  const [o1, o2] = await Promise.all([probeOracle1(), probeOracle2()]);
+  const [o1, o2, standings] = await Promise.all([probeOracle1(), probeOracle2(), fetchStandings()]);
+  const top3rds = standings ? rankThirdPlacedTeamsFromStandings(standings) : [];
 
   // ── 2. Match results ──
   const resultsSnap = await db.collection('matchResults').get();
@@ -174,6 +239,30 @@ export default async function handler(req, res) {
       <tr><td style="padding:6px 0;color:#666">Partial (only one source returned)</td><td style="padding:6px 0;text-align:right;color:${partial.length === 0 ? '#0d4a2c' : '#7a1d1d'};font-weight:600">${partial.length}${partial.length > 0 ? ' — ' + escapeHtml(partial.join(', ')) : ''}</td></tr>
     </table>
 
+    ${standings && Object.keys(standings.groups).length > 0 ? `
+    <h3 style="font-size:14px;color:#444;margin:18px 0 8px;text-transform:uppercase;letter-spacing:0.5px">Group standings (live from upstream)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      ${Object.entries(standings.groups).sort(([a], [b]) => a.localeCompare(b)).map(([letter, rows]) => `
+        <div style="border:1px solid #eee;border-radius:6px;padding:8px 10px">
+          <div style="font-weight:600;font-size:13px;color:#333;margin-bottom:4px">Group ${escapeHtml(letter)}</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            ${rows.slice(0, 4).map((r) => `<tr style="${r.rank === 3 ? 'color:#a05a00;font-style:italic' : ''}"><td style="padding:2px 0;width:14px">${r.rank}</td><td style="padding:2px 4px">${escapeHtml(r.teamName)}</td><td style="padding:2px 0;text-align:right">${r.played}</td><td style="padding:2px 0;text-align:right">${r.points}</td></tr>`).join('')}
+          </table>
+        </div>
+      `).join('')}
+    </div>
+    <p style="color:#888;font-size:11px;margin:6px 0 0">Italic = 3rd place. Top 2 from each group + best 8 of 12 third-placed teams advance to R32.</p>
+    ` : `<p style="color:#888;font-size:13px;margin:18px 0 0;font-style:italic">Group standings unavailable — both upstream APIs returned an error or no group data is published yet.</p>`}
+
+    ${top3rds.length === 12 ? `
+    <h3 style="font-size:14px;color:#444;margin:18px 0 8px;text-transform:uppercase;letter-spacing:0.5px">Third-placed teams (FIFA Article 13 ranking)</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr style="border-bottom:1px solid #eee"><th style="text-align:left;padding:6px 4px;color:#666;font-weight:600">#</th><th style="text-align:left;padding:6px 4px;color:#666;font-weight:600">Group</th><th style="text-align:left;padding:6px 4px;color:#666;font-weight:600">Team</th><th style="text-align:right;padding:6px 4px;color:#666;font-weight:600">Pts</th><th style="text-align:right;padding:6px 4px;color:#666;font-weight:600">GD</th><th style="text-align:right;padding:6px 4px;color:#666;font-weight:600">GF</th><th style="text-align:left;padding:6px 4px;color:#666;font-weight:600">Status</th></tr>
+      ${top3rds.map((t, i) => `<tr style="${i === 7 ? 'border-bottom:2px solid #888' : ''}"><td style="padding:4px;${i < 8 ? 'font-weight:600' : 'color:#999'}">${i + 1}</td><td style="padding:4px">${escapeHtml(t.groupLetter)}</td><td style="padding:4px;${i < 8 ? 'font-weight:600' : 'color:#999'}">${escapeHtml(t.teamName)}</td><td style="padding:4px;text-align:right">${t.points}</td><td style="padding:4px;text-align:right">${t.goalDiff > 0 ? '+' : ''}${t.goalDiff}</td><td style="padding:4px;text-align:right">${t.goalsFor}</td><td style="padding:4px;color:${i < 8 ? '#0d4a2c' : '#a0a0a0'}">${i < 8 ? 'Advances to R32' : 'Eliminated'}</td></tr>`).join('')}
+    </table>
+    <p style="color:#888;font-size:11px;margin:6px 0 0">The line between row 8 and row 9 is the qualification cutoff. Tiebreakers: points → goal difference → goals scored → group letter (deterministic).</p>
+    ` : ''}
+
     <h3 style="font-size:14px;color:#444;margin:18px 0 8px;text-transform:uppercase;letter-spacing:0.5px">Quick Picks leagues — top 5 by size</h3>
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <tr style="border-bottom:1px solid #eee"><th style="text-align:left;padding:6px 0;color:#666;font-weight:600">League</th><th style="text-align:right;padding:6px 0;color:#666;font-weight:600">Members</th><th style="text-align:right;padding:6px 0;color:#666;font-weight:600">Submitted</th><th style="text-align:right;padding:6px 0;color:#666;font-weight:600">Complete</th></tr>
@@ -240,5 +329,9 @@ export default async function handler(req, res) {
     disputed,
     partial,
     leaguesReported: leagueStats.length,
+    standingsAvailable: !!standings,
+    standingsSource: standings?.source || null,
+    groupCount: standings ? Object.keys(standings.groups).length : 0,
+    thirdPlaceQualifiers: top3rds.length === 12 ? top3rds.slice(0, 8).map((t) => ({ group: t.groupLetter, team: t.teamName, points: t.points, goalDiff: t.goalDiff })) : null,
   });
 }
