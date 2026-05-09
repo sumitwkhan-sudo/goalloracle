@@ -112,7 +112,7 @@ function parseRoute() {
 // Read-only modal that shows another user's Simple Mode picks (group rankings,
 // best-third picks, and knockout bracket winners) OR their Classic Mode
 // match-by-match predictions.
-function PicksViewer({ target, onClose }) {
+function PicksViewer({ target, onClose, onEdit, onShare, isOwn = false }) {
   const isClassic = target?.mode === 'classic';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(!isClassic); // classic data comes pre-loaded via target
@@ -244,6 +244,9 @@ function PicksViewer({ target, onClose }) {
       groupsLocal={GROUPS_LOCAL}
       roundOrder={roundOrder}
       roundLabel={roundLabel}
+      onEdit={onEdit}
+      onShare={onShare}
+      isOwn={isOwn}
     />
   );
 }
@@ -255,7 +258,7 @@ function PicksViewer({ target, onClose }) {
 // editing. Extracted into its own component so we can use hooks
 // (useBracketState, useBracketLayout) that the outer PicksViewer can't
 // call before the early classic-mode return.
-function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, groupsLocal, roundOrder, roundLabel }) {
+function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, groupsLocal, roundOrder, roundLabel, onEdit, onShare, isOwn }) {
   const [tab, setTab] = useState('groups');
   const layout = useBracketLayout();
 
@@ -286,11 +289,23 @@ function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, grou
           <div className="picks-viewer-title">
             <div className="picks-viewer-avatar">{target.displayName?.[0]?.toUpperCase() || '?'}</div>
             <div>
-              <h3>{target.displayName}&rsquo;s picks</h3>
-              <span className="picks-viewer-sub">Quick Picks</span>
+              <h3>{isOwn ? 'Your bracket' : `${target.displayName}'s picks`}</h3>
+              <span className="picks-viewer-sub">Quick Picks{target.leagueName ? ` · ${target.leagueName}` : ''}</span>
             </div>
           </div>
-          <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
+          <div className="picks-viewer-actions">
+            {isOwn && onEdit && (
+              <button type="button" className="picks-viewer-action" onClick={onEdit} title="Edit your picks">
+                <Pencil size={14} aria-hidden="true" /> Edit
+              </button>
+            )}
+            {isOwn && onShare && (
+              <button type="button" className="picks-viewer-action picks-viewer-action-primary" onClick={onShare} title="Share your bracket">
+                <Share2 size={14} aria-hidden="true" /> Share
+              </button>
+            )}
+            <button type="button" className="picks-viewer-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
+          </div>
         </div>
 
         {loading ? (
@@ -302,32 +317,42 @@ function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, grou
         ) : (
           <div className="picks-viewer-body">
             {/* Champion / runner-up / 3rd place podium kept above the
-                tabs — that's the headline summary. Tabs swap below. */}
-            <div className="picks-viewer-finalists">
-              <div className="picks-viewer-podium">
-                <div className="podium-slot podium-winner">
-                  <Trophy size={20} className="gold" />
-                  <span className="podium-label">Champion</span>
-                  <span className="podium-team">
-                    {target.winner ? <>{_teamFlags[target.winner] || ''} {target.winner}</> : <span className="podium-empty">—</span>}
-                  </span>
+                tabs — that's the headline summary. Tabs swap below.
+                Own-bracket views skip the pre-fetched target.winner /
+                runnerUp (which the leaderboard supplies) and derive
+                directly from the loaded prediction doc instead. */}
+            {(() => {
+              const finalSlot = data?.knockoutPredictions?.final?.[0];
+              const winner = target.winner || finalSlot?.winnerId || null;
+              const runnerUp = target.runnerUp || finalSlot?.loserId || null;
+              return (
+                <div className="picks-viewer-finalists">
+                  <div className="picks-viewer-podium">
+                    <div className="podium-slot podium-winner">
+                      <Trophy size={20} className="gold" />
+                      <span className="podium-label">Champion</span>
+                      <span className="podium-team">
+                        {winner ? <>{_teamFlags[winner] || ''} {winner}</> : <span className="podium-empty">—</span>}
+                      </span>
+                    </div>
+                    <div className="podium-slot podium-runner">
+                      <Award size={18} className="silver" />
+                      <span className="podium-label">Runner-up</span>
+                      <span className="podium-team">
+                        {runnerUp ? <>{_teamFlags[runnerUp] || ''} {runnerUp}</> : <span className="podium-empty">—</span>}
+                      </span>
+                    </div>
+                    <div className="podium-slot podium-third">
+                      <Award size={16} className="bronze" />
+                      <span className="podium-label">3rd place</span>
+                      <span className="podium-team">
+                        {thirdPlace ? <>{_teamFlags[thirdPlace] || ''} {thirdPlace}</> : <span className="podium-empty">—</span>}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="podium-slot podium-runner">
-                  <Award size={18} className="silver" />
-                  <span className="podium-label">Runner-up</span>
-                  <span className="podium-team">
-                    {target.runnerUp ? <>{_teamFlags[target.runnerUp] || ''} {target.runnerUp}</> : <span className="podium-empty">—</span>}
-                  </span>
-                </div>
-                <div className="podium-slot podium-third">
-                  <Award size={16} className="bronze" />
-                  <span className="podium-label">3rd place</span>
-                  <span className="podium-team">
-                    {thirdPlace ? <>{_teamFlags[thirdPlace] || ''} {thirdPlace}</> : <span className="podium-empty">—</span>}
-                  </span>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             <div className="pv-tabs" role="tablist" aria-label="Picks view">
               <button
@@ -618,7 +643,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -861,6 +886,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             onEdit={() => setSTab('predictions')}
             onInvite={handleInvite}
             onShareBracket={openShareBracket}
+            onLeave={!isGlobal ? onLeaveLeague : undefined}
             loading={simLbl}
           />
         );
@@ -2144,6 +2170,27 @@ const GoalOracle = () => {
   // Page paired with LeagueLeaderboardLayout: same row anatomy, hairline
   // dividers, chevron-only nav, one-state-pill cascade. Tap = navigate.
   const LeaguesList = () => {
+    // "View bracket" opens the read-only PicksViewer with the user's
+    // own prediction doc — better UX than dumping them into the wizard.
+    // Edit + Share affordances are wired through to the existing nav
+    // and a lightweight referral-link share so we don't need to lift
+    // the BracketShareModal up to the root for one extra entry point.
+    const [viewingOwnBracket, setViewingOwnBracket] = useState(null);
+    const handleShareFromViewer = useCallback(async () => {
+      const userId = uData?.id;
+      if (!userId) return;
+      const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
+      const url = `${origin}/u/${encodeURIComponent(userId)}/bracket?ref=${encodeURIComponent(userId)}`;
+      const text = `Check out my World Cup 2026 bracket on GoalOracle: ${url}`;
+      try {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({ title: 'My GoalOracle bracket', text, url });
+        } else {
+          await navigator.clipboard.writeText(url);
+          notify?.('Bracket link copied — share it with friends');
+        }
+      } catch { /* user cancelled native share */ }
+    }, []);
     const seedAll = leagues.length > 0 ? leagues : [
       { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
     ];
@@ -2248,7 +2295,7 @@ const GoalOracle = () => {
           onClick={() => nav('detail', league)}
           onLeaderboard={() => nav('detail', league, { tab: 'leaderboard' })}
           onEditPicks={() => nav('detail', league, { tab: 'predictions' })}
-          onViewBracket={() => nav('detail', league, { tab: 'predictions' })}
+          onViewBracket={() => setViewingOwnBracket(league)}
         />
       );
     };
@@ -2338,6 +2385,25 @@ const GoalOracle = () => {
               <Plus size={14} aria-hidden="true" /> Create your first league
             </button>
           </div>
+        )}
+
+        {viewingOwnBracket && uData?.id && (
+          <PicksViewer
+            target={{
+              userId: uData.id,
+              displayName: uData.displayName || 'You',
+              leagueId: viewingOwnBracket.id,
+              leagueName: viewingOwnBracket.name,
+            }}
+            isOwn
+            onEdit={() => {
+              const league = viewingOwnBracket;
+              setViewingOwnBracket(null);
+              nav('detail', league, { tab: 'predictions' });
+            }}
+            onShare={handleShareFromViewer}
+            onClose={() => setViewingOwnBracket(null)}
+          />
         )}
       </div>
     );
@@ -3986,6 +4052,25 @@ const GoalOracle = () => {
           notify={notify}
           onBrowseLeagues={() => nav('browse')}
           onCreateLeague={() => nav('create')}
+          onLeaveLeague={async () => {
+            // Confirm + leave + dashboard. Wired from SimpleDetail's
+            // leaderboard header so non-global league members have a
+            // visible exit. The Classic detail page already has the
+            // same handler at line ~2578; this mirrors it for QP.
+            if (!selLeague?.id || !uData?.id) return;
+            const confirmed = window.confirm(
+              `Leave "${selLeague.name}"?\n\n` +
+              `You'll lose access to its leaderboard and standings. Your picks for this league are kept on the server in case you rejoin later.`
+            );
+            if (!confirmed) return;
+            try {
+              await leaveLeague(selLeague.id, uData.id);
+              notify(`Left "${selLeague.name}"`);
+              nav('leagues');
+            } catch (e) {
+              notify(e?.message || 'Could not leave league', 'error');
+            }
+          }}
           onOpenClassic={() => {
             const classic = leagues.find((l) => l.id === 'global') || allLeagues.find((l) => l.id === 'global') || { id: 'global', name: 'Global League', type: 'free', predictionMode: 'classic', isGlobal: true, pointsSystem: { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 } };
             nav('detail', classic, { tab: 'predictions' });
