@@ -1,6 +1,7 @@
-import { db, applyCors, verifyAuth } from './_lib/firebase.js';
+import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { ipHash } from './_lib/security.js';
+import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
 async function getRole(userId) {
   const userSnap = await db.collection('users').doc(userId).get();
@@ -331,6 +332,248 @@ export default async function handler(req, res) {
         timestamp: FieldValue.serverTimestamp(),
       });
       return res.status(200).json({ success: true, migrated, skipped, errors });
+    }
+
+    if (action === 'oracleSmokeTest') {
+      // Server-side smoke test of the oracle pipeline against a real
+      // recent match in a chosen competition. Same checks as
+      // scripts/smoke-test-oracle.mjs but invokable from the admin
+      // dashboard (no terminal required, keys stay on the server).
+      const { parseFootballDataResponse, parseApiSportsResponse, compareResults } = await import('./_lib/oracleParsers.js');
+      const COMPETITION_MAP = {
+        PL: { fdCode: 'PL', asLeague: 39, asSeason: 2024, label: 'English Premier League' },
+        CL: { fdCode: 'CL', asLeague: 2, asSeason: 2024, label: 'UEFA Champions League' },
+        BL1: { fdCode: 'BL1', asLeague: 78, asSeason: 2024, label: 'Bundesliga' },
+        PD: { fdCode: 'PD', asLeague: 140, asSeason: 2024, label: 'La Liga' },
+        SA: { fdCode: 'SA', asLeague: 135, asSeason: 2024, label: 'Serie A' },
+        WC: { fdCode: 'WC', asLeague: 1, asSeason: 2026, label: 'FIFA World Cup' },
+      };
+      const comp = COMPETITION_MAP[(req.body.competition || 'PL').toUpperCase()] || COMPETITION_MAP.PL;
+      const FD_KEY = process.env.FOOTBALL_DATA_API_KEY;
+      const AS_KEY = process.env.APISPORTS_API_KEY;
+      const checks = [];
+      const note = (name, ok, detail = '') => checks.push({ name, ok, detail });
+
+      // 1) football-data.org: pick a recent FINISHED match in this comp
+      let fdMatch = null, fdParsed = null;
+      if (!FD_KEY) note('football-data.org key', false, 'FOOTBALL_DATA_API_KEY not set in Vercel env');
+      else {
+        try {
+          const today = new Date().toISOString().slice(0, 10);
+          const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+          const r = await fetch(
+            `https://api.football-data.org/v4/competitions/${comp.fdCode}/matches?dateFrom=${sevenDaysAgo}&dateTo=${today}`,
+            { headers: { 'X-Auth-Token': FD_KEY } },
+          );
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          const finished = (data.matches || []).filter(m => m.status === 'FINISHED');
+          if (finished.length === 0) note('football-data.org list matches', false, 'no FINISHED matches in last 7 days');
+          else {
+            finished.sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate));
+            fdMatch = finished[0];
+            note('football-data.org list matches', true, `picked ${fdMatch.homeTeam?.name} vs ${fdMatch.awayTeam?.name}`);
+            const detail = await fetch(`https://api.football-data.org/v4/matches/${fdMatch.id}`, { headers: { 'X-Auth-Token': FD_KEY } }).then(r => r.json());
+            fdParsed = parseFootballDataResponse(detail);
+            note('football-data.org parser', true, `${fdParsed.homeScore}-${fdParsed.awayScore} (ET=${fdParsed.extraTime}, PEN=${fdParsed.penalties})`);
+          }
+        } catch (e) {
+          note('football-data.org', false, e.message);
+        }
+      }
+
+      // 2) api-sports.io: cross-check same fixture by date+team-name
+      let asParsed = null;
+      if (!AS_KEY) note('api-sports.io key', false, 'APISPORTS_API_KEY not set in Vercel env');
+      else if (!fdMatch) note('api-sports.io cross-check', false, 'skipped — no anchor match');
+      else {
+        try {
+          const matchDate = fdMatch.utcDate.slice(0, 10);
+          const r = await fetch(
+            `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${comp.asSeason}&date=${matchDate}`,
+            { headers: { 'x-apisports-key': AS_KEY } },
+          );
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          asParsed = parseApiSportsResponse(data, { homeTeam: fdMatch.homeTeam?.name, awayTeam: fdMatch.awayTeam?.name });
+          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})`);
+        } catch (e) {
+          note('api-sports.io', false, e.message);
+        }
+      }
+
+      // 3) Cross-source agreement
+      if (fdParsed && asParsed) {
+        const cmp = compareResults(fdParsed, asParsed);
+        note('two sources agree', cmp.match, cmp.match ? `${fdParsed.homeScore}-${fdParsed.awayScore}` : cmp.details);
+      } else {
+        note('two sources agree', false, 'one or both sources failed');
+      }
+
+      // 4) Standings probes
+      if (FD_KEY) {
+        try {
+          const r = await fetch(`https://api.football-data.org/v4/competitions/${comp.fdCode}/standings`, { headers: { 'X-Auth-Token': FD_KEY } });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          const table = data.standings?.find(s => s.type === 'TOTAL')?.table || [];
+          if (table.length === 0) throw new Error('empty TOTAL table');
+          note('football-data.org standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)`);
+        } catch (e) {
+          note('football-data.org standings', false, e.message);
+        }
+      }
+      if (AS_KEY) {
+        try {
+          const r = await fetch(`https://v3.football.api-sports.io/standings?league=${comp.asLeague}&season=${comp.asSeason}`, { headers: { 'x-apisports-key': AS_KEY } });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          const table = data.response?.[0]?.league?.standings?.[0] || [];
+          if (table.length === 0) throw new Error('empty standings');
+          note('api-sports.io standings', true, `${table.length} teams; #1 ${table[0].team?.name} (${table[0].points} pts)`);
+        } catch (e) {
+          note('api-sports.io standings', false, e.message);
+        }
+      }
+
+      const failed = checks.filter(c => !c.ok).length;
+      await db.collection('adminLogs').add({
+        action: 'oracle_smoke_test',
+        adminId: userId,
+        competition: comp.label,
+        passed: checks.length - failed,
+        failed,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({
+        competition: comp.label,
+        runAt: new Date().toISOString(),
+        passed: checks.length - failed,
+        failed,
+        checks,
+      });
+    }
+
+    if (action === 'reconcile') {
+      // Audit a Quick Picks league. Returns:
+      //   - prediction submission stats (total users / submitted / complete)
+      //   - matchResult ingestion check (every kicked-off match has a result)
+      //   - per-match pick distribution if matchId is provided
+      //   - any users whose picks throw on score computation
+      //
+      // Design note: Quick Picks scoring is currently client-side, so there
+      // is no stored "final score" to reconcile against. This endpoint
+      // surfaces enough data to spot drift manually + flags structurally
+      // bad picks before they cause leaderboard glitches.
+      const { leagueId, matchId } = req.body;
+      if (!leagueId) return res.status(400).json({ error: 'Missing leagueId' });
+
+      // 1) League roster
+      const leagueSnap = await db.collection('leagues').doc(leagueId).get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+      const memberIds = leagueSnap.data().members || [];
+
+      // 2) Predictions for those members in this league. Composite doc IDs
+      //    are `${userId}__${leagueId}`; fall back to legacy `userId` doc
+      //    for global-simple, mirroring /api/simple-leaderboard.
+      const compositeIds = memberIds.map(uid => `${uid}__${leagueId}`);
+      const preds = {};
+      for (let i = 0; i < compositeIds.length; i += 30) {
+        const batch = compositeIds.slice(i, i + 30);
+        const snap = await db.collection('simplePredictions')
+          .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+          .get();
+        snap.docs.forEach(d => { const data = d.data(); if (data?.userId) preds[data.userId] = data; });
+      }
+      if (leagueId === 'global-simple') {
+        const missing = memberIds.filter(uid => !preds[uid]);
+        for (let i = 0; i < missing.length; i += 30) {
+          const batch = missing.slice(i, i + 30);
+          const snap = await db.collection('simplePredictions')
+            .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+            .get();
+          snap.docs.forEach(d => { if (!preds[d.id]) preds[d.id] = d.data(); });
+        }
+      }
+
+      const predUsers = Object.keys(preds);
+      const submitted = predUsers.length;
+      const complete = predUsers.filter(uid => {
+        const finalPick = preds[uid]?.knockoutPredictions?.final?.[0];
+        return !!(preds[uid]?.isComplete || finalPick?.winnerId);
+      }).length;
+
+      // 3) Match results coverage. Walk WORLD_CUP_MATCHES and check which
+      //    have already kicked off; flag any without a stored matchResult.
+      const now = Date.now();
+      const completedMatches = WORLD_CUP_MATCHES.filter(m => {
+        const [hh, mm] = m.time.split(':').map(Number);
+        const d = new Date(`${m.date}T00:00:00Z`);
+        d.setUTCHours(hh + 4, mm, 0, 0);
+        return d.getTime() < now - 3 * 60 * 60 * 1000; // FT'd > 3h ago
+      });
+      const resultsSnap = await db.collection('matchResults').get();
+      const resultsByMatchId = {};
+      resultsSnap.docs.forEach(d => { resultsByMatchId[d.id] = d.data(); });
+      const missingResults = completedMatches
+        .filter(m => !resultsByMatchId[m.id] || resultsByMatchId[m.id].completed !== true)
+        .map(m => m.id);
+
+      // 4) Per-match pick distribution for the optional matchId param.
+      let pickDistribution = null;
+      if (matchId) {
+        const counts = {};
+        let predictedCount = 0;
+        for (const uid of predUsers) {
+          const ko = preds[uid]?.knockoutPredictions || {};
+          const allRounds = ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final'];
+          for (const round of allRounds) {
+            const arr = ko[round] || [];
+            const slot = arr.find(s => s?.matchId === matchId);
+            if (slot?.winnerId) {
+              counts[slot.winnerId] = (counts[slot.winnerId] || 0) + 1;
+              predictedCount++;
+              break;
+            }
+          }
+        }
+        pickDistribution = { matchId, totalPredicted: predictedCount, byTeam: counts };
+      }
+
+      // 5) Surface users whose payload is structurally malformed enough that
+      //    the leaderboard would fail to render them. Cheap defensive check.
+      const malformed = [];
+      for (const uid of predUsers) {
+        const p = preds[uid];
+        try {
+          if (p.groupPredictions && typeof p.groupPredictions !== 'object') throw new Error('groupPredictions not object');
+          if (p.bestThirdPicks && !Array.isArray(p.bestThirdPicks)) throw new Error('bestThirdPicks not array');
+          if (p.knockoutPredictions && typeof p.knockoutPredictions !== 'object') throw new Error('knockoutPredictions not object');
+        } catch (e) {
+          malformed.push({ userId: uid, error: e.message });
+        }
+      }
+
+      await db.collection('adminLogs').add({
+        action: 'reconcile',
+        leagueId, matchId: matchId || null,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        summary: { totalMembers: memberIds.length, submitted, complete, missingResultCount: missingResults.length },
+      });
+
+      return res.status(200).json({
+        leagueId,
+        runAt: new Date().toISOString(),
+        members: { total: memberIds.length, submitted, complete },
+        results: {
+          completedMatchesExpected: completedMatches.length,
+          completedMatchesIngested: completedMatches.length - missingResults.length,
+          missingResults,
+        },
+        pickDistribution,
+        malformed,
+      });
     }
 
     if (action === 'inspectFingerprint') {

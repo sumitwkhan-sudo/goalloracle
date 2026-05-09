@@ -68,7 +68,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Passcode too long' });
       }
 
-      const leagueId = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now();
+      // 4 hex chars of randomness defends against the (very rare) case of
+      // two creates colliding on the same `slug-millisecond`. Without it
+      // the second create would silently overwrite the first via `set`.
+      const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const randomSuffix = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
+      const leagueId = `${slug}-${Date.now()}-${randomSuffix}`;
       const leagueRef = db.collection('leagues').doc(leagueId);
 
       await leagueRef.set({

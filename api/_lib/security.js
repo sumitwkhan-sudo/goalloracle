@@ -261,6 +261,55 @@ export function validateDisplayNameServer(name) {
   return null;
 }
 
+// Returns true if some OTHER user already has this display name (case-
+// insensitive). The caller's own doc is excluded so users can re-save
+// their own profile without tripping the check. Lookup uses the
+// `displayNameLower` index field; existing users without that field are
+// not counted (they predate the unique-name enforcement and would only
+// collide on case-exact matches against the legacy `displayName` field,
+// which we also check defensively).
+export async function isDisplayNameTakenByOther(db, displayName, excludeUserId) {
+  const lower = String(displayName || '').trim().toLowerCase();
+  if (!lower) return false;
+
+  const byLower = await db.collection('users')
+    .where('displayNameLower', '==', lower)
+    .limit(2)
+    .get();
+  for (const d of byLower.docs) {
+    if (d.id !== excludeUserId) return true;
+  }
+
+  // Defensive secondary check against the legacy displayName field for
+  // pre-migration users. Case-exact only (Firestore can't lowercase
+  // server-side without a stored field).
+  const byExact = await db.collection('users')
+    .where('displayName', '==', displayName.trim())
+    .limit(2)
+    .get();
+  for (const d of byExact.docs) {
+    if (d.id !== excludeUserId) return true;
+  }
+
+  return false;
+}
+
+// Picks a non-colliding default display name for a freshly-created user.
+// Tries the bare prefix first, then suffixed variants until one is free.
+// Bounded to a few attempts so we never block signup on a hot prefix.
+export async function pickDefaultDisplayName(db, base) {
+  const cleaned = String(base || 'Player').trim().slice(0, 18);
+  if (!cleaned) return 'Player';
+  if (!(await isDisplayNameTakenByOther(db, cleaned, null))) return cleaned;
+  for (let i = 0; i < 4; i++) {
+    const suffix = Math.floor(Math.random() * 0x1000).toString(16).padStart(3, '0');
+    const candidate = `${cleaned.slice(0, 16)}-${suffix}`;
+    if (!(await isDisplayNameTakenByOther(db, candidate, null))) return candidate;
+  }
+  // Last resort: still unique with high probability after 4 hex chars.
+  return `${cleaned.slice(0, 14)}-${Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0')}`;
+}
+
 // Constant-time string compare for hex/digest values.
 export function constantTimeEqualHex(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;

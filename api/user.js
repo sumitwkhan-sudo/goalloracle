@@ -6,6 +6,8 @@ import {
   ipHash,
   isValidVisitorId,
   recordFingerprintForUser,
+  isDisplayNameTakenByOther,
+  pickDefaultDisplayName,
 } from './_lib/security.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -109,6 +111,9 @@ export default async function handler(req, res) {
     if (displayName !== undefined) {
       const err = validateDisplayNameServer(displayName);
       if (err) return res.status(400).json({ error: err });
+      if (await isDisplayNameTakenByOther(db, displayName, userId)) {
+        return res.status(409).json({ error: 'That username is already taken' });
+      }
     }
 
     await ensureGlobalLeague();
@@ -120,6 +125,8 @@ export default async function handler(req, res) {
       // New user
       console.log(`[user] NEW: ${userId}, email=${email}`);
       const ip = getClientIp(req);
+      const baseName = email?.split('@')[0] || 'Player';
+      const defaultName = await pickDefaultDisplayName(db, baseName);
       await userRef.set({
         id: userId,
         createdAt: FieldValue.serverTimestamp(),
@@ -129,7 +136,8 @@ export default async function handler(req, res) {
         email: email || null,
         emailDedupeKey: email ? normalizeEmail(email) : null,
         walletAddress: null,
-        displayName: email?.split('@')[0] || 'Anonymous',
+        displayName: defaultName,
+        displayNameLower: defaultName.toLowerCase(),
         usernameSet: false,
         signupIpHash: ipHash(ip),
         deviceFingerprint: isValidVisitorId(deviceFingerprint) ? deviceFingerprint : null,
@@ -138,7 +146,7 @@ export default async function handler(req, res) {
         await recordFingerprintForUser(db, deviceFingerprint, userId, ip).catch(() => {});
       }
       // Add to both global leagues' member lists + subcollection
-      const memberDisplayName = email?.split('@')[0] || 'Anonymous';
+      const memberDisplayName = defaultName;
       await Promise.all([
         db.collection('leagues').doc('global').update({
           members: FieldValue.arrayUnion(userId),
@@ -166,7 +174,11 @@ export default async function handler(req, res) {
         updates.emailDedupeKey = normalizeEmail(email);
       }
       if (walletUpdate !== undefined) updates.walletAddress = walletUpdate;
-      if (displayName && displayName.trim()) updates.displayName = displayName.trim();
+      if (displayName && displayName.trim()) {
+        const trimmed = displayName.trim();
+        updates.displayName = trimmed;
+        updates.displayNameLower = trimmed.toLowerCase();
+      }
       if (usernameSet === true) updates.usernameSet = true;
 
       // Ensure user's leagues array includes both globals (idempotent)

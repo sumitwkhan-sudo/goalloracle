@@ -118,6 +118,9 @@ export async function createOrUpdateUser(authUser) {
       email: emailAddr,
       walletAddress: null,
       displayName,
+      // Lower-case index used by server-side uniqueness checks. Kept in
+      // sync everywhere displayName is written.
+      displayNameLower: displayName.toLowerCase(),
       usernameSet: false,
       // Gate for the post-signup passcode-first prompt. Existing users
       // created before this field was added simply lack it (undefined),
@@ -177,19 +180,23 @@ export function consumePendingJoin() {
 
 export async function updateUserProfile(userId, updates) {
   const userRef = doc(db, 'users', userId);
-  // walletAddress mutations are blocked by Firestore rules (admin-only).
-  // Route them through /api/user, which validates EVM format and writes
-  // via the admin SDK. Everything else is fine to write client-side.
-  if (updates.walletAddress !== undefined) {
-    await apiCall('user', 'POST', { walletAddress: updates.walletAddress });
+  // walletAddress, displayName, and usernameSet flow through /api/user so
+  // the server can validate format, profanity, reserved-name overlaps, and
+  // uniqueness. Direct client writes for these fields are blocked by
+  // Firestore rules. Country / email / onboardingComplete still go via
+  // Firestore direct write (cheap, no validation needed).
+  const apiPayload = {};
+  if (updates.walletAddress !== undefined) apiPayload.walletAddress = updates.walletAddress;
+  if (updates.displayName && updates.displayName.trim()) apiPayload.displayName = updates.displayName.trim();
+  if (updates.usernameSet === true) apiPayload.usernameSet = true;
+  if (Object.keys(apiPayload).length > 0) {
+    await apiCall('user', 'POST', apiPayload);
   }
+
   const safeUpdates = { updatedAt: serverTimestamp() };
-  if (updates.displayName && updates.displayName.trim()) safeUpdates.displayName = updates.displayName.trim();
-  if (updates.usernameSet === true) safeUpdates.usernameSet = true;
   if (updates.email) safeUpdates.email = updates.email;
   if (updates.onboardingComplete === true) safeUpdates.onboardingComplete = true;
   if (typeof updates.country === 'string' && updates.country.trim()) safeUpdates.country = updates.country.trim().toUpperCase();
-  // Only call updateDoc if there's something other than updatedAt to write.
   if (Object.keys(safeUpdates).length > 1) {
     await updateDoc(userRef, safeUpdates);
   }
@@ -359,18 +366,20 @@ export async function getSimplePrediction(userId, leagueId) {
   return null;
 }
 
+// Quick Picks saves go through /api/simple-predictions, which enforces
+// stage locks (group stage / R32 / R16 / QF / SF / 3rd / Final each freeze
+// 5 minutes before that stage's first match kicks off). Direct Firestore
+// writes are blocked by rules — without the server check a user could
+// edit picks for matches already in progress.
 export async function saveSimplePrediction(userId, leagueId, partial) {
   if (!userId) throw new Error('Missing userId');
   if (!leagueId) throw new Error('Missing leagueId');
-  const ref = doc(db, 'simplePredictions', simplePredDocId(userId, leagueId));
-
-  const payload = { userId, leagueId, updatedAt: serverTimestamp() };
-  if (partial.groupPredictions !== undefined) payload.groupPredictions = partial.groupPredictions;
-  if (partial.bestThirdPicks !== undefined) payload.bestThirdPicks = partial.bestThirdPicks;
-  if (partial.knockoutPredictions !== undefined) payload.knockoutPredictions = partial.knockoutPredictions;
-  if (partial.isComplete !== undefined) payload.isComplete = partial.isComplete;
-
-  await setDoc(ref, payload, { merge: true });
+  const body = { leagueId, partial: {} };
+  if (partial.groupPredictions !== undefined) body.partial.groupPredictions = partial.groupPredictions;
+  if (partial.bestThirdPicks !== undefined) body.partial.bestThirdPicks = partial.bestThirdPicks;
+  if (partial.knockoutPredictions !== undefined) body.partial.knockoutPredictions = partial.knockoutPredictions;
+  if (partial.isComplete !== undefined) body.partial.isComplete = partial.isComplete;
+  await apiCall('simple-predictions', 'POST', body);
 }
 
 // Replace the current user's simple prediction for a league with the payload
@@ -391,15 +400,12 @@ export async function copySimplePrediction(userId, sourceLeagueId, targetLeagueI
   return { copied: 1 };
 }
 
-// Clear a user's simple prediction for a specific league (resets the doc).
+// Reset a user's simple prediction for a specific league. Server enforces
+// that no stage has locked yet; once any stage starts, reset returns 403
+// with the locked sections listed.
 export async function resetSimplePrediction(userId, leagueId) {
   if (!userId || !leagueId) return;
-  await saveSimplePrediction(userId, leagueId, {
-    groupPredictions: {},
-    bestThirdPicks: [],
-    knockoutPredictions: { roundOf32: [], roundOf16: [], quarterFinals: [], semiFinals: [], thirdPlace: [], final: [] },
-    isComplete: false,
-  });
+  await apiCall('simple-predictions', 'DELETE', { leagueId });
 }
 
 export async function getSimpleLeaderboard(leagueId) {
@@ -516,6 +522,22 @@ export async function adminListBannedIps() {
 
 export async function adminInspectFingerprint(visitorId) {
   return await apiCall('admin', 'POST', { action: 'inspectFingerprint', visitorId });
+}
+
+export async function adminReconcileLeague(leagueId, matchId) {
+  return await apiCall('admin', 'POST', {
+    action: 'reconcile',
+    leagueId,
+    ...(matchId ? { matchId } : {}),
+  });
+}
+
+// One-click oracle smoke test from the admin dashboard. Server-side fetches
+// a recent finished match in `competition` (PL by default), runs both
+// parsers, and verifies the two upstreams agree. Keys never leave the
+// server.
+export async function adminRunOracleSmokeTest(competition = 'PL') {
+  return await apiCall('admin', 'POST', { action: 'oracleSmokeTest', competition });
 }
 
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
