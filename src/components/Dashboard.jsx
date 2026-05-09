@@ -334,6 +334,11 @@ export default function Dashboard({
               <span>Create a league</span>
               <ChevronRight size={12} aria-hidden="true" />
             </button>
+            <button type="button" className="td-action" onClick={() => nav('browse')}>
+              <Users size={14} aria-hidden="true" />
+              <span>Join a league</span>
+              <ChevronRight size={12} aria-hidden="true" />
+            </button>
             <button type="button" className="td-action" onClick={() => nav('faq')}>
               <span style={{width:14,display:'inline-block'}} aria-hidden="true" />
               <span>FAQ &amp; help</span>
