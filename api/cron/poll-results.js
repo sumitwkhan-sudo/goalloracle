@@ -69,12 +69,28 @@ async function fetchFootballDataByDateAndTeams({ date, homeTeam, awayTeam }) {
 async function fetchApiSportsByDateAndTeams({ date, homeTeam, awayTeam }) {
   const apiKey = process.env.APISPORTS_API_KEY;
   if (!apiKey) throw new Error('APISPORTS_API_KEY not set');
-  const r = await fetch(`https://v3.football.api-sports.io/fixtures?league=1&season=2026&date=${date}`, {
-    headers: { 'x-apisports-key': apiKey },
-  });
-  if (!r.ok) throw new Error(`api-sports.io: HTTP ${r.status}`);
-  const data = await r.json();
-  return parseApiSportsResponse(data, { homeTeam, awayTeam });
+
+  // Try exact UTC date first, fall back to a ±1 day window to absorb
+  // timezone discrepancies (api-sports.io may file a 21:00 CEST kickoff
+  // under the next UTC day depending on their internal timezone).
+  const dayBefore = new Date(new Date(date + 'T00:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
+  const dayAfter = new Date(new Date(date + 'T00:00:00Z').getTime() + 86400000).toISOString().slice(0, 10);
+  const urls = [
+    `https://v3.football.api-sports.io/fixtures?league=1&season=2026&date=${date}`,
+    `https://v3.football.api-sports.io/fixtures?league=1&season=2026&from=${dayBefore}&to=${dayAfter}`,
+  ];
+  let lastErr = null;
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { headers: { 'x-apisports-key': apiKey } });
+      if (!r.ok) { lastErr = `HTTP ${r.status}`; continue; }
+      const data = await r.json();
+      return parseApiSportsResponse(data, { homeTeam, awayTeam });
+    } catch (e) {
+      lastErr = e.message;
+    }
+  }
+  throw new Error(`api-sports.io: ${lastErr || 'unknown error'}`);
 }
 
 export default async function handler(req, res) {

@@ -441,37 +441,54 @@ export default async function handler(req, res) {
       }
 
       // 2) api-sports.io: cross-check same fixture by date+team-name.
-      // Tries the primary season first, falls back to season+1 only on
-      // empty fixtures (some providers name UCL by FINAL year, not start).
-      // Records which season actually matched so the operator can see.
+      // Tries season×date combinations defensively because upstream
+      // providers can disagree on:
+      //   (a) season numbering — start-year (2025) vs end-year (2026)
+      //   (b) date assignment — a 21:00 CEST kickoff might be filed
+      //       as the next UTC day, etc.
+      // Strategy: primary (season, date) → primary (season, ±1d range)
+      //           → fallback (season+1, date) → fallback (season+1, ±1d).
       let asParsed = null;
       if (!AS_KEY) note('api-sports.io key', false, 'APISPORTS_API_KEY not set in Vercel env');
       else if (!fdMatch) note('api-sports.io cross-check', false, 'skipped — no anchor match');
       else {
         const matchDate = fdMatch.utcDate.slice(0, 10);
+        const dayBefore = new Date(new Date(matchDate + 'T00:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
+        const dayAfter = new Date(new Date(matchDate + 'T00:00:00Z').getTime() + 86400000).toISOString().slice(0, 10);
         const seasonsToTry = comp.asSeason === 2026
-          ? [2026]                                  // WC: just one valid season
+          ? [2026]                                  // WC: single edition
           : [comp.asSeason, comp.asSeason + 1];     // European: start-year, fall back to end-year
-        let lastError = null;
-        let matchedSeason = null;
+
+        const attempts = [];
         for (const season of seasonsToTry) {
+          attempts.push({ season, urlSuffix: `&date=${matchDate}`, label: `date=${matchDate}` });
+          attempts.push({ season, urlSuffix: `&from=${dayBefore}&to=${dayAfter}`, label: `from=${dayBefore}&to=${dayAfter}` });
+        }
+
+        const errorTrail = [];
+        let matched = null;
+        for (const a of attempts) {
+          const url = `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${a.season}${a.urlSuffix}`;
           try {
-            const r = await fetch(
-              `https://v3.football.api-sports.io/fixtures?league=${comp.asLeague}&season=${season}&date=${matchDate}`,
-              { headers: { 'x-apisports-key': AS_KEY } },
-            );
-            if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
+            const r = await fetch(url, { headers: { 'x-apisports-key': AS_KEY } });
+            if (!r.ok) { errorTrail.push(`season=${a.season} ${a.label}: HTTP ${r.status}`); continue; }
             const data = await r.json();
             asParsed = parseApiSportsResponse(data, { homeTeam: fdMatch.homeTeam?.name, awayTeam: fdMatch.awayTeam?.name });
-            matchedSeason = season;
+            matched = a;
             break;
-          } catch (e) { lastError = e.message; }
+          } catch (e) {
+            errorTrail.push(`season=${a.season} ${a.label}: ${e.message}`);
+          }
         }
         if (asParsed) {
-          const seasonNote = matchedSeason !== comp.asSeason ? ` [season=${matchedSeason} fallback]` : '';
-          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})${seasonNote}`);
+          const fallbackNote = (matched.season !== comp.asSeason || !matched.label.startsWith('date='))
+            ? ` [matched via season=${matched.season} ${matched.label}]` : '';
+          note('api-sports.io parser', true, `${asParsed.homeScore}-${asParsed.awayScore} (ET=${asParsed.extraTime}, PEN=${asParsed.penalties})${fallbackNote}`);
         } else {
-          note('api-sports.io', false, lastError || `no fixture for league=${comp.asLeague} on ${matchDate} in season ${seasonsToTry.join(' or ')}`);
+          // Surface the last error in the row label, plus the full trail in
+          // diagnostic context so the operator can see exactly what we tried.
+          const lastErr = errorTrail[errorTrail.length - 1] || 'no upstream response';
+          note('api-sports.io', false, `${lastErr} [tried ${errorTrail.length} combinations]`);
         }
       }
 
