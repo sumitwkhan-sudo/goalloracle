@@ -1736,6 +1736,31 @@ const GoalOracle = () => {
       nav('detail', globalSimple, { tab: 'predictions' });
     };
 
+    // Hero invite — referral-only URL (?ref=USERID). The landing page
+    // has no league context, so sending the recipient to the home page
+    // with referral attribution is the right scope. They sign up, get
+    // auto-joined to Global Quick Picks, and the inviter gets credit
+    // via captureReferralFromUrl in src/utils/db.js. Mirrors the
+    // SimpleDetail handleInvite pattern at line ~825 but without the
+    // join/passcode params since neither apply on the landing.
+    const handleInviteFromHero = async () => {
+      const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
+      const params = new URLSearchParams();
+      if (uData?.id) params.set('ref', uData.id);
+      const url = `${origin}/?${params.toString()}`;
+      const text = `Join me on GoalOracle — predict the World Cup 2026: ${url}`;
+      try {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({ title: 'GoalOracle', text, url });
+        } else {
+          await navigator.clipboard.writeText(url);
+          if (notify) notify('Invite link copied — share it with friends');
+        }
+      } catch {
+        // User cancelled native share dialog — no-op.
+      }
+    };
+
     const heroCtas = useMemo(() => {
       // Anonymous: keep the original sign-up pitch.
       if (!authenticated) {
@@ -1744,14 +1769,11 @@ const GoalOracle = () => {
           secondary: { label: 'Create a League', onClick: () => login() },
         };
       }
-      // Authenticated but Quick Picks fetch still in flight — neutral copy.
+      // Authenticated but Quick Picks fetch still in flight — neutral
+      // primary; the chip row below covers the rest of the surfaces.
       if (quickPicks === null) {
-        return {
-          primary: { label: 'Continue predicting', onClick: startSimplePredicting },
-          secondary: { label: 'View leaderboard', onClick: goLeaderboardLanding },
-        };
+        return { primary: { label: 'Continue predicting', onClick: startSimplePredicting } };
       }
-      const hasPrivateLeagues = leagues.some(l => !l.isGlobal && l.id !== 'global' && l.id !== 'global-simple');
       // Mid-bracket: surface exactly how many picks are left.
       if (!quickPicks.isComplete) {
         const n = quickPicks.totalRemaining;
@@ -1760,24 +1782,11 @@ const GoalOracle = () => {
             label: `Finish your bracket — ${n} pick${n === 1 ? '' : 's'} left`,
             onClick: startSimplePredicting,
           },
-          secondary: { label: 'View leaderboard', onClick: goLeaderboardLanding },
         };
       }
-      // Done with QP and only competing in the global pool — push them
-      // to spin up a private league with friends.
-      if (!hasPrivateLeagues) {
-        return {
-          primary: { label: 'Invite friends to a league', onClick: () => nav('create') },
-          secondary: { label: 'View leaderboard', onClick: goLeaderboardLanding },
-        };
-      }
-      // Done + already has private leagues: leaderboard is the most
-      // useful primary; keep an Invite secondary for growth.
-      return {
-        primary: { label: 'View leaderboard', onClick: goLeaderboardLanding },
-        secondary: { label: 'Invite friends', onClick: () => nav('create') },
-      };
-    }, [authenticated, quickPicks, leagues]);
+      // Bracket complete — edit-mode primary; chip row drives the rest.
+      return { primary: { label: 'Edit your bracket', onClick: startSimplePredicting } };
+    }, [authenticated, quickPicks]);
 
     // Mock leaderboard data
     const mockLb = [
@@ -1805,8 +1814,31 @@ const GoalOracle = () => {
               <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
               <div className="hero-cta">
                 <button className="btn btn-primary btn-lg" onClick={heroCtas.primary.onClick}>{heroCtas.primary.label}</button>
-                <button className="btn btn-secondary btn-lg" onClick={heroCtas.secondary.onClick}>{heroCtas.secondary.label}</button>
+                {heroCtas.secondary && (
+                  <button className="btn btn-secondary btn-lg" onClick={heroCtas.secondary.onClick}>{heroCtas.secondary.label}</button>
+                )}
               </div>
+              {/* Logged-in users get an explicit chip row that surfaces
+                  the destinations otherwise hidden behind the hamburger
+                  on mobile: dashboard, my leagues, global leaderboard,
+                  and a real share-link invite. Anonymous users stay
+                  on the original 2-button sign-up pitch above. */}
+              {authenticated && (
+                <div className="hero-cta-chips" role="group" aria-label="Quick navigation">
+                  <button type="button" className="hero-chip" onClick={() => nav('dashboard')}>
+                    <Trophy size={13} aria-hidden="true" /> Dashboard
+                  </button>
+                  <button type="button" className="hero-chip" onClick={() => nav('leagues')}>
+                    <Users size={13} aria-hidden="true" /> My leagues
+                  </button>
+                  <button type="button" className="hero-chip" onClick={goLeaderboardLanding}>
+                    <TrendingUp size={13} aria-hidden="true" /> Global leaderboard
+                  </button>
+                  <button type="button" className="hero-chip hero-chip-invite" onClick={handleInviteFromHero}>
+                    <UserPlus size={13} aria-hidden="true" /> Invite friends
+                  </button>
+                </div>
+              )}
               <div className="hero-social-proof">
                 <div className="hero-avatars">
                   {['🇧🇷','🇩🇪','🇦🇷','🇫🇷'].map((f,i) => <span key={i} className="hero-avatar">{f}</span>)}

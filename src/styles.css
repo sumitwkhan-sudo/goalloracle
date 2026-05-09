@@ -328,6 +328,62 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   background: rgba(255,255,255,0.85); border-color: rgba(255,255,255,0.5); color: #1A1A2E;
 }
 .hero-cta .btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* Hero secondary chip row — only renders for authenticated users.
+   Surfaces the four primary destinations (Dashboard / My leagues /
+   Global leaderboard / Invite friends) so mobile users don't have
+   to discover them via the hamburger. Wraps freely on narrow
+   viewports; each chip is ≥36px tall to stay touch-friendly. */
+.hero-cta-chips {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.85rem;
+  animation: fadeUp 0.6s 0.7s both;
+}
+.hero-no-anim .hero-cta-chips { animation: none !important; opacity: 1; transform: none; }
+.hero-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  min-height: 36px;
+  font-family: var(--font); font-size: 0.78rem; font-weight: 600;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.92);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.1s;
+  touch-action: manipulation;
+}
+.hero-chip:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: rgba(255,255,255,0.1);
+}
+.hero-chip:active { transform: translateY(1px); }
+.hero-chip svg { color: currentColor; flex-shrink: 0; }
+/* Invite stands out slightly — primary-tinted accent ring so it reads
+   as the growth-oriented action without dominating the row. */
+.hero-chip-invite {
+  border-color: rgba(0,212,255,0.45);
+  color: var(--cyan);
+}
+.hero-chip-invite:hover {
+  background: rgba(0,212,255,0.12);
+  border-color: var(--cyan);
+}
+[data-theme="light"] .hero-chip {
+  background: rgba(255,255,255,0.85);
+  border-color: rgba(255,255,255,0.5);
+  color: #1A1A2E;
+}
+[data-theme="light"] .hero-chip:hover {
+  background: rgba(255,255,255,0.95);
+}
+[data-theme="light"] .hero-chip-invite {
+  border-color: rgba(0,160,200,0.5);
+  color: #0080a0;
+}
 .hero-stats {
   display: flex; justify-content: center; gap: 4rem; margin-top: 4rem; padding-top: 2rem;
   border-top: 1px solid rgba(255,255,255,0.1); animation: fadeUp 0.6s 0.7s both;
