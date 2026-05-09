@@ -1,4 +1,4 @@
-import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
+import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
@@ -27,8 +27,8 @@ function isMatchLocked(matchId) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v)); return res.status(200).json({}); }
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).json({});
 
   // GET: get predictions or leaderboard (public for leaderboard)
   if (req.method === 'GET') {
@@ -146,6 +146,14 @@ export default async function handler(req, res) {
   const { leagueId, predictions } = req.body;
 
   if (!leagueId || !predictions) return res.status(400).json({ error: 'Missing leagueId or predictions' });
+  if (typeof predictions !== 'object' || Array.isArray(predictions)) {
+    return res.status(400).json({ error: 'Invalid predictions payload' });
+  }
+  // Cap batch size — the WC has 104 matches, so 200 is a generous ceiling
+  // that still rules out abusive payloads aimed at racking up function time.
+  if (Object.keys(predictions).length > 200) {
+    return res.status(400).json({ error: 'Too many predictions in one request' });
+  }
 
   // Verify user is a member of this league
   const leagueSnap = await db.collection('leagues').doc(leagueId).get();

@@ -3,15 +3,36 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{userId} {
-      allow read: if true;
+      // Self-read only. email / walletAddress / signupIpHash / fingerprint
+      // live on this doc and would otherwise leak to anyone with a Firebase
+      // SDK. Anything that needs another user's display name / country /
+      // role goes through /api/* (admin SDK), which bypasses these rules.
+      allow read: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.role == 'user'
                     && request.resource.data.id == userId;
+      // Block self-mutation of fields that must come from the server (admin SDK).
+      // walletAddress + assignment trail are admin-managed; deviceFingerprint /
+      // signupIpHash / banned* are anti-Sybil bookkeeping; verified is a future
+      // hook. usernameSet flips once via /api/user with profanity validation.
       allow update: if request.auth != null
                     && request.auth.uid == userId
                     && !request.resource.data.diff(resource.data).affectedKeys()
-                       .hasAny(['role', 'createdAt']);
+                       .hasAny([
+                         'role',
+                         'createdAt',
+                         'walletAddress',
+                         'walletAssignedBy',
+                         'walletAssignedAt',
+                         'verified',
+                         'deviceFingerprint',
+                         'signupIpHash',
+                         'emailDedupeKey',
+                         'banned',
+                         'bannedReason',
+                         'bannedAt'
+                       ]);
     }
 
     match /leagues/{leagueId} {
@@ -20,7 +41,10 @@ service cloud.firestore {
                     && request.resource.data.createdBy == request.auth.uid
                     && request.resource.data.members.size() == 1
                     && request.resource.data.members[0] == request.auth.uid;
-      allow update: if request.auth != null;
+      // No client-side league updates. All mutations (rename, join, leave,
+      // membership, prize/passcode changes) go through /api/leagues which
+      // uses the admin SDK and bypasses rules.
+      allow update: if false;
       allow delete: if request.auth != null
                     && resource.data.createdBy == request.auth.uid;
     }
@@ -67,6 +91,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Private league config — currently holds the passcode for private
+    // leagues, which used to live on the parent doc and was therefore
+    // world-readable. Server-only.
+    match /leagues/{leagueId}/private/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // Server-only data — clients never read or write directly.
     match /matchResults/{matchId} {
       allow read: if true;
       allow write: if false;
@@ -81,6 +114,21 @@ service cloud.firestore {
     // these (would leak code hashes). The /api/auth/* endpoints use the
     // admin SDK and bypass these rules.
     match /authCodes/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // Anti-Sybil bookkeeping — IP rate-limit counters, device-fingerprint
+    // → user-id index, banned-IP list. All server-managed.
+    match /signupAttempts/{ipHash} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /deviceFingerprints/{visitorId} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /bannedIps/{ipHash} {
       allow read: if false;
       allow write: if false;
     }

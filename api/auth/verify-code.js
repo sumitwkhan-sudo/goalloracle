@@ -1,31 +1,27 @@
 import crypto from 'crypto';
-import { db, admin, corsHeaders } from '../_lib/firebase.js';
+import { db, admin, applyCors } from '../_lib/firebase.js';
+import {
+  normalizeEmail,
+  getClientIp,
+  ipHash,
+  isIpBanned,
+  checkAndRecordSignupForIp,
+  checkFingerprintAllowsNewAccount,
+  recordFingerprintForUser,
+  findUserByDedupeKey,
+  constantTimeEqualHex,
+  isValidVisitorId,
+} from '../_lib/security.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const MAX_ATTEMPTS = 5;
 
-function hashEmail(email) {
-  return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
-}
-
-function hashCode(code, email) {
-  return crypto.createHash('sha256').update(`${email.toLowerCase().trim()}:${code}`).digest('hex');
+function hashDedupe(dedupe) {
+  return crypto.createHash('sha256').update(dedupe).digest('hex');
 }
 
 function isValidEmail(email) {
   return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-// Find an existing user doc by email, preferring legacy did:privy:* IDs so
-// existing users keep all their predictions/leagues. Falls back to the most
-// recently created doc if multiple match.
-async function findUserByEmail(email) {
-  const snap = await db.collection('users').where('email', '==', email).get();
-  if (snap.empty) return null;
-  const docs = snap.docs;
-  if (docs.length === 1) return { id: docs[0].id, ...docs[0].data() };
-  const privyDocs = docs.filter(d => d.id.startsWith('did:privy:'));
-  if (privyDocs.length > 0) return { id: privyDocs[0].id, ...privyDocs[0].data() };
-  return { id: docs[0].id, ...docs[0].data() };
 }
 
 function newUserId() {
@@ -33,20 +29,20 @@ function newUserId() {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') {
-    Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(200).json({});
-  }
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).json({});
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { email, code } = req.body || {};
+  const { email, code, deviceFingerprint } = req.body || {};
   if (!isValidEmail(email)) return res.status(400).json({ error: 'Invalid email' });
   if (!/^\d{6}$/.test(code || '')) return res.status(400).json({ error: 'Invalid code' });
 
-  const normalized = email.toLowerCase().trim();
-  const docId = hashEmail(normalized);
+  const ip = getClientIp(req);
+  if (await isIpBanned(db, ip)) return res.status(403).json({ error: 'Access denied' });
+
+  const dedupe = normalizeEmail(email);
+  const docId = hashDedupe(dedupe);
 
   try {
     const ref = db.collection('authCodes').doc(docId);
@@ -63,8 +59,8 @@ export default async function handler(req, res) {
       return res.status(429).json({ error: 'Too many attempts. Request a new code.' });
     }
 
-    const candidate = hashCode(code, normalized);
-    if (candidate !== data.codeHash) {
+    const candidate = crypto.createHash('sha256').update(`${dedupe}:${code}`).digest('hex');
+    if (!constantTimeEqualHex(candidate, data.codeHash)) {
       await ref.update({ attempts: (data.attempts || 0) + 1 }).catch(() => {});
       return res.status(400).json({ error: 'Incorrect code' });
     }
@@ -72,11 +68,46 @@ export default async function handler(req, res) {
     // Success — invalidate the code immediately
     await ref.delete().catch(() => {});
 
-    const existing = await findUserByEmail(normalized);
-    const uid = existing?.id || newUserId();
+    const existing = await findUserByDedupeKey(db, email);
+    const isNewUser = !existing;
 
+    if (isNewUser) {
+      // Anti-Sybil checks gate ONLY new-account creation. Existing users are
+      // never blocked from signing in — including from a previously-banned
+      // IP, since a ban targets the actor, not their old account.
+      const fpCheck = await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
+      if (!fpCheck.allowed) {
+        return res.status(429).json({
+          error: 'This device has reached the maximum number of accounts.',
+        });
+      }
+      const ipCheck = await checkAndRecordSignupForIp(db, ip);
+      if (!ipCheck.allowed) {
+        return res.status(429).json({
+          error: 'Too many new accounts from this network recently. Try again tomorrow.',
+        });
+      }
+    }
+
+    const uid = existing?.id || newUserId();
     const firebaseToken = await admin.auth().createCustomToken(uid);
-    return res.status(200).json({ firebaseToken, uid, isNewUser: !existing });
+
+    if (isNewUser && isValidVisitorId(deviceFingerprint)) {
+      await recordFingerprintForUser(db, deviceFingerprint, uid, ip);
+    }
+
+    return res.status(200).json({
+      firebaseToken,
+      uid,
+      isNewUser,
+      // Pass these back so /api/user can persist them on the user doc on
+      // first write without re-collecting from the client.
+      _signup: isNewUser ? {
+        emailDedupeKey: dedupe,
+        signupIpHash: ipHash(ip),
+        deviceFingerprint: isValidVisitorId(deviceFingerprint) ? deviceFingerprint : null,
+      } : null,
+    });
   } catch (e) {
     console.error('[auth/verify-code] error:', e);
     return res.status(500).json({ error: e.message });

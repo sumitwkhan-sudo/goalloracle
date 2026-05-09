@@ -1,35 +1,37 @@
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
-import { db, admin, corsHeaders } from '../_lib/firebase.js';
-
-async function findUserByEmail(email) {
-  const snap = await db.collection('users').where('email', '==', email).get();
-  if (snap.empty) return null;
-  const docs = snap.docs;
-  if (docs.length === 1) return { id: docs[0].id, ...docs[0].data() };
-  const privyDocs = docs.filter(d => d.id.startsWith('did:privy:'));
-  if (privyDocs.length > 0) return { id: privyDocs[0].id, ...privyDocs[0].data() };
-  return { id: docs[0].id, ...docs[0].data() };
-}
+import { db, admin, applyCors } from '../_lib/firebase.js';
+import {
+  normalizeEmail,
+  isDisposableEmailDomain,
+  getClientIp,
+  ipHash,
+  isIpBanned,
+  checkAndRecordSignupForIp,
+  checkFingerprintAllowsNewAccount,
+  recordFingerprintForUser,
+  findUserByDedupeKey,
+  isValidVisitorId,
+} from '../_lib/security.js';
 
 function newUserId() {
   return `auth_${crypto.randomUUID().replace(/-/g, '')}`;
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') {
-    Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(200).json({});
-  }
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).json({});
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { idToken } = req.body || {};
+  const { idToken, deviceFingerprint } = req.body || {};
   if (!idToken || typeof idToken !== 'string') return res.status(400).json({ error: 'Missing idToken' });
 
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   if (!clientId) return res.status(500).json({ error: 'Google OAuth not configured' });
+
+  const ip = getClientIp(req);
+  if (await isIpBanned(db, ip)) return res.status(403).json({ error: 'Access denied' });
 
   try {
     const client = new OAuth2Client(clientId);
@@ -39,11 +41,40 @@ export default async function handler(req, res) {
     if (payload.email_verified === false) return res.status(400).json({ error: 'Google email is not verified' });
 
     const email = payload.email.toLowerCase().trim();
-    const existing = await findUserByEmail(email);
-    const uid = existing?.id || newUserId();
+    if (isDisposableEmailDomain(email)) return res.status(400).json({ error: 'Please use a real email address' });
 
+    const existing = await findUserByDedupeKey(db, email);
+    const isNewUser = !existing;
+
+    if (isNewUser) {
+      const fpCheck = await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
+      if (!fpCheck.allowed) {
+        return res.status(429).json({ error: 'This device has reached the maximum number of accounts.' });
+      }
+      const ipCheck = await checkAndRecordSignupForIp(db, ip);
+      if (!ipCheck.allowed) {
+        return res.status(429).json({ error: 'Too many new accounts from this network recently. Try again tomorrow.' });
+      }
+    }
+
+    const uid = existing?.id || newUserId();
     const firebaseToken = await admin.auth().createCustomToken(uid);
-    return res.status(200).json({ firebaseToken, uid, isNewUser: !existing, email });
+
+    if (isNewUser && isValidVisitorId(deviceFingerprint)) {
+      await recordFingerprintForUser(db, deviceFingerprint, uid, ip);
+    }
+
+    return res.status(200).json({
+      firebaseToken,
+      uid,
+      isNewUser,
+      email,
+      _signup: isNewUser ? {
+        emailDedupeKey: normalizeEmail(email),
+        signupIpHash: ipHash(ip),
+        deviceFingerprint: isValidVisitorId(deviceFingerprint) ? deviceFingerprint : null,
+      } : null,
+    });
   } catch (e) {
     console.error('[auth/google] error:', e);
     return res.status(401).json({ error: 'Invalid Google token' });

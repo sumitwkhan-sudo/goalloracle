@@ -1,9 +1,9 @@
-import { db, corsHeaders, verifyAuth } from './_lib/firebase.js';
+import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v)); return res.status(200).json({}); }
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).json({});
 
   // GET: list all leagues (public)
   if (req.method === 'GET') {
@@ -29,16 +29,43 @@ export default async function handler(req, res) {
     if (action === 'create') {
       const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds, predictionMode } = req.body;
       if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
+      if (name.trim().length > 60) return res.status(400).json({ error: 'Name too long (max 60 chars)' });
 
       const mode = predictionMode === 'classic' ? 'classic' : 'simple';
 
-      if (type === 'paid' && prizeDistribution) {
-        const total = (prizeDistribution.first || 0) + (prizeDistribution.second || 0) + (prizeDistribution.third || 0);
-        if (total !== 100) return res.status(400).json({ error: 'Prize distribution must total 100%' });
+      // Numeric bounds — entryFee must be a non-negative finite number under
+      // a sane cap; prize distribution percentages must be integers in [0..100].
+      const fee = Number(entryFee || 0);
+      if (!Number.isFinite(fee) || fee < 0 || fee > 10000) {
+        return res.status(400).json({ error: 'Invalid entryFee' });
+      }
+
+      if (prizeDistribution) {
+        const { first = 0, second = 0, third = 0 } = prizeDistribution;
+        const isPct = (v) => Number.isFinite(v) && Number.isInteger(v) && v >= 0 && v <= 100;
+        if (!isPct(first) || !isPct(second) || !isPct(third)) {
+          return res.status(400).json({ error: 'Invalid prizeDistribution' });
+        }
+        if (type === 'paid' && (first + second + third) !== 100) {
+          return res.status(400).json({ error: 'Prize distribution must total 100%' });
+        }
+      }
+
+      if (pointsSystem) {
+        const allowed = new Set(['correctResult', 'correctScore', 'penaltyBonus', 'extraTimeBonus']);
+        for (const [k, v] of Object.entries(pointsSystem)) {
+          if (!allowed.has(k)) return res.status(400).json({ error: `Unknown points key: ${k}` });
+          if (!Number.isInteger(v) || v < 0 || v > 50) {
+            return res.status(400).json({ error: `Invalid pointsSystem.${k}` });
+          }
+        }
       }
 
       if (visibility === 'private' && !passcode?.trim()) {
         return res.status(400).json({ error: 'Passcode required for private leagues' });
+      }
+      if (passcode && passcode.length > 32) {
+        return res.status(400).json({ error: 'Passcode too long' });
       }
 
       const leagueId = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now();
@@ -49,7 +76,11 @@ export default async function handler(req, res) {
         name: name.trim(),
         type: type || 'free',
         visibility: visibility || 'public',
-        passcode: visibility === 'private' ? passcode.trim().toUpperCase() : null,
+        // passcode is NOT stored on the public doc anymore — see private
+        // subcollection write below. Field stays null for compatibility
+        // with older readers that only check this property to know whether
+        // a league is private.
+        passcode: null,
         entryFee: entryFee || 0,
         currency: currency || 'USDC',
         prizeDistribution: prizeDistribution || { first: 50, second: 30, third: 20 },
@@ -64,6 +95,15 @@ export default async function handler(req, res) {
         createdAt: FieldValue.serverTimestamp(),
         status: 'active',
       });
+
+      // Private leagues: store the passcode in a server-only subdoc so
+      // it never appears in any client-visible league read.
+      if (visibility === 'private') {
+        await leagueRef.collection('private').doc('auth').set({
+          passcode: passcode.trim().toUpperCase(),
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
 
       // Respond immediately, update user doc in background
       res.status(200).json({ leagueId });
@@ -83,7 +123,12 @@ export default async function handler(req, res) {
 
       if (league.visibility === 'private') {
         if (!passcode) return res.status(403).json({ error: 'This is a private league. A passcode is required to join.' });
-        if (passcode.trim().toUpperCase() !== league.passcode) {
+        // Read the canonical passcode from the private subcollection.
+        // Fall back to the legacy `league.passcode` field for leagues
+        // that haven't been migrated yet (see admin migrateLeaguePasscodes).
+        const privSnap = await leagueRef.collection('private').doc('auth').get();
+        const truePasscode = privSnap.exists ? (privSnap.data().passcode || null) : league.passcode;
+        if (!truePasscode || passcode.trim().toUpperCase() !== truePasscode) {
           return res.status(403).json({ error: 'Incorrect passcode' });
         }
       }
