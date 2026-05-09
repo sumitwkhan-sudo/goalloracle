@@ -6,6 +6,8 @@ import {
 import WORLD_CUP_MATCHES from '../data/matches';
 import { calculateXP, getLevelInfo } from '../utils/xp';
 import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints, getMatchStatus, sortLeaderboard } from '../utils/points';
+import { STAGES, STAGE_FIRST_KICKOFF_UTC, stageLockTimeUtc } from '../utils/stageLock';
+import { TOTAL_MAX } from '../utils/scoringSimple';
 import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
 import AnimatedCounter from './AnimatedCounter';
 import InsightsCarousel from './simple/InsightsCarousel';
@@ -32,6 +34,20 @@ function formatLockDelta(ms) {
   if (h > 0) return `${h}h ${mi}m`;
   return `${mi}m`;
 }
+
+// Total Quick Picks pieces a user can submit:
+// 12 group rankings + 8 best-thirds + 32 bracket winners = 52.
+const QP_TOTAL_PICKS = 52;
+
+const STAGE_LABELS = {
+  groupStage: 'Group stage',
+  roundOf32: 'Round of 32',
+  roundOf16: 'Round of 16',
+  quarterFinals: 'Quarterfinals',
+  semiFinals: 'Semifinals',
+  thirdPlace: '3rd-place',
+  final: 'Final',
+};
 
 // Live countdown — re-evaluates every minute. Shared between lock and live
 // state rows so each match in the time-sensitive pane can update independently.
@@ -265,7 +281,10 @@ export default function Dashboard({
         ) : outstandingOtherLeaguesCount > 0 ? (
           <OutstandingPicksRow leagues={incompleteOtherLeagues} leagueRanks={leagueRanks} nav={nav} />
         ) : (
-          <CaughtUpRow nav={nav} />
+          <>
+            <CaughtUpRow nav={nav} quickPicks={quickPicks} onShare={onShare} />
+            {quickPicks?.isComplete && <StageLockTimeline />}
+          </>
         )}
 
         {liveMatches.length > 0 && (
@@ -462,12 +481,21 @@ function NextLockRow({ lock, now, buffer, simpleLeagues, ml, nav }) {
 
 function QuickPicksLockRow({ quickPicks, simpleLeagues, nav }) {
   const eta = Math.max(1, Math.round(quickPicks.totalRemaining * 8 / 60));
+  const made = Math.max(0, QP_TOTAL_PICKS - (quickPicks.totalRemaining || 0));
+  const pct = Math.min(100, Math.round((made / QP_TOTAL_PICKS) * 100));
+  // Specific countdown to the group-stage lock (gs01 - 5min). Far more
+  // motivating than the vague "locks at kickoff".
+  const lockMs = stageLockTimeUtc('groupStage') - Date.now();
+  const lockText = lockMs > 0 ? `locks in ${formatLockDelta(lockMs)}` : 'locks have started';
   return (
     <div className="td-row td-row-lock">
       <Target size={14} className="td-row-icon" />
       <div className="td-row-body">
         <div className="td-row-title">Finish your bracket</div>
-        <div className="td-row-sub"><strong>{quickPicks.totalRemaining}</strong> picks left · ~{eta} min · locks at kickoff</div>
+        <div className="td-row-sub"><strong>{made}/{QP_TOTAL_PICKS}</strong> picks · ~{eta} min left · {lockText}</div>
+        <div className="td-progress" aria-label={`${pct}% complete`}>
+          <div className="td-progress-fill" style={{ width: `${pct}%` }} />
+        </div>
       </div>
       <button className="td-row-cta" onClick={() => {
         const qp = simpleLeagues[0] || { id: 'global-simple', predictionMode: 'simple' };
@@ -479,17 +507,64 @@ function QuickPicksLockRow({ quickPicks, simpleLeagues, nav }) {
   );
 }
 
-function CaughtUpRow({ nav }) {
+function CaughtUpRow({ nav, quickPicks, onShare }) {
+  // Find the next stage lock that hasn't fired yet so the user has a
+  // tangible "your next deadline" target instead of "come back later".
+  const now = Date.now();
+  const nextStage = STAGES.map((s) => ({ stage: s, lockAt: stageLockTimeUtc(s) }))
+    .find((x) => x.lockAt > now);
+  const remaining = nextStage ? nextStage.lockAt - now : 0;
+  const stageLabel = nextStage ? STAGE_LABELS[nextStage.stage] : null;
+  const canShare = !!quickPicks?.isComplete && typeof onShare === 'function';
+
   return (
     <div className="td-row td-row-idle">
       <CheckCircle size={14} className="td-row-icon" />
       <div className="td-row-body">
-        <div className="td-row-title">All caught up</div>
-        <div className="td-row-sub">No picks due right now. Come back when a match is close to kickoff.</div>
+        <div className="td-row-title">
+          {nextStage
+            ? <>Bracket locked in. <span className="td-row-em">{stageLabel}</span> picks freeze in <strong>{formatLockDelta(remaining)}</strong>.</>
+            : 'Tournament wrapping up — sit back and watch.'}
+        </div>
+        <div className="td-row-sub">
+          {nextStage
+            ? 'You can still tweak later rounds until each stage starts. Or share your bracket and brag.'
+            : 'Final results are in.'}
+        </div>
       </div>
-      <button className="td-row-cta td-row-cta-ghost" onClick={() => nav('browse')}>
-        Browse leagues <ChevronRight size={11} />
-      </button>
+      {canShare ? (
+        <button className="td-row-cta" onClick={onShare}>
+          Share bracket <ChevronRight size={11} />
+        </button>
+      ) : (
+        <button className="td-row-cta td-row-cta-ghost" onClick={() => nav('browse')}>
+          Browse leagues <ChevronRight size={11} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// #10: Compact horizontal stage-lock timeline shown on the completed
+// dashboard so the user can see at a glance which rounds are still
+// editable and when each freezes.
+function StageLockTimeline() {
+  const now = Date.now();
+  return (
+    <div className="td-stage-timeline" aria-label="Stage locks timeline">
+      {STAGES.map((stage) => {
+        const lockAt = stageLockTimeUtc(stage);
+        const locked = now >= lockAt;
+        const delta = lockAt - now;
+        return (
+          <div key={stage} className={`td-stage-pill ${locked ? 'td-stage-locked' : ''}`}>
+            <span className="td-stage-name">{STAGE_LABELS[stage]}</span>
+            <span className="td-stage-when">
+              {locked ? <><Lock size={9} /> locked</> : `in ${formatLockDelta(delta)}`}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
