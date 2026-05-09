@@ -24,6 +24,7 @@ import LeagueLeaderboardLayout from './components/LeagueLeaderboardLayout';
 import LeagueListRow from './components/LeagueListRow';
 import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
+import InviteFriendsModal from './components/InviteFriendsModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import CreateLeagueForm from './components/CreateLeagueForm';
@@ -820,6 +821,21 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             <span className="lv2-mode-pill simple">QUICK PICKS</span>
           </div>
         </div>
+        {/* Leave button is page-level so it's reachable from any
+            sTab (Predictions, Leaderboard, etc.) — the user asked
+            for the option to leave from the prediction flow as well
+            as the leaderboard. Hidden on global leagues since you
+            can't leave Global Quick Picks. */}
+        {!isGlobalView && onLeaveLeague && (
+          <button
+            type="button"
+            className="phc-leave"
+            onClick={onLeaveLeague}
+            title="Leave this league"
+          >
+            <LogOut size={13} aria-hidden="true" /> Leave
+          </button>
+        )}
       </div>
 
       {needsUsername && (
@@ -886,7 +902,6 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             onEdit={() => setSTab('predictions')}
             onInvite={handleInvite}
             onShareBracket={openShareBracket}
-            onLeave={!isGlobal ? onLeaveLeague : undefined}
             loading={simLbl}
           />
         );
@@ -1762,56 +1777,36 @@ const GoalOracle = () => {
       nav('detail', globalSimple, { tab: 'predictions' });
     };
 
-    // Hero invite — referral-only URL (?ref=USERID). The landing page
-    // has no league context, so sending the recipient to the home page
-    // with referral attribution is the right scope. They sign up, get
-    // auto-joined to Global Quick Picks, and the inviter gets credit
-    // via captureReferralFromUrl in src/utils/db.js. Mirrors the
-    // SimpleDetail handleInvite pattern at line ~825 but without the
-    // join/passcode params since neither apply on the landing.
-    const handleInviteFromHero = async () => {
-      const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
-      const params = new URLSearchParams();
-      if (uData?.id) params.set('ref', uData.id);
-      const url = `${origin}/?${params.toString()}`;
-      const text = `Join me on GoalOracle — predict the World Cup 2026: ${url}`;
-      try {
-        if (typeof navigator !== 'undefined' && navigator.share) {
-          await navigator.share({ title: 'GoalOracle', text, url });
-        } else {
-          await navigator.clipboard.writeText(url);
-          if (notify) notify('Invite link copied — share it with friends');
-        }
-      } catch {
-        // User cancelled native share dialog — no-op.
-      }
-    };
+    // Invite-friends modal — three options (referral share / create
+    // private league / invite to existing private league). Replaces
+    // the previous one-click navigator.share that lacked the league-
+    // invite path the user asked for.
+    const [inviteOpen, setInviteOpen] = useState(false);
 
-    const heroCtas = useMemo(() => {
-      // Anonymous: keep the original sign-up pitch.
-      if (!authenticated) {
-        return {
-          primary: { label: <>Start Predicting &mdash; It&rsquo;s Free</>, onClick: startSimplePredicting },
-          secondary: { label: 'Create a League', onClick: () => login() },
-        };
-      }
-      // Authenticated but Quick Picks fetch still in flight — neutral
-      // primary; the chip row below covers the rest of the surfaces.
+    // Anonymous-only big-button CTAs. Logged-in users use the unified
+    // chip row instead — keeps the home page CTA UX consistent
+    // instead of pairing a random-gradient pill with neutral chips.
+    const anonCtas = useMemo(() => {
+      if (authenticated) return null;
+      return {
+        primary: { label: <>Start Predicting &mdash; It&rsquo;s Free</>, onClick: startSimplePredicting },
+        secondary: { label: 'Create a League', onClick: () => login() },
+      };
+    }, [authenticated]);
+
+    // The single "do this now" chip for logged-in users. Sits at the
+    // start of the chip row with an accent style so it pops without
+    // breaking the chip-row visual rhythm.
+    const accentChip = useMemo(() => {
+      if (!authenticated) return null;
       if (quickPicks === null) {
-        return { primary: { label: 'Continue predicting', onClick: startSimplePredicting } };
+        return { label: 'Continue predicting', onClick: startSimplePredicting };
       }
-      // Mid-bracket: surface exactly how many picks are left.
       if (!quickPicks.isComplete) {
         const n = quickPicks.totalRemaining;
-        return {
-          primary: {
-            label: `Finish your bracket — ${n} pick${n === 1 ? '' : 's'} left`,
-            onClick: startSimplePredicting,
-          },
-        };
+        return { label: `Finish bracket · ${n} left`, onClick: startSimplePredicting, urgent: true };
       }
-      // Bracket complete — edit-mode primary; chip row drives the rest.
-      return { primary: { label: 'Edit your bracket', onClick: startSimplePredicting } };
+      return { label: 'Edit your bracket', onClick: startSimplePredicting };
     }, [authenticated, quickPicks]);
 
     // Mock leaderboard data
@@ -1838,19 +1833,32 @@ const GoalOracle = () => {
             <div className="hero-left">
               <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
               <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
-              <div className="hero-cta">
-                <button className="btn btn-primary btn-lg" onClick={heroCtas.primary.onClick}>{heroCtas.primary.label}</button>
-                {heroCtas.secondary && (
-                  <button className="btn btn-secondary btn-lg" onClick={heroCtas.secondary.onClick}>{heroCtas.secondary.label}</button>
-                )}
-              </div>
-              {/* Logged-in users get an explicit chip row that surfaces
-                  the destinations otherwise hidden behind the hamburger
-                  on mobile: dashboard, my leagues, global leaderboard,
-                  and a real share-link invite. Anonymous users stay
-                  on the original 2-button sign-up pitch above. */}
+              {/* Anonymous users keep the original sign-up pitch — two
+                  big buttons (Start Predicting / Create a League). */}
+              {!authenticated && anonCtas && (
+                <div className="hero-cta">
+                  <button className="btn btn-primary btn-lg" onClick={anonCtas.primary.onClick}>{anonCtas.primary.label}</button>
+                  <button className="btn btn-secondary btn-lg" onClick={anonCtas.secondary.onClick}>{anonCtas.secondary.label}</button>
+                </div>
+              )}
+              {/* Logged-in users get a unified chip row instead of a
+                  big-button-plus-chips combo. The accent chip leads
+                  with the most useful action (finish / edit bracket);
+                  the rest expose nav surfaces that would otherwise be
+                  hidden behind the mobile hamburger. Same visual
+                  language across all six chips so nothing reads as a
+                  random standalone CTA. */}
               {authenticated && (
                 <div className="hero-cta-chips" role="group" aria-label="Quick navigation">
+                  {accentChip && (
+                    <button
+                      type="button"
+                      className={`hero-chip hero-chip-accent ${accentChip.urgent ? 'hero-chip-urgent' : ''}`}
+                      onClick={accentChip.onClick}
+                    >
+                      <Target size={13} aria-hidden="true" /> {accentChip.label}
+                    </button>
+                  )}
                   <button type="button" className="hero-chip" onClick={() => nav('dashboard')}>
                     <Trophy size={13} aria-hidden="true" /> Dashboard
                   </button>
@@ -1860,7 +1868,10 @@ const GoalOracle = () => {
                   <button type="button" className="hero-chip" onClick={goLeaderboardLanding}>
                     <TrendingUp size={13} aria-hidden="true" /> Global leaderboard
                   </button>
-                  <button type="button" className="hero-chip hero-chip-invite" onClick={handleInviteFromHero}>
+                  <button type="button" className="hero-chip" onClick={() => nav('browse')}>
+                    <Search size={13} aria-hidden="true" /> Join a league
+                  </button>
+                  <button type="button" className="hero-chip hero-chip-invite" onClick={() => setInviteOpen(true)}>
                     <UserPlus size={13} aria-hidden="true" /> Invite friends
                   </button>
                 </div>
@@ -2160,6 +2171,17 @@ const GoalOracle = () => {
             </div>
           </div>
         </footer>
+
+        {authenticated && (
+          <InviteFriendsModal
+            open={inviteOpen}
+            onClose={() => setInviteOpen(false)}
+            userId={uData?.id}
+            leagues={leagues}
+            notify={notify}
+            onCreateLeague={() => nav('create')}
+          />
+        )}
       </div>
     );
   };
@@ -2296,6 +2318,20 @@ const GoalOracle = () => {
           onLeaderboard={() => nav('detail', league, { tab: 'leaderboard' })}
           onEditPicks={() => nav('detail', league, { tab: 'predictions' })}
           onViewBracket={() => setViewingOwnBracket(league)}
+          onLeave={!isGlobalLeague(league) ? async () => {
+            if (!uData?.id) return;
+            const confirmed = window.confirm(
+              `Leave "${league.name}"?\n\n` +
+              `You'll lose access to its leaderboard and standings. Your picks for this league are kept on the server in case you rejoin later.`
+            );
+            if (!confirmed) return;
+            try {
+              await leaveLeague(league.id, uData.id);
+              notify(`Left "${league.name}"`);
+            } catch (e) {
+              notify(e?.message || 'Could not leave league', 'error');
+            }
+          } : undefined}
         />
       );
     };
