@@ -1064,6 +1064,11 @@ const GoalOracle = () => {
   const [allLeagues, setAllLeagues] = useState([]);
   const [saving, setSaving] = useState(false);
   const [notif, setNotif] = useState(null);
+  // Lifted out of LeaguesList — that component is defined inline in
+  // the parent so it gets a new function identity on every render,
+  // which causes React to remount it and wipe local state. Holding
+  // the modal state at the parent keeps "View bracket" working.
+  const [viewingOwnBracket, setViewingOwnBracket] = useState(null);
   const [stats, setStats] = useState({ totalPlayers: 0, totalPrizePools: 0, activeLeagues: 0 });
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
   const [shareCard, setShareCard] = useState(null); // { matchId, home, away, homeFlag, awayFlag, homeScore, awayScore, result }
@@ -2222,28 +2227,23 @@ const GoalOracle = () => {
   // ─── Your Leagues — Apple HIG redesign ────────────────────────────────
   // Page paired with LeagueLeaderboardLayout: same row anatomy, hairline
   // dividers, chevron-only nav, one-state-pill cascade. Tap = navigate.
+  const handleShareOwnBracket = useCallback(async () => {
+    const userId = uData?.id;
+    if (!userId) return;
+    const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
+    const url = `${origin}/u/${encodeURIComponent(userId)}/bracket?ref=${encodeURIComponent(userId)}`;
+    const text = `Check out my World Cup 2026 bracket on GoalOracle: ${url}`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: 'My GoalOracle bracket', text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        notify?.('Bracket link copied — share it with friends');
+      }
+    } catch { /* user cancelled native share */ }
+  }, [uData?.id, notify]);
+
   const LeaguesList = () => {
-    // "View bracket" opens the read-only PicksViewer with the user's
-    // own prediction doc — better UX than dumping them into the wizard.
-    // Edit + Share affordances are wired through to the existing nav
-    // and a lightweight referral-link share so we don't need to lift
-    // the BracketShareModal up to the root for one extra entry point.
-    const [viewingOwnBracket, setViewingOwnBracket] = useState(null);
-    const handleShareFromViewer = useCallback(async () => {
-      const userId = uData?.id;
-      if (!userId) return;
-      const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
-      const url = `${origin}/u/${encodeURIComponent(userId)}/bracket?ref=${encodeURIComponent(userId)}`;
-      const text = `Check out my World Cup 2026 bracket on GoalOracle: ${url}`;
-      try {
-        if (typeof navigator !== 'undefined' && navigator.share) {
-          await navigator.share({ title: 'My GoalOracle bracket', text, url });
-        } else {
-          await navigator.clipboard.writeText(url);
-          notify?.('Bracket link copied — share it with friends');
-        }
-      } catch { /* user cancelled native share */ }
-    }, []);
     const seedAll = leagues.length > 0 ? leagues : [
       { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
     ];
@@ -2348,7 +2348,13 @@ const GoalOracle = () => {
           onClick={() => nav('detail', league)}
           onLeaderboard={() => nav('detail', league, { tab: 'leaderboard' })}
           onEditPicks={() => nav('detail', league, { tab: 'predictions' })}
-          onViewBracket={() => setViewingOwnBracket(league)}
+          onViewBracket={() => {
+            // Quick Picks: open the inline bracket modal. Classic:
+            // there's no single bracket to render — route to the
+            // detail page so the user can step through their picks.
+            if (league.predictionMode === 'simple') setViewingOwnBracket(league);
+            else nav('detail', league, { tab: 'predictions' });
+          }}
           onLeave={!isGlobalLeague(league) ? async () => {
             if (!uData?.id) return;
             const confirmed = window.confirm(
@@ -2452,25 +2458,6 @@ const GoalOracle = () => {
               <Plus size={14} aria-hidden="true" /> Create your first league
             </button>
           </div>
-        )}
-
-        {viewingOwnBracket && uData?.id && (
-          <PicksViewer
-            target={{
-              userId: uData.id,
-              displayName: uData.displayName || 'You',
-              leagueId: viewingOwnBracket.id,
-              leagueName: viewingOwnBracket.name,
-            }}
-            isOwn
-            onEdit={() => {
-              const league = viewingOwnBracket;
-              setViewingOwnBracket(null);
-              nav('detail', league, { tab: 'predictions' });
-            }}
-            onShare={handleShareFromViewer}
-            onClose={() => setViewingOwnBracket(null)}
-          />
         )}
       </div>
     );
@@ -4220,6 +4207,31 @@ const GoalOracle = () => {
         onClose={() => setStandingsOpen(false)}
         predictions={preds}
       />
+      {/* "View bracket" modal — opened from the leagues list. Lifted
+          to parent scope so it survives LeaguesList remounts (the
+          previous local-state version was wiped on every render).
+          Only Quick Picks leagues open the modal here; Classic
+          leagues route to the detail page from the row handler
+          instead, since a Classic "bracket" is per-match, not a
+          single tree. */}
+      {viewingOwnBracket && uData?.id && viewingOwnBracket.predictionMode === 'simple' && (
+        <PicksViewer
+          target={{
+            userId: uData.id,
+            displayName: uData.displayName || 'You',
+            leagueId: viewingOwnBracket.id,
+            leagueName: viewingOwnBracket.name,
+          }}
+          isOwn
+          onEdit={() => {
+            const league = viewingOwnBracket;
+            setViewingOwnBracket(null);
+            nav('simplePredict', league);
+          }}
+          onShare={handleShareOwnBracket}
+          onClose={() => setViewingOwnBracket(null)}
+        />
+      )}
     </div>
   );
 };

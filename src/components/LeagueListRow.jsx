@@ -49,15 +49,18 @@ function StatusPill({ status, urgent }) {
 // ── Action button — small icon-only with stop-propagation ──────────────
 // Each action stops the row's default click so the parent's onClick (the
 // generic nav-to-detail) doesn't also fire on top of the explicit route.
-function ActionButton({ icon: Icon, label, onClick }) {
+// Uses a CSS `data-tooltip` rather than native `title` so the hint stays
+// visible even when the app is embedded in an iframe (where browser
+// tooltips render at the OS layer and get clipped).
+function ActionButton({ icon: Icon, label, onClick, danger = false }) {
   if (!onClick) return null;
   return (
     <button
       type="button"
-      className="lr-action-btn"
+      className={`lr-action-btn${danger ? ' lr-action-btn-danger' : ''}`}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
     >
       <Icon size={13} aria-hidden="true" />
     </button>
@@ -99,20 +102,11 @@ export default function LeagueListRow({
       </div>
       {hasActions && (
         <div className="lr-cell lr-cell-actions" onClick={(e) => e.stopPropagation()}>
-          <ActionButton icon={LayoutGrid} label="View bracket" onClick={onViewBracket} />
-          <ActionButton icon={Pencil} label="Edit picks" onClick={onEditPicks} />
-          <ActionButton icon={TrendingUp} label="Leaderboard" onClick={onLeaderboard} />
-          {onLeave && (
-            <button
-              type="button"
-              className="lr-action-btn lr-action-btn-danger"
-              onClick={(e) => { e.stopPropagation(); onLeave(); }}
-              aria-label="Leave league"
-              title="Leave league"
-            >
-              <LogOut size={13} aria-hidden="true" />
-            </button>
-          )}
+          <ActionButton icon={LayoutGrid} label="View my bracket" onClick={onViewBracket} />
+          <ActionButton icon={Pencil} label="Edit my picks" onClick={onEditPicks} />
+          <ActionButton icon={TrendingUp} label="View leaderboard" onClick={onLeaderboard} />
+          <ActionButton icon={LogOut} label="Leave league" onClick={onLeave} danger />
+          {/* note: ActionButton already short-circuits when onClick is missing */}
         </div>
       )}
       <div className="lr-cell lr-cell-rank">

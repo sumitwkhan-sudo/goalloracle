@@ -7375,6 +7375,29 @@ body.light .lsd-head,
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
   touch-action: manipulation;
+  position: relative;
+}
+/* Custom tooltip — see comment on .theme-opt[data-tooltip]. Mirrored
+   here so leagues-list action icons get a hint that stays inside the
+   page DOM and isn't clipped by an iframe boundary. */
+.lr-action-btn[data-tooltip]:hover::after,
+.lr-action-btn[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elev, #1a1d2e);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 .lr-action-btn:hover {
   color: var(--text);
