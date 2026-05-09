@@ -11,6 +11,7 @@ import AnimatedCounter from './AnimatedCounter';
 import BoldestCallCard from './simple/BoldestCallCard';
 import MostContestedCard from './simple/MostContestedCard';
 import BracketSurvivalCard from './simple/BracketSurvivalCard';
+import NewsFeed from './NewsFeed';
 
 const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
 
@@ -270,6 +271,8 @@ export default function Dashboard({
           {uData?.id && <BracketSurvivalCard userId={uData.id} leagueId="global-simple" />}
         </aside>
       </div>
+
+      <NewsFeed />
 
       {/* Bottom strip — leagues. Friends section is a placeholder until the
           friend-graph layer lands; leaving the cell so the layout doesn't
