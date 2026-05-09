@@ -747,9 +747,11 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   const [lbKey, setLbKey] = useState(0);
   const [viewingPicks, setViewingPicks] = useState(null); // { userId, displayName, winner, runnerUp }
   const [shareBracket, setShareBracket] = useState(null); // null | { winner, runnerUp, thirdPlace }
-  // Crowd consensus for the active league — used to surface bracket
-  // rarity in the share-modal caption. Lazy-fetched once the user
-  // opens the share flow; getSimpleConsensus memoizes per-league.
+  // Crowd consensus for the active league. Used in two places:
+  //  1. The share-modal caption (rarity), lazy-fetched on open.
+  //  2. The leaderboard table's per-row "uniqueness" chip — fetched
+  //     eagerly when the leaderboard tab is active so every row can
+  //     show how rare its champion+runner-up pair is.
   const [shareConsensus, setShareConsensus] = useState(null);
   const [countriesList, setCountriesList] = useState([]);
 
@@ -843,6 +845,19 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       if (notify) notify(e?.message || 'Failed to load bracket', 'error');
     }
   }, [userData?.id, league?.id, notify]);
+
+  // Eagerly fetch consensus when the leaderboard is active so each
+  // row can show its uniqueness chip without waiting for a hover.
+  // Cached per-league inside getSimpleConsensus, so revisits are cheap.
+  useEffect(() => {
+    if (sTab !== 'leaderboard' || lbMode !== 'simple' || !league?.id) return;
+    if (shareConsensus) return; // already loaded
+    let cancelled = false;
+    getSimpleConsensus(league.id)
+      .then((c) => { if (!cancelled) setShareConsensus(c); })
+      .catch(() => { /* non-fatal — uniqueness chips just don't appear */ });
+    return () => { cancelled = true; };
+  }, [sTab, lbMode, league?.id, shareConsensus]);
 
   // Fetch Simple leaderboard
   useEffect(() => {
@@ -992,7 +1007,17 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             if (notify) notify('Could not copy invite', 'error');
           }
         };
-        const rows = visibleSimLb.map(e => ({ ...e, delta: simDeltas[e.userId] }));
+        const rows = visibleSimLb.map(e => {
+          // Uniqueness = P(champion) * P(runner-up). Lower means
+          // fewer players picked the same pair — i.e. rarer.
+          let uniqueness;
+          if (shareConsensus && e.winner && e.runnerUp) {
+            const cw = shareConsensus.champion?.[e.winner];
+            const cr = shareConsensus.runnerUp?.[e.runnerUp];
+            if (typeof cw === 'number' && typeof cr === 'number') uniqueness = cw * cr;
+          }
+          return { ...e, delta: simDeltas[e.userId], uniqueness };
+        });
         return (
           <LeagueLeaderboardLayout
             league={league}
