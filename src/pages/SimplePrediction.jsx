@@ -205,6 +205,27 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   const step1Complete = groups.allTouched;
   const step2Complete = bestThird.isComplete;
 
+  // Submit/save handler used by both the top and bottom Save & finish
+  // buttons on Step 3. Bails out if the Final isn't picked yet, and
+  // warns (without blocking) if the 3rd-place playoff is empty —
+  // it's worth 5 points and easy to miss after picking the Final.
+  const handleFinish = useCallback(async () => {
+    if (!bracketState.isRoundComplete('final')) return;
+    const thirdPlacePicked = bracketState.isRoundComplete('thirdPlace');
+    if (!thirdPlacePicked) {
+      const ok = window.confirm(
+        'You haven’t picked a winner for the 3rd-place playoff (worth 5 pts). Submit anyway?',
+      );
+      if (!ok) return;
+    }
+    const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
+    if (allComplete) {
+      await saveNow({ isComplete: true });
+    }
+    if (onComplete) onComplete();
+    else if (onExit) onExit();
+  }, [bracketState, step1Complete, step2Complete, saveNow, onComplete, onExit]);
+
   const completedSteps = useMemo(() => {
     const done = [];
     if (step1Complete) done.push(1);
@@ -527,15 +548,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
                   className="btn btn-primary"
                   disabled={!finalPicked}
                   aria-label={finalPicked ? 'Save and finish' : 'Pick the Final winner to continue'}
-                  onClick={async () => {
-                    if (!finalPicked) return;
-                    const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
-                    if (allComplete) {
-                      await saveNow({ isComplete: true });
-                    }
-                    if (onComplete) onComplete();
-                    else if (onExit) onExit();
-                  }}
+                  onClick={handleFinish}
                 >
                   {finalPicked
                     ? <>Save &amp; finish <ArrowRight size={16} /></>
@@ -613,7 +626,9 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
                 // tournament winner (the Final). Picking the Final
                 // implies every upstream round is filled (each match
                 // feeds the next), so this single check covers R32 →
-                // Final completeness without forcing the 3rd-Place pick.
+                // Final completeness. The 3rd-place playoff isn't
+                // required, but `handleFinish` will warn the user
+                // before submitting if it's empty (worth 5 pts).
                 const finalPicked = bracketState.isRoundComplete('final');
                 return (
                   <button
@@ -621,15 +636,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
                     className="btn btn-primary"
                     disabled={!finalPicked}
                     aria-label={finalPicked ? 'Save and finish' : 'Pick the Final winner to continue'}
-                    onClick={async () => {
-                      if (!finalPicked) return;
-                      const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
-                      if (allComplete) {
-                        await saveNow({ isComplete: true });
-                      }
-                      if (onComplete) onComplete();
-                      else if (onExit) onExit();
-                    }}
+                    onClick={handleFinish}
                   >
                     {finalPicked
                       ? <>Continue <ArrowRight size={16} /></>
