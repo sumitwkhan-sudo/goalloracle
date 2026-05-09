@@ -524,6 +524,14 @@ export async function adminInspectFingerprint(visitorId) {
   return await apiCall('admin', 'POST', { action: 'inspectFingerprint', visitorId });
 }
 
+export async function adminReconcileLeague(leagueId, matchId) {
+  return await apiCall('admin', 'POST', {
+    action: 'reconcile',
+    leagueId,
+    ...(matchId ? { matchId } : {}),
+  });
+}
+
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
 // Defaults: Classic is opt-in. Quick Picks is the product surface; the
 // Classic flow is preserved in code for re-enabling later but stays

@@ -1,6 +1,7 @@
-import { db, applyCors, verifyAuth } from './_lib/firebase.js';
+import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { ipHash } from './_lib/security.js';
+import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
 async function getRole(userId) {
   const userSnap = await db.collection('users').doc(userId).get();
@@ -331,6 +332,128 @@ export default async function handler(req, res) {
         timestamp: FieldValue.serverTimestamp(),
       });
       return res.status(200).json({ success: true, migrated, skipped, errors });
+    }
+
+    if (action === 'reconcile') {
+      // Audit a Quick Picks league. Returns:
+      //   - prediction submission stats (total users / submitted / complete)
+      //   - matchResult ingestion check (every kicked-off match has a result)
+      //   - per-match pick distribution if matchId is provided
+      //   - any users whose picks throw on score computation
+      //
+      // Design note: Quick Picks scoring is currently client-side, so there
+      // is no stored "final score" to reconcile against. This endpoint
+      // surfaces enough data to spot drift manually + flags structurally
+      // bad picks before they cause leaderboard glitches.
+      const { leagueId, matchId } = req.body;
+      if (!leagueId) return res.status(400).json({ error: 'Missing leagueId' });
+
+      // 1) League roster
+      const leagueSnap = await db.collection('leagues').doc(leagueId).get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+      const memberIds = leagueSnap.data().members || [];
+
+      // 2) Predictions for those members in this league. Composite doc IDs
+      //    are `${userId}__${leagueId}`; fall back to legacy `userId` doc
+      //    for global-simple, mirroring /api/simple-leaderboard.
+      const compositeIds = memberIds.map(uid => `${uid}__${leagueId}`);
+      const preds = {};
+      for (let i = 0; i < compositeIds.length; i += 30) {
+        const batch = compositeIds.slice(i, i + 30);
+        const snap = await db.collection('simplePredictions')
+          .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+          .get();
+        snap.docs.forEach(d => { const data = d.data(); if (data?.userId) preds[data.userId] = data; });
+      }
+      if (leagueId === 'global-simple') {
+        const missing = memberIds.filter(uid => !preds[uid]);
+        for (let i = 0; i < missing.length; i += 30) {
+          const batch = missing.slice(i, i + 30);
+          const snap = await db.collection('simplePredictions')
+            .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+            .get();
+          snap.docs.forEach(d => { if (!preds[d.id]) preds[d.id] = d.data(); });
+        }
+      }
+
+      const predUsers = Object.keys(preds);
+      const submitted = predUsers.length;
+      const complete = predUsers.filter(uid => {
+        const finalPick = preds[uid]?.knockoutPredictions?.final?.[0];
+        return !!(preds[uid]?.isComplete || finalPick?.winnerId);
+      }).length;
+
+      // 3) Match results coverage. Walk WORLD_CUP_MATCHES and check which
+      //    have already kicked off; flag any without a stored matchResult.
+      const now = Date.now();
+      const completedMatches = WORLD_CUP_MATCHES.filter(m => {
+        const [hh, mm] = m.time.split(':').map(Number);
+        const d = new Date(`${m.date}T00:00:00Z`);
+        d.setUTCHours(hh + 4, mm, 0, 0);
+        return d.getTime() < now - 3 * 60 * 60 * 1000; // FT'd > 3h ago
+      });
+      const resultsSnap = await db.collection('matchResults').get();
+      const resultsByMatchId = {};
+      resultsSnap.docs.forEach(d => { resultsByMatchId[d.id] = d.data(); });
+      const missingResults = completedMatches
+        .filter(m => !resultsByMatchId[m.id] || resultsByMatchId[m.id].completed !== true)
+        .map(m => m.id);
+
+      // 4) Per-match pick distribution for the optional matchId param.
+      let pickDistribution = null;
+      if (matchId) {
+        const counts = {};
+        let predictedCount = 0;
+        for (const uid of predUsers) {
+          const ko = preds[uid]?.knockoutPredictions || {};
+          const allRounds = ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final'];
+          for (const round of allRounds) {
+            const arr = ko[round] || [];
+            const slot = arr.find(s => s?.matchId === matchId);
+            if (slot?.winnerId) {
+              counts[slot.winnerId] = (counts[slot.winnerId] || 0) + 1;
+              predictedCount++;
+              break;
+            }
+          }
+        }
+        pickDistribution = { matchId, totalPredicted: predictedCount, byTeam: counts };
+      }
+
+      // 5) Surface users whose payload is structurally malformed enough that
+      //    the leaderboard would fail to render them. Cheap defensive check.
+      const malformed = [];
+      for (const uid of predUsers) {
+        const p = preds[uid];
+        try {
+          if (p.groupPredictions && typeof p.groupPredictions !== 'object') throw new Error('groupPredictions not object');
+          if (p.bestThirdPicks && !Array.isArray(p.bestThirdPicks)) throw new Error('bestThirdPicks not array');
+          if (p.knockoutPredictions && typeof p.knockoutPredictions !== 'object') throw new Error('knockoutPredictions not object');
+        } catch (e) {
+          malformed.push({ userId: uid, error: e.message });
+        }
+      }
+
+      await db.collection('adminLogs').add({
+        action: 'reconcile',
+        leagueId, matchId: matchId || null,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        summary: { totalMembers: memberIds.length, submitted, complete, missingResultCount: missingResults.length },
+      });
+
+      return res.status(200).json({
+        leagueId,
+        runAt: new Date().toISOString(),
+        members: { total: memberIds.length, submitted, complete },
+        results: {
+          completedMatchesExpected: completedMatches.length,
+          completedMatchesIngested: completedMatches.length - missingResults.length,
+          missingResults,
+        },
+        pickDistribution,
+        malformed,
+      });
     }
 
     if (action === 'inspectFingerprint') {

@@ -15,6 +15,11 @@
  */
 
 import { applyCors, verifyAuth, db } from './_lib/firebase.js';
+import {
+  parseFootballDataResponse,
+  parseApiSportsResponse,
+  compareResults,
+} from './_lib/oracleParsers.js';
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -128,22 +133,7 @@ async function fetchFootballDataOrg(fifaMatchId) {
   );
   if (!resp.ok) throw new Error(`football-data.org: ${resp.status}`);
   const data = await resp.json();
-
-  if (data.status !== 'FINISHED') throw new Error(`Not finished: ${data.status}`);
-
-  const ft = data.score?.fullTime || {};
-  const pen = data.score?.penalties || {};
-  const duration = data.score?.duration;
-
-  return {
-    source: 'football-data.org',
-    homeScore: ft.home ?? 0,
-    awayScore: ft.away ?? 0,
-    extraTime: duration === 'EXTRA_TIME' || duration === 'PENALTY_SHOOTOUT',
-    penalties: duration === 'PENALTY_SHOOTOUT',
-    penHome: pen.home ?? 0,
-    penAway: pen.away ?? 0,
-  };
+  return parseFootballDataResponse(data);
 }
 
 
@@ -162,87 +152,17 @@ async function fetchApiSports(fixtureId, matchDate, homeTeam, awayTeam) {
 
   let url;
   if (fixtureId) {
-    // Direct fixture lookup (fastest, 1 request)
     url = `https://v3.football.api-sports.io/fixtures?id=${fixtureId}`;
   } else if (matchDate) {
-    // Search by date + World Cup league
     url = `https://v3.football.api-sports.io/fixtures?league=1&season=2026&date=${matchDate}`;
   } else {
     throw new Error('Need fixtureId or matchDate');
   }
 
-  const resp = await fetch(url, {
-    headers: {
-      'x-apisports-key': apiKey,
-    },
-  });
+  const resp = await fetch(url, { headers: { 'x-apisports-key': apiKey } });
   if (!resp.ok) throw new Error(`api-sports.io: ${resp.status}`);
   const data = await resp.json();
-
-  const fixtures = data.response;
-  if (!fixtures || fixtures.length === 0) throw new Error('No fixtures found');
-
-  // Find the right match
-  let fixture;
-  if (fixtureId) {
-    fixture = fixtures[0];
-  } else {
-    // Match by team name
-    fixture = fixtures.find(f => {
-      const h = f.teams?.home?.name?.toLowerCase() || '';
-      const a = f.teams?.away?.name?.toLowerCase() || '';
-      const ht = homeTeam?.toLowerCase() || '';
-      const at = awayTeam?.toLowerCase() || '';
-      return (h.includes(ht) || ht.includes(h)) && (a.includes(at) || at.includes(a));
-    });
-  }
-
-  if (!fixture) throw new Error(`Match not found: ${homeTeam} vs ${awayTeam}`);
-
-  const status = fixture.fixture?.status?.short;
-  if (status !== 'FT' && status !== 'AET' && status !== 'PEN') {
-    throw new Error(`Match not finished: ${status}`);
-  }
-
-  const goals = fixture.goals || {};
-  const score = fixture.score || {};
-  const penScore = score.penalty || {};
-  const etScore = score.extratime || {};
-
-  const hasET = status === 'AET' || status === 'PEN' ||
-    (etScore.home != null && (etScore.home > 0 || etScore.away > 0));
-  const hasPen = status === 'PEN' ||
-    (penScore.home != null && (penScore.home > 0 || penScore.away > 0));
-
-  return {
-    source: 'api-sports.io',
-    homeScore: goals.home ?? 0,
-    awayScore: goals.away ?? 0,
-    extraTime: hasET,
-    penalties: hasPen,
-    penHome: penScore.home ?? 0,
-    penAway: penScore.away ?? 0,
-  };
-}
-
-
-// ─────────────────────────────────────────────────────────────────
-// COMPARISON
-// ─────────────────────────────────────────────────────────────────
-function compareResults(s1, s2) {
-  const checks = [
-    { field: 'homeScore', a: s1.homeScore, b: s2.homeScore },
-    { field: 'awayScore', a: s1.awayScore, b: s2.awayScore },
-    { field: 'extraTime', a: s1.extraTime, b: s2.extraTime },
-    { field: 'penalties', a: s1.penalties, b: s2.penalties },
-  ];
-  if (s1.penalties || s2.penalties) {
-    checks.push({ field: 'penHome', a: s1.penHome, b: s2.penHome });
-    checks.push({ field: 'penAway', a: s1.penAway, b: s2.penAway });
-  }
-  const failures = checks.filter(c => c.a !== c.b);
-  if (failures.length === 0) return { match: true };
-  return { match: false, details: failures.map(f => `${f.field}: src1=${f.a}, src2=${f.b}`).join('; ') };
+  return parseApiSportsResponse(data, { fixtureId, homeTeam, awayTeam });
 }
 
 
