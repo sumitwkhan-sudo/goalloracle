@@ -5567,7 +5567,9 @@ body.light .lsd-head,
 .td-insights-pack .boldest-call-card,
 .td-insights-pack .contested-card,
 .td-insights-pack .alignment-card,
-.td-insights-pack .market-odds-card {
+.td-insights-pack .market-odds-card,
+.td-insights-pack .group-boldness-card,
+.td-insights-pack .fifa-ranks-card {
   margin: 0;
   padding: 0.5rem 0.7rem;
   font-size: 0.78rem;
@@ -5727,6 +5729,106 @@ body.light .lsd-head,
   font-size: 0.62rem; color: var(--text-dim);
   font-family: var(--mono); letter-spacing: 0.04em;
 }
+
+/* Group-stage boldness card — counts user's group picks that diverge
+   from the FIFA-ranked favorite in each group. Tone shifts the
+   gradient: cool = chalk picks, warm = wild upset-heavy bracket. */
+.group-boldness-card {
+  background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(123,97,255,0.05));
+  border: 1px solid rgba(0,212,255,0.28);
+  color: var(--text);
+}
+.group-boldness-wild {
+  background: linear-gradient(135deg, rgba(255,184,0,0.1), rgba(255,45,135,0.04));
+  border-color: rgba(255,184,0,0.3);
+}
+.group-boldness-safe {
+  background: linear-gradient(135deg, rgba(0,230,118,0.08), rgba(0,212,255,0.04));
+  border-color: rgba(0,230,118,0.28);
+}
+.group-boldness-head {
+  display: flex; align-items: center; gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3rem;
+}
+.group-boldness-icon {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyan, #00d4ff), var(--violet, #7b61ff));
+  color: #000;
+}
+.group-boldness-icon svg { width: 10px; height: 10px; }
+.group-boldness-label {
+  font-family: var(--mono); font-size: 0.56rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text);
+}
+.group-boldness-body {
+  display: flex; flex-direction: column; gap: 0.15rem;
+  font-size: 0.76rem; line-height: 1.3;
+}
+.group-boldness-pct strong {
+  font-family: var(--mono); font-size: 0.95rem; font-weight: 800;
+  color: var(--text); margin-right: 0.25rem;
+}
+.group-boldness-meta {
+  font-size: 0.65rem; color: var(--text-dim);
+}
+.group-boldness-meta strong { color: var(--text); }
+
+/* FIFA ranks card — top-3 ranked side from src/data/fifaRankings.js
+   plus a footer line that locates the user's champion in the table. */
+.fifa-ranks-card {
+  background: linear-gradient(135deg, rgba(123,97,255,0.08), rgba(255,45,135,0.04));
+  border: 1px solid rgba(123,97,255,0.28);
+  color: var(--text);
+}
+.fifa-ranks-head {
+  display: flex; align-items: center; gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3rem;
+}
+.fifa-ranks-icon {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--violet, #7b61ff), var(--magenta, #ff2d87));
+  color: #000;
+}
+.fifa-ranks-icon svg { width: 10px; height: 10px; }
+.fifa-ranks-label {
+  font-family: var(--mono); font-size: 0.56rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text);
+}
+.fifa-ranks-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.fifa-ranks-row {
+  display: grid; grid-template-columns: 26px 16px 1fr;
+  align-items: center; gap: 0.35rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0;
+}
+.fifa-ranks-row.is-mine {
+  font-weight: 700;
+  color: var(--primary, #7c5cff);
+}
+.fifa-ranks-pos {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+  color: var(--text-sec);
+}
+.fifa-ranks-row.is-mine .fifa-ranks-pos { color: var(--primary); }
+.fifa-ranks-flag { font-size: 0.85rem; line-height: 1; }
+.fifa-ranks-team {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fifa-ranks-foot {
+  font-size: 0.62rem; line-height: 1.3; color: var(--text-sec);
+  border-top: 1px solid var(--border);
+  padding-top: 0.3rem;
+}
+.fifa-ranks-foot strong { color: var(--text); }
 
 /* ── Top strip — six canonical state cells ─────────────────────────── */
 .td-strip {
