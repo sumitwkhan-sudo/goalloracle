@@ -2125,22 +2125,36 @@ const GoalOracle = () => {
     const globalLeagues = allMine.filter(isGlobalLeague);
     const personalLeagues = allMine.filter(l => !isGlobalLeague(l));
 
-    // Status object built from existing data flow — same shape Dashboard
-    // uses. Returns { done, remaining, etaMin, ended } | null.
+    // Status object derived per-league from leagueRanks (not the global
+    // quickPicks state, which only tracks global-simple). Returns
+    // { done, remaining, etaMin, pct, ended } | null. Each Quick Picks
+    // league has its own /simplePredictions/{userId}__{leagueId} doc,
+    // so picks-complete in one league doesn't imply complete in
+    // another — relying on the global quickPicks state was the source
+    // of every league showing "All picks in" once global-simple was
+    // finished.
+    const QP_TOTAL_REQUIRED = 12 + 8 + 32; // 12 group rankings + 8 best-thirds + 32 bracket picks
     const predStatus = (league) => {
       if (league.predictionMode === 'simple') {
-        if (!quickPicks) return null;
-        if (quickPicks.isComplete) return { done: true, remaining: 0 };
-        const etaMin = Math.max(1, Math.round(quickPicks.totalRemaining * 8 / 60));
-        return { done: false, remaining: quickPicks.totalRemaining, etaMin };
+        const rk = leagueRanks[league.id];
+        if (!rk || typeof rk.myPicksLeft !== 'number') return null;
+        const remaining = rk.myPicksLeft;
+        const picked = Math.max(0, QP_TOTAL_REQUIRED - remaining);
+        const pct = Math.round((picked / QP_TOTAL_REQUIRED) * 100);
+        if (rk.myIsComplete || remaining === 0) {
+          return { done: true, remaining: 0, pct: 100 };
+        }
+        const etaMin = Math.max(1, Math.round(remaining * 8 / 60));
+        return { done: false, remaining, etaMin, pct };
       }
       const rk = leagueRanks[league.id];
       if (!rk || typeof rk.myPredCount !== 'number') return null;
       const total = WORLD_CUP_MATCHES.length;
       const remaining = Math.max(0, total - rk.myPredCount);
-      if (remaining === 0) return { done: true, remaining: 0 };
+      const pct = Math.round((rk.myPredCount / total) * 100);
+      if (remaining === 0) return { done: true, remaining: 0, pct: 100 };
       const etaMin = Math.max(1, Math.round(remaining * 20 / 60));
-      return { done: false, remaining, etaMin };
+      return { done: false, remaining, etaMin, pct };
     };
 
     // Urgency rule from the brief: <30 min to next deadline + picks remaining.
@@ -2200,6 +2214,9 @@ const GoalOracle = () => {
           total={total || null}
           urgent={urgent}
           onClick={() => nav('detail', league)}
+          onLeaderboard={() => nav('detail', league, { tab: 'leaderboard' })}
+          onEditPicks={() => nav('detail', league, { tab: 'predictions' })}
+          onViewBracket={() => nav('detail', league, { tab: 'predictions' })}
         />
       );
     };
