@@ -3882,29 +3882,25 @@ const GoalOracle = () => {
         questions: [
           {
             q: 'How are match results verified?',
-            a: 'GoalOracle uses a dual-source oracle system. When a match finishes, results are fetched from two independent football data providers. Both sources must agree on the final score before the result is accepted. This prevents errors from any single data source.'
+            a: 'When a match finishes, GoalOracle automatically pulls the final score from football-data.org — a widely-trusted football data API used by thousands of developers worldwide. Results are checked every 30 minutes and posted to your leaderboard within an hour of full-time.'
           },
           {
-            q: 'Which APIs provide the match scores?',
+            q: 'Which API provides the match scores?',
             a: (<>
-              We use two independent, widely-trusted football data APIs:
+              <strong>Football-Data.org</strong> — a community-trusted API that provides live scores, fixtures, and standings for major football competitions including the FIFA World Cup. Their data comes directly from official league feeds.
               <br/><br/>
-              <strong>Source 1: Football-Data.org</strong> — A free, community-trusted API that provides live scores, fixtures, and standings for major football competitions including the FIFA World Cup. Used by thousands of developers worldwide.
-              <br/><a href="https://www.football-data.org" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> football-data.org</a>
-              <br/><br/>
-              <strong>Source 2: API-Sports (API-Football)</strong> — A comprehensive sports data provider covering 900+ football leagues with real-time scores, events, and statistics. Trusted by major sports platforms globally.
-              <br/><a href="https://www.api-football.com" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> api-football.com</a>
-              <br/><br/>
-              Both sources must return the same score for a result to be marked as verified. If they disagree, an admin review is triggered before any points are awarded.
+              <a href="https://www.football-data.org" target="_blank" rel="noopener noreferrer" className="faq-link"><ExternalLink size={12} /> football-data.org</a>
             </>)
           },
           {
-            q: 'What happens if the two data sources disagree?',
-            a: 'If the two APIs return different scores — which is rare but possible during extra time or penalty scenarios — the result enters a "dispute" state. An admin manually verifies using official FIFA sources before confirming. No points or prizes are distributed until the result is verified.'
+            q: 'What if I think a match result is wrong?',
+            a: (<>
+              You can contest a result by emailing <a href="mailto:support@goaloracle.io" className="faq-link">support@goaloracle.io</a> with the match and the source you believe is correct (e.g. the official FIFA scorecard). We review every report and update the record if it\'s been miscaptured.
+            </>)
           },
           {
             q: 'Can I verify the results myself?',
-            a: 'Yes. All verified match results are visible on the platform and you can cross-check them against the official FIFA World Cup website (fifa.com), or the two data sources we use (football-data.org and api-football.com). Full transparency is a core principle.'
+            a: 'Yes. All verified match results are visible on the platform and you can cross-check them against the official FIFA World Cup website (fifa.com) or football-data.org directly. Full transparency is a core principle.'
           },
         ]
       },
@@ -3944,7 +3940,9 @@ const GoalOracle = () => {
           },
           {
             q: 'Who can I contact for support?',
-            a: 'For bugs, questions, or feedback, reach out to us at support@goaloracle.com or open an issue on our GitHub repository.'
+            a: (<>
+              For bugs, questions, feedback, or to contest a match result, email us at <a href="mailto:support@goaloracle.io" className="faq-link">support@goaloracle.io</a>.
+            </>)
           },
         ]
       },

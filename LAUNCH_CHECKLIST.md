@@ -48,33 +48,30 @@ If any tab shows an error or is blank, screenshot it and tell me.
 
 ---
 
-## Step 4 — Verify the result-feed APIs work (CRITICAL)
+## Step 4 — Verify the result feed works (CRITICAL)
 
-This is the most important pre-launch check. You're confirming the two
-score-feed APIs we use can actually fetch a real match.
+This is the most important pre-launch check. You're confirming football-
+data.org can actually fetch a real match.
 
 1. Open the admin dashboard → **Oracle** tab.
-2. Click **Run Health Check** at the top. Wait. You should see two big green
-   "connected" badges for football-data.org and api-sports.io. If either is
-   red:
+2. Click **Run Health Check** at the top. Wait. You should see one big green
+   "connected" badge for football-data.org. If it's red:
    - Red because of "no key" → go to Vercel env vars, confirm
-     `FOOTBALL_DATA_API_KEY` and `APISPORTS_API_KEY` are both set.
+     `FOOTBALL_DATA_API_KEY` is set.
    - Red because of "rate limited" → wait 1 minute, click again.
-   - Red because of "401" or "403" → the key in Vercel is wrong. Go to the
-     respective provider dashboard and copy a fresh key into Vercel.
+   - Red because of "401" or "403" → the key in Vercel is wrong. Generate a
+     new one at football-data.org and copy it into Vercel.
 
 3. Scroll down to **Live End-to-End Test**. You'll see three buttons:
    - **Test EPL** — fetches a recent Premier League match and runs the full
-     pipeline. **Click this.** You should see ~6 green ✓ rows in 5–15
-     seconds. The bottom row says "two sources agree" — that's the one that
-     matters most.
+     pipeline. **Click this.** You should see ~3 green ✓ rows in 3–10
+     seconds: list matches, parse match detail, standings probe.
    - **Test UCL** — same thing for Champions League.
    - **Test WC** — World Cup. Probably won't have a recent match this far
      before the tournament; expect "no FINISHED matches in last 7 days" —
      that's fine. Re-run after Jun 11.
 
-If "two sources agree" is red after Test EPL or Test UCL, **don't launch the
-prediction game for prizes until we figure out why**. Screenshot and ping me.
+If any row is red, screenshot and ping me.
 
 ---
 
@@ -137,27 +134,30 @@ just do Option A.
 
 Once a match finishes, here's what should happen automatically:
 
-1. Within ~5 minutes of full-time, both oracles independently confirm the
-   match is `FINISHED`.
-2. Our system compares the two scores. If they match, it's stored as
-   `verified: true` in the database.
-3. Leaderboards re-render with the new result baked in. (Quick Picks scoring
-   runs on every page load, so it picks up the new result on the next page
-   refresh — there's no separate "scoring run".)
+1. Within ~5 minutes of full-time, football-data.org marks the match as
+   `FINISHED`.
+2. The auto-poll cron (runs every 30 min) pulls the score and writes it
+   to our database with `verified: true`.
+3. Leaderboards re-render with the new result baked in. (Quick Picks
+   scoring runs on every page load, so it picks up the new result on the
+   next page refresh — there's no separate "scoring run".)
 
-If a match seems stuck (it's been 30+ min since FT and the leaderboard
+If a match seems stuck (it's been an hour since FT and the leaderboard
 hasn't updated):
 
 1. Open admin → **Matches** tab. Find the match. Does it have a result
    stored? If yes, the issue is leaderboard caching — refresh the page.
 2. If no result is stored: open admin → **Oracle** tab → "Run Health Check".
-   See if either oracle is broken.
-3. If both oracles are green but the match is stuck, the problem is likely
-   that our system hasn't been told to fetch this match yet. Right now the
-   oracle ONLY runs when an admin presses "Run Oracle" for a specific match.
-   You need to wire up a scheduled poller to fetch finished matches
-   automatically — **this is a known gap and probably the next priority
-   after merging PR #51**. Tell me when you want it built.
+   See if football-data.org is reachable.
+3. If the API is green but the match is stuck, click **Run Auto-Poll Now**
+   to force a fresh attempt.
+4. If still missing, click **Edit Result** on that match in the Matches tab
+   and enter the score manually. (Superadmins can override any result; this
+   audit-logs as a manual correction and you'll get an alert email.)
+
+If a user emails `support@goaloracle.io` claiming a result is wrong:
+cross-check with the official FIFA scorecard, then either confirm to them
+that football-data.org has it right, or use **Edit Result** to correct it.
 
 ---
 
@@ -174,14 +174,14 @@ hasn't updated):
 
 ## What's automated end-to-end now
 
-The system now handles the full tournament lifecycle without operator
-clicks (assuming env vars are set):
+The system handles the full tournament lifecycle without operator clicks
+(assuming env vars are set):
 
 - **Group-stage results**: auto-poll cron ingests every 30 min once a
   match has been finished for 3+ hours.
 - **Group standings**: the daily report email fetches live standings from
-  api-football (or football-data.org as fallback) and includes a per-group
-  table so you can spot-check that the upstream agrees with our results.
+  football-data.org and includes a per-group table so you can spot-check
+  that the upstream agrees with our results.
 - **Third-place qualification**: the daily report includes the FIFA Article
   13 cross-group ranking with a clear cutoff line between rows 8 and 9
   (advances vs eliminated).
@@ -193,11 +193,11 @@ clicks (assuming env vars are set):
 
 ## What still needs human input (rare cases)
 
-1. **Disputed match results** — when both oracle APIs disagree, you get an
-   alert email immediately. Open admin → Matches → Edit Result for that
-   match and enter the score manually.
-2. **Auto-rescore on operator correction** — if you fix a typo'd result
-   you'll get an alert email so you know it happened. Quick Picks scores
+1. **Result disputes** — if a user emails `support@goaloracle.io` saying
+   a score is wrong, cross-check with FIFA's official site. If we have
+   it wrong, edit the result via admin → Matches → Edit Result.
+2. **Auto-rescore on operator correction** — if you fix a result, you'll
+   get an alert email so you know it happened. Quick Picks scores
    self-correct on the next leaderboard render.
 
 ---
@@ -215,8 +215,7 @@ or add:
 |---|---|
 | `CRON_SECRET` | Any 32+ char random string. Just mash your keyboard. |
 | `REPORT_EMAIL` | Your email (skip if you want it to use `FEEDBACK_EMAIL`) |
-| `FOOTBALL_DATA_API_KEY` | The one currently missing |
-| `APISPORTS_API_KEY` | Already set per your message |
+| `FOOTBALL_DATA_API_KEY` | Get one free at football-data.org |
 | `RESEND_API_KEY` | Already set (used for sign-in emails too) |
 
 ### 2. Open admin → Oracle tab and click 4 buttons
@@ -224,9 +223,9 @@ or add:
 Each button gives instant pass/fail feedback so you don't need to wait
 for a scheduled cron run.
 
-1. **Run Health Check** at the top — both rows should turn green.
-2. **Test EPL** under "Live End-to-End Test" — should show ~6 green ✓
-   rows. The bottom row "two sources agree" is the critical one.
+1. **Run Health Check** at the top — the football-data.org row should turn green.
+2. **Test EPL** under "Live End-to-End Test" — should show ~3 green ✓
+   rows: list matches, parse match detail, standings probe.
 3. **Run Auto-Poll Now** under "Verify Automation" — pre-tournament,
    this should report `0 candidates, 0 ingested`. That's correct: no
    matches have happened yet, so nothing to ingest.

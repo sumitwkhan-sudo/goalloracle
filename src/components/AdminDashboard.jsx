@@ -684,38 +684,6 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   <a href="https://www.football-data.org" target="_blank" rel="noopener noreferrer" className="admin-oracle-link"><ExternalLink size={11} /> football-data.org</a>
                 </div>
 
-                {/* Oracle 2 */}
-                <div className={`admin-oracle-card ${health.oracle2.status === 'connected' ? 'oracle-ok' : 'oracle-err'}`}>
-                  <h3>
-                    {health.oracle2.status === 'connected' ? <Wifi size={14} style={{color:'var(--success)'}} /> : <WifiOff size={14} style={{color:'var(--danger)'}} />}
-                    Oracle 2 — API-Sports.io
-                  </h3>
-
-                  <div className="admin-oracle-status-live">
-                    <span className={`admin-status-dot ${health.oracle2.status === 'connected' ? 'green' : 'red'}`}></span>
-                    <span className="admin-status-label">
-                      {health.oracle2.status === 'connected' && 'Connected'}
-                      {health.oracle2.status === 'no_key' && 'API Key Missing'}
-                      {health.oracle2.status === 'error' && 'Connection Failed'}
-                      {health.oracle2.status === 'unknown' && 'Unknown'}
-                    </span>
-                  </div>
-
-                  {health.oracle2.latency != null && (
-                    <div className="admin-oracle-detail">Latency: <strong>{health.oracle2.latency}ms</strong></div>
-                  )}
-                  {health.oracle2.status === 'connected' && (
-                    <>
-                      <div className="admin-oracle-detail">Plan: <strong>{health.oracle2.plan}</strong></div>
-                      <div className="admin-oracle-detail">Requests today: <strong>{health.oracle2.requestsToday} / {health.oracle2.requestsLimit}</strong></div>
-                    </>
-                  )}
-                  {health.oracle2.error && (
-                    <div className="admin-oracle-err-msg"><AlertTriangle size={11} /> {health.oracle2.error}</div>
-                  )}
-
-                  <a href="https://www.api-football.com" target="_blank" rel="noopener noreferrer" className="admin-oracle-link"><ExternalLink size={11} /> api-football.com</a>
-                </div>
               </div>
 
               {/* Env vars status */}
@@ -750,7 +718,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
 
               <div className="admin-oracle-info" style={{marginTop:'1rem'}}>
                 <AlertTriangle size={14} />
-                <span>Both oracles must return matching scores for auto-verification. If they disagree, the result enters dispute state for manual admin review.</span>
+                <span>Match results are sourced from football-data.org. If a result is reported incorrectly, a superadmin can override it via the Matches tab; users can also email support@goaloracle.io to flag a result.</span>
               </div>
             </>
           )}
@@ -759,7 +727,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           <div className="admin-panel-head" style={{ marginTop: '2rem' }}>
             <div>
               <h2>Live End-to-End Test</h2>
-              <p className="admin-panel-desc">Pick a recent finished match in another league, run both oracles + parsers against it, and confirm they agree. Use this before the World Cup to verify the whole pipeline works.</p>
+              <p className="admin-panel-desc">Pick a recent finished match in another league, fetch it from football-data.org, and confirm our parser ingests it correctly. Use this before the World Cup to verify the whole pipeline works.</p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => runSmokeTest('PL')} disabled={smokeTestLoading}>
@@ -959,7 +927,6 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           <h3 className="admin-section-title">Environment Variables</h3>
           <div className="admin-contract-card">
             <div className="admin-contract-row"><span className="admin-contract-lbl">FOOTBALL_DATA_API_KEY</span><span className="admin-env-check">Set in Vercel env</span></div>
-            <div className="admin-contract-row"><span className="admin-contract-lbl">APISPORTS_API_KEY</span><span className="admin-env-check">Set in Vercel env</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">ORACLE_PRIVATE_KEY_1</span><span className="admin-env-check">Set in Vercel env</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">ORACLE_PRIVATE_KEY_2</span><span className="admin-env-check">Set in Vercel env</span></div>
             <div className="admin-contract-row"><span className="admin-contract-lbl">FIREBASE_SERVICE_ACCOUNT</span><span className="admin-env-check">Set in Vercel env</span></div>

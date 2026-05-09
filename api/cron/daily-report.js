@@ -19,8 +19,7 @@
 
 import { db, admin, applyCors, verifyAuth } from '../_lib/firebase.js';
 import {
-  parseFootballDataResponse, parseApiSportsResponse,
-  parseApiSportsStandings, parseFootballDataStandings,
+  parseFootballDataStandings,
   rankThirdPlacedTeamsFromStandings,
 } from '../_lib/oracleParsers.js';
 import { escapeHtml } from '../_lib/security.js';
@@ -58,36 +57,10 @@ async function probeOracle1() {
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
-async function probeOracle2() {
-  const key = process.env.APISPORTS_API_KEY;
-  if (!key) return { ok: false, error: 'no key' };
-  try {
-    const r = await fetch('https://v3.football.api-sports.io/status', {
-      headers: { 'x-apisports-key': key },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) return { ok: false, error: `HTTP ${r.status}` };
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.message }; }
-}
-
-// Pulls live group standings. Tries api-sports.io first (better group
-// structure for tournament standings), falls back to football-data.org.
-// Either source's failure surfaces as `null` so the email still ships.
+// Pulls live group standings from football-data.org. Returns null on
+// failure so the email still ships; the standings section just shows
+// an "unavailable" line.
 async function fetchStandings() {
-  const asKey = process.env.APISPORTS_API_KEY;
-  if (asKey) {
-    try {
-      const r = await fetch('https://v3.football.api-sports.io/standings?league=1&season=2026', {
-        headers: { 'x-apisports-key': asKey },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        return parseApiSportsStandings(data);
-      }
-    } catch { /* fall through */ }
-  }
   const fdKey = process.env.FOOTBALL_DATA_API_KEY;
   if (fdKey) {
     try {
@@ -140,7 +113,7 @@ async function runReport(req, res) {
   const FT_GRACE_MS = 3 * 60 * 60 * 1000;
 
   // ── 1. Oracle health ──
-  const [o1, o2, standings] = await Promise.all([probeOracle1(), probeOracle2(), fetchStandings()]);
+  const [o1, standings] = await Promise.all([probeOracle1(), fetchStandings()]);
   const top3rds = standings ? rankThirdPlacedTeamsFromStandings(standings) : [];
 
   // ── 2. Match results ──
@@ -204,7 +177,6 @@ async function runReport(req, res) {
   // ── Aggregate health ──
   const issues = [];
   if (!o1.ok) issues.push(`football-data.org unreachable (${o1.error})`);
-  if (!o2.ok) issues.push(`api-sports.io unreachable (${o2.error})`);
   if (missing.length > 0) issues.push(`${missing.length} completed match(es) missing results`);
   if (disputed.length > 0) issues.push(`${disputed.length} disputed result(s) need admin review`);
   if (partial.length > 0) issues.push(`${partial.length} partial result(s) — only one source returned`);
@@ -224,10 +196,9 @@ async function runReport(req, res) {
   <div style="background:#fff;border:1px solid #e5e5e5;border-top:none;border-radius:0 0 10px 10px;padding:18px 24px">
     ${issues.length > 0 ? `<div style="background:#fff5f5;border:1px solid #f5b5b5;border-radius:8px;padding:12px 16px;margin:0 0 18px"><strong>Action needed:</strong><ul style="margin:8px 0 0;padding-left:20px">${issues.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul></div>` : ''}
 
-    <h3 style="font-size:14px;color:#444;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.5px">Result-feed APIs</h3>
+    <h3 style="font-size:14px;color:#444;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.5px">Result feed</h3>
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <tr><td style="padding:6px 0;color:#666">football-data.org</td><td style="padding:6px 0;text-align:right;color:${o1.ok ? '#0d4a2c' : '#7a1d1d'};font-weight:600">${o1.ok ? 'Connected' : escapeHtml(o1.error)}</td></tr>
-      <tr><td style="padding:6px 0;color:#666">api-sports.io</td><td style="padding:6px 0;text-align:right;color:${o2.ok ? '#0d4a2c' : '#7a1d1d'};font-weight:600">${o2.ok ? 'Connected' : escapeHtml(o2.error)}</td></tr>
     </table>
 
     <h3 style="font-size:14px;color:#444;margin:18px 0 8px;text-transform:uppercase;letter-spacing:0.5px">Match results</h3>
