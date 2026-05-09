@@ -2,8 +2,8 @@
  * BracketAlignmentCard
  *
  * Single-number insight: how aligned the user's full knockout bracket
- * is with the crowd consensus. For every (round, matchId) the user
- * picked a winner for, we look up whether that team is also the
+ * is with the global crowd consensus. For every (round, matchId) the
+ * user picked a winner for, we look up whether that team is also the
  * crowd's top pick for the same slot. Count of matches ÷ total picks
  * = alignment %.
  *
@@ -11,9 +11,13 @@
  *   - Boldest = the one MOST contrarian pick (lowest consensus).
  *   - Alignment = the WHOLE bracket's mainstream-ness aggregated.
  *
- * Hidden until the league has at least MIN_USER_THRESHOLD submitters
- * — a 2-user sample makes "consensus" meaningless. Same opt-in logic
- * as the other consensus-driven cards.
+ * The user's PICKS are pulled per-league (so a private league shows
+ * the user's bracket for THAT league). The COMPARISON crowd is
+ * always global-simple — comparing a private-league bracket against
+ * a 3-person private-league crowd is statistical noise; comparing
+ * against thousands of global submitters is signal. Hidden only
+ * when global-simple itself has too few submitters or the user
+ * hasn't picked anything.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -31,9 +35,11 @@ export default function BracketAlignmentCard({ userId, leagueId }) {
     let cancelled = false;
     (async () => {
       try {
+        // Per-league prediction; always-global comparison crowd. See
+        // file header for why a private-league crowd of 3 is noise.
         const [pred, consensus] = await Promise.all([
           getSimplePrediction(userId, leagueId),
-          getSimpleConsensus(leagueId),
+          getSimpleConsensus('global-simple'),
         ]);
         if (cancelled) return;
         if (!pred || !consensus || (consensus.totalUsers || 0) < MIN_USER_THRESHOLD) return;
