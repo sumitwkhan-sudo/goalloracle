@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -204,6 +204,46 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     } catch (e) {
       notify('Clear anti-Sybil failed: ' + e.message, 'error');
     } finally { setCronLoading(null); }
+  };
+
+  // Anti-Sybil bypass allowlist (Firestore-managed). Loaded lazily on
+  // mount; persisted via the admin endpoint. Up to 200 entries.
+  const [bypassList, setBypassList] = useState(null); // null = not loaded
+  const [bypassEnvList, setBypassEnvList] = useState([]);
+  const [bypassDraft, setBypassDraft] = useState('');
+  const [bypassBusy, setBypassBusy] = useState(false);
+  const loadBypassList = async () => {
+    try {
+      const data = await adminGetAntiSybilBypassList();
+      setBypassList(data.emails || []);
+      setBypassEnvList(data.envEmails || []);
+      setBypassDraft((data.emails || []).join('\n'));
+    } catch (e) {
+      notify('Failed to load bypass list: ' + e.message, 'error');
+    }
+  };
+  const saveBypassList = async () => {
+    setBypassBusy(true);
+    try {
+      const emails = bypassDraft.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+      const data = await adminSetAntiSybilBypassList(emails);
+      setBypassList(data.emails);
+      setBypassDraft(data.emails.join('\n'));
+      notify(`Saved bypass list — ${data.count} entries. Effective within 60s.`);
+    } catch (e) {
+      notify('Save failed: ' + e.message, 'error');
+    } finally {
+      setBypassBusy(false);
+    }
+  };
+  const addMyEmailToBypass = () => {
+    const me = userData?.email;
+    if (!me) return;
+    const lines = bypassDraft.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!lines.some(l => l.toLowerCase() === me.toLowerCase())) {
+      const next = lines.concat(me).join('\n');
+      setBypassDraft(next);
+    }
   };
 
   useEffect(() => {
@@ -831,6 +871,63 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             <div className="admin-oracle-info" style={{ borderColor: 'rgba(255,59,92,0.15)', background: 'rgba(255,59,92,0.04)', color: 'var(--danger)' }}>
               <AlertTriangle size={14} />
               <span>{cronStatus.kind === 'poll' ? 'Auto-poll' : cronStatus.kind === 'reminder' ? 'Reminder cron' : 'Daily report'} error: {cronStatus.error}</span>
+            </div>
+          )}
+
+          {/* ─── Anti-Sybil bypass allowlist ─── */}
+          <div className="admin-panel-head" style={{ marginTop: '2rem' }}>
+            <div>
+              <h2>Anti-Sybil Bypass List</h2>
+              <p className="admin-panel-desc">
+                Emails on this list skip the per-device + per-IP single-account
+                check. Gmail+ aliases auto-match (e.g. <code>you@gmail.com</code>
+                {' '}also covers <code>you+test1@gmail.com</code>). Use this for
+                your own laptop / phone test accounts. Changes take effect within
+                ~60 seconds. Up to 200 entries.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {bypassList === null ? (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={loadBypassList}>Load list</button>
+              ) : (
+                <>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={addMyEmailToBypass} disabled={!userData?.email}>
+                    + add my email
+                  </button>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={saveBypassList} disabled={bypassBusy}>
+                    {bypassBusy ? <><RefreshCw size={13} className="spin" /> Saving…</> : <>Save</>}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {bypassList !== null && (
+            <div className="admin-contract-card" style={{ display: 'block', padding: '0.75rem 1rem' }}>
+              <textarea
+                value={bypassDraft}
+                onChange={(e) => setBypassDraft(e.target.value)}
+                placeholder={'one email per line\nyou@gmail.com\nteammate@example.com'}
+                rows={Math.max(4, Math.min(12, bypassDraft.split('\n').length + 1))}
+                spellCheck={false}
+                style={{
+                  width: '100%',
+                  fontFamily: 'var(--mono, monospace)',
+                  fontSize: 13,
+                  padding: 8,
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg)',
+                  color: 'var(--text)',
+                  resize: 'vertical',
+                }}
+              />
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-sec)' }}>
+                Saved: <strong>{bypassList.length}</strong> entries.
+                {bypassEnvList.length > 0 && (
+                  <> Plus <strong>{bypassEnvList.length}</strong> from <code>ANTI_SYBIL_BYPASS_EMAILS</code> env var (read-only here).</>
+                )}
+              </div>
             </div>
           )}
 

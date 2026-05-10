@@ -110,7 +110,7 @@ export default async function handler(req, res) {
       // alias support) skip the per-device + per-IP checks so the
       // operator can keep multiple test accounts on their own laptop +
       // phone without manually clearing fingerprint state each time.
-      const bypass = isAntiSybilBypassEmail(email);
+      const bypass = await isAntiSybilBypassEmail(db, email);
       const fpCheck = bypass ? { allowed: true } : await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
       if (!fpCheck.allowed) {
         const [maskedEmail, existingEmail] = await Promise.all([

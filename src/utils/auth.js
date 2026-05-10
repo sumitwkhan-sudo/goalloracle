@@ -105,33 +105,53 @@ async function completeGoogleSignIn(result) {
   return auth.currentUser;
 }
 
+// Errors where the popup got killed by the browser (Chrome's COOP, ad
+// blockers, sandbox flags, mid-auth tab close). For these specific
+// failure modes we transparently retry with signInWithRedirect — the
+// user goes through Google in the same tab instead of a popup.
+const POPUP_KILL_CODES = new Set([
+  'auth/popup-blocked',
+  'auth/popup-closed-by-user',
+  'auth/cancelled-popup-request',
+  'auth/web-storage-unsupported',
+]);
+
+async function startRedirectFlow(provider) {
+  _swapInFlight = true;
+  try { sessionStorage.setItem(REDIRECT_FLAG, '1'); } catch {}
+  try {
+    await signInWithRedirect(auth, provider);
+  } catch (e) {
+    _swapInFlight = false;
+    try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
+    throw e;
+  }
+  return null;
+}
+
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
-  _swapInFlight = true;
 
   if (shouldUseRedirect()) {
     // Redirect flow — does not resume in this function. The app reloads
     // back to the origin URL and completeGoogleRedirectIfNeeded() picks
     // up where we left off on the next mount.
-    try {
-      sessionStorage.setItem(REDIRECT_FLAG, '1');
-    } catch {}
-    try {
-      await signInWithRedirect(auth, provider);
-    } catch (e) {
-      _swapInFlight = false;
-      try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
-      throw e;
-    }
-    return null;
+    return startRedirectFlow(provider);
   }
 
-  // Desktop popup flow.
+  // Desktop popup flow with redirect fallback. Chrome's COOP and some
+  // ad blockers will close the popup mid-auth; the redirect flow works
+  // there because it doesn't depend on cross-window communication.
+  _swapInFlight = true;
   try {
     const result = await signInWithPopup(auth, provider);
     return await completeGoogleSignIn(result);
   } catch (e) {
     _swapInFlight = false;
+    if (POPUP_KILL_CODES.has(e?.code)) {
+      console.warn('[auth] popup failed (', e.code, ') — falling back to redirect');
+      return startRedirectFlow(provider);
+    }
     throw e;
   }
 }

@@ -159,15 +159,23 @@ export async function checkAndRecordCodeRequestForIp(db, ip) {
 
 // ────────────────────────── ANTI-SYBIL BYPASS ──────────────────────────
 
-// Comma-separated list of emails (or Gmail+ aliases) in
-// ANTI_SYBIL_BYPASS_EMAILS env var skip the per-device + per-IP single-
-// account checks. Used to allowlist the operator's own laptop / phone /
-// test mailboxes during pre-launch QA without disabling the safeguards
-// for everyone.
+// Allowlist of emails that skip the per-device + per-IP single-account
+// checks. Two sources, merged:
+//
+//   1. Firestore: /config/antiSybilBypass.emails — managed via the admin
+//      UI. Primary source so the operator can add/remove without redeploy.
+//
+//   2. Env var: ANTI_SYBIL_BYPASS_EMAILS — comma-separated, kept as a
+//      backstop for bootstrap (before any admin user exists) and so the
+//      bypass survives accidental Firestore-doc deletion.
 //
 // Matching: lowercased, trimmed, with `+suffix` stripped from the local
-// part (Gmail-style). So setting `sumitwkhan@gmail.com` in the env also
-// allows `sumitwkhan+test1@gmail.com`, `Sumitwkhan+QA@gmail.com`, etc.
+// part (Gmail-style). So `sumitwkhan@gmail.com` in the list also allows
+// `sumitwkhan+test1@gmail.com`, `Sumitwkhan+QA@gmail.com`, etc.
+//
+// The merged list is cached in-process for 60 seconds to avoid a
+// Firestore round-trip on every signup attempt. A Vercel deploy or a
+// 60-second wait propagates admin-UI changes everywhere.
 function _normalizeForBypass(email) {
   if (typeof email !== 'string') return null;
   const lower = email.toLowerCase().trim();
@@ -179,13 +187,45 @@ function _normalizeForBypass(email) {
   return `${local}@${domain}`;
 }
 
-export function isAntiSybilBypassEmail(email) {
-  const raw = process.env.ANTI_SYBIL_BYPASS_EMAILS || '';
-  if (!raw) return false;
-  const list = raw.split(',').map(_normalizeForBypass).filter(Boolean);
+const BYPASS_CACHE_TTL_MS = 60 * 1000;
+let _bypassCache = { list: null, ts: 0 };
+
+export function _invalidateBypassCache() {
+  _bypassCache = { list: null, ts: 0 };
+}
+
+async function _loadBypassList(db) {
+  if (_bypassCache.list && Date.now() - _bypassCache.ts < BYPASS_CACHE_TTL_MS) {
+    return _bypassCache.list;
+  }
+  const envList = (process.env.ANTI_SYBIL_BYPASS_EMAILS || '')
+    .split(',').map(_normalizeForBypass).filter(Boolean);
+  let dbList = [];
+  if (db) {
+    try {
+      const snap = await db.collection('config').doc('antiSybilBypass').get();
+      if (snap.exists) {
+        const raw = snap.data()?.emails || [];
+        dbList = raw.map(_normalizeForBypass).filter(Boolean);
+      }
+    } catch {
+      // Fall back to env list — never block on Firestore being briefly down.
+    }
+  }
+  const merged = Array.from(new Set([...envList, ...dbList]));
+  _bypassCache = { list: merged, ts: Date.now() };
+  return merged;
+}
+
+export async function isAntiSybilBypassEmail(db, email) {
+  const list = await _loadBypassList(db);
   if (list.length === 0) return false;
   const normalized = _normalizeForBypass(email);
   return !!normalized && list.includes(normalized);
+}
+
+export function normalizeBypassEmail(email) {
+  return _normalizeForBypass(email);
 }
 
 // ────────────────────────── DEVICE FINGERPRINT ──────────────────────────

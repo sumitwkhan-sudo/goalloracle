@@ -568,6 +568,18 @@ export async function adminClearAntiSybil(userId) {
   return await apiCall('admin', 'POST', { action: 'clearAntiSybilForUser', userId });
 }
 
+// Fetch the current anti-Sybil bypass allowlist (Firestore-managed).
+// Also returns env-var entries separately for visibility.
+export async function adminGetAntiSybilBypassList() {
+  return await apiCall('admin', 'POST', { action: 'getAntiSybilBypassList' });
+}
+
+// Replace the full anti-Sybil bypass allowlist. Pass the desired final
+// state — server validates each entry parses as an email.
+export async function adminSetAntiSybilBypassList(emails) {
+  return await apiCall('admin', 'POST', { action: 'setAntiSybilBypassList', emails });
+}
+
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
 // Defaults: Classic is opt-in. Quick Picks is the product surface; the
 // Classic flow is preserved in code for re-enabling later but stays
