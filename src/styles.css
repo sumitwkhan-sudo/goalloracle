@@ -4990,6 +4990,17 @@ button.invite-option:hover,
 @media (max-width: 640px) {
   .simple-page-header { grid-template-columns: 1fr; }
   .simple-page-title h1 { font-size: 1.25rem; }
+  /* When the wizard renders inside .league-detail (which itself carries
+     padding: 2rem on mobile) the compounded horizontal padding squeezes
+     content into a narrow column AND any child element that overflows
+     would push the whole page. Cap simple-page width to the parent and
+     contain horizontal overflow as a safety net. */
+  .simple-page, .simple-page-embedded { max-width: 100%; overflow-x: hidden; }
+  /* Trim .league-detail's chunky 2rem padding on phones — it's set in a
+     desktop-first rule and ends up being most of the screen width on
+     small viewports, leaving content visibly indented from both edges
+     and giving a mobile-shifted-left optical effect. */
+  .league-detail { padding: 1rem; }
   .group-row { grid-template-columns: auto auto 1fr auto; }
   .group-row-name { font-size: 0.82rem; }
   .group-row .group-row-handle { opacity: 1; }

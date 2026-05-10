@@ -12,7 +12,7 @@ import { Check } from 'lucide-react';
 const STEPS = [
   { key: 1, label: 'Groups' },
   { key: 2, label: 'Best Third' },
-  { key: 3, label: 'Bracket' },
+  { key: 3, label: 'Knockouts' },
 ];
 
 export default function StepProgress({ current, completed, onStepClick }) {
