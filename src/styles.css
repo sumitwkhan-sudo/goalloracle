@@ -7291,6 +7291,50 @@ body.light .lsd-head,
   display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
 }
 .ll-header-dot { color: var(--text-dim); }
+
+/* Private-league passcode strip — visible only to members of a private
+   league. Lets the operator copy the passcode and forward it to a
+   friend with one tap, without going through the Invite modal. */
+.ll-header-passcode {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  margin-top: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 184, 0, 0.08);
+  border: 1px solid rgba(255, 184, 0, 0.24);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  width: fit-content; max-width: 100%;
+}
+.ll-header-passcode-label {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-sec);
+  text-transform: uppercase;
+  font-size: 0.64rem;
+}
+.ll-header-passcode-code {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--amber, #ffb800);
+  background: transparent;
+  padding: 0 4px;
+  cursor: pointer;
+  user-select: all;
+}
+.ll-header-passcode-copy {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-sec);
+}
+.ll-header-passcode-copy:hover { color: var(--text); border-color: var(--text-sec); }
 .ll-header-invite {
   background: var(--grad);
   color: #fff;
@@ -7477,6 +7521,16 @@ body.light .lsd-head,
 .ll-id-you {
   font-size: 0.6rem; font-weight: 700;
   background: var(--primary); color: var(--bg);
+  padding: 1px 5px; border-radius: 3px;
+  margin-left: 4px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.ll-id-creator {
+  font-size: 0.6rem; font-weight: 700;
+  background: rgba(255, 184, 0, 0.16);
+  color: var(--amber, #ffb800);
+  border: 1px solid rgba(255, 184, 0, 0.32);
   padding: 1px 5px; border-radius: 3px;
   margin-left: 4px;
   text-transform: uppercase; letter-spacing: 0.04em;
@@ -7886,11 +7940,26 @@ body.light .lsd-head,
 .lr-cell { display: flex; align-items: center; min-width: 0; }
 
 /* Name cell — primary content, ellipsis */
-.lr-cell-name { min-width: 0; }
+.lr-cell-name {
+  min-width: 0;
+  display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
+}
 .lr-name {
   font-weight: 600; font-size: 0.92rem;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--text);
+}
+.lr-private-tag {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 0.65rem; font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 212, 255, 0.10);
+  color: var(--cyan, #00d4ff);
+  border: 1px solid rgba(0, 212, 255, 0.22);
+  flex-shrink: 0;
 }
 
 /* Status pill — exactly one renders, tone driven by cascade */

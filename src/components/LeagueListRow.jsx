@@ -10,7 +10,7 @@
  */
 
 import React from 'react';
-import { ChevronRight, Target, CheckCircle, Flag, LayoutGrid, Pencil, TrendingUp, LogOut } from 'lucide-react';
+import { ChevronRight, Target, CheckCircle, Flag, LayoutGrid, Pencil, TrendingUp, LogOut, Lock } from 'lucide-react';
 
 // ── State pill — exactly one renders per row ─────────────────────────────
 // Priority cascade: ended → done (100%) → in-progress (% complete) → none.
@@ -96,6 +96,11 @@ export default function LeagueListRow({
         <span className="lr-name" title={league?.memberCount ? `${league.memberCount.toLocaleString()} members` : undefined}>
           {league?.name || 'League'}
         </span>
+        {league?.visibility === 'private' && (
+          <span className="lr-private-tag" title="Private league — joinable by passcode only">
+            <Lock size={10} aria-hidden="true" /> Private
+          </span>
+        )}
       </div>
       <div className="lr-cell lr-cell-status">
         <StatusPill status={status} urgent={urgent} />
