@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -224,6 +224,33 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     } catch (e) {
       notify('Clear anti-Sybil failed: ' + e.message, 'error');
     } finally { setCronLoading(null); }
+  };
+
+  // Diagnostic for sign-in regressions: look up the canonical Firestore
+  // state for a given email (e.g. sumitwkhan@gmail.com) and surface
+  // duplicate /users/* docs so we can see whether the swap is resolving
+  // to the right UID. Read-only.
+  const [inspectEmail, setInspectEmail] = useState('');
+  const [inspectResult, setInspectResult] = useState(null);
+  const [inspectLoading, setInspectLoading] = useState(false);
+  const inspectUser = async () => {
+    const email = (inspectEmail || '').trim().toLowerCase();
+    if (!email) return;
+    setInspectLoading(true);
+    setInspectResult(null);
+    try {
+      const data = await adminInspectUser(email);
+      setInspectResult(data);
+      const dupCount = data.duplicateCount || 0;
+      notify(
+        dupCount === 0 ? `No /users docs found for ${email}` :
+        dupCount === 1 ? `Found 1 doc for ${email} (id: ${data.wouldResolveTo})` :
+        `Found ${dupCount} duplicate /users docs for ${email} — would resolve to ${data.wouldResolveTo}`,
+        dupCount > 1 ? 'error' : 'success'
+      );
+    } catch (e) {
+      notify('Inspect failed: ' + e.message, 'error');
+    } finally { setInspectLoading(false); }
   };
 
   // Anti-Sybil bypass allowlist (Firestore-managed). Loaded lazily on
@@ -938,6 +965,41 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               </button>
             </div>
           </div>
+
+          {/* ─── Sign-in diagnostic ─── */}
+          <div className="admin-panel-head" style={{ marginTop: '2rem' }}>
+            <div>
+              <h2>Inspect User by Email</h2>
+              <p className="admin-panel-desc">When a user reports a sign-in regression, look up the canonical /users docs for their email here. Surfaces duplicate accounts (one did:privy:* + one auth_*, or two auth_* with the same dedupe key) that can strand the client's getDoc lookup.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="email"
+                className="login-input"
+                placeholder="user@example.com"
+                value={inspectEmail}
+                onChange={(e) => setInspectEmail(e.target.value)}
+                disabled={inspectLoading}
+                style={{ minWidth: 240 }}
+                onKeyDown={(e) => { if (e.key === 'Enter') inspectUser(); }}
+              />
+              <button type="button" className="btn btn-secondary btn-sm" onClick={inspectUser} disabled={inspectLoading || !inspectEmail.trim()}>
+                {inspectLoading ? <><RefreshCw size={13} className="spin" /> Looking up…</> : <>Inspect</>}
+              </button>
+            </div>
+          </div>
+
+          {inspectResult && (
+            <div className="admin-oracle-info" style={{ display: 'block', padding: '1rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.5, background: 'rgba(0,0,0,0.04)' }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                {inspectResult.queriedEmail} → would resolve to <code>{inspectResult.wouldResolveTo || '(none)'}</code>
+                {inspectResult.duplicateCount > 1 && (
+                  <span style={{ color: 'var(--danger)', marginLeft: 8 }}>⚠ {inspectResult.duplicateCount} duplicate doc(s)</span>
+                )}
+              </div>
+              {JSON.stringify(inspectResult, null, 2)}
+            </div>
+          )}
 
           {cronStatus?.error && (
             <div className="admin-oracle-info" style={{ borderColor: 'rgba(255,59,92,0.15)', background: 'rgba(255,59,92,0.04)', color: 'var(--danger)' }}>

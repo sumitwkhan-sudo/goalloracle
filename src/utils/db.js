@@ -575,6 +575,14 @@ export async function adminBackfillEmails(dryRun = false) {
   return await apiCall('admin', 'POST', { action: 'backfillEmails', dryRun });
 }
 
+// Diagnostic: returns the canonical Firestore state for a given email so we
+// can see whether duplicate /users/* docs (one did:privy:* + one auth_*, or
+// two auth_* with the same dedupe key) are stranding a user's sign-in.
+// Read-only — superadmin gated server-side.
+export async function adminInspectUser(email) {
+  return await apiCall('admin', 'POST', { action: 'inspectUser', email });
+}
+
 // Fetch the current anti-Sybil bypass allowlist (Firestore-managed).
 // Also returns env-var entries separately for visibility.
 export async function adminGetAntiSybilBypassList() {
