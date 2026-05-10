@@ -4311,6 +4311,76 @@ button.invite-option:hover,
   max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 4rem;
   color: var(--text); font-family: var(--font);
 }
+
+/* #13 — Welcome-back banner shown to returning users with incomplete picks */
+.simple-welcome-back {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: linear-gradient(90deg, rgba(255, 196, 0, 0.12), transparent);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber);
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+  margin: 0 0 0.85rem;
+  font-size: 0.88rem;
+}
+.simple-welcome-back-text { flex: 1; line-height: 1.4; }
+.simple-welcome-back-sub { color: var(--text-sec); }
+.simple-welcome-back-sub em { font-style: normal; color: var(--text); font-weight: 600; }
+.simple-welcome-back-dismiss {
+  background: transparent; border: none; color: var(--text-sec);
+  font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 0 0.25rem;
+}
+.simple-welcome-back-dismiss:hover { color: var(--text); }
+
+/* #2 — Completion celebration modal */
+.completion-celebration {
+  position: relative;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2rem 1.5rem 1.5rem;
+  max-width: 420px;
+  width: calc(100% - 2rem);
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+.ccel-trophy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 78px; height: 78px;
+  margin: 0 auto 0.75rem;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--amber), var(--primary));
+  color: var(--bg);
+}
+.ccel-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0 0 0.5rem;
+}
+.ccel-sub {
+  color: var(--text-sec);
+  margin: 0 0 1.25rem;
+  line-height: 1.5;
+}
+.ccel-flag { font-size: 1.1em; margin: 0 0.15rem; }
+.ccel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+.ccel-share, .ccel-view { min-width: 160px; }
+.ccel-hint {
+  font-size: 0.78rem;
+  color: var(--text-sec);
+  margin: 0;
+}
+
 .simple-page-header {
   display: grid; grid-template-columns: auto 1fr auto; align-items: center;
   gap: 1rem; margin-bottom: 1.25rem;
@@ -4323,6 +4393,153 @@ button.invite-option:hover,
 .simple-page-saved { color: var(--success); display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 500; }
 .simple-page-saving { color: var(--text-sec); }
 .simple-page-error { color: var(--danger); display: inline-flex; align-items: center; gap: 0.25rem; }
+
+/* #13 — Welcome-back banner above the StepProgress */
+.simple-welcome-back {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: linear-gradient(90deg, rgba(255, 214, 107, 0.16), rgba(255, 59, 48, 0.10));
+  border: 1px solid rgba(255, 214, 107, 0.35);
+  border-radius: 8px;
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+.simple-welcome-back-text { min-width: 0; }
+.simple-welcome-back-sub { color: var(--text-sec); }
+.simple-welcome-back-sub em { color: var(--text); font-style: normal; font-weight: 600; }
+.simple-welcome-back-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--text-sec);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.simple-welcome-back-dismiss:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
+/* #2 — Completion celebration modal */
+.completion-celebration {
+  position: relative;
+  background: linear-gradient(180deg, var(--bg-elev), var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 32px 28px 24px;
+  max-width: 440px;
+  width: calc(100% - 32px);
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.ccel-trophy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #FFD66B, #ff9d3b);
+  color: #2a1500;
+  margin: 0 auto 16px;
+  box-shadow: 0 8px 24px rgba(255, 157, 59, 0.4);
+}
+.ccel-title { font-size: 1.5rem; font-weight: 800; margin: 0 0 8px; }
+.ccel-sub { color: var(--text-sec); margin: 0 0 20px; line-height: 1.5; font-size: 0.95rem; }
+.ccel-sub strong { color: var(--text); }
+.ccel-flag { font-size: 1.2rem; margin: 0 2px; }
+.ccel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.ccel-share, .ccel-view {
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ccel-hint { font-size: 0.78rem; color: var(--text-sec); margin: 0; }
+
+/* #3 — Combined onboarding card */
+.welcome-flow {
+  position: relative;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 28px 24px;
+  max-width: 460px;
+  width: calc(100% - 32px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.wf-hero {
+  text-align: center;
+  margin-bottom: 22px;
+}
+.wf-hero-emoji { font-size: 2.4rem; line-height: 1; margin-bottom: 6px; }
+.wf-title { font-size: 1.4rem; font-weight: 800; margin: 0 0 6px; }
+.wf-sub { color: var(--text-sec); margin: 0; line-height: 1.45; font-size: 0.9rem; }
+.wf-form { display: flex; flex-direction: column; gap: 14px; }
+.wf-label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 600; }
+.wf-label .input-field { width: 100%; }
+.wf-hint { color: var(--text-sec); font-size: 0.74rem; font-weight: 400; }
+.wf-optional { color: var(--text-sec); font-weight: 400; font-size: 0.78rem; }
+.wf-err {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+.wf-submit { margin-top: 4px; width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 6px; }
+
+/* #6 — Wizard coachmarks */
+.wizard-coachmarks {
+  position: relative;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 24px 20px;
+  max-width: 380px;
+  width: calc(100% - 32px);
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.coach-emoji { font-size: 2.4rem; line-height: 1; margin-bottom: 8px; }
+.coach-title { font-size: 1.15rem; font-weight: 700; margin: 0 0 8px; }
+.coach-body { color: var(--text-sec); line-height: 1.5; font-size: 0.92rem; margin: 0 0 16px; }
+.coach-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+.coach-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.coach-dot-active { background: var(--primary); }
+.coach-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.coach-skip { flex: 1; color: var(--text-sec); }
+.coach-next, .coach-prev { display: inline-flex; align-items: center; gap: 4px; }
 
 /* Step progress (wizard) */
 .simple-steps {
@@ -6746,6 +6963,123 @@ body.light .lsd-head,
   border: 1px solid var(--border);
 }
 .td-row-cta-ghost:hover { color: var(--text); border-color: var(--border-br); }
+
+/* #4 — picks progress bar inside QuickPicksLockRow + DashboardStrip */
+.td-progress {
+  margin-top: 6px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.td-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber), var(--primary));
+  transition: width 240ms ease;
+}
+.td-row-em {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* #10 — stage-lock timeline shown beneath CaughtUpRow when bracket is complete */
+.td-stage-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+.td-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+}
+.td-stage-pill.td-stage-locked {
+  opacity: 0.55;
+  background: transparent;
+}
+.td-stage-name { font-weight: 700; }
+.td-stage-when { color: var(--text-sec); font-family: var(--mono); }
+
+/* #8 — Friends-in-leagues widget on the dashboard */
+.dash-friends-widget {
+  margin: 0.85rem 0 0;
+  padding: 0.85rem 0.95rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.dash-friends-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; margin-bottom: 0.55rem;
+}
+.dash-friends-title { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
+.dash-friends-count { color: var(--text-sec); font-size: 0.78rem; margin-left: 4px; }
+.dash-friends-view {
+  background: transparent; border: none; color: var(--text-sec);
+  font-size: 0.76rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 2px;
+}
+.dash-friends-view:hover { color: var(--text); }
+.dash-friends-list { list-style: none; margin: 0; padding: 0; }
+.dash-friends-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed var(--border);
+}
+.dash-friends-row:last-child { border-bottom: none; }
+.dash-friends-row-you { font-weight: 700; }
+.dash-friends-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.dash-friends-state { font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px; }
+.dash-friends-state.is-done { color: var(--success); }
+.dash-friends-state.is-pending { color: var(--text-sec); }
+.dash-friends-invite {
+  margin-top: 0.6rem; width: 100%;
+  background: transparent; border: 1px dashed var(--border);
+  color: var(--text-sec); border-radius: 8px;
+  padding: 0.45rem; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  font-size: 0.82rem; font-weight: 600;
+}
+.dash-friends-invite:hover { color: var(--text); border-color: var(--text-sec); }
+
+/* #14 — Daily check-in row (pre-tournament only) */
+.dash-checkin {
+  margin: 0.85rem 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber);
+  border-radius: 10px;
+}
+.dash-checkin.is-checked { border-left-color: var(--success); opacity: 0.95; }
+.dash-checkin-icon { color: var(--amber); display: inline-flex; }
+.dash-checkin.is-checked .dash-checkin-icon { color: var(--success); }
+.dash-checkin-body { min-width: 0; }
+.dash-checkin-title { font-weight: 700; font-size: 0.9rem; }
+.dash-checkin-sub { font-size: 0.74rem; color: var(--text-sec); margin-top: 1px; }
+.dash-checkin-streak {
+  display: inline-flex; flex-direction: column; align-items: center;
+  font-family: var(--mono); padding: 0 0.35rem;
+}
+.dash-checkin-streak-num { font-size: 1.05rem; font-weight: 800; color: var(--amber); line-height: 1; }
+.dash-checkin.is-checked .dash-checkin-streak-num { color: var(--success); }
+.dash-checkin-streak-label { font-size: 0.62rem; color: var(--text-sec); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
+.dash-checkin-cta {
+  background: var(--primary); color: var(--bg);
+  border: none; border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+  font-weight: 700; font-size: 0.78rem; cursor: pointer;
+}
+.dash-checkin-cta:hover { filter: brightness(1.08); }
 
 .td-live-stack { display: flex; flex-direction: column; gap: 0.4rem; }
 

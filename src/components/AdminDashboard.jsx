@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -176,6 +176,23 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     } catch (e) {
       setCronStatus({ kind: 'report', error: e.message });
       notify('Daily report failed: ' + e.message, 'error');
+    } finally { setCronLoading(null); }
+  };
+  const runReminderCron = async (kind, dryRun = false) => {
+    setCronLoading(`reminder-${kind}${dryRun ? '-dry' : ''}`);
+    try {
+      const data = await adminRunReminderCron(kind, dryRun);
+      setCronStatus({ kind: 'reminder', data });
+      if (data.skipped) {
+        notify(`Reminder cron skipped — outside ${kind} window (${data.hoursToKickoff}h to kickoff). Pass kind to force.`, 'info');
+      } else if (dryRun) {
+        notify(`Dry run: ${data.targetsCount} ${kind} reminder(s) would be sent.`);
+      } else {
+        notify(`${kind} reminder cron: sent ${data.sent}, failed ${data.failed} of ${data.targets} target(s).`, data.failed > 0 ? 'error' : 'success');
+      }
+    } catch (e) {
+      setCronStatus({ kind: 'reminder', error: e.message });
+      notify('Reminder cron failed: ' + e.message, 'error');
     } finally { setCronLoading(null); }
   };
 
@@ -785,13 +802,22 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               <button type="button" className="btn btn-secondary btn-sm" onClick={runDailyReportNow} disabled={cronLoading !== null}>
                 {cronLoading === 'report' ? <><RefreshCw size={13} className="spin" /> Sending…</> : <>Email Daily Report Now</>}
               </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => runReminderCron('24h', true)} disabled={cronLoading !== null} title="Count how many users would receive the 24h reminder right now (no email sent)">
+                {cronLoading === 'reminder-24h-dry' ? <><RefreshCw size={13} className="spin" /> Counting…</> : <>Reminder 24h (dry)</>}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => runReminderCron('24h')} disabled={cronLoading !== null} title="Force-send the 24h-window reminder to all incomplete-bracket users right now">
+                {cronLoading === 'reminder-24h' ? <><RefreshCw size={13} className="spin" /> Sending…</> : <>Send 24h Reminders</>}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => runReminderCron('1h')} disabled={cronLoading !== null} title="Force-send the 1h-window reminder to all incomplete-bracket users right now">
+                {cronLoading === 'reminder-1h' ? <><RefreshCw size={13} className="spin" /> Sending…</> : <>Send 1h Reminders</>}
+              </button>
             </div>
           </div>
 
           {cronStatus?.error && (
             <div className="admin-oracle-info" style={{ borderColor: 'rgba(255,59,92,0.15)', background: 'rgba(255,59,92,0.04)', color: 'var(--danger)' }}>
               <AlertTriangle size={14} />
-              <span>{cronStatus.kind === 'poll' ? 'Auto-poll' : 'Daily report'} error: {cronStatus.error}</span>
+              <span>{cronStatus.kind === 'poll' ? 'Auto-poll' : cronStatus.kind === 'reminder' ? 'Reminder cron' : 'Daily report'} error: {cronStatus.error}</span>
             </div>
           )}
 

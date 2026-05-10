@@ -29,6 +29,7 @@ import SimplePrediction from './pages/SimplePrediction';
 import BracketShareModal from './components/BracketShareModal';
 import InviteFriendsModal from './components/InviteFriendsModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
+import WelcomeFlow from './components/onboarding/WelcomeFlow';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import MyPicksCard from './components/MyPicksCard';
 import HomeHeroCard from './components/HomeHeroCard';
@@ -1076,8 +1077,10 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             key={`simple-${league?.id}`}
             userId={userData?.id}
             league={league}
+            displayName={userData?.displayName}
             onExit={onBack}
             onComplete={handleComplete}
+            onShareBracket={openShareBracket}
             embedded
           />
         ) : (
@@ -4383,12 +4386,51 @@ const GoalOracle = () => {
           onSignedIn={() => setShowLogin(false)}
         />
       )}
-      {showUsernamePrompt && authenticated && uData && <UsernamePrompt />}
-      {/* Passcode-first prompt — only fires for freshly created users
-          (onboardingComplete === false). Existing users created before
-          this flag was added simply lack the field, so the strict
-          `=== false` gate keeps them clear of the prompt. */}
-      {authenticated && uData?.onboardingComplete === false && !showUsernamePrompt && (
+      {/* Brand-new user (usernameSet=false): single onboarding card combines
+          username + country + optional passcode, replacing what used to be
+          two consecutive modals. After submit, lands on dashboard so they
+          discover the leaderboard / streak surface before being routed to
+          the wizard via FirstTimeBanner. */}
+      {showUsernamePrompt && authenticated && uData && (
+        <WelcomeFlow
+          emailPrefix={uData?.email?.split('@')[0] || ''}
+          allLeagues={allLeagues}
+          onSubmit={async ({ username, country, passcodeMatchedLeague, passcode }) => {
+            const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
+            const finalCountry = OVERRIDES[username] || country;
+            const updated = await updateUserProfile(uData.id, {
+              displayName: username,
+              usernameSet: true,
+              country: finalCountry,
+              onboardingComplete: true,
+            });
+            if (updated) setUData(updated);
+            setShowUsernamePrompt(false);
+            notify(`Welcome, ${username}!`);
+
+            if (passcodeMatchedLeague) {
+              try {
+                await joinLeague(passcodeMatchedLeague.id, uData.id, passcode);
+                setDetailTab('leaderboard');
+                nav('detail', passcodeMatchedLeague);
+                return;
+              } catch (e) {
+                notify(`Couldn't join "${passcodeMatchedLeague.name}" — ${e.message || 'try again from Browse'}`, 'error');
+              }
+            }
+
+            // #11 — Land on the dashboard so the new user sees the
+            // FirstTimeBanner CTA and the leaderboard / streak surface.
+            // They click "Start predicting" themselves to enter the wizard.
+            nav('dashboard');
+          }}
+        />
+      )}
+      {/* Legacy passcode prompt — only fires for users who finished the old
+          two-step onboarding before WelcomeFlow shipped (usernameSet=true
+          but onboardingComplete=false). Once everyone has migrated this
+          branch will never render. */}
+      {authenticated && uData?.usernameSet === true && uData?.onboardingComplete === false && !showUsernamePrompt && (
         <PasscodePromptModal
           open
           allLeagues={allLeagues}
@@ -4401,8 +4443,6 @@ const GoalOracle = () => {
             await joinLeague(joinedLeague.id, uData.id, passcode);
             try { await updateUserProfile(uData.id, { onboardingComplete: true }); } catch {}
             setUData((u) => (u ? { ...u, onboardingComplete: true } : u));
-            // Land them in the league they just joined so they see
-            // immediate confirmation that the passcode worked.
             setDetailTab('leaderboard');
             nav('detail', joinedLeague);
           }}

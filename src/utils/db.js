@@ -553,6 +553,14 @@ export async function adminRunDailyReport() {
   return await apiCall('cron/daily-report', 'POST');
 }
 
+// Trigger the incomplete-bracket reminder cron now. `kind` is '24h' or
+// '1h'; admin uses this to preview either email after deploy without
+// waiting for the natural send window.
+export async function adminRunReminderCron(kind = '24h', dryRun = false) {
+  const qs = `?kind=${encodeURIComponent(kind)}${dryRun ? '&dryRun=1' : ''}`;
+  return await apiCall(`cron/incomplete-bracket-reminder${qs}`, 'POST');
+}
+
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
 // Defaults: Classic is opt-in. Quick Picks is the product surface; the
 // Classic flow is preserved in code for re-enabling later but stays

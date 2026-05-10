@@ -22,6 +22,8 @@ import BestThirdSelector from '../components/simple/BestThirdSelector';
 import BracketMobile from '../components/simple/BracketMobile';
 import BracketDesktop from '../components/simple/BracketDesktop';
 import RarityCard from '../components/simple/RarityCard';
+import CompletionCelebration from '../components/simple/CompletionCelebration';
+import WizardCoachmarks, { hasSeenWizardTutorial } from '../components/onboarding/WizardCoachmarks';
 import useSimplePrediction from '../hooks/useSimplePrediction';
 import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
@@ -35,7 +37,7 @@ import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSi
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
 
-export default function SimplePrediction({ userId, league, onExit, onComplete, embedded = false }) {
+export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, displayName, embedded = false }) {
   const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId, league?.id);
   // Bumping this key remounts the wizard so its frozen-initial hooks
   // rehydrate from the latest subscription data (used after copy / reset).
@@ -69,6 +71,8 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
       league={league}
       onExit={onExit}
       onComplete={onComplete}
+      onShareBracket={onShareBracket}
+      displayName={displayName}
       embedded={embedded}
       saving={saving}
       savedAt={savedAt}
@@ -82,7 +86,7 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, e
 
 const BRACKET_HINT_KEY = 'goaloracle_qp_bracket_hint_dismissed';
 
-function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
+function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, onShareBracket, displayName, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
   const [step, setStep] = useState(initialStep);
   const [showSaved, setShowSaved] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
@@ -149,6 +153,22 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // editing later-stage picks even after earlier stages have started.
   const isMatchLocked = useCallback((matchId) => isMatchStageLocked(matchId), []);
 
+  // Track whether the bracket was already complete on hydration so we
+  // don't show the "you finished!" celebration to users returning to an
+  // already-complete bracket (only on the false → true transition).
+  const wasCompleteOnLoadRef = useRef(!!frozenInitial?.isComplete);
+  const [celebrationOpen, setCelebrationOpen] = useState(false);
+  const [celebrationChampion, setCelebrationChampion] = useState({ name: null, flag: null });
+
+  // #6 — First-visit coach overlay. Only shows when a user hasn't dismissed
+  // it yet AND they don't already have picks (so existing users in the
+  // middle of editing their bracket don't get nagged). One-shot per browser.
+  const [coachVisible, setCoachVisible] = useState(() => {
+    if (hasSeenWizardTutorial()) return false;
+    if (frozenInitial?.isComplete) return false;
+    return true;
+  });
+
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
@@ -158,8 +178,21 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
       // bracket — leaderboards key off isComplete and we don't want
       // users to stay in "In progress" forever just because they
       // skipped the 3rd-Place match.
-      const finalPicked = !!(next?.final?.[0]?.winnerId);
+      const finalPick = next?.final?.[0];
+      const finalPicked = !!finalPick?.winnerId;
       save({ knockoutPredictions: next, isComplete: finalPicked });
+
+      // Celebration: only when this save is the moment the bracket
+      // BECOMES complete. Skip if the user already had isComplete=true
+      // when the wizard mounted (they're just editing).
+      if (finalPicked && !wasCompleteOnLoadRef.current && !celebrationOpen) {
+        wasCompleteOnLoadRef.current = true; // don't fire again this session
+        setCelebrationChampion({
+          name: finalPick.winnerId || null,
+          flag: finalPick.winnerFlag || null,
+        });
+        setCelebrationOpen(true);
+      }
     },
   });
 
@@ -291,6 +324,35 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         || Object.keys(bracketState.picksByMatchId || {}).length > 0,
     [groups.touchedCount, bestThird.picks.length, bracketState.picksByMatchId],
   );
+
+  // #13 — Welcome-back banner. Computed from hydrated initial picks (not
+  // current state) so it reflects "what they had when they arrived". Hidden
+  // for first-time users and for already-complete brackets.
+  const [welcomeBackDismissed, setWelcomeBackDismissed] = useState(false);
+  const initialHadPicks = useMemo(() => {
+    if (!frozenInitial) return false;
+    const groupCount = Object.keys(frozenInitial.groupPredictions || {}).length;
+    const thirdCount = (frozenInitial.bestThirdPicks || []).length;
+    const koCount = Object.values(frozenInitial.knockoutPredictions || {})
+      .reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.filter(Boolean).length : 0), 0);
+    return groupCount + thirdCount + koCount > 0;
+  }, [frozenInitial]);
+  const welcomeBackProgress = useMemo(() => {
+    const made = Math.min(52,
+      (frozenInitial?.groupPredictions ? Object.values(frozenInitial.groupPredictions).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length : 0)
+      + Math.min(8, (frozenInitial?.bestThirdPicks || []).length)
+      + Object.values(frozenInitial?.knockoutPredictions || {})
+        .reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.filter(p => p?.winnerId).length : 0), 0)
+    );
+    const sectionLabel = step === 1 ? 'Group rankings'
+      : step === 2 ? 'Best 3rd-place picks'
+      : 'the bracket';
+    return { made, total: 52, sectionLabel };
+  }, [frozenInitial, step]);
+  const welcomeBackVisible = !welcomeBackDismissed
+    && initialHadPicks
+    && !frozenInitial?.isComplete
+    && copyBanner !== 'prompt';
 
   const handleReplaceFromGlobal = useCallback(async () => {
     if (hasAnyPicks) {
@@ -456,6 +518,21 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               {copyBusy ? <><RefreshCw size={14} className="spin" /> Resetting...</> : <><RotateCcw size={14} /> Reset my picks</>}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* #13 — Welcome-back banner. Visible when the user has saved picks
+          but the bracket isn't complete. Single-fire per session via the
+          dismissed flag below. */}
+      {welcomeBackVisible && (
+        <div className="simple-welcome-back" role="status">
+          <div className="simple-welcome-back-text">
+            <strong>Welcome back{displayName ? `, ${displayName}` : ''}.</strong>
+            <span className="simple-welcome-back-sub"> {welcomeBackProgress.made}/{welcomeBackProgress.total} picks done — picking up on <em>{welcomeBackProgress.sectionLabel}</em>.</span>
+          </div>
+          <button type="button" className="simple-welcome-back-dismiss" onClick={() => setWelcomeBackDismissed(true)} aria-label="Dismiss">
+            ×
+          </button>
         </div>
       )}
 
@@ -696,6 +773,19 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
           </div>
         </section>
       )}
+
+      {/* #2 — One-time celebration when the user transitions from
+          incomplete → complete by picking the Final winner. */}
+      <CompletionCelebration
+        open={celebrationOpen}
+        championName={celebrationChampion.name}
+        championFlag={celebrationChampion.flag}
+        onShare={onShareBracket}
+        onDismiss={() => setCelebrationOpen(false)}
+      />
+
+      {/* #6 — First-visit 3-step tutorial. */}
+      {coachVisible && <WizardCoachmarks onDismiss={() => setCoachVisible(false)} />}
     </div>
   );
 }
