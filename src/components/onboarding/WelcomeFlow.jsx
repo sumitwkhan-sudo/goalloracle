@@ -18,6 +18,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, RefreshCw, AlertTriangle } from 'lucide-react';
 import { validateUsername } from '../../utils/profanity';
+import COUNTRIES, { getCachedDetectedCountry, detectCountryByIP } from '../../utils/countries';
 
 export default function WelcomeFlow({
   emailPrefix,
@@ -25,30 +26,33 @@ export default function WelcomeFlow({
   onSubmit,        // async ({ username, country, passcodeMatchedLeague, passcode }) => void
 }) {
   const [username, setUsername] = useState(emailPrefix || '');
-  const [country, setCountry] = useState('');
+  // Seed country from the synchronous cache (warmed at app boot) so the
+  // picker shows the user's country on first paint instead of flashing
+  // empty while the async IP lookup resolves.
+  const [country, setCountry] = useState(() => getCachedDetectedCountry() || '');
   const [passcode, setPasscode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [countries, setCountries] = useState([]);
+  // Country list is bundled with the modal — no async import needed.
+  // The earlier dynamic import was a code-splitting micro-optimization
+  // that contributed to the empty-picker flash.
+  const countries = COUNTRIES;
 
-  // IP-detect country and pre-populate the picker. The picker stays
-  // visible — user can override.
+  // Cold-load fallback: if the cache wasn't warm at mount, kick off the
+  // async detection now and adopt the result if the user hasn't picked
+  // anything yet.
   useEffect(() => {
+    if (country) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const { detectCountryByIP } = await import('../../utils/countries');
-        const detected = await detectCountryByIP();
-        if (!cancelled && detected && !country) setCountry(detected);
-      } catch {}
-    })();
+    detectCountryByIP()
+      .then((detected) => {
+        if (!cancelled && detected) {
+          setCountry((curr) => curr || detected);
+        }
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Lazy-load the country list so the first-paint bundle stays small.
-  useEffect(() => {
-    import('../../utils/countries').then((mod) => setCountries(mod.default || []));
   }, []);
 
   const handleSubmit = async (e) => {
