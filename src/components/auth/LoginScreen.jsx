@@ -10,7 +10,7 @@ export default function LoginScreen({ onClose, onSignedIn }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [blocked, setBlocked] = useState(null); // { scope, maskedEmail, supportEmail, message }
+  const [blocked, setBlocked] = useState(null); // { scope, maskedEmail, existingEmail, supportEmail, message }
   const codeInputRef = useRef(null);
 
   // Map a thrown auth error to either the device/IP block screen or a flat
@@ -21,6 +21,7 @@ export default function LoginScreen({ onClose, onSignedIn }) {
       setBlocked({
         scope: code === 'device_account_exists' ? 'device' : 'network',
         maskedEmail: e.payload.maskedEmail || null,
+        existingEmail: e.payload.existingEmail || null,
         supportEmail: e.payload.supportEmail || 'support@goaloracle.io',
         message: e.payload.message || e.message,
       });
@@ -158,7 +159,7 @@ export default function LoginScreen({ onClose, onSignedIn }) {
               </p>
             </div>
 
-            {blocked.maskedEmail && (
+            {(blocked.existingEmail || blocked.maskedEmail) && (
               <div className="login-blocked-email" style={{
                 padding: '12px 14px',
                 borderRadius: 8,
@@ -167,7 +168,25 @@ export default function LoginScreen({ onClose, onSignedIn }) {
                 marginBottom: 14,
                 fontSize: 14,
               }}>
-                Existing account: <strong>{blocked.maskedEmail}</strong>
+                {/* Surface the FULL email when the server provides it so the
+                    user can sign back in immediately. The masked address is
+                    kept as a fallback for older deploys / unknown shapes. */}
+                Existing account: <strong>{blocked.existingEmail || blocked.maskedEmail}</strong>
+                {blocked.existingEmail && (
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => {
+                        setEmail(blocked.existingEmail);
+                        setBlocked(null);
+                        setStep('email');
+                      }}
+                    >
+                      Sign in as {blocked.existingEmail}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

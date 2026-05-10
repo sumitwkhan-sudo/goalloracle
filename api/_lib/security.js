@@ -157,6 +157,37 @@ export async function checkAndRecordCodeRequestForIp(db, ip) {
   return { allowed: true, count: recent.length + 1 };
 }
 
+// ────────────────────────── ANTI-SYBIL BYPASS ──────────────────────────
+
+// Comma-separated list of emails (or Gmail+ aliases) in
+// ANTI_SYBIL_BYPASS_EMAILS env var skip the per-device + per-IP single-
+// account checks. Used to allowlist the operator's own laptop / phone /
+// test mailboxes during pre-launch QA without disabling the safeguards
+// for everyone.
+//
+// Matching: lowercased, trimmed, with `+suffix` stripped from the local
+// part (Gmail-style). So setting `sumitwkhan@gmail.com` in the env also
+// allows `sumitwkhan+test1@gmail.com`, `Sumitwkhan+QA@gmail.com`, etc.
+function _normalizeForBypass(email) {
+  if (typeof email !== 'string') return null;
+  const lower = email.toLowerCase().trim();
+  const at = lower.indexOf('@');
+  if (at < 1) return null;
+  const local = lower.slice(0, at).split('+')[0];
+  const domain = lower.slice(at + 1);
+  if (!local || !domain) return null;
+  return `${local}@${domain}`;
+}
+
+export function isAntiSybilBypassEmail(email) {
+  const raw = process.env.ANTI_SYBIL_BYPASS_EMAILS || '';
+  if (!raw) return false;
+  const list = raw.split(',').map(_normalizeForBypass).filter(Boolean);
+  if (list.length === 0) return false;
+  const normalized = _normalizeForBypass(email);
+  return !!normalized && list.includes(normalized);
+}
+
 // ────────────────────────── DEVICE FINGERPRINT ──────────────────────────
 
 // One account per device fingerprint. Bumped from 2 → 1 to stop the same
@@ -258,6 +289,32 @@ export async function getMaskedEmailForIp(db, ip) {
   const snap = await db.collection('signupIps').doc(ipHash(ip)).get();
   if (!snap.exists) return null;
   return lookupMaskedEmailForUserIds(db, snap.data().userIds || []);
+}
+
+// Full-email lookups, returned alongside the masked version on the block
+// screen. The original masking left users in a loop ("you have an account
+// at jo****@gmail.com" without revealing which Gmail account) — surfacing
+// the full address lets them sign back in immediately. Trade-off: anyone
+// who borrows the device and tries to sign up could read the address.
+async function lookupFullEmailForUserIds(db, userIds) {
+  if (!Array.isArray(userIds) || userIds.length === 0) return null;
+  const userId = userIds[0];
+  const snap = await db.collection('users').doc(userId).get();
+  return snap.exists ? (snap.data().email || null) : null;
+}
+
+export async function getFullEmailForFingerprint(db, visitorId) {
+  if (!isValidVisitorId(visitorId)) return null;
+  const snap = await db.collection('deviceFingerprints').doc(visitorId).get();
+  if (!snap.exists) return null;
+  return lookupFullEmailForUserIds(db, snap.data().userIds || []);
+}
+
+export async function getFullEmailForIp(db, ip) {
+  if (!ip) return null;
+  const snap = await db.collection('signupIps').doc(ipHash(ip)).get();
+  if (!snap.exists) return null;
+  return lookupFullEmailForUserIds(db, snap.data().userIds || []);
 }
 
 // ────────────────────────── EMAIL DEDUPE LOOKUP ──────────────────────────

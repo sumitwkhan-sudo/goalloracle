@@ -12,6 +12,9 @@ import {
   recordIpForUser,
   getMaskedEmailForFingerprint,
   getMaskedEmailForIp,
+  getFullEmailForFingerprint,
+  getFullEmailForIp,
+  isAntiSybilBypassEmail,
   findUserByDedupeKey,
   constantTimeEqualHex,
   isValidVisitorId,
@@ -103,27 +106,40 @@ export default async function handler(req, res) {
       // Anti-Sybil checks gate ONLY new-account creation. Existing users are
       // never blocked from signing in — including from a previously-banned
       // IP, since a ban targets the actor, not their old account.
-      const fpCheck = await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
+      // Operator allowlist: emails in ANTI_SYBIL_BYPASS_EMAILS (with Gmail+
+      // alias support) skip the per-device + per-IP checks so the
+      // operator can keep multiple test accounts on their own laptop +
+      // phone without manually clearing fingerprint state each time.
+      const bypass = isAntiSybilBypassEmail(email);
+      const fpCheck = bypass ? { allowed: true } : await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
       if (!fpCheck.allowed) {
-        const maskedEmail = await getMaskedEmailForFingerprint(db, deviceFingerprint);
+        const [maskedEmail, existingEmail] = await Promise.all([
+          getMaskedEmailForFingerprint(db, deviceFingerprint),
+          getFullEmailForFingerprint(db, deviceFingerprint),
+        ]);
         return res.status(429).json({
           error: 'device_account_exists',
           message: "Looks like you've already got an account from this device.",
           maskedEmail,
+          existingEmail,
           supportEmail: SUPPORT_EMAIL,
         });
       }
-      const ipUniqueCheck = await checkIpAllowsNewAccount(db, ip);
+      const ipUniqueCheck = bypass ? { allowed: true } : await checkIpAllowsNewAccount(db, ip);
       if (!ipUniqueCheck.allowed) {
-        const maskedEmail = await getMaskedEmailForIp(db, ip);
+        const [maskedEmail, existingEmail] = await Promise.all([
+          getMaskedEmailForIp(db, ip),
+          getFullEmailForIp(db, ip),
+        ]);
         return res.status(429).json({
           error: 'ip_account_exists',
           message: "Looks like you've already got an account from this network.",
           maskedEmail,
+          existingEmail,
           supportEmail: SUPPORT_EMAIL,
         });
       }
-      const ipCheck = await checkAndRecordSignupForIp(db, ip);
+      const ipCheck = bypass ? { allowed: true } : await checkAndRecordSignupForIp(db, ip);
       if (!ipCheck.allowed) {
         return res.status(429).json({
           error: 'ip_rate_limit',

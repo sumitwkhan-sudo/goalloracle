@@ -590,6 +590,37 @@ export default async function handler(req, res) {
       return res.status(200).json({ visitorId, ...snap.data() });
     }
 
+    if (action === 'clearAntiSybilForUser') {
+      // Wipes a user from all deviceFingerprints docs + signupIps docs they
+      // appear in. Lets the operator bring an account "back to brand-new"
+      // for QA — also a manual unblock when someone gets stuck behind the
+      // device-per-email wall on a deploy without ANTI_SYBIL_BYPASS_EMAILS
+      // configured. Admin-only; logged.
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+      const fpSnap = await db.collection('deviceFingerprints').where('userIds', 'array-contains', userId).get();
+      const ipSnap = await db.collection('signupIps').where('userIds', 'array-contains', userId).get();
+      const { FieldValue } = await import('firebase-admin/firestore');
+      const batch = db.batch();
+      fpSnap.docs.forEach(d => batch.update(d.ref, { userIds: FieldValue.arrayRemove(userId) }));
+      ipSnap.docs.forEach(d => batch.update(d.ref, { userIds: FieldValue.arrayRemove(userId) }));
+      await batch.commit();
+
+      await db.collection('adminLogs').add({
+        action: 'clearAntiSybilForUser',
+        targetUserId: userId,
+        actor: claims.userId,
+        timestamp: new Date(),
+        cleared: { fingerprints: fpSnap.size, ips: ipSnap.size },
+      }).catch(() => {});
+
+      return res.status(200).json({
+        ok: true,
+        cleared: { fingerprints: fpSnap.size, ips: ipSnap.size },
+      });
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
   } catch (e) {
     console.error('Admin error:', e);
