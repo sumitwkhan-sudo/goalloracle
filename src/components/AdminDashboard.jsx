@@ -312,8 +312,19 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     const label = u.displayName || u.email || u.id.slice(0, 8);
     const confirm1 = window.confirm(`Permanently delete user "${label}"?\n\nThis wipes:\n  • their account\n  • all predictions (classic + Quick Picks)\n  • league memberships\n  • device-fingerprint + IP records\n\nThere is no undo.`);
     if (!confirm1) return;
-    const typed = window.prompt(`Type DELETE to confirm deleting "${label}".`);
-    if (typed !== 'DELETE') { notify('Delete cancelled.', 'info'); return; }
+    // Second confirm — type-to-confirm. Accept "DELETE" case-insensitively
+    // so a quick "delete" or "Delete" doesn't bounce the operator back to
+    // the first dialog. Also accept the user's literal name as a fallback
+    // ("delete-confirm" pattern most ops tools use). Empty / Cancel still
+    // bails.
+    const typed = window.prompt(`Type DELETE (or the username) to confirm deleting "${label}".`);
+    if (typed === null) { return; }                    // user hit Cancel
+    const matchesDelete = typed.trim().toUpperCase() === 'DELETE';
+    const matchesName   = !!label && typed.trim().toLowerCase() === label.toLowerCase();
+    if (!matchesDelete && !matchesName) {
+      notify('Delete cancelled — confirmation didn\'t match.', 'info');
+      return;
+    }
     setDeletingUserId(u.id);
     try {
       const res = await adminDeleteUser(u.id);

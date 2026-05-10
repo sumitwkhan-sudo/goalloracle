@@ -183,14 +183,30 @@ export async function signInWithGoogle() {
   // Desktop popup flow with redirect fallback. Chrome's COOP and some
   // ad blockers will close the popup mid-auth; the redirect flow works
   // there because it doesn't depend on cross-window communication.
+  // We also race signInWithPopup against a watchdog timer — if the
+  // popup hasn't resolved after POPUP_HANG_MS (Firebase's auth handler
+  // can sometimes complete the OAuth handshake but fail to postMessage
+  // back to the opener under aggressive COOP, leaving the popup
+  // visibly open with the parent tab spinning), we fall back to the
+  // redirect path so the user actually gets in.
+  const POPUP_HANG_MS = 25_000;
   _swapInFlight = true;
+  let watchdog = null;
+  const watchdogP = new Promise((_, reject) => {
+    watchdog = setTimeout(
+      () => reject(Object.assign(new Error('Popup timed out'), { code: 'auth/popup-timeout' })),
+      POPUP_HANG_MS,
+    );
+  });
   try {
-    const result = await signInWithPopup(auth, provider);
+    const result = await Promise.race([signInWithPopup(auth, provider), watchdogP]);
+    if (watchdog) clearTimeout(watchdog);
     return await completeGoogleSignIn(result);
   } catch (e) {
+    if (watchdog) clearTimeout(watchdog);
     _swapInFlight = false;
-    if (POPUP_KILL_CODES.has(e?.code)) {
-      console.warn('[auth] popup failed (', e.code, ') — falling back to redirect');
+    if (POPUP_KILL_CODES.has(e?.code) || e?.code === 'auth/popup-timeout') {
+      console.warn('[auth] popup failed (', e.code || e.message, ') — falling back to redirect');
       return startRedirectFlow(provider);
     }
     throw e;
