@@ -86,8 +86,35 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, o
 
 const BRACKET_HINT_KEY = 'goaloracle_qp_bracket_hint_dismissed';
 
+// Returns the first wizard step the user still has work in. If they've
+// already finished groups + best-thirds + bracket, return step 3 (the
+// bracket) so they can review their picks. Mirrors the same completion
+// rules the wizard uses for predStatus / step gating.
+function pickResumeStep(initialData, explicitStep) {
+  if (explicitStep && explicitStep > 1) return explicitStep;
+  if (!initialData) return 1;
+  // Step 1: ranking incomplete → resume on Step 1.
+  const groups = initialData.groupPredictions || {};
+  const groupsAllSet = ['A','B','C','D','E','F','G','H','I','J','K','L'].every(g => {
+    const r = groups[g]?.ranking;
+    return Array.isArray(r) && r.length === 4 && r.every(Boolean);
+  });
+  if (!groupsAllSet) return 1;
+  // Step 2: best-thirds incomplete → resume on Step 2.
+  const thirds = Array.isArray(initialData.bestThirdPicks) ? initialData.bestThirdPicks.filter(Boolean) : [];
+  if (thirds.length < 8) return 2;
+  // Step 3: any bracket pick still missing → resume on Step 3 (the
+  // wizard's own openRound logic positions the user on the right
+  // round inside step 3).
+  return 3;
+}
+
 function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, onShareBracket, displayName, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
-  const [step, setStep] = useState(initialStep);
+  // Resume on the first incomplete step instead of always starting at
+  // group rankings. Users with 1 pick left were being sent back to
+  // Step 1 — they had to scroll past 12 already-correct group rankings
+  // before reaching the round that actually had the missing pick.
+  const [step, setStep] = useState(() => pickResumeStep(initialData, initialStep));
   const [showSaved, setShowSaved] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
   // Crowd consensus for the active league. Lazy-fetched the first time
