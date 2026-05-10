@@ -218,6 +218,16 @@ export async function signInWithGoogle() {
 // regardless of whether our sessionStorage flag survived ITP / cross-domain
 // hops. Gating on the flag would silently miss the credential whenever the
 // flag was cleared. Cheap when no redirect is pending (returns null).
+//
+// Errors are SWALLOWED here, never re-thrown. Two reasons:
+//   1. Most failure modes are transient (Safari ITP wipes
+//      sessionStorage, "missing initial state") — the user should be
+//      able to retry with email-OTP without the whole app crashing.
+//   2. The caller wraps this in a top-level useEffect with no error
+//      boundary; any uncaught throw freezes the React tree.
+// Returns { error, code } shape so the caller can surface a toast
+// without bringing the app down. Successful redirects still resolve
+// to the auth.currentUser as before.
 export async function completeGoogleRedirectIfNeeded() {
   let result;
   try {
@@ -226,7 +236,7 @@ export async function completeGoogleRedirectIfNeeded() {
     console.error('[auth] getRedirectResult threw:', e?.code, e?.message);
     _swapInFlight = false;
     try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
-    throw e;
+    return { error: e?.message || 'Google sign-in failed', code: e?.code || null };
   }
   // Always drain the flag at this point — either we found a result and we
   // commit the swap, or there was no result and the flag is stale.
@@ -242,7 +252,7 @@ export async function completeGoogleRedirectIfNeeded() {
   } catch (e) {
     console.error('[auth] redirect swap failed:', e?.message || e);
     _swapInFlight = false;
-    throw e;
+    return { error: e?.message || 'Google sign-in failed', code: e?.code || null };
   }
 }
 

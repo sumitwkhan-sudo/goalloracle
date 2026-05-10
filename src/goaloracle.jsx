@@ -1520,10 +1520,33 @@ const GoalOracle = () => {
   // consent screen this finishes the UID swap and signs them in with the
   // canonical custom token. No-op on every other mount.
   useEffect(() => {
-    completeGoogleRedirectIfNeeded().catch(e => {
-      console.error('[auth] Google redirect completion failed:', e?.message || e);
-      notify(e?.message || 'Google sign-in failed', 'error');
-    });
+    // completeGoogleRedirectIfNeeded never throws now — it returns
+    // { error, code } on failure (Safari ITP / missing initial state /
+    // unauthorized origin) so a stale OAuth round-trip can't blank
+    // the whole app. Surface the error as a toast and keep rendering.
+    completeGoogleRedirectIfNeeded()
+      .then((res) => {
+        if (res && res.error) {
+          // "Missing initial state" is the well-known ITP partitioning
+          // error on iOS Safari. Translate to a user-friendly hint
+          // pointing them at the email-OTP path that always works.
+          const isItp = (res.code || '').includes('missing-initial-state')
+            || /missing initial state/i.test(res.error || '');
+          notify(
+            isItp
+              ? 'Google sign-in didn\'t complete on this browser. Try the email option below — we\'ll send you a 6-digit code.'
+              : (res.error || 'Google sign-in failed'),
+            'error',
+          );
+        }
+      })
+      .catch((e) => {
+        // Defensive — getRedirectResult shouldn't throw past the helper,
+        // but if anything escapes, swallow it here so the app keeps
+        // rendering.
+        console.error('[auth] Google redirect completion failed unexpectedly:', e?.message || e);
+        notify(e?.message || 'Google sign-in failed', 'error');
+      });
     // notify is stable via useCallback; safe to omit from deps and run once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
