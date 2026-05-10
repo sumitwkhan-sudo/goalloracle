@@ -1538,6 +1538,32 @@ const GoalOracle = () => {
     // recoverable. processFirebaseUser is idempotent — it bails on
     // `authInitRef.current === true` if a real onAuthStateChanged
     // event already raced ahead.
+    // Single reconciliation function used by both .then and .catch so
+    // we never leave `ready` false. Three outcomes:
+    //   - real user (non-transient) → processFirebaseUser hydrates it
+    //   - transient Google user still parked → sign it out, flip ready,
+    //     open the login modal (the user can retry; the orphan Google
+    //     user is mid-swap and useless to the app on its own)
+    //   - no user → flip ready (login modal can render)
+    const reconcile = async () => {
+      const current = fbAuth.currentUser;
+      if (current && !isTransientGoogleUser(current)) {
+        await processFirebaseUser(current);
+        return;
+      }
+      // Either no user OR a stranded transient Google user. Always flip
+      // ready so the app stops gating. If a transient Google user is
+      // parked, drop it so a retry doesn't keep getting filtered by
+      // the listener's transient-skip.
+      setReady(true);
+      if (current && isTransientGoogleUser(current)) {
+        console.warn('[auth] redirect resolved with transient Google user still active — signing it out');
+        try { await fbAuth.signOut(); } catch (e) { /* best-effort */ }
+        // Surface the login modal so the user can retry without
+        // staring at an unauthenticated dashboard.
+        setShowLogin(true);
+      }
+    };
     completeGoogleRedirectIfNeeded()
       .then(async (res) => {
         if (res && res.error) {
@@ -1550,28 +1576,12 @@ const GoalOracle = () => {
             'error',
           );
         }
-        // Reconcile auth.currentUser whether the helper succeeded,
-        // returned null (no redirect pending — we may still have a
-        // signed-in user from previous session), or errored.
-        const current = fbAuth.currentUser;
-        if (current && !isTransientGoogleUser(current)) {
-          await processFirebaseUser(current);
-        } else if (!current) {
-          // No user at all — make sure ready flips so the login modal
-          // can render instead of leaving the app gated forever.
-          setReady(true);
-        }
+        await reconcile();
       })
       .catch(async (e) => {
         console.error('[auth] Google redirect completion failed unexpectedly:', e?.message || e);
         notify(e?.message || 'Google sign-in failed', 'error');
-        // Same reconciliation on the unexpected-throw path.
-        const current = fbAuth.currentUser;
-        if (current && !isTransientGoogleUser(current)) {
-          await processFirebaseUser(current);
-        } else {
-          setReady(true);
-        }
+        await reconcile();
       });
     // notify is stable via useCallback; processFirebaseUser /
     // isTransientGoogleUser are useCallbacks too.
@@ -4562,38 +4572,69 @@ const GoalOracle = () => {
       <ViewMeta view={view} />
 
       {view === 'landing' && <Landing />}
-      {view === 'dashboard' && (
-        // Don't render Dashboard until auth is ready AND we have user
-        // data. Otherwise a stale redirect flag (or any path that
-        // skipped the first onAuthStateChanged) drops the user on a
-        // dashboard with uData=null, which flashes empty and then
-        // hangs because the child subscriptions can't gate on a real
-        // user id. Show a small loading state instead so React can
-        // re-render once processFirebaseUser hydrates.
-        (!ready || (authenticated && !uData))
-          ? (
+      {view === 'dashboard' && (() => {
+        // Three-state guard so /dashboard NEVER renders the real
+        // Dashboard with uData=null:
+        //   1. !ready                → spinner (auth resolution in flight)
+        //   2. !authenticated        → Sign-in CTA (logged-out user
+        //                              landed on /dashboard via deep link
+        //                              or after a redirect-recovery
+        //                              failure with no salvageable user)
+        //   3. authenticated && !uData → spinner (auth resolved, doc
+        //                                still loading from Firestore)
+        //   4. ready && authenticated && uData → real Dashboard
+        if (!ready) {
+          return (
+            <div className="dashboard" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+              <RefreshCw size={20} className="spin" aria-hidden="true" />
+              <span style={{ marginLeft: '0.75rem', color: 'var(--text-sec)' }}>Loading…</span>
+            </div>
+          );
+        }
+        if (!authenticated) {
+          return (
+            <div className="dashboard" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '1rem', padding: '0 1rem', textAlign: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '1.4rem' }}>Sign in to see your dashboard</h2>
+              <p style={{ margin: 0, color: 'var(--text-sec)', maxWidth: 380 }}>
+                Your bracket, picks, and stats live behind your account.
+                Use Google or your email to continue.
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <button type="button" className="btn btn-primary" onClick={() => login && login()}>
+                  Sign in
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => nav('landing')}>
+                  Back home
+                </button>
+              </div>
+            </div>
+          );
+        }
+        if (!uData) {
+          return (
             <div className="dashboard" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
               <RefreshCw size={20} className="spin" aria-hidden="true" />
               <span style={{ marginLeft: '0.75rem', color: 'var(--text-sec)' }}>Loading your dashboard…</span>
             </div>
-          )
-          : (
-            <Dashboard
-              leagues={leagues}
-              preds={preds}
-              results={results}
-              uData={uData}
-              stats={stats}
-              quickPicks={quickPicks}
-              featureFlags={featureFlags}
-              leagueRanks={leagueRanks}
-              setLeagueRanks={setLeagueRanks}
-              nav={nav}
-              consensus={globalConsensus}
-              onShare={handleShareOwnBracket}
-            />
-          )
-      )}
+          );
+        }
+        return (
+          <Dashboard
+            leagues={leagues}
+            preds={preds}
+            results={results}
+            uData={uData}
+            stats={stats}
+            quickPicks={quickPicks}
+            featureFlags={featureFlags}
+            leagueRanks={leagueRanks}
+            setLeagueRanks={setLeagueRanks}
+            nav={nav}
+            consensus={globalConsensus}
+            onShare={handleShareOwnBracket}
+          />
+        );
+      })()}
       {view === 'leagues' && <LeaguesList />}
       {view === 'browse' && <Browse key="browse" />}
       {view === 'create' && (
