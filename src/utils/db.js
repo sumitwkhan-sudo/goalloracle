@@ -72,6 +72,37 @@ export async function createOrUpdateUser(authUser) {
   const userSnap = await getDoc(userRef);
   const emailAddr = (authUser.email || '').toLowerCase().trim() || null;
 
+  // Sparse-doc detection (matches the server-side guard in api/user.js).
+  // /api/auth/google merges {email, emailDedupeKey, emailUpdatedAt} into
+  // /users/{uid} before this code runs. If the user has never been through
+  // first-login init (no role/displayName/usernameSet/createdAt), the doc
+  // is half-shaped — returning that to React causes downstream rendering
+  // with no displayName / no role. Await /api/user's first-login init,
+  // then re-read.
+  const existingData = userSnap.exists() ? userSnap.data() : null;
+  const isSparseDoc = !!existingData && (
+    !existingData.role
+    || !existingData.displayName
+    || existingData.usernameSet === undefined
+    || !existingData.createdAt
+  );
+  if (isSparseDoc) {
+    console.log('[auth] sparse user doc detected — awaiting server first-login init');
+    try {
+      const deviceFingerprint = await getVisitorId().catch(() => null);
+      await apiCall('user', 'POST', { deviceFingerprint });
+    } catch (e) {
+      console.warn('[auth] /api/user first-login init failed:', e.message);
+    }
+    const fresh = await getDoc(userRef);
+    if (fresh.exists()) {
+      const u = { id: fresh.id, ...fresh.data() };
+      if (emailAddr && emailAddr !== u.email) u.email = emailAddr;
+      return u;
+    }
+    return null;
+  }
+
   // Kick off /api/user in the background — server-side backfills global league
   // membership (leagues/global, leagues/global-simple → members array) which
   // the client can't write through Firestore rules. Passing the device
@@ -573,6 +604,14 @@ export async function adminClearAntiSybil(userId) {
 // sign-in (the auth flow upserts email there).
 export async function adminBackfillEmails(dryRun = false) {
   return await apiCall('admin', 'POST', { action: 'backfillEmails', dryRun });
+}
+
+// Diagnostic: returns the canonical Firestore state for a given email so we
+// can see whether duplicate /users/* docs (one did:privy:* + one auth_*, or
+// two auth_* with the same dedupe key) are stranding a user's sign-in.
+// Read-only — superadmin gated server-side.
+export async function adminInspectUser(email) {
+  return await apiCall('admin', 'POST', { action: 'inspectUser', email });
 }
 
 // Fetch the current anti-Sybil bypass allowlist (Firestore-managed).

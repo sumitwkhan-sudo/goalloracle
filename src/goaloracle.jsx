@@ -1636,6 +1636,12 @@ const GoalOracle = () => {
     return subscribeToFeatureFlags(setFeatureFlags);
   }, []);
   const authInitRef = useRef(false);
+  // Last UID we ran createOrUpdateUser for. We use this to detect when
+  // a sign-in switches accounts (or completes the popup→custom-token swap)
+  // without an intervening fbUser=null event — in those cases authInitRef
+  // is still true from the prior account so we'd skip rehydrating uData.
+  // Tracking the UID lets us re-run for any UID change.
+  const lastProcessedUidRef = useRef(null);
 
   // Pure helper: any Firebase user with a google.com provider AND a UID
   // that isn't one of ours is mid-swap (signed in via the popup/redirect
@@ -1660,13 +1666,21 @@ const GoalOracle = () => {
       setAuthenticated(false);
       setUData(null); setRole('user'); setAuthToken(null); resetFirebaseAuth();
       authInitRef.current = false;
+      lastProcessedUidRef.current = null;
       return;
     }
     setAuthenticated(true);
-    if (authInitRef.current) return;
+    // Re-run for any UID change. Without this, a popup→custom-token swap
+    // (transient-google-uid → did:privy:) or a sign-out-then-sign-in that
+    // missed its null event leaves uData pointing at the prior account
+    // (or null if the prior init failed) — the user appears stuck on the
+    // landing page even though authenticated === true.
+    if (authInitRef.current && lastProcessedUidRef.current === fbUser.uid) return;
     authInitRef.current = true;
+    lastProcessedUidRef.current = fbUser.uid;
 
     try {
+      console.log('[auth] processFirebaseUser: hydrating uid=', fbUser.uid);
       const token = await fbUser.getIdToken();
       setAuthToken(token);
       // Custom-token sign-in strips email from the Firebase user record.
@@ -1674,7 +1688,18 @@ const GoalOracle = () => {
       // user doc has a real address instead of null.
       const stashedEmail = consumePendingEmail();
       const u = await createOrUpdateUser({ id: fbUser.uid, email: fbUser.email || stashedEmail });
-      if (!u) return;
+      if (!u) {
+        // createOrUpdateUser returned null — typically the create branch
+        // hit a Firestore-rules violation (existing doc with usernameSet
+        // already set, etc). Reset the init flag so a retry can succeed,
+        // and surface the failure so the user isn't silently stuck on the
+        // landing page with `authenticated:true, uData:null`.
+        console.error('[auth] createOrUpdateUser returned null for uid=', fbUser.uid);
+        authInitRef.current = false;
+        lastProcessedUidRef.current = null;
+        notify('Sign-in didn\'t complete. Please try again or contact support.', 'error');
+        return;
+      }
       console.log('[auth] SUCCESS:', u.displayName, u.role);
       setUData(u);
       setRole(u.role || 'user');
@@ -1697,9 +1722,17 @@ const GoalOracle = () => {
         }
       }
     } catch (e) {
-      console.error('[auth] sign-in flow failed:', e.message);
+      console.error('[auth] sign-in flow failed:', e.message, e);
+      // Reset so a retry can re-enter this code path. Without this the
+      // user is stranded with authenticated=true / uData=null until they
+      // sign out (which they may not realise to do).
+      authInitRef.current = false;
+      lastProcessedUidRef.current = null;
+      notify('Sign-in failed: ' + (e.message || 'unknown error'), 'error');
     }
   // setReady, setAuthenticated, setUData, etc. are stable React setters.
+  // notify is wrapped in useCallback elsewhere; including it here keeps
+  // exhaustive-deps happy without re-running this callback.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -66,8 +66,15 @@ export default function LoginScreen({ onClose, onSignedIn }) {
   const handleGoogle = async () => {
     setErr('');
     setBusy(true);
+    // Diagnostic logging — visible in DevTools so the user (or whoever
+    // is debugging) can see exactly which step of the auth flow stalls
+    // when sign-in misbehaves. Server-side success was confirmed via
+    // Vercel runtime logs (/api/auth/google returns 200), so any
+    // remaining failure has to be in the browser.
+    console.log('[auth] handleGoogle: starting Google sign-in');
     try {
       const user = await signInWithGoogle();
+      console.log('[auth] handleGoogle: signInWithGoogle resolved with', user ? `user=${user.uid}` : 'null (redirect in flight)');
       // Two non-error null cases: (a) mobile / popup-killed → fell back
       // to redirect, navigates away, page reloads on return.
       // (b) user closed the popup before completing — we already swallowed
@@ -75,6 +82,7 @@ export default function LoginScreen({ onClose, onSignedIn }) {
       // means a redirect is in flight. Don't show an error.
       if (user) onSignedIn?.();
     } catch (e) {
+      console.error('[auth] handleGoogle: caught error', e?.code, e?.message, e);
       handleAuthError(e);
     } finally { setBusy(false); }
   };

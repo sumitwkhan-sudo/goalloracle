@@ -139,20 +139,35 @@ export async function verifyEmailCode(email, code) {
 // the popup/redirect-managed Firebase user, and sign in with the custom
 // token so the rest of the app sees the canonical legacy UID.
 async function completeGoogleSignIn(result) {
+  // Defensive: a stale REDIRECT_FLAG in sessionStorage (left by a previous
+  // abandoned redirect attempt) would have set _swapInFlight=true at module
+  // load and made the auth listener skip its first event. By the time we
+  // get to this function the popup or redirect has resolved, so the flag
+  // is no longer meaningful — drop it so subsequent listener fires aren't
+  // silently swallowed.
+  try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
+  console.log('[auth] completeGoogleSignIn: extracting credential');
   const credential = GoogleAuthProvider.credentialFromResult(result);
   const googleIdToken = credential?.idToken;
-  if (!googleIdToken) throw new Error('Google sign-in returned no ID token');
+  if (!googleIdToken) {
+    console.error('[auth] completeGoogleSignIn: no ID token in result. credential=', credential, 'result.user=', result?.user);
+    throw new Error('Google sign-in returned no ID token');
+  }
   // The popup-managed Firebase user still has the email at this point —
   // stash it before signing out so the post-swap createOrUpdateUser can
   // pick it up. The /api/auth/google response also returns it as a
   // belt-and-suspenders fallback.
   const popupEmail = result?.user?.email || null;
+  console.log('[auth] completeGoogleSignIn: got idToken for', popupEmail);
   const deviceFingerprint = await safeFingerprint();
+  console.log('[auth] completeGoogleSignIn: posting to /api/auth/google');
   const { firebaseToken, email: serverEmail } = await postJSON('/api/auth/google', { idToken: googleIdToken, deviceFingerprint });
+  console.log('[auth] completeGoogleSignIn: server returned firebaseToken; swapping');
   setPendingEmail(popupEmail || serverEmail);
   await fbSignOut(auth);
   _swapInFlight = false;
   await signInWithCustomToken(auth, firebaseToken);
+  console.log('[auth] completeGoogleSignIn: done. uid=', auth.currentUser?.uid);
   return auth.currentUser;
 }
 
@@ -182,11 +197,14 @@ async function startRedirectFlow(provider) {
 
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
+  const useRedirect = shouldUseRedirect();
+  console.log('[auth] signInWithGoogle: useRedirect=', useRedirect, 'innerWidth=', typeof window !== 'undefined' ? window.innerWidth : '?');
 
-  if (shouldUseRedirect()) {
+  if (useRedirect) {
     // Redirect flow — does not resume in this function. The app reloads
     // back to the origin URL and completeGoogleRedirectIfNeeded() picks
     // up where we left off on the next mount.
+    console.log('[auth] signInWithGoogle: starting redirect flow');
     return startRedirectFlow(provider);
   }
 
@@ -200,6 +218,7 @@ export async function signInWithGoogle() {
   // visibly open with the parent tab spinning), we fall back to the
   // redirect path so the user actually gets in.
   const POPUP_HANG_MS = 25_000;
+  console.log('[auth] signInWithGoogle: opening popup with watchdog', POPUP_HANG_MS, 'ms');
   _swapInFlight = true;
   let watchdog = null;
   const watchdogP = new Promise((_, reject) => {
@@ -211,8 +230,10 @@ export async function signInWithGoogle() {
   try {
     const result = await Promise.race([signInWithPopup(auth, provider), watchdogP]);
     if (watchdog) clearTimeout(watchdog);
+    console.log('[auth] signInWithGoogle: popup resolved, calling completeGoogleSignIn');
     return await completeGoogleSignIn(result);
   } catch (e) {
+    console.warn('[auth] signInWithGoogle: caught error', e?.code, e?.message);
     if (watchdog) clearTimeout(watchdog);
     _swapInFlight = false;
     if (POPUP_KILL_CODES.has(e?.code) || e?.code === 'auth/popup-timeout') {

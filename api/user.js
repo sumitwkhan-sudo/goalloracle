@@ -120,43 +120,84 @@ export default async function handler(req, res) {
 
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
+    const existingData = userSnap.exists ? userSnap.data() : null;
 
-    if (!userSnap.exists) {
-      // New user
-      console.log(`[user] NEW: ${userId}, email=${email}`);
+    // Sparse-doc detection (Codex review item 7). /api/auth/google upserts
+    // {email, emailDedupeKey, emailUpdatedAt} via set+merge on every Google
+    // sign-in (api/auth/google.js:120-124). For a brand-new user, that runs
+    // BEFORE the client's createOrUpdateUser, so userSnap.exists==true but
+    // the doc is missing role / displayName / usernameSet / createdAt /
+    // leagues. The pre-existing "EXISTING" branch only synced incremental
+    // fields and assumed the rest was there — leaving the user with a
+    // half-shaped profile (no displayName → no welcome modal trigger,
+    // no leagues array → no per-league subscriptions, etc).
+    //
+    // Treat a sparse doc the same as a missing one: full first-login init
+    // that fills in the schema while preserving the email/emailDedupeKey
+    // that was already written.
+    const isSparseDoc = existingData && (
+      !existingData.role
+      || !existingData.displayName
+      || existingData.usernameSet === undefined
+      || !existingData.createdAt
+    );
+
+    if (!userSnap.exists || isSparseDoc) {
+      // New user OR sparse-doc completion
+      console.log(`[user] ${userSnap.exists ? 'SPARSE-COMPLETE' : 'NEW'}: ${userId}, email=${email || existingData?.email || null}`);
       const ip = getClientIp(req);
-      const baseName = email?.split('@')[0] || 'Player';
+      const preservedEmail = email || existingData?.email || null;
+      const baseName = preservedEmail?.split('@')[0] || 'Player';
       const defaultName = await pickDefaultDisplayName(db, baseName);
-      await userRef.set({
+      // set+merge so any field already on the sparse doc (email,
+      // emailDedupeKey, emailUpdatedAt) is preserved. createdAt only
+      // gets written if missing — never stomp on a real createdAt.
+      const initPayload = {
         id: userId,
-        createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-        role: 'user',
-        leagues: ['global', 'global-simple'],
-        email: email || null,
-        emailDedupeKey: email ? normalizeEmail(email) : null,
-        walletAddress: null,
-        displayName: defaultName,
-        displayNameLower: defaultName.toLowerCase(),
-        usernameSet: false,
-        signupIpHash: ipHash(ip),
-        deviceFingerprint: isValidVisitorId(deviceFingerprint) ? deviceFingerprint : null,
-      });
-      if (isValidVisitorId(deviceFingerprint)) {
+        role: existingData?.role || 'user',
+        leagues: existingData?.leagues?.length ? existingData.leagues : ['global', 'global-simple'],
+        email: preservedEmail,
+        emailDedupeKey: preservedEmail ? normalizeEmail(preservedEmail) : (existingData?.emailDedupeKey || null),
+        walletAddress: existingData?.walletAddress ?? null,
+        displayName: existingData?.displayName || defaultName,
+        displayNameLower: (existingData?.displayName || defaultName).toLowerCase(),
+        usernameSet: existingData?.usernameSet === true ? true : false,
+        signupIpHash: existingData?.signupIpHash || ipHash(ip),
+        deviceFingerprint: existingData?.deviceFingerprint || (isValidVisitorId(deviceFingerprint) ? deviceFingerprint : null),
+      };
+      if (!existingData?.createdAt) initPayload.createdAt = FieldValue.serverTimestamp();
+      await userRef.set(initPayload, { merge: true });
+
+      if (isValidVisitorId(deviceFingerprint) && !existingData?.deviceFingerprint) {
         await recordFingerprintForUser(db, deviceFingerprint, userId, ip).catch(() => {});
       }
-      // Add to both global leagues' member lists + subcollection
-      const memberDisplayName = defaultName;
+
+      // Idempotent global-league membership (Codex review item 8). Read
+      // the current members array before deciding to add — protects the
+      // memberCount from drifting up if /api/user is invoked twice for
+      // the same user (e.g. a retry from createOrUpdateUser, or the
+      // sparse-doc-completion path firing after a real first-login).
+      const memberDisplayName = initPayload.displayName;
+      const [globalSnap, globalSimpleSnap] = await Promise.all([
+        db.collection('leagues').doc('global').get(),
+        db.collection('leagues').doc('global-simple').get(),
+      ]);
+      const idempotentAdd = (snap, leagueId) => {
+        if (!snap.exists) return null;
+        const members = snap.data().members || [];
+        if (members.includes(userId)) return null;
+        return db.collection('leagues').doc(leagueId).update({
+          members: FieldValue.arrayUnion(userId),
+          memberCount: FieldValue.increment(1),
+        }).catch(e => console.warn(`[user] failed to add ${userId} to ${leagueId}:`, e.message));
+      };
+      const memberSubRef = db.collection('leagues').doc('global-simple').collection('members').doc(userId);
+      const memberSubSnap = await memberSubRef.get();
       await Promise.all([
-        db.collection('leagues').doc('global').update({
-          members: FieldValue.arrayUnion(userId),
-          memberCount: FieldValue.increment(1),
-        }),
-        db.collection('leagues').doc('global-simple').update({
-          members: FieldValue.arrayUnion(userId),
-          memberCount: FieldValue.increment(1),
-        }),
-        db.collection('leagues').doc('global-simple').collection('members').doc(userId).set({
+        idempotentAdd(globalSnap, 'global'),
+        idempotentAdd(globalSimpleSnap, 'global-simple'),
+        memberSubSnap.exists ? null : memberSubRef.set({
           userId,
           displayName: memberDisplayName,
           joinedAt: FieldValue.serverTimestamp(),
@@ -164,10 +205,10 @@ export default async function handler(req, res) {
           submittedAt: null,
           hasSubmitted: false,
         }),
-      ]);
+      ].filter(Boolean));
     } else {
       // Existing user — sync updates
-      console.log(`[user] EXISTING: ${userId}, role=${userSnap.data().role}, name=${userSnap.data().displayName}`);
+      console.log(`[user] EXISTING: ${userId}, role=${existingData.role}, name=${existingData.displayName}`);
       const updates = { updatedAt: FieldValue.serverTimestamp() };
       if (email) {
         updates.email = email;
@@ -182,7 +223,7 @@ export default async function handler(req, res) {
       if (usernameSet === true) updates.usernameSet = true;
 
       // Ensure user's leagues array includes both globals (idempotent)
-      const userLeagues = userSnap.data().leagues || [];
+      const userLeagues = existingData.leagues || [];
       const missingFromUser = [];
       if (!userLeagues.includes('global')) missingFromUser.push('global');
       if (!userLeagues.includes('global-simple')) missingFromUser.push('global-simple');
@@ -219,8 +260,8 @@ export default async function handler(req, res) {
         if (!snap.exists) {
           memberRef.set({
             userId,
-            displayName: userSnap.data().displayName || 'Anonymous',
-            joinedAt: userSnap.data().createdAt || FieldValue.serverTimestamp(),
+            displayName: existingData.displayName || 'Anonymous',
+            joinedAt: existingData.createdAt || FieldValue.serverTimestamp(),
             totalAccuracy: 0,
             submittedAt: null,
             hasSubmitted: false,

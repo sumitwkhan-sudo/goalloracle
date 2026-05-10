@@ -841,6 +841,91 @@ export default async function handler(req, res) {
       return res.status(200).json(results);
     }
 
+    if (action === 'inspectUser') {
+      // Diagnostic for sign-in regressions. Returns the canonical Firestore
+      // state for a given email so we can see whether duplicate /users/* docs
+      // (one did:privy:* + one auth_*, or two auth_* with the same dedupe
+      // key) are stranding the client's getDoc lookup. Read-only.
+      //
+      // Triggered from the Admin panel; not surfaced to regular users.
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can inspect users' });
+      }
+      const rawEmail = (req.body?.email || '').toString().trim().toLowerCase();
+      if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+        return res.status(400).json({ error: 'Valid email required' });
+      }
+      const { normalizeEmail } = await import('./_lib/security.js');
+      const dedupeKey = normalizeEmail(rawEmail);
+
+      const collectDoc = (d) => {
+        const data = d.data() || {};
+        return {
+          id: d.id,
+          email: data.email ?? null,
+          emailDedupeKey: data.emailDedupeKey ?? null,
+          displayName: data.displayName ?? null,
+          displayNameLower: data.displayNameLower ?? null,
+          role: data.role ?? null,
+          country: data.country ?? null,
+          usernameSet: data.usernameSet,
+          onboardingComplete: data.onboardingComplete,
+          banned: data.banned ?? false,
+          bannedReason: data.bannedReason ?? null,
+          deviceFingerprint: data.deviceFingerprint ?? null,
+          signupIpHash: data.signupIpHash ?? null,
+          createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? null,
+          updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() ?? null,
+          emailBackfilledAt: data.emailBackfilledAt?.toDate?.()?.toISOString?.() ?? null,
+          emailUpdatedAt: data.emailUpdatedAt?.toDate?.()?.toISOString?.() ?? null,
+          leagues: Array.isArray(data.leagues) ? data.leagues : [],
+        };
+      };
+
+      const [byKey, byEmail] = await Promise.all([
+        db.collection('users').where('emailDedupeKey', '==', dedupeKey).get(),
+        db.collection('users').where('email', '==', rawEmail).get(),
+      ]);
+      const byKeyDocs = byKey.docs.map(collectDoc);
+      const byEmailDocs = byEmail.docs.map(collectDoc);
+
+      // Also pull the Firebase Auth record (if any). Useful for diagnosing
+      // cases where the client got a custom token bound to a UID that
+      // doesn't have a Firestore doc.
+      let firebaseAuthRecord = null;
+      try {
+        const u = await admin.auth().getUserByEmail(rawEmail);
+        firebaseAuthRecord = {
+          uid: u.uid,
+          email: u.email || null,
+          emailVerified: !!u.emailVerified,
+          providers: (u.providerData || []).map((p) => p.providerId),
+          disabled: !!u.disabled,
+        };
+      } catch {
+        firebaseAuthRecord = null;
+      }
+
+      // De-dup IDs and report whether the pickPreferredUserDoc tiebreaker
+      // would resolve to the same UID we'd return from /api/auth/google.
+      const seen = new Map();
+      [...byKeyDocs, ...byEmailDocs].forEach((d) => seen.set(d.id, d));
+      const allDocs = Array.from(seen.values());
+      const privyMatches = allDocs.filter((d) => d.id.startsWith('did:privy:'));
+      const wouldResolveTo = privyMatches[0]?.id || allDocs[0]?.id || null;
+
+      return res.status(200).json({
+        queriedEmail: rawEmail,
+        normalizedDedupeKey: dedupeKey,
+        byEmailDedupeKey: byKeyDocs,
+        byEmail: byEmailDocs,
+        firebaseAuthRecord,
+        duplicateCount: allDocs.length,
+        wouldResolveTo,
+      });
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
   } catch (e) {
     console.error('Admin error:', e);
