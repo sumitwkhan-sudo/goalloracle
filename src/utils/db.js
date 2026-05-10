@@ -568,6 +568,13 @@ export async function adminClearAntiSybil(userId) {
   return await apiCall('admin', 'POST', { action: 'clearAntiSybilForUser', userId });
 }
 
+// Backfill user.email for any user docs missing it. Pulls from Firebase Auth
+// where available; users where Firebase Auth also has no email need a fresh
+// sign-in (the auth flow upserts email there).
+export async function adminBackfillEmails(dryRun = false) {
+  return await apiCall('admin', 'POST', { action: 'backfillEmails', dryRun });
+}
+
 // Fetch the current anti-Sybil bypass allowlist (Firestore-managed).
 // Also returns env-var entries separately for visibility.
 export async function adminGetAntiSybilBypassList() {

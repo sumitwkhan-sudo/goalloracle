@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Helmet } from 'react-helmet-async';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth as fbAuth } from './config/firebase';
-import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded } from './utils/auth';
+import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil } from 'lucide-react';
@@ -1547,7 +1547,11 @@ const GoalOracle = () => {
       try {
         const token = await fbUser.getIdToken();
         setAuthToken(token);
-        const u = await createOrUpdateUser({ id: fbUser.uid, email: fbUser.email });
+        // Custom-token sign-in strips email from the Firebase user record.
+        // Recover it from the swap stash (set in src/utils/auth.js) so the
+        // user doc has a real address instead of null.
+        const stashedEmail = consumePendingEmail();
+        const u = await createOrUpdateUser({ id: fbUser.uid, email: fbUser.email || stashedEmail });
         if (!u) return;
         console.log('[auth] SUCCESS:', u.displayName, u.role);
         setUData(u);
