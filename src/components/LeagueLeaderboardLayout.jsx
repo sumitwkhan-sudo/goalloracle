@@ -16,12 +16,12 @@
  *  - Touch targets: 56px row height on mobile (44pt + breathing room).
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus, LogOut,
   Award,
   CheckCircle, RefreshCw, Clock, Globe, MapPin, Users, Target, Share2,
-  ChevronRight,
+  ChevronRight, Copy, Check,
 } from 'lucide-react';
 import { teamFlags, countryFlag } from '../utils/flags';
 
@@ -115,7 +115,7 @@ function PredictionCell({ winner, runnerUp, uniqueness, upsetCount = 0 }) {
 }
 
 // ── single row — used for both standard and you-row ─────────────────────
-function LeaderboardRow({ row, rank, isYou, onRowClick, onEdit, onShareBracket }) {
+function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onShareBracket }) {
   const handleKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(row); } };
   return (
     <div
@@ -135,6 +135,7 @@ function LeaderboardRow({ row, rank, isYou, onRowClick, onEdit, onShareBracket }
           {row.country && <span className="ll-id-flag" aria-hidden="true">{countryFlag(row.country)}</span>}
           {row.displayName}
           {isYou && <span className="ll-id-you">You</span>}
+          {isCreator && <span className="ll-id-creator" title="League creator">Creator</span>}
         </span>
       </div>
       <div className="ll-cell ll-cell-status">
@@ -177,9 +178,21 @@ function LeaderboardRow({ row, rank, isYou, onRowClick, onEdit, onShareBracket }
 }
 
 // ── header (league name + member count + invite primary CTA) ────────────
-function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite, onLeave, onBack, onJoin }) {
+function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, passcode, onInvite, onLeave, onBack, onJoin }) {
   const inviteLabel = isGlobal ? 'Share leaderboard' : 'Invite friends';
   const lockIcon = isPrivate ? <LockIcon size={11} aria-hidden="true" /> : null;
+  const [copied, setCopied] = useState(false);
+  const handleCopyPasscode = async () => {
+    if (!passcode) return;
+    try {
+      await navigator.clipboard.writeText(passcode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Fallback: select-and-prompt for browsers without clipboard API.
+      window.prompt('Passcode (copy this):', passcode);
+    }
+  };
   return (
     <div className="ll-header">
       <div className="ll-header-meta">
@@ -202,6 +215,20 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, onInvite,
               </>
             )}
           </div>
+          {passcode && (
+            <div className="ll-header-passcode">
+              <span className="ll-header-passcode-label">Passcode</span>
+              <code className="ll-header-passcode-code" onClick={handleCopyPasscode}>{passcode}</code>
+              <button
+                type="button"
+                className="ll-header-passcode-copy"
+                onClick={handleCopyPasscode}
+                aria-label={copied ? 'Copied' : 'Copy passcode'}
+              >
+                {copied ? <><Check size={11} aria-hidden="true" /> Copied</> : <><Copy size={11} aria-hidden="true" /> Copy</>}
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <div className="ll-header-actions">
@@ -308,6 +335,11 @@ export default function LeagueLeaderboardLayout({
   const isGlobal = league?.id === 'global-simple' || league?.id === 'global' || league?.isGlobal === true;
   const isPrivate = league?.visibility === 'private';
   const memberCount = league?.memberCount || league?.members?.length || rows.length;
+  const creatorId = league?.createdBy || null;
+  // Reveal the passcode only when the viewer is a member of the league —
+  // for public leaderboards or anonymous viewers we keep it hidden.
+  const isMember = !!currentUserId && (Array.isArray(league?.members) ? league.members.includes(currentUserId) : false);
+  const passcode = (isPrivate && isMember && league?.passcode) ? league.passcode : null;
 
   // Pull the user's own row out so we can render it sticky and put the
   // edit/share actions inline. The rest renders top-down without it.
@@ -321,6 +353,7 @@ export default function LeagueLeaderboardLayout({
         isPrivate={isPrivate}
         isGlobal={isGlobal}
         memberCount={memberCount}
+        passcode={passcode}
         onInvite={onInvite}
         onLeave={onLeave}
         onBack={onBack}
@@ -359,12 +392,14 @@ export default function LeagueLeaderboardLayout({
           {rows.map((row, i) => {
             const rank = i + 1;
             const isYou = row.userId === currentUserId;
+            const isCreator = !!creatorId && row.userId === creatorId;
             return (
               <LeaderboardRow
                 key={row.userId}
                 row={row}
                 rank={rank}
                 isYou={isYou}
+                isCreator={isCreator}
                 onRowClick={onRowClick}
                 onEdit={onEdit}
                 onShareBracket={isYou ? onShareBracket : null}
@@ -383,6 +418,7 @@ export default function LeagueLeaderboardLayout({
             row={youRow}
             rank={youIdx + 1}
             isYou={true}
+            isCreator={!!creatorId && youRow.userId === creatorId}
             onRowClick={onRowClick}
             onEdit={onEdit}
             onShareBracket={onShareBracket}

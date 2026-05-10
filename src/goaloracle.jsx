@@ -2548,8 +2548,10 @@ const GoalOracle = () => {
     // are wired into per-league status.
     const isUrgent = (status) => !!status && !status.done && !status.ended && (status.etaMin || 9999) <= 30;
 
-    // Sort: recently-active proxy. Active picks first (urgent then warning),
-    // then completed, then ended. Within tier, alphabetical.
+    // Sort: private leagues first (the user explicitly created/joined them
+    // for friends — that signal beats every other ranking heuristic), then
+    // by activity tier (urgent → warn → done → ended → unknown), then
+    // alphabetical within tier.
     const sortByActivity = (arr) => {
       const tier = (l) => {
         const s = predStatus(l);
@@ -2559,7 +2561,10 @@ const GoalOracle = () => {
         if (isUrgent(s)) return 1;
         return 2;
       };
+      const isPrivate = (l) => l?.visibility === 'private';
       return [...arr].sort((a, b) => {
+        const pa = isPrivate(a), pb = isPrivate(b);
+        if (pa !== pb) return pa ? -1 : 1;
         const ta = tier(a), tb = tier(b);
         if (ta !== tb) return ta - tb;
         return (a.name || '').localeCompare(b.name || '');
