@@ -2878,6 +2878,16 @@ const GoalOracle = () => {
                 await joinLeague(match.id, uData.id, passInput.trim());
                 notify(`Joined ${match.name}!`);
                 setPassInput('');
+                // Drop the user straight into the prediction flow for the
+                // league they just joined. Leaving them on the Browse page
+                // (the previous behavior) made it look like nothing
+                // happened beyond the toast. Tiny delay so the leagues
+                // subscription delivers the new membership before nav()
+                // resolves the league object.
+                setTimeout(() => {
+                  const fresh = leagues.find(x => x.id === match.id) || allLeagues.find(x => x.id === match.id) || match;
+                  nav('detail', fresh, { tab: 'predictions' });
+                }, 150);
               } catch(e) { setJoinErr(e.message); notify(e.message, 'error'); }
             }}><UserPlus size={14} /> Join Private</button>
           </div>
