@@ -107,6 +107,25 @@ export default async function handler(req, res) {
       await recordIpForUser(db, ip, uid);
     }
 
+    // Persist the verified email server-side BEFORE returning the token.
+    // Custom-token sign-in strips email from the Firebase user record, so
+    // the client's createOrUpdateUser sees fbUser.email === null and used
+    // to write null into Firestore. Writing here closes the loop:
+    //   - new users: the doc gets created later by createOrUpdateUser; we
+    //     write a sparse {email, emailDedupeKey} now and merge: true
+    //     ensures a later setDoc with same fields keeps these.
+    //   - existing users with email already populated: noop (merge).
+    //   - existing users with email == null (legacy): we backfill it.
+    try {
+      await db.collection('users').doc(uid).set({
+        email,
+        emailDedupeKey: normalizeEmail(email),
+        emailUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (e) {
+      console.warn('[auth/google] email upsert failed:', e?.message);
+    }
+
     return res.status(200).json({
       firebaseToken,
       uid,

@@ -39,6 +39,39 @@ function shouldUseRedirect() {
 // the redirect, regardless of whether our flag survives.
 const REDIRECT_FLAG = 'goaloracle_google_redirect_pending';
 
+// The custom-token sign-in path (used by both Google and email-OTP flows)
+// strips email from the Firebase user — `auth.currentUser.email` is null
+// after signInWithCustomToken because the token only embeds the UID. We
+// stash the address here right before the swap so onAuthStateChanged ->
+// createOrUpdateUser can recover it without going back through Firebase.
+//
+// Also persisted to sessionStorage so the redirect round-trip (which
+// reloads the page) doesn't lose it. Cleared after consumePendingEmail().
+const PENDING_EMAIL_KEY = 'goaloracle_pending_email';
+let _pendingEmail = null;
+
+function setPendingEmail(email) {
+  if (!email) return;
+  _pendingEmail = email;
+  try { sessionStorage.setItem(PENDING_EMAIL_KEY, email); } catch {}
+}
+
+export function consumePendingEmail() {
+  if (_pendingEmail) {
+    const e = _pendingEmail;
+    _pendingEmail = null;
+    try { sessionStorage.removeItem(PENDING_EMAIL_KEY); } catch {}
+    return e;
+  }
+  try {
+    const e = sessionStorage.getItem(PENDING_EMAIL_KEY);
+    if (e) sessionStorage.removeItem(PENDING_EMAIL_KEY);
+    return e || null;
+  } catch {
+    return null;
+  }
+}
+
 // Set true while a Google sign-in is mid-swap from the Firebase-managed UID
 // (popup or redirect) to the API-issued custom token. The auth listener in
 // goaloracle.jsx checks this and skips processing transient states so it
@@ -85,6 +118,8 @@ export async function requestEmailCode(email) {
 export async function verifyEmailCode(email, code) {
   const deviceFingerprint = await safeFingerprint();
   const { firebaseToken } = await postJSON('/api/auth/verify-code', { email, code, deviceFingerprint });
+  // Stash before the swap so onAuthStateChanged can backfill the user doc.
+  setPendingEmail(email);
   await signInWithCustomToken(auth, firebaseToken);
   return auth.currentUser;
 }
@@ -97,8 +132,14 @@ async function completeGoogleSignIn(result) {
   const credential = GoogleAuthProvider.credentialFromResult(result);
   const googleIdToken = credential?.idToken;
   if (!googleIdToken) throw new Error('Google sign-in returned no ID token');
+  // The popup-managed Firebase user still has the email at this point —
+  // stash it before signing out so the post-swap createOrUpdateUser can
+  // pick it up. The /api/auth/google response also returns it as a
+  // belt-and-suspenders fallback.
+  const popupEmail = result?.user?.email || null;
   const deviceFingerprint = await safeFingerprint();
-  const { firebaseToken } = await postJSON('/api/auth/google', { idToken: googleIdToken, deviceFingerprint });
+  const { firebaseToken, email: serverEmail } = await postJSON('/api/auth/google', { idToken: googleIdToken, deviceFingerprint });
+  setPendingEmail(popupEmail || serverEmail);
   await fbSignOut(auth);
   _swapInFlight = false;
   await signInWithCustomToken(auth, firebaseToken);

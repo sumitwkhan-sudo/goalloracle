@@ -159,6 +159,21 @@ export default async function handler(req, res) {
       await recordIpForUser(db, ip, uid);
     }
 
+    // Persist the verified email server-side BEFORE returning the token.
+    // The custom-token swap on the client strips email from the Firebase
+    // user record, so without this defense the client's createOrUpdateUser
+    // would write null. merge: true keeps any other fields intact and
+    // backfills email for legacy users with email == null.
+    try {
+      await db.collection('users').doc(uid).set({
+        email,
+        emailDedupeKey: normalizeEmail(email),
+        emailUpdatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (e) {
+      console.warn('[auth/verify-code] email upsert failed:', e?.message);
+    }
+
     return res.status(200).json({
       firebaseToken,
       uid,

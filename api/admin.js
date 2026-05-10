@@ -771,6 +771,76 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, count: cleaned.length, emails: cleaned });
     }
 
+    if (action === 'backfillEmails') {
+      // Backfills user.email + user.emailDedupeKey for any user doc where
+      // email is missing/null. The legacy custom-token sign-in path used
+      // to overwrite a real email with null because fbUser.email is null
+      // after signInWithCustomToken; this action recovers the address from
+      // Firebase Auth's user record (when it has one) for already-affected
+      // accounts.
+      //
+      // Scope: scans every users doc, filters the ones missing email,
+      // looks each up via admin.auth().getUser(uid). Skips users where
+      // even Firebase Auth has no email — those need a fresh sign-in to
+      // populate, which the new auth-flow upsert (api/auth/{google,verify-code})
+      // takes care of automatically the next time they log in.
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can run backfill' });
+      }
+      const dryRun = req.body?.dryRun === true;
+
+      const snap = await db.collection('users').get();
+      const targets = [];
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (!data.email) targets.push(d.id);
+      });
+
+      const results = { scanned: snap.size, missing: targets.length, fixed: 0, stillMissing: 0, errors: [] };
+
+      if (dryRun) {
+        return res.status(200).json({ ...results, dryRun: true, sample: targets.slice(0, 10) });
+      }
+
+      // Process in chunks of 50 to keep Firestore writes manageable.
+      for (let i = 0; i < targets.length; i += 50) {
+        const chunk = targets.slice(i, i + 50);
+        await Promise.all(chunk.map(async (uid) => {
+          try {
+            // admin.auth().getUser throws auth/user-not-found if the UID
+            // never had a Firebase Auth record. Catch and skip.
+            const fbUser = await admin.auth().getUser(uid).catch(() => null);
+            const email = fbUser?.email
+              || fbUser?.providerData?.find(p => p.email)?.email
+              || null;
+            if (!email) {
+              results.stillMissing++;
+              return;
+            }
+            const { normalizeEmail } = await import('./_lib/security.js');
+            await db.collection('users').doc(uid).set({
+              email,
+              emailDedupeKey: normalizeEmail(email),
+              emailBackfilledAt: FieldValue.serverTimestamp(),
+            }, { merge: true });
+            results.fixed++;
+          } catch (e) {
+            results.errors.push({ uid, error: e.message });
+          }
+        }));
+      }
+
+      await db.collection('adminLogs').add({
+        action: 'backfill_emails',
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        ...results,
+      }).catch(() => {});
+
+      return res.status(200).json(results);
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
   } catch (e) {
     console.error('Admin error:', e);

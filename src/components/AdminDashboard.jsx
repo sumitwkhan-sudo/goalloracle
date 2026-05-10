@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -89,6 +89,26 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       notify('Backfill failed: ' + e.message, 'error');
     } finally {
       setBackfillingCountries(false);
+    }
+  };
+
+  const [backfillingEmails, setBackfillingEmails] = useState(false);
+  const runBackfillEmails = async (dryRun) => {
+    setBackfillingEmails(true);
+    try {
+      const res = await adminBackfillEmails(dryRun);
+      if (dryRun) {
+        notify(`Email backfill (dry): ${res.missing} of ${res.scanned} users have no email. Sample: ${(res.sample || []).slice(0, 3).join(', ') || 'none'}`);
+      } else {
+        notify(`Email backfill: ${res.fixed} fixed, ${res.stillMissing} still missing (need fresh sign-in), ${res.errors?.length || 0} errors of ${res.missing} candidates.`,
+          (res.errors?.length || 0) > 0 ? 'error' : 'success');
+        const fresh = await getAllUsers();
+        setUsers(fresh);
+      }
+    } catch (e) {
+      notify('Email backfill failed: ' + e.message, 'error');
+    } finally {
+      setBackfillingEmails(false);
     }
   };
 
@@ -504,6 +524,12 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               <input type="text" placeholder="Search users..." value={userSearch} onChange={e => setUserSearch(e.target.value)} className="admin-search" />
               <button type="button" className="btn btn-secondary btn-sm" onClick={runBackfillCountries} disabled={backfillingCountries} title="Assign country to every user missing one (Sumit→BD, lebida2352→PK, everyone else→US)">
                 {backfillingCountries ? <><RefreshCw size={12} className="spin" /> Backfilling…</> : <>Backfill countries</>}
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => runBackfillEmails(true)} disabled={backfillingEmails} title="Count how many users have no email (no DB writes)">
+                {backfillingEmails ? <><RefreshCw size={12} className="spin" /> …</> : <>Email backfill (dry)</>}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => runBackfillEmails(false)} disabled={backfillingEmails} title="Recover user.email from Firebase Auth for every user missing it">
+                {backfillingEmails ? <><RefreshCw size={12} className="spin" /> Backfilling…</> : <>Backfill emails</>}
               </button>
             </div>
           </div>
