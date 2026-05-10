@@ -378,9 +378,9 @@ function DashboardStrip({ qpRank, points, accuracy, totalCompleted, streak, stre
       <div className="td-strip-cell td-strip-cell-rank">
         <span className="td-label">Global rank</span>
         <span className="td-rank">
-          {qpRank ? `#${qpRank.rank}` : <span className="td-skel">#—</span>}
+          {typeof qpRank?.rank === 'number' ? `#${qpRank.rank}` : <span className="td-skel">#—</span>}
         </span>
-        <span className="td-of">{qpRank ? `of ${qpRank.total.toLocaleString()}` : '—'}</span>
+        <span className="td-of">{typeof qpRank?.total === 'number' ? `of ${qpRank.total.toLocaleString()}` : '—'}</span>
       </div>
       <div className="td-strip-cell">
         <span className="td-label">Points</span>

@@ -1436,9 +1436,17 @@ const GoalOracle = () => {
         const unsub = subscribeToSimplePrediction(uData.id, league.id, (doc) => {
           if (cancelled) return;
           const computed = computeFromDoc(doc);
+          // Seed rank/total = null if the leaderboard fetch hasn't run yet —
+          // Dashboard's `qpRank.total.toLocaleString()` crashes when total
+          // is undefined, and React unmounts the whole dashboard tree on
+          // that throw, bouncing the user back to landing. Setting null
+          // explicitly lets the typed `typeof === 'number'` guard render
+          // a placeholder instead.
           setLeagueRanks(prev => ({
             ...prev,
             [league.id]: {
+              rank: null,
+              total: null,
               ...(prev[league.id] || {}),
               ...computed,
               fetchedAt: Date.now(),
