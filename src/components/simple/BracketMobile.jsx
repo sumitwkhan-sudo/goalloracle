@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Award } from 'lucide-react';
 import BracketMatch from './BracketMatch';
 import BracketHintTooltip from './BracketHintTooltip';
 import { ROUND_ORDER } from '../../utils/bracketUtils';
@@ -80,8 +80,41 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
   // exactly where they are without expanding sections. Tapping a cell
   // jumps to that round (only if it's already unlocked).
   const currentIdx = ROUND_ORDER.indexOf(openRound);
+
+  // "Only 3rd place left" prompt. Most users don't realize the
+  // 3rd-place match is a separate pick — they finish the Final and
+  // wonder why their bracket still shows "1 left". When that's the
+  // exact case, surface an animated banner with a chevron pointing
+  // at the round, and auto-open the round so the actual matchup is
+  // immediately tappable.
+  const thirdPlaceOnlyLeft = !readOnly
+    && isRoundComplete('roundOf32')
+    && isRoundComplete('roundOf16')
+    && isRoundComplete('quarterFinals')
+    && isRoundComplete('semiFinals')
+    && isRoundComplete('final')
+    && !isRoundComplete('thirdPlace');
+  const thirdPlaceNudgeRef = useRef(false);
+  useEffect(() => {
+    if (thirdPlaceOnlyLeft && !thirdPlaceNudgeRef.current) {
+      thirdPlaceNudgeRef.current = true;
+      setOpenRound('thirdPlace');
+    }
+    if (!thirdPlaceOnlyLeft) thirdPlaceNudgeRef.current = false;
+  }, [thirdPlaceOnlyLeft]);
+
   return (
     <div className="bracket-mobile">
+      {thirdPlaceOnlyLeft && (
+        <div className="bracket-third-nudge" role="status" aria-live="polite">
+          <Award size={16} className="bracket-third-nudge-icon" aria-hidden="true" />
+          <div className="bracket-third-nudge-body">
+            <strong>One pick left:</strong> the 3rd-place match (5 pts).
+            <span className="bracket-third-nudge-sub"> Tap below to lock it in.</span>
+          </div>
+          <ChevronDown size={18} className="bracket-third-nudge-chevron" aria-hidden="true" />
+        </div>
+      )}
       <nav className="bracket-progress" aria-label="Bracket round progress">
         {ROUND_ORDER.map((roundKey, i) => {
           const slots = bracket[roundKey] || [];
