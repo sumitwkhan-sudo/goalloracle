@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -193,6 +193,16 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     } catch (e) {
       setCronStatus({ kind: 'reminder', error: e.message });
       notify('Reminder cron failed: ' + e.message, 'error');
+    } finally { setCronLoading(null); }
+  };
+
+  const clearMyAntiSybil = async () => {
+    setCronLoading('clear-asyb');
+    try {
+      const data = await adminClearAntiSybil(userData.id);
+      notify(`Cleared anti-Sybil state for you: ${data.cleared.fingerprints} fingerprint(s), ${data.cleared.ips} IP record(s).`);
+    } catch (e) {
+      notify('Clear anti-Sybil failed: ' + e.message, 'error');
     } finally { setCronLoading(null); }
   };
 
@@ -810,6 +820,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               </button>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => runReminderCron('1h')} disabled={cronLoading !== null} title="Force-send the 1h-window reminder to all incomplete-bracket users right now">
                 {cronLoading === 'reminder-1h' ? <><RefreshCw size={13} className="spin" /> Sending…</> : <>Send 1h Reminders</>}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={clearMyAntiSybil} disabled={cronLoading !== null} title="Wipe your own deviceFingerprints + signupIps records so you can sign up new test accounts on this device. Doesn't delete your account.">
+                {cronLoading === 'clear-asyb' ? <><RefreshCw size={13} className="spin" /> Clearing…</> : <>Clear my device block</>}
               </button>
             </div>
           </div>

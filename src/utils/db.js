@@ -561,6 +561,13 @@ export async function adminRunReminderCron(kind = '24h', dryRun = false) {
   return await apiCall(`cron/incomplete-bracket-reminder${qs}`, 'POST');
 }
 
+// Wipe a user from all deviceFingerprints + signupIps docs. Used to bring
+// a test account back to "brand-new" state, or to unblock a user who got
+// stuck behind the per-device account wall.
+export async function adminClearAntiSybil(userId) {
+  return await apiCall('admin', 'POST', { action: 'clearAntiSybilForUser', userId });
+}
+
 // ---- FEATURE FLAGS (admin-toggleable, read by every client on mount) ----
 // Defaults: Classic is opt-in. Quick Picks is the product surface; the
 // Classic flow is preserved in code for re-enabling later but stays

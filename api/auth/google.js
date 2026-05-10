@@ -14,6 +14,9 @@ import {
   recordIpForUser,
   getMaskedEmailForFingerprint,
   getMaskedEmailForIp,
+  getFullEmailForFingerprint,
+  getFullEmailForIp,
+  isAntiSybilBypassEmail,
   findUserByDedupeKey,
   isValidVisitorId,
   SUPPORT_EMAIL,
@@ -52,27 +55,39 @@ export default async function handler(req, res) {
     const isNewUser = !existing;
 
     if (isNewUser) {
-      const fpCheck = await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
+      // Operator allowlist: emails in ANTI_SYBIL_BYPASS_EMAILS skip the
+      // per-device + per-IP single-account checks. Lets the operator keep
+      // multiple test accounts on their own laptop / phone during QA.
+      const bypass = isAntiSybilBypassEmail(email);
+      const fpCheck = bypass ? { allowed: true } : await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
       if (!fpCheck.allowed) {
-        const maskedEmail = await getMaskedEmailForFingerprint(db, deviceFingerprint);
+        const [maskedEmail, existingEmail] = await Promise.all([
+          getMaskedEmailForFingerprint(db, deviceFingerprint),
+          getFullEmailForFingerprint(db, deviceFingerprint),
+        ]);
         return res.status(429).json({
           error: 'device_account_exists',
           message: "Looks like you've already got an account from this device.",
           maskedEmail,
+          existingEmail,
           supportEmail: SUPPORT_EMAIL,
         });
       }
-      const ipUniqueCheck = await checkIpAllowsNewAccount(db, ip);
+      const ipUniqueCheck = bypass ? { allowed: true } : await checkIpAllowsNewAccount(db, ip);
       if (!ipUniqueCheck.allowed) {
-        const maskedEmail = await getMaskedEmailForIp(db, ip);
+        const [maskedEmail, existingEmail] = await Promise.all([
+          getMaskedEmailForIp(db, ip),
+          getFullEmailForIp(db, ip),
+        ]);
         return res.status(429).json({
           error: 'ip_account_exists',
           message: "Looks like you've already got an account from this network.",
           maskedEmail,
+          existingEmail,
           supportEmail: SUPPORT_EMAIL,
         });
       }
-      const ipCheck = await checkAndRecordSignupForIp(db, ip);
+      const ipCheck = bypass ? { allowed: true } : await checkAndRecordSignupForIp(db, ip);
       if (!ipCheck.allowed) {
         return res.status(429).json({
           error: 'ip_rate_limit',
