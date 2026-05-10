@@ -34,6 +34,12 @@
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=604800, s-maxage=604800" }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
+      ]
     }
   ]
 }
