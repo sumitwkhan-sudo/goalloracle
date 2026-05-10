@@ -2750,6 +2750,15 @@ button.invite-option:hover,
 .invite-league-share-btn:hover:not(:disabled) { filter: brightness(1.05); }
 .invite-league-share-btn:active:not(:disabled) { transform: translateY(1px); }
 .invite-league-share-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ShareButtons strip rendered inside an invite option — gives breathing
+   room above the strip and keeps button heights reasonable on mobile. */
+.invite-share-strip-wrap { padding: 0.55rem 0.75rem 0.75rem; border-top: 1px dashed var(--border); }
+.invite-league-pick-hint {
+  margin: 0.5rem 0 0.25rem; padding: 0.4rem 0.6rem;
+  font-size: 0.78rem; color: var(--text-sec); text-align: center;
+}
+
 .fund-modal {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
   width: 100%; max-width: 440px; padding: 1.75rem;
@@ -5960,29 +5969,56 @@ button.invite-option:hover,
 }
 .bracket-share-hint svg { flex-shrink: 0; margin-top: 2px; color: var(--primary, #7c5cff); }
 
-.bracket-share-actions {
+/* Reusable ShareButtons strip — used by BracketShareModal and any other
+   modal/screen that wants the X / Facebook / Instagram / Copy / More
+   button row with consistent branding. */
+.share-btn-strip {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem;
 }
-.bracket-share-actions .share-btn {
+.share-btn-strip .share-btn,
+.share-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
   padding: 0.5rem 0.7rem; border: 1px solid var(--border);
   border-radius: 10px; background: var(--bg-elev); color: var(--text);
   font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
   transition: transform 0.1s, border-color 0.15s, background 0.15s;
 }
-.bracket-share-actions .share-btn:hover { border-color: var(--primary); }
-.bracket-share-actions .share-btn:active { transform: translateY(1px); }
-.bracket-share-actions .share-btn-x { background: #000; color: #fff; border-color: #222; }
-.bracket-share-actions .share-btn-fb { background: #1877f2; color: #fff; border-color: #1464cf; }
-.bracket-share-actions .share-btn-ig {
+.share-btn-strip .share-btn:hover { border-color: var(--primary); }
+.share-btn-strip .share-btn:active { transform: translateY(1px); }
+.share-btn-strip .share-btn-x { background: #000; color: #fff; border-color: #222; }
+.share-btn-strip .share-btn-fb { background: #1877f2; color: #fff; border-color: #1464cf; }
+.share-btn-strip .share-btn-ig {
   background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
   color: #fff; border: none;
 }
-.bracket-share-actions .share-btn-native { grid-column: 1 / -1; }
+.share-btn-strip .share-btn-native { grid-column: 1 / -1; }
 @media (max-width: 420px) {
-  .bracket-share-actions { grid-template-columns: 1fr; }
-  .bracket-share-actions .share-btn-native { grid-column: auto; }
+  .share-btn-strip { grid-template-columns: 1fr; }
+  .share-btn-strip .share-btn-native { grid-column: auto; }
 }
+
+/* Biggest-upset insight strip inside the bracket-share preview card.
+   Mirrors the dashboard's BracketInsightsRow tone. */
+.bsc-insight {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  background: rgba(255, 89, 0, 0.10);
+  border: 1px solid rgba(255, 89, 0, 0.25);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: var(--text);
+  flex-wrap: wrap;
+}
+.bsc-insight svg { color: #ff7a30; flex-shrink: 0; }
+.bsc-insight-label {
+  font-family: var(--mono);
+  font-size: 0.62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-sec);
+}
+.bsc-insight-team { font-weight: 600; }
+.bsc-insight-sub { color: var(--text-sec); font-weight: 500; }
 
 /* Admin: inline league rename */
 .admin-league-rename-btn {
