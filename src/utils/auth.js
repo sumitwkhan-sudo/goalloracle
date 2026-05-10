@@ -9,21 +9,29 @@ import {
 } from 'firebase/auth';
 import { getVisitorId } from './fingerprint';
 
-// Detect environments where signInWithPopup is unreliable. Mobile browsers
-// (especially in-app webviews like Instagram / FB / Twitter) routinely
-// block popups, close the parent tab, or lose session state across the
-// popup boundary. Firebase's documented fallback is signInWithRedirect.
+// Default to signInWithRedirect across the board.
+//
+// Firebase's redirect-best-practices doc (and the Identity team's public
+// guidance) now recommend redirect over popup. Two concrete bugs we've
+// hit with popup that redirect avoids:
+//   1. Chrome's Cross-Origin-Opener-Policy isolates the popup's
+//      browsing context from the parent. Auth succeeds via Firebase's
+//      storage-based fallback, parent gets signed in — but the popup
+//      can't close itself across browsing context groups, so it sits
+//      open as a blank page.
+//   2. Safari ITP partitions sessionStorage during the popup → google →
+//      popup hop, so signInWithPopup never resolves at all.
+// Redirect doesn't share a window with the parent, so neither failure
+// mode applies. Trade-off: a full page reload during sign-in. Firebase
+// rehydrates the auth state on return via getRedirectResult.
+//
+// One narrow exception: in-app webviews (Instagram, FB, Twitter, TikTok,
+// WhatsApp, Line) often refuse to follow OAuth redirects properly,
+// landing the user on a dead screen. shouldUseRedirect returns true
+// for these too — they're already broken, but the email-OTP path is
+// always available as a fallback.
 function shouldUseRedirect() {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  // Touch + small viewport is the strongest signal. UA sniffing is the
-  // backup when the device reports as desktop (e.g. iPad in desktop mode).
-  const isMobileViewport = window.innerWidth <= 820;
-  const isMobileUA = /Android|iPhone|iPad|iPod|webOS|Mobile|Mini|Opera Mini|IEMobile/i.test(ua);
-  // Common in-app browsers — popup behavior is unreliable here even on
-  // tablet form factors.
-  const isInAppBrowser = /FBAN|FBAV|Instagram|Twitter|TikTok|WhatsApp|Line\//i.test(ua);
-  return isMobileViewport || isMobileUA || isInAppBrowser;
+  return true;
 }
 
 // Sentinel used across the redirect round-trip. signInWithRedirect navigates
