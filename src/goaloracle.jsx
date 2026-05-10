@@ -944,7 +944,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
               but they duplicated the LeagueLeaderboardLayout header
               right below — kept just the back button + leave action. */}
           <button className="btn-back-sm btn-back-sm-named" onClick={onBack}>
-            &larr; <span>{authenticated ? 'Leagues' : 'Home'}</span>
+            &larr; <span>{authenticated ? 'Back to My Leagues' : 'Home'}</span>
           </button>
         </div>
         {/* Leave button is page-level so it's reachable from any
@@ -959,7 +959,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             onClick={onLeaveLeague}
             title="Leave this league"
           >
-            <LogOut size={13} aria-hidden="true" /> Leave
+            <LogOut size={13} aria-hidden="true" /> Leave League
           </button>
         )}
       </div>
@@ -1331,6 +1331,49 @@ const GoalOracle = () => {
     })();
     return () => { cancelled = true; };
   }, [uData?.id]);
+
+  // Fetch per-league rank + picks-progress for every personal league.
+  // Lives at App level (not inside Dashboard) so the leagues page can show
+  // status pills even when the user navigates straight to /leagues without
+  // first visiting the dashboard. Otherwise leagueRanks stays empty there
+  // and predStatus() returns null for every row → no pills render.
+  useEffect(() => {
+    if (!uData?.id || leagues.length === 0) return;
+    let cancelled = false;
+    const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
+    (async () => {
+      for (const league of leagues.slice(0, 20)) {
+        if (leagueRanks[league.id] || cancelled) continue;
+        try {
+          if (league.predictionMode === 'simple') {
+            const data = await getSimpleLeaderboard(league.id);
+            const lb = data.leaderboard || [];
+            const myIdx = lb.findIndex(e => e.userId === uData.id);
+            const myEntry = myIdx >= 0 ? lb[myIdx] : null;
+            if (!cancelled) setLeagueRanks(prev => ({
+              ...prev,
+              [league.id]: {
+                rank: myIdx >= 0 ? myIdx + 1 : lb.length + 1,
+                total: lb.length,
+                myPicksLeft: typeof myEntry?.picksLeft === 'number' ? myEntry.picksLeft : null,
+                myIsComplete: !!myEntry?.isComplete,
+              },
+            }));
+          } else {
+            const { leaderboard: bu } = await getLeagueLeaderboard(league.id);
+            const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || DEFAULT_PS) }));
+            const sorted = sortLeaderboard(entries);
+            const myIdx = sorted.findIndex(e => e.userId === uData.id);
+            const myPreds = bu[uData.id] || {};
+            const myPredCount = Object.values(myPreds).filter(p => p?.result).length;
+            if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0, myPredCount } }));
+          }
+        } catch {}
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uData?.id, leagues.length, results]);
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
@@ -2577,7 +2620,7 @@ const GoalOracle = () => {
             ))}
           </div>
           <button type="button" className="leagues-browse" onClick={() => nav('browse')}>
-            <Search size={13} aria-hidden="true" /> Browse
+            <Search size={13} aria-hidden="true" /> Join another league
           </button>
         </div>
 
@@ -2599,7 +2642,7 @@ const GoalOracle = () => {
                 Open Global <ChevronRight size={14} aria-hidden="true" />
               </button>
               <button type="button" className="leagues-hero-secondary" onClick={() => nav('browse')}>
-                Browse leagues
+                Join another league
               </button>
             </div>
           </div>

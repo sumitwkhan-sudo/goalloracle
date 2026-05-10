@@ -5,12 +5,30 @@ import { requestEmailCode, verifyEmailCode, signInWithGoogle } from '../../utils
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginScreen({ onClose, onSignedIn }) {
-  const [step, setStep] = useState('choose'); // choose | code
+  const [step, setStep] = useState('choose'); // choose | code | blocked
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [blocked, setBlocked] = useState(null); // { scope, maskedEmail, supportEmail, message }
   const codeInputRef = useRef(null);
+
+  // Map a thrown auth error to either the device/IP block screen or a flat
+  // inline error string.
+  const handleAuthError = (e) => {
+    const code = e?.payload?.error;
+    if (code === 'device_account_exists' || code === 'ip_account_exists') {
+      setBlocked({
+        scope: code === 'device_account_exists' ? 'device' : 'network',
+        maskedEmail: e.payload.maskedEmail || null,
+        supportEmail: e.payload.supportEmail || 'support@goaloracle.io',
+        message: e.payload.message || e.message,
+      });
+      setStep('blocked');
+      return;
+    }
+    setErr(e?.message || 'Sign-in failed');
+  };
 
   useEffect(() => {
     if (step === 'code' && codeInputRef.current) codeInputRef.current.focus();
@@ -40,7 +58,7 @@ export default function LoginScreen({ onClose, onSignedIn }) {
       await verifyEmailCode(email, code);
       onSignedIn?.();
     } catch (e) {
-      setErr(e.message || 'Verification failed');
+      handleAuthError(e);
     } finally { setBusy(false); }
   };
 
@@ -56,9 +74,8 @@ export default function LoginScreen({ onClose, onSignedIn }) {
       if (user) onSignedIn?.();
     } catch (e) {
       const msg = e?.message || 'Google sign-in failed';
-      if (!msg.includes('popup-closed') && !msg.includes('cancelled')) {
-        setErr(msg);
-      }
+      if (msg.includes('popup-closed') || msg.includes('cancelled')) return;
+      handleAuthError(e);
     } finally { setBusy(false); }
   };
 
@@ -127,6 +144,54 @@ export default function LoginScreen({ onClose, onSignedIn }) {
                 {busy ? <><RefreshCw size={16} className="spin" /> Sending…</> : <>Send 6-digit code <ChevronRight size={16} /></>}
               </button>
             </form>
+          </>
+        )}
+
+        {step === 'blocked' && blocked && (
+          <>
+            <div className="login-modal-header">
+              <h2 className="login-modal-title">Account already exists</h2>
+              <p className="login-modal-desc">
+                {blocked.scope === 'device'
+                  ? "Looks like you've already got an account from this device."
+                  : "Looks like you've already got an account from this network."}
+              </p>
+            </div>
+
+            {blocked.maskedEmail && (
+              <div className="login-blocked-email" style={{
+                padding: '12px 14px',
+                borderRadius: 8,
+                background: 'rgba(255, 200, 0, 0.08)',
+                border: '1px solid rgba(255, 200, 0, 0.25)',
+                marginBottom: 14,
+                fontSize: 14,
+              }}>
+                Existing account: <strong>{blocked.maskedEmail}</strong>
+              </div>
+            )}
+
+            <p className="login-modal-desc" style={{ fontSize: 13 }}>
+              Sign in with that email to continue. Still having trouble?{' '}
+              Email{' '}
+              <a href={`mailto:${blocked.supportEmail}`} style={{ color: 'var(--accent, #f60)' }}>
+                {blocked.supportEmail}
+              </a>{' '}
+              and we'll help you out.
+            </p>
+
+            <button
+              type="button"
+              className="btn btn-primary btn-lg login-submit"
+              onClick={() => {
+                setBlocked(null);
+                setErr('');
+                setCode('');
+                setStep('choose');
+              }}
+            >
+              Back to sign in
+            </button>
           </>
         )}
 

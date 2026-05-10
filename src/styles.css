@@ -3875,7 +3875,7 @@ button.invite-option:hover,
 .cr-ko-label span { user-select: none; }
 
 @media (max-width: 768px) {
-  .page-header-compact { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .page-header-compact { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
   .pred-inline-bar { flex-wrap: wrap; gap: 0.3rem; }
   .pib-view-toggle { margin-left: 0; }
 }
@@ -4576,8 +4576,13 @@ button.invite-option:hover,
 .simple-step.current .simple-step-num { background: var(--primary); color: #000; }
 .simple-step-sep { width: 16px; height: 1px; background: var(--border); flex-shrink: 0; }
 @media (max-width: 480px) {
-  .simple-step { padding: 0.4rem 0.7rem; font-size: 0.78rem; }
-  .simple-step-sep { width: 10px; }
+  /* Pack the three pills tight enough that all of them fit inside the
+     viewport — otherwise the last one (Bracket) clips to "3" with the
+     label hidden behind the right edge. */
+  .simple-steps { gap: 0.25rem; padding: 0 0.5rem; justify-content: center; }
+  .simple-step { padding: 0.35rem 0.6rem; font-size: 0.75rem; gap: 0.3rem; }
+  .simple-step-num { width: 18px; height: 18px; font-size: 0.68rem; }
+  .simple-step-sep { width: 6px; }
 }
 
 /* Step intro + nav */
@@ -5605,6 +5610,7 @@ button.invite-option:hover,
 .simple-page-status-inline {
   display: flex; align-items: center; justify-content: flex-end;
   gap: 0.5rem; padding: 0.5rem 0; min-height: 1.5rem;
+  flex-wrap: wrap; row-gap: 0.4rem;
 }
 
 /* ─── Send / Withdraw Modal ─── */

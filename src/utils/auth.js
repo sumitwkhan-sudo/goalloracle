@@ -64,7 +64,13 @@ async function postJSON(url, body) {
   });
   let data;
   try { data = await res.json(); } catch { data = { error: 'Bad response' }; }
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    // Prefer the user-facing `message` over the machine-readable `error` code.
+    const err = new Error(data?.message || data?.error || `Request failed (${res.status})`);
+    err.payload = data;
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
