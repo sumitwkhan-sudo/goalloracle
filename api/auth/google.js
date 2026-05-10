@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       // Operator allowlist: emails in ANTI_SYBIL_BYPASS_EMAILS skip the
       // per-device + per-IP single-account checks. Lets the operator keep
       // multiple test accounts on their own laptop / phone during QA.
-      const bypass = isAntiSybilBypassEmail(email);
+      const bypass = await isAntiSybilBypassEmail(db, email);
       const fpCheck = bypass ? { allowed: true } : await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
       if (!fpCheck.allowed) {
         const [maskedEmail, existingEmail] = await Promise.all([

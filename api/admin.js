@@ -1,6 +1,6 @@
 import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { ipHash } from './_lib/security.js';
+import { ipHash, normalizeBypassEmail, _invalidateBypassCache } from './_lib/security.js';
 import { sendOperatorAlert } from './_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
 
@@ -619,6 +619,47 @@ export default async function handler(req, res) {
         ok: true,
         cleared: { fingerprints: fpSnap.size, ips: ipSnap.size },
       });
+    }
+
+    if (action === 'getAntiSybilBypassList') {
+      // Returns the current Firestore-managed bypass list. Env-var
+      // entries (ANTI_SYBIL_BYPASS_EMAILS) are NOT included — those are
+      // bootstrap-only and not editable from the UI.
+      const snap = await db.collection('config').doc('antiSybilBypass').get();
+      const emails = snap.exists ? (snap.data()?.emails || []) : [];
+      const envEmails = (process.env.ANTI_SYBIL_BYPASS_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean);
+      return res.status(200).json({ emails, envEmails });
+    }
+
+    if (action === 'setAntiSybilBypassList') {
+      // Replace the full list. UI sends the desired final state — we
+      // don't do incremental add/remove because the list is small and
+      // last-writer-wins is fine for a single-operator panel.
+      const { emails } = req.body;
+      if (!Array.isArray(emails)) return res.status(400).json({ error: 'emails must be an array' });
+      // Cap at 200 to keep the doc small; way past any realistic need.
+      if (emails.length > 200) return res.status(400).json({ error: 'Max 200 entries' });
+      const cleaned = Array.from(new Set(
+        emails.map(e => typeof e === 'string' ? e.trim() : '').filter(Boolean)
+      ));
+      // Validate each entry parses to a normalized email.
+      const invalid = cleaned.filter(e => !normalizeBypassEmail(e));
+      if (invalid.length > 0) {
+        return res.status(400).json({ error: `Invalid email(s): ${invalid.slice(0, 3).join(', ')}` });
+      }
+      await db.collection('config').doc('antiSybilBypass').set({
+        emails: cleaned,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: claims.userId,
+      }, { merge: true });
+      _invalidateBypassCache(); // best-effort; only invalidates this lambda instance
+      await db.collection('adminLogs').add({
+        action: 'setAntiSybilBypassList',
+        actor: claims.userId,
+        timestamp: FieldValue.serverTimestamp(),
+        count: cleaned.length,
+      }).catch(() => {});
+      return res.status(200).json({ ok: true, count: cleaned.length, emails: cleaned });
     }
 
     return res.status(400).json({ error: 'Invalid action' });
