@@ -259,21 +259,45 @@ export async function signInWithGoogle() {
 // Returns { error, code } shape so the caller can surface a toast
 // without bringing the app down. Successful redirects still resolve
 // to the auth.currentUser as before.
+//
+// Returns one of:
+//   - auth.currentUser  (User object) — redirect completed, swap done
+//   - { error, code }                  — redirect failed visibly
+//   - { silentNull: true, wasRedirecting: bool } — getRedirectResult
+//     returned null. `wasRedirecting` is true iff REDIRECT_FLAG was set
+//     before we drained it, which means the user DID initiate a redirect
+//     but Firebase couldn't recover the credential (typical on mobile
+//     bfcache restore + Safari ITP + storage partitioning).
 export async function completeGoogleRedirectIfNeeded() {
+  // Snapshot REDIRECT_FLAG BEFORE we drain it so the caller can tell
+  // "user intended to redirect, nothing came back" apart from "fresh
+  // page load, no redirect was ever in flight".
+  let hadRedirectFlag = false;
+  try { hadRedirectFlag = sessionStorage.getItem(REDIRECT_FLAG) === '1'; } catch {}
+  console.log('[auth] completeGoogleRedirectIfNeeded: REDIRECT_FLAG was', hadRedirectFlag ? 'SET' : 'unset');
+
   let result;
   try {
     result = await getRedirectResult(auth);
+    console.log('[auth] getRedirectResult returned', result ? `user=${result.user?.uid}` : 'null');
   } catch (e) {
     console.error('[auth] getRedirectResult threw:', e?.code, e?.message);
     _swapInFlight = false;
     try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
-    return { error: e?.message || 'Google sign-in failed', code: e?.code || null };
+    return { error: e?.message || 'Google sign-in failed', code: e?.code || null, wasRedirecting: hadRedirectFlag };
   }
   // Always drain the flag at this point — either we found a result and we
   // commit the swap, or there was no result and the flag is stale.
   try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
   if (!result) {
     _swapInFlight = false;
+    // Silent null: getRedirectResult returned nothing. If REDIRECT_FLAG
+    // was set, the user DID initiate a redirect on this device and
+    // Firebase couldn't recover the credential — surface a recovery UI.
+    if (hadRedirectFlag) {
+      console.warn('[auth] silent redirect failure: flag was set, getRedirectResult returned null');
+      return { silentNull: true, wasRedirecting: true };
+    }
     return null;
   }
   console.log('[auth] redirect result received, completing sign-in for', result.user?.email);
@@ -283,7 +307,7 @@ export async function completeGoogleRedirectIfNeeded() {
   } catch (e) {
     console.error('[auth] redirect swap failed:', e?.message || e);
     _swapInFlight = false;
-    return { error: e?.message || 'Google sign-in failed', code: e?.code || null };
+    return { error: e?.message || 'Google sign-in failed', code: e?.code || null, wasRedirecting: hadRedirectFlag };
   }
 }
 
