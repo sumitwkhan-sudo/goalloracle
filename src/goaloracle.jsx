@@ -1524,12 +1524,23 @@ const GoalOracle = () => {
     // { error, code } on failure (Safari ITP / missing initial state /
     // unauthorized origin) so a stale OAuth round-trip can't blank
     // the whole app. Surface the error as a toast and keep rendering.
+    //
+    // CRITICAL: after the helper resolves (success, null, or error)
+    // we MUST reconcile fbAuth.currentUser ourselves. Reason: if a
+    // stale `goaloracle_google_redirect_pending` flag was in
+    // sessionStorage on mount, _swapInFlight got set to true at module
+    // load. The very first onAuthStateChanged event (the one that
+    // would have hydrated the already-logged-in user) was then
+    // skipped by the isAuthSwapInFlight() guard inside the listener,
+    // and `setReady(true)` never fired. The app stays gated forever.
+    // After the redirect helper clears _swapInFlight we explicitly
+    // re-process the current user so the listener's miss is
+    // recoverable. processFirebaseUser is idempotent — it bails on
+    // `authInitRef.current === true` if a real onAuthStateChanged
+    // event already raced ahead.
     completeGoogleRedirectIfNeeded()
-      .then((res) => {
+      .then(async (res) => {
         if (res && res.error) {
-          // "Missing initial state" is the well-known ITP partitioning
-          // error on iOS Safari. Translate to a user-friendly hint
-          // pointing them at the email-OTP path that always works.
           const isItp = (res.code || '').includes('missing-initial-state')
             || /missing initial state/i.test(res.error || '');
           notify(
@@ -1539,15 +1550,31 @@ const GoalOracle = () => {
             'error',
           );
         }
+        // Reconcile auth.currentUser whether the helper succeeded,
+        // returned null (no redirect pending — we may still have a
+        // signed-in user from previous session), or errored.
+        const current = fbAuth.currentUser;
+        if (current && !isTransientGoogleUser(current)) {
+          await processFirebaseUser(current);
+        } else if (!current) {
+          // No user at all — make sure ready flips so the login modal
+          // can render instead of leaving the app gated forever.
+          setReady(true);
+        }
       })
-      .catch((e) => {
-        // Defensive — getRedirectResult shouldn't throw past the helper,
-        // but if anything escapes, swallow it here so the app keeps
-        // rendering.
+      .catch(async (e) => {
         console.error('[auth] Google redirect completion failed unexpectedly:', e?.message || e);
         notify(e?.message || 'Google sign-in failed', 'error');
+        // Same reconciliation on the unexpected-throw path.
+        const current = fbAuth.currentUser;
+        if (current && !isTransientGoogleUser(current)) {
+          await processFirebaseUser(current);
+        } else {
+          setReady(true);
+        }
       });
-    // notify is stable via useCallback; safe to omit from deps and run once.
+    // notify is stable via useCallback; processFirebaseUser /
+    // isTransientGoogleUser are useCallbacks too.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1600,74 +1627,85 @@ const GoalOracle = () => {
   }, []);
   const authInitRef = useRef(false);
 
+  // Pure helper: any Firebase user with a google.com provider AND a UID
+  // that isn't one of ours is mid-swap (signed in via the popup/redirect
+  // but not yet swapped to a custom token). The auth handler skips
+  // these so we don't write a /users/{transient-uid} doc.
+  const isTransientGoogleUser = useCallback((fbUser) => {
+    return !!fbUser
+      && fbUser.providerData?.some(p => p.providerId === 'google.com')
+      && !fbUser.uid.startsWith('auth_')
+      && !fbUser.uid.startsWith('did:privy:');
+  }, []);
+
+  // Single auth-resolution path. Called from BOTH onAuthStateChanged and
+  // the post-redirect reconciliation, so a stale redirect flag that
+  // caused onAuthStateChanged to skip the first event can't strand the
+  // app — we re-process auth.currentUser ourselves after the redirect
+  // helper clears _swapInFlight. ALWAYS sets `ready` so the render
+  // gate can release.
+  const processFirebaseUser = useCallback(async (fbUser) => {
+    setReady(true);
+    if (!fbUser) {
+      setAuthenticated(false);
+      setUData(null); setRole('user'); setAuthToken(null); resetFirebaseAuth();
+      authInitRef.current = false;
+      return;
+    }
+    setAuthenticated(true);
+    if (authInitRef.current) return;
+    authInitRef.current = true;
+
+    try {
+      const token = await fbUser.getIdToken();
+      setAuthToken(token);
+      // Custom-token sign-in strips email from the Firebase user record.
+      // Recover it from the swap stash (set in src/utils/auth.js) so the
+      // user doc has a real address instead of null.
+      const stashedEmail = consumePendingEmail();
+      const u = await createOrUpdateUser({ id: fbUser.uid, email: fbUser.email || stashedEmail });
+      if (!u) return;
+      console.log('[auth] SUCCESS:', u.displayName, u.role);
+      setUData(u);
+      setRole(u.role || 'user');
+      setShowLogin(false);
+      if (u.usernameSet === false) setShowUsernamePrompt(true);
+
+      // Backfill country for existing users who signed up before we required
+      // it. Product directive: known overrides go first, then IP geolocation,
+      // then default to US so the leaderboard flag is never blank.
+      if (u.usernameSet && !u.country) {
+        try {
+          const { detectCountryByIP } = await import('./utils/countries');
+          const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
+          const hardcoded = OVERRIDES[u.displayName];
+          const detected = hardcoded || (await detectCountryByIP()) || 'US';
+          const updated = await updateUserProfile(u.id, { country: detected });
+          if (updated) setUData(updated);
+        } catch (e) {
+          console.warn('[auth] country backfill failed:', e.message);
+        }
+      }
+    } catch (e) {
+      console.error('[auth] sign-in flow failed:', e.message);
+    }
+  // setReady, setAuthenticated, setUData, etc. are stable React setters.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Subscribe to Firebase Auth. The first callback marks `ready` so render
   // gates can wait. On sign-in we cache the ID token (used by /api/* calls)
   // and load/create the matching user doc. On sign-out we clear local state.
   useEffect(() => {
     const unsub = onAuthStateChanged(fbAuth, async (fbUser) => {
-      // Google sign-in (popup or redirect) transits through a Firebase-
-      // managed UID before we swap to the canonical `auth_*` / `did:privy:*`
-      // UID via custom token. Skip every state change while that swap is in
-      // flight so we don't create a spurious /users/{transient-uid} doc.
-      //
-      // Belt-and-suspenders: even if isAuthSwapInFlight() is false (Safari
-      // ITP cleared our sessionStorage flag across the redirect hop), we
-      // can detect the transient state from providerData — a Firebase user
-      // with a google.com provider AND a UID that doesn't match our app's
-      // patterns is mid-swap. completeGoogleRedirectIfNeeded() will resolve
-      // it on the same tick.
+      // Skip transient mid-swap states. completeGoogleRedirectIfNeeded
+      // will reconcile the final user once the swap completes.
       if (isAuthSwapInFlight()) return;
-      if (fbUser
-        && fbUser.providerData?.some(p => p.providerId === 'google.com')
-        && !fbUser.uid.startsWith('auth_')
-        && !fbUser.uid.startsWith('did:privy:')) {
+      if (isTransientGoogleUser(fbUser)) {
         console.log('[auth] skipping transient Google UID', fbUser.uid, '— awaiting swap');
         return;
       }
-      setReady(true);
-      if (!fbUser) {
-        setAuthenticated(false);
-        setUData(null); setRole('user'); setAuthToken(null); resetFirebaseAuth();
-        authInitRef.current = false;
-        return;
-      }
-      setAuthenticated(true);
-      if (authInitRef.current) return;
-      authInitRef.current = true;
-
-      try {
-        const token = await fbUser.getIdToken();
-        setAuthToken(token);
-        // Custom-token sign-in strips email from the Firebase user record.
-        // Recover it from the swap stash (set in src/utils/auth.js) so the
-        // user doc has a real address instead of null.
-        const stashedEmail = consumePendingEmail();
-        const u = await createOrUpdateUser({ id: fbUser.uid, email: fbUser.email || stashedEmail });
-        if (!u) return;
-        console.log('[auth] SUCCESS:', u.displayName, u.role);
-        setUData(u);
-        setRole(u.role || 'user');
-        setShowLogin(false);
-        if (u.usernameSet === false) setShowUsernamePrompt(true);
-
-        // Backfill country for existing users who signed up before we required
-        // it. Product directive: known overrides go first, then IP geolocation,
-        // then default to US so the leaderboard flag is never blank.
-        if (u.usernameSet && !u.country) {
-          try {
-            const { detectCountryByIP } = await import('./utils/countries');
-            const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
-            const hardcoded = OVERRIDES[u.displayName];
-            const detected = hardcoded || (await detectCountryByIP()) || 'US';
-            const updated = await updateUserProfile(u.id, { country: detected });
-            if (updated) setUData(updated);
-          } catch (e) {
-            console.warn('[auth] country backfill failed:', e.message);
-          }
-        }
-      } catch (e) {
-        console.error('[auth] sign-in flow failed:', e.message);
-      }
+      await processFirebaseUser(fbUser);
     });
 
     // Refresh the cached ID token periodically so server calls don't hit
@@ -1679,7 +1717,7 @@ const GoalOracle = () => {
     }, 30 * 60 * 1000);
 
     return () => { unsub(); clearInterval(refresh); };
-  }, []);
+  }, [isTransientGoogleUser, processFirebaseUser]);
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(loadAllLeagues, [loadAllLeagues]);
 
@@ -4525,20 +4563,36 @@ const GoalOracle = () => {
 
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && (
-        <Dashboard
-          leagues={leagues}
-          preds={preds}
-          results={results}
-          uData={uData}
-          stats={stats}
-          quickPicks={quickPicks}
-          featureFlags={featureFlags}
-          leagueRanks={leagueRanks}
-          setLeagueRanks={setLeagueRanks}
-          nav={nav}
-          consensus={globalConsensus}
-          onShare={handleShareOwnBracket}
-        />
+        // Don't render Dashboard until auth is ready AND we have user
+        // data. Otherwise a stale redirect flag (or any path that
+        // skipped the first onAuthStateChanged) drops the user on a
+        // dashboard with uData=null, which flashes empty and then
+        // hangs because the child subscriptions can't gate on a real
+        // user id. Show a small loading state instead so React can
+        // re-render once processFirebaseUser hydrates.
+        (!ready || (authenticated && !uData))
+          ? (
+            <div className="dashboard" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+              <RefreshCw size={20} className="spin" aria-hidden="true" />
+              <span style={{ marginLeft: '0.75rem', color: 'var(--text-sec)' }}>Loading your dashboard…</span>
+            </div>
+          )
+          : (
+            <Dashboard
+              leagues={leagues}
+              preds={preds}
+              results={results}
+              uData={uData}
+              stats={stats}
+              quickPicks={quickPicks}
+              featureFlags={featureFlags}
+              leagueRanks={leagueRanks}
+              setLeagueRanks={setLeagueRanks}
+              nav={nav}
+              consensus={globalConsensus}
+              onShare={handleShareOwnBracket}
+            />
+          )
       )}
       {view === 'leagues' && <LeaguesList />}
       {view === 'browse' && <Browse key="browse" />}
