@@ -1158,12 +1158,12 @@ const GoalOracle = () => {
   const [ready, setReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  // Persistent error from the Google redirect path. Unlike notify() which
-  // auto-dismisses in 3s, this stays visible until the user clicks "Use
-  // email instead" or successfully signs in. The mobile failure mode
-  // (bfcache restore + storage partitioning losing the credential) is
-  // silent — a toast that flashes by isn't enough.
-  const [googleRedirectError, setGoogleRedirectError] = useState(null);
+  // When the Google redirect path silently fails (mobile bfcache /
+  // storage partitioning eating the credential), we auto-open the
+  // login modal with this message rendered as an inline notice at
+  // the top of the modal — instead of a floating banner over the
+  // hero, which looked terrible and was easy to miss.
+  const [googleRecoveryNotice, setGoogleRecoveryNotice] = useState(null);
   const login = useCallback(() => setShowLogin(true), []);
   const logout = useCallback(async () => {
     try { await authSignOut(); } catch (e) { console.warn('[auth] sign-out failed:', e.message); }
@@ -1580,27 +1580,29 @@ const GoalOracle = () => {
     };
     const handleRedirectResult = async (res) => {
       if (res && res.error) {
+        // Surface the failure as the modal's inline notice — opens the
+        // login modal directly to the email path with a small message
+        // at the top. Floating banners/toasts on a hero-image landing
+        // looked terrible and were easily missed on mobile.
         const isItp = (res.code || '').includes('missing-initial-state')
           || /missing initial state/i.test(res.error || '');
-        // Persistent banner instead of a 3-second toast — mobile users
-        // were missing the error message before it disappeared.
-        setGoogleRedirectError({
-          message: isItp
-            ? 'Google sign-in didn\'t complete on this browser.'
-            : (res.error || 'Google sign-in failed'),
-          recoverable: true,
-        });
+        setGoogleRecoveryNotice(
+          isItp
+            ? 'Google sign-in didn\'t complete on this browser. Try email instead.'
+            : (res.error || 'Google sign-in failed. Try email instead.')
+        );
+        setShowLogin(true);
       } else if (res && res.silentNull && res.wasRedirecting) {
         // The user clicked Continue with Google, Firebase set the
         // redirect flag, the browser went to Google's consent screen and
-        // came back — but getRedirectResult returned null. Almost always
-        // a mobile bfcache + storage-partitioning issue. Tell the user
-        // clearly and offer email fallback.
-        console.warn('[auth] redirect roundtrip lost credentials — surfacing recovery UI');
-        setGoogleRedirectError({
-          message: 'Google sign-in didn\'t complete. Your phone\'s browser may have cleared the session.',
-          recoverable: true,
-        });
+        // came back — but getRedirectResult returned null. Mobile bfcache
+        // + storage partitioning. Auto-open the email path so the user
+        // doesn't have to reach for the menu.
+        console.warn('[auth] redirect roundtrip lost credentials — auto-opening email sign-in');
+        setGoogleRecoveryNotice(
+          'Google sign-in didn\'t complete. Sign in with your email instead — we\'ll send a 6-digit code.'
+        );
+        setShowLogin(true);
       }
       await reconcile();
     };
@@ -1608,7 +1610,8 @@ const GoalOracle = () => {
       .then(handleRedirectResult)
       .catch(async (e) => {
         console.error('[auth] Google redirect completion failed unexpectedly:', e?.message || e);
-        setGoogleRedirectError({ message: e?.message || 'Google sign-in failed', recoverable: true });
+        setGoogleRecoveryNotice(e?.message || 'Google sign-in failed. Try email instead.');
+        setShowLogin(true);
         await reconcile();
       });
 
@@ -1626,7 +1629,7 @@ const GoalOracle = () => {
           .then(handleRedirectResult)
           .catch(async (e) => {
             console.error('[auth] bfcache redirect retry failed:', e?.message || e);
-            setGoogleRedirectError({ message: e?.message || 'Google sign-in failed', recoverable: true });
+            setGoogleRecoveryNotice(e?.message || 'Google sign-in failed. Try email instead.'); setShowLogin(true);
             await reconcile();
           });
       }
@@ -1754,7 +1757,7 @@ const GoalOracle = () => {
       setUData(u);
       setRole(u.role || 'user');
       setShowLogin(false);
-      setGoogleRedirectError(null);
+      setGoogleRecoveryNotice(null);
       if (u.usernameSet === false) setShowUsernamePrompt(true);
 
       // Backfill country for existing users who signed up before we required
@@ -4655,51 +4658,6 @@ const GoalOracle = () => {
       <NewsTicker />
       <ViewMeta view={view} />
 
-      {googleRedirectError && (
-        <div
-          role="alert"
-          style={{
-            position: 'fixed',
-            top: 60,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            maxWidth: 480,
-            width: 'calc(100% - 2rem)',
-            background: 'rgba(255, 59, 92, 0.08)',
-            border: '1px solid rgba(255, 59, 92, 0.35)',
-            borderRadius: 10,
-            padding: '0.85rem 1rem',
-            zIndex: 10000,
-            color: 'var(--text)',
-            fontSize: 14,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
-          }}
-        >
-          <div style={{ fontWeight: 600 }}>{googleRedirectError.message}</div>
-          <div style={{ fontSize: 13, color: 'var(--text-sec)' }}>
-            Try the email sign-in option — we'll send you a 6-digit code instead.
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={() => { setGoogleRedirectError(null); setShowLogin(true); }}
-            >
-              Sign in with email
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setGoogleRedirectError(null)}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && (
         // Render Dashboard directly. Child components already handle
@@ -4821,8 +4779,9 @@ const GoalOracle = () => {
       {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} featureFlags={featureFlags} />}
       {showLogin && !authenticated && (
         <LoginScreen
-          onClose={() => setShowLogin(false)}
-          onSignedIn={() => setShowLogin(false)}
+          onClose={() => { setShowLogin(false); setGoogleRecoveryNotice(null); }}
+          onSignedIn={() => { setShowLogin(false); setGoogleRecoveryNotice(null); }}
+          recoveryNotice={googleRecoveryNotice}
         />
       )}
       {/* Brand-new user (usernameSet=false): single onboarding card combines

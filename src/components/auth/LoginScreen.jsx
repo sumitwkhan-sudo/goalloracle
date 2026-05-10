@@ -4,7 +4,7 @@ import { requestEmailCode, verifyEmailCode, signInWithGoogle } from '../../utils
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function LoginScreen({ onClose, onSignedIn }) {
+export default function LoginScreen({ onClose, onSignedIn, recoveryNotice }) {
   const [step, setStep] = useState('choose'); // choose | code | blocked
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -110,6 +110,26 @@ export default function LoginScreen({ onClose, onSignedIn }) {
               <h2 className="login-modal-title">Sign in to GoalOracle</h2>
               <p className="login-modal-desc">Use your email or Google account.</p>
             </div>
+
+            {recoveryNotice && (
+              <div
+                role="alert"
+                style={{
+                  padding: '10px 12px',
+                  marginBottom: 14,
+                  borderRadius: 8,
+                  background: 'rgba(255, 200, 0, 0.10)',
+                  border: '1px solid rgba(255, 200, 0, 0.32)',
+                  fontSize: 13,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                }}
+              >
+                <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>{recoveryNotice}</span>
+              </div>
+            )}
 
             <button
               type="button"
