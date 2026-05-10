@@ -632,6 +632,13 @@ export async function setUserRole(userId, role, adminId) {
   await apiCall('admin', 'POST', { action: 'setRole', targetUserId: userId, newRole: role });
 }
 
+// Permanently delete a user. Wipes user doc, predictions (classic + simple),
+// league memberships, anti-Sybil records, and the Firebase Auth account.
+// Superadmin-only. Returns counts of what was cleaned up.
+export async function adminDeleteUser(targetUserId) {
+  return await apiCall('admin', 'POST', { action: 'deleteUser', targetUserId });
+}
+
 export async function checkOracleHealth() {
   return await apiCall('health');
 }

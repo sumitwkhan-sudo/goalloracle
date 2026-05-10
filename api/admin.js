@@ -145,6 +145,115 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ success: true });
 
+    } else if (action === 'deleteUser') {
+      // Permanently delete a user account. Wipes:
+      //  - /users/{id}
+      //  - /predictions where userId == id (classic mode)
+      //  - /simplePredictions where userId == id (Quick Picks, every league)
+      //  - membership in every league.members array they appear in
+      //  - their entry in deviceFingerprints + signupIps
+      //  - their Firebase Auth account (so their Google login can't recreate
+      //    the same UID and silently re-attach to a stale doc)
+      //
+      // Superadmin-only. Cannot delete yourself or another superadmin.
+      const { targetUserId } = req.body;
+      if (!targetUserId) return res.status(400).json({ error: 'Missing targetUserId' });
+      if (targetUserId === userId) return res.status(400).json({ error: "Can't delete yourself" });
+
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can delete a user' });
+      }
+
+      const targetSnap = await db.collection('users').doc(targetUserId).get();
+      if (!targetSnap.exists) return res.status(404).json({ error: 'User not found' });
+      const target = targetSnap.data();
+      if (target.role === 'superadmin') {
+        return res.status(403).json({ error: "Can't delete a superadmin. Demote first." });
+      }
+
+      const cleanupOps = [];
+
+      // Predictions (classic). leagueId is on each doc, but we only need
+      // to filter by userId — global classic + per-league classic both live
+      // here keyed by composite ID.
+      const classicSnap = await db.collection('predictions').where('userId', '==', targetUserId).get();
+      for (let i = 0; i < classicSnap.docs.length; i += 500) {
+        const b = db.batch();
+        classicSnap.docs.slice(i, i + 500).forEach(d => b.delete(d.ref));
+        cleanupOps.push(b.commit());
+      }
+
+      // Simple predictions (Quick Picks) — composite docs keyed by
+      // userId__leagueId, plus the legacy single-doc path /simplePredictions/{userId}.
+      const simpleSnap = await db.collection('simplePredictions').where('userId', '==', targetUserId).get();
+      for (let i = 0; i < simpleSnap.docs.length; i += 500) {
+        const b = db.batch();
+        simpleSnap.docs.slice(i, i + 500).forEach(d => b.delete(d.ref));
+        cleanupOps.push(b.commit());
+      }
+      cleanupOps.push(db.collection('simplePredictions').doc(targetUserId).delete().catch(() => {}));
+
+      // League memberships
+      const leaguesSnap = await db.collection('leagues').where('members', 'array-contains', targetUserId).get();
+      for (let i = 0; i < leaguesSnap.docs.length; i += 500) {
+        const b = db.batch();
+        leaguesSnap.docs.slice(i, i + 500).forEach(d => b.update(d.ref, { members: FieldValue.arrayRemove(targetUserId) }));
+        cleanupOps.push(b.commit());
+      }
+
+      // Anti-Sybil records (so the freed device/IP slot can be reused).
+      const fpSnap = await db.collection('deviceFingerprints').where('userIds', 'array-contains', targetUserId).get();
+      const ipSnap = await db.collection('signupIps').where('userIds', 'array-contains', targetUserId).get();
+      const sybilBatch = db.batch();
+      fpSnap.docs.forEach(d => sybilBatch.update(d.ref, { userIds: FieldValue.arrayRemove(targetUserId) }));
+      ipSnap.docs.forEach(d => sybilBatch.update(d.ref, { userIds: FieldValue.arrayRemove(targetUserId) }));
+      cleanupOps.push(sybilBatch.commit().catch(() => {}));
+
+      // Wait for cleanup before deleting the user doc — avoids leaving
+      // dangling memberships if the user-doc delete races ahead.
+      await Promise.all(cleanupOps);
+
+      await db.collection('users').doc(targetUserId).delete();
+
+      // Firebase Auth account — best-effort. Custom-token UIDs (auth_*) may
+      // not have a Firebase Auth record at all; deleteUser throws 'user-not-found'
+      // in that case, which is fine.
+      try {
+        await admin.auth().deleteUser(targetUserId);
+      } catch (e) {
+        if (e?.code !== 'auth/user-not-found') {
+          console.warn('[deleteUser] Firebase Auth delete failed:', e?.message);
+        }
+      }
+
+      await db.collection('adminLogs').add({
+        action: 'delete_user',
+        targetUserId,
+        targetEmail: target.email || null,
+        targetDisplayName: target.displayName || null,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        deleted: {
+          predictions: classicSnap.size,
+          simplePredictions: simpleSnap.size,
+          leagueMemberships: leaguesSnap.size,
+          fingerprints: fpSnap.size,
+          ips: ipSnap.size,
+        },
+      });
+
+      return res.status(200).json({
+        success: true,
+        deleted: {
+          predictions: classicSnap.size,
+          simplePredictions: simpleSnap.size,
+          leagueMemberships: leaguesSnap.size,
+          fingerprints: fpSnap.size,
+          ips: ipSnap.size,
+        },
+      });
+
     } else if (action === 'deleteLeague') {
       const { leagueId } = req.body;
       if (!leagueId) return res.status(400).json({ error: 'Missing leagueId' });
