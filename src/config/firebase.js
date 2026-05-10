@@ -2,20 +2,43 @@ import { initializeApp } from 'firebase/app';
 import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
-// authDomain stays on the Firebase-managed *.firebaseapp.com host.
+// authDomain MUST be the Firebase-managed *.firebaseapp.com host so
+// signInWithPopup / signInWithRedirect navigates to Firebase's hosted
+// /__/auth/handler page natively. If we point it at our own origin,
+// Firebase's auth handler isn't actually served there — Vercel's
+// catch-all rewrite serves index.html instead, so the popup renders
+// the landing page instead of the OAuth handler. (We tried proxying
+// /__/auth/* to firebaseapp.com via vercel.json — the relative
+// iframe/script fetches inside Firebase's auth page break under that
+// proxy, so it's not a viable workaround.)
 //
-// We tried overriding to window.location.hostname so the OAuth round
-// trip would stay first-party and avoid Safari ITP partitioning, but
-// the vercel.json /__/auth/:path* rewrite to firebaseapp.com doesn't
-// fully proxy the Firebase auth handler — relative iframe / script
-// requests from the proxied page break and the popup renders blank.
-// Reverted back to the project-managed host so the popup at least
-// works for the 95% of users not hit by ITP. iOS Safari users who
-// hit "missing initial state" should fall back to email-OTP, which
-// the LoginScreen surfaces alongside Google.
+// We hardcode the canonical value here as a defensive fallback because
+// the Vercel env var has historically been set to other values
+// (goaloracle.io during a custom-handler experiment) which silently
+// breaks Google sign-in for every user. Hardcoding the project's
+// stable auth host means a misconfigured env var can't blank the
+// popup. The other config fields can stay on env vars — those don't
+// have the same project-bound invariant.
+const FIREBASE_AUTH_HOST = 'goaloracle-f348f.firebaseapp.com';
+function resolveAuthDomain() {
+  const raw = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim();
+  // Accept the env var only if it ends with firebaseapp.com or web.app
+  // (the two Firebase-managed hosts that actually serve the OAuth
+  // handler). Anything else (custom domain, empty string, garbage)
+  // falls back to the hardcoded project host.
+  if (/\.firebaseapp\.com$|\.web\.app$/.test(raw)) return raw;
+  if (raw && raw !== FIREBASE_AUTH_HOST && typeof console !== 'undefined') {
+    console.warn(
+      '[firebase] VITE_FIREBASE_AUTH_DOMAIN is "' + raw + '" — overriding to "' +
+      FIREBASE_AUTH_HOST + '" because Google sign-in only works on the firebase-managed host.',
+    );
+  }
+  return FIREBASE_AUTH_HOST;
+}
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  authDomain: resolveAuthDomain(),
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
