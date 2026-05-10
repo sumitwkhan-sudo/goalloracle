@@ -839,6 +839,9 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         winner: winnerName ? { name: winnerName, flag: flags[winnerName] || '🏳️' } : null,
         runnerUp: runnerUpName ? { name: runnerUpName, flag: flags[runnerUpName] || '🏳️' } : null,
         thirdPlace: thirdName ? { name: thirdName, flag: flags[thirdName] || '🏳️' } : null,
+        // Pass the full knockout map so the modal can compute the
+        // biggest-upset insight at render time.
+        knockoutPredictions: ko,
       });
       // Fire-and-forget: pull crowd consensus for the league so the
       // share modal can report bracket rarity in the caption.
@@ -1109,6 +1112,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         winner={shareBracket?.winner}
         runnerUp={shareBracket?.runnerUp}
         thirdPlace={shareBracket?.thirdPlace}
+        knockoutPredictions={shareBracket?.knockoutPredictions}
         rarityPct={(() => {
           if (!shareConsensus || !shareBracket?.winner?.name || !shareBracket?.runnerUp?.name) return undefined;
           const c = shareConsensus.champion?.[shareBracket.winner.name];

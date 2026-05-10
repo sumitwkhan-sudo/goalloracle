@@ -16,35 +16,7 @@
 import React, { useMemo } from 'react';
 import { Layers, Flame, Users, Share2 } from 'lucide-react';
 import { teamFlags } from '../utils/flags';
-import { getRank } from '../data/fifaRankings';
-
-const ROUND_DEPTH = {
-  roundOf32: 1, roundOf16: 2, quarterFinals: 3,
-  semiFinals: 4, thirdPlace: 4, final: 5,
-};
-const ROUND_LABEL = {
-  roundOf32: 'R32', roundOf16: 'R16',
-  quarterFinals: 'QF', semiFinals: 'SF',
-  thirdPlace: '3rd-place', final: 'the Final',
-};
-
-function biggestUpset(knockoutPredictions) {
-  if (!knockoutPredictions) return null;
-  let best = null;
-  for (const round of Object.keys(ROUND_DEPTH)) {
-    const picks = knockoutPredictions[round] || [];
-    for (const p of picks) {
-      if (!p?.winnerId) continue;
-      const rank = getRank(p.winnerId);
-      if (!rank || rank <= 16) continue;
-      const score = rank * ROUND_DEPTH[round];
-      if (!best || score > best.score) {
-        best = { team: p.winnerId, rank, round, score };
-      }
-    }
-  }
-  return best;
-}
+import { biggestUpset, ROUND_LABELS as ROUND_LABEL } from '../utils/bracketInsights';
 
 export default function BracketInsightsRow({
   quickPicks,        // { winner, runnerUp, knockoutPredictions } | null

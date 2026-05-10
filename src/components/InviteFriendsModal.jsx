@@ -16,7 +16,8 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { X, Sparkles, Plus, Users, Copy, Check, ChevronRight, ChevronDown } from 'lucide-react';
+import { X, Sparkles, Plus, Users, ChevronRight, ChevronDown } from 'lucide-react';
+import ShareButtons from './ShareButtons';
 
 function buildShareUrl({ origin, userId, leagueId, passcode }) {
   const params = new URLSearchParams();
@@ -26,21 +27,13 @@ function buildShareUrl({ origin, userId, leagueId, passcode }) {
   return `${origin}/?${params.toString()}`;
 }
 
-async function shareOrCopy({ title, text, url, notify, copyMessage }) {
-  try {
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      await navigator.share({ title, text, url });
-      return true;
-    }
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      await navigator.clipboard.writeText(url);
-      if (notify) notify(copyMessage);
-      return true;
-    }
-  } catch {
-    // user cancelled native share, or clipboard blocked — silent
-  }
-  return false;
+// Public-bracket share URL — viewable without an account, drops the
+// recipient onto the operator's bracket page. Used by the "Share my
+// bracket" referral flow so a friend can preview the bracket before
+// signing up. Falls back to the referral-style URL if userId is missing.
+function buildPublicBracketUrl({ origin, userId }) {
+  if (!userId) return `${origin}/?ref=${encodeURIComponent(userId || '')}`;
+  return `${origin}/u/${encodeURIComponent(userId)}/bracket?ref=${encodeURIComponent(userId)}`;
 }
 
 export default function InviteFriendsModal({
@@ -67,26 +60,16 @@ export default function InviteFriendsModal({
     () => privateLeagues.find(l => l.id === pickedLeagueId) || null,
     [privateLeagues, pickedLeagueId]
   );
-  const [copied, setCopied] = useState(null); // 'referral' | 'league' | null
 
   if (!open) return null;
 
   const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
 
   // ── 1. Referral share ─────────────────────────────────────────
-  const handleReferralShare = async () => {
-    const url = buildShareUrl({ origin, userId });
-    const text = `Join me on GoalOracle — predict the World Cup 2026: ${url}`;
-    const ok = await shareOrCopy({
-      title: 'GoalOracle',
-      text, url, notify,
-      copyMessage: 'Referral link copied — earn XP for each signup',
-    });
-    if (ok) {
-      setCopied('referral');
-      setTimeout(() => setCopied(null), 1800);
-    }
-  };
+  // Public-bracket URL: friends can preview the bracket without an
+  // account, then sign up if they want to compete.
+  const referralUrl = buildPublicBracketUrl({ origin, userId });
+  const referralText = `Join me on GoalOracle — predict the World Cup 2026.`;
 
   // ── 2. Create a new private league ────────────────────────────
   const handleCreate = () => {
@@ -95,24 +78,16 @@ export default function InviteFriendsModal({
   };
 
   // ── 3. Invite to an existing private league ───────────────────
-  const handleLeagueShare = async () => {
-    if (!pickedLeague) return;
-    const url = buildShareUrl({
-      origin, userId,
-      leagueId: pickedLeague.id,
-      passcode: pickedLeague.passcode || undefined,
-    });
-    const text = `Join my GoalOracle league "${pickedLeague.name}" — predict the World Cup 2026: ${url}`;
-    const ok = await shareOrCopy({
-      title: `Join ${pickedLeague.name}`,
-      text, url, notify,
-      copyMessage: `Invite to "${pickedLeague.name}" copied`,
-    });
-    if (ok) {
-      setCopied('league');
-      setTimeout(() => setCopied(null), 1800);
-    }
-  };
+  const leagueUrl = pickedLeague
+    ? buildShareUrl({
+        origin, userId,
+        leagueId: pickedLeague.id,
+        passcode: pickedLeague.passcode || undefined,
+      })
+    : '';
+  const leagueText = pickedLeague
+    ? `Join my GoalOracle league "${pickedLeague.name}" — predict the World Cup 2026.`
+    : '';
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -128,23 +103,30 @@ export default function InviteFriendsModal({
           Three ways to bring friends into your World Cup. Pick whichever fits.
         </p>
 
-        {/* Option 1 — referral share */}
-        <button
-          type="button"
-          className="invite-option"
-          onClick={handleReferralShare}
-        >
-          <span className="invite-option-icon"><Sparkles size={16} /></span>
-          <span className="invite-option-text">
-            <span className="invite-option-title">Share GoalOracle</span>
-            <span className="invite-option-desc">
-              Copies a referral link so signups join the Global League. Earn XP for every friend who joins.
+        {/* Option 1 — referral share. Each channel button posts the
+            user's public-bracket URL so a friend can preview the
+            picks even before signing up. */}
+        <div className="invite-option invite-option-static">
+          <div className="invite-option-row" style={{ cursor: 'default' }}>
+            <span className="invite-option-icon"><Sparkles size={16} /></span>
+            <span className="invite-option-text">
+              <span className="invite-option-title">Share my bracket</span>
+              <span className="invite-option-desc">
+                Friends preview your bracket on a public page (no signup needed) and earn you XP if they join.
+              </span>
             </span>
-          </span>
-          <span className="invite-option-cta">
-            {copied === 'referral' ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Share</>}
-          </span>
-        </button>
+          </div>
+          <div className="invite-share-strip-wrap">
+            <ShareButtons
+              text={referralText}
+              url={referralUrl}
+              copyLabel="Copy link"
+              trackEvent="invite_completed"
+              trackProps={{ kind: 'referral' }}
+              notify={notify}
+            />
+          </div>
+        </div>
 
         {/* Option 2 — create a new private league */}
         <button
@@ -209,16 +191,20 @@ export default function InviteFriendsModal({
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                className="invite-league-share-btn"
-                onClick={handleLeagueShare}
-                disabled={!pickedLeague}
-              >
-                {copied === 'league'
-                  ? <><Check size={14} /> Copied — paste to your friends</>
-                  : <><Copy size={14} /> {pickedLeague ? `Copy invite for "${pickedLeague.name}"` : 'Pick a league above'}</>}
-              </button>
+              {pickedLeague ? (
+                <div className="invite-share-strip-wrap">
+                  <ShareButtons
+                    text={leagueText}
+                    url={leagueUrl}
+                    copyLabel={`Copy invite for "${pickedLeague.name}"`}
+                    trackEvent="invite_completed"
+                    trackProps={{ kind: 'league', league_id: pickedLeague.id }}
+                    notify={notify}
+                  />
+                </div>
+              ) : (
+                <p className="invite-league-pick-hint">Pick a league above to share.</p>
+              )}
             </div>
           )}
         </div>

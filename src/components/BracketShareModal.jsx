@@ -7,9 +7,12 @@
  * looks good as-is on social.
  */
 
-import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Trophy, Award, Camera, Share2 } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { X, Trophy, Award, Camera, Flame } from 'lucide-react';
 import { track } from '../utils/track';
+import ShareButtons from './ShareButtons';
+import { biggestUpset, ROUND_LABELS } from '../utils/bracketInsights';
+import { teamFlags } from '../utils/flags';
 
 const SITE_URL = 'https://goaloracle.io';
 
@@ -58,9 +61,9 @@ export default function BracketShareModal({
   runnerUp,     // { name, flag }
   thirdPlace,   // { name, flag } — optional
   rarityPct,    // optional — rarity score appended to the caption
+  knockoutPredictions, // optional — used to compute "biggest upset" insight
   notify,
 }) {
-  const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (open) track('share_opened', { league_id: leagueId || null });
   }, [open, leagueId]);
@@ -68,67 +71,10 @@ export default function BracketShareModal({
 
   const shareUrl = buildShareUrl(userId, leagueId);
   const caption = buildCaption({ displayName, leagueName, winner, runnerUp, thirdPlace, shareUrl, rarityPct });
-  const encoded = encodeURIComponent(caption);
-
-  const openX = () => {
-    track('share_completed', { channel: 'x', league_id: leagueId || null });
-    window.open(`https://x.com/intent/tweet?text=${encoded}`, '_blank', 'noopener,noreferrer');
-  };
-  const openFacebook = () => {
-    // FB sharer reads og: tags from the URL; caption goes as a quote.
-    track('share_completed', { channel: 'facebook', league_id: leagueId || null });
-    window.open(
-      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encoded}`,
-      '_blank', 'noopener,noreferrer',
-    );
-  };
-  const copyForInstagram = async () => {
-    // Instagram doesn't accept prefilled captions on web or via URL
-    // schemes — best we can do is copy the caption then send the user
-    // to Instagram so they can paste into a new post / story.
-    try {
-      await navigator.clipboard.writeText(caption);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-      track('share_completed', { channel: 'instagram', league_id: leagueId || null });
-      if (notify) notify('Caption copied — opening Instagram');
-    } catch {
-      if (notify) notify('Copy failed', 'error');
-      return;
-    }
-    const isMobile = typeof navigator !== 'undefined'
-      && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
-    if (isMobile) {
-      // Universal link: iOS / Android open the Instagram app if
-      // installed, otherwise fall through to the web version.
-      window.location.href = 'https://www.instagram.com/';
-    } else {
-      window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
-    }
-  };
-  const copyCaption = async () => {
-    try {
-      await navigator.clipboard.writeText(caption);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-      track('share_completed', { channel: 'copy', league_id: leagueId || null });
-      if (notify) notify('Copied to clipboard');
-    } catch {
-      if (notify) notify('Copy failed', 'error');
-    }
-  };
-  const nativeShare = async () => {
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share({ title: 'My GoalOracle bracket', text: caption, url: shareUrl });
-        track('share_completed', { channel: 'native', league_id: leagueId || null });
-      } catch {
-        // user cancelled — no-op
-      }
-    } else {
-      copyCaption();
-    }
-  };
+  // Surface the user's biggest upset (lowest-FIFA-ranked team they
+  // picked to advance furthest) — same calc as BracketInsightsRow so
+  // the share card matches what they see on the dashboard.
+  const upset = biggestUpset(knockoutPredictions);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -184,6 +130,17 @@ export default function BracketShareModal({
             </div>
           )}
 
+          {upset && (
+            <div className="bsc-insight">
+              <Flame size={14} aria-hidden="true" />
+              <span className="bsc-insight-label">Biggest upset</span>
+              <span className="bsc-insight-team">
+                {teamFlags[upset.team] || '🏳️'} {upset.team}
+                <span className="bsc-insight-sub"> → {ROUND_LABELS[upset.round]}</span>
+              </span>
+            </div>
+          )}
+
           <div className="bsc-footer">
             <span>Can you beat me?</span>
             <strong>goaloracle.io</strong>
@@ -196,36 +153,14 @@ export default function BracketShareModal({
           Instagram, WhatsApp, or any platform. Or use the quick-share buttons below.
         </p>
 
-        <div className="bracket-share-actions">
-          <button type="button" className="share-btn share-btn-x" onClick={openX}>
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
-              <path d="M18.244 2H21.5l-7.49 8.56L22.5 22h-6.83l-5.35-6.99L4.3 22H1.04l8.01-9.16L1.5 2h6.93l4.83 6.38L18.244 2zm-1.19 18h1.82L7.05 4H5.1l11.95 16z" />
-            </svg>
-            Share on X
-          </button>
-          <button type="button" className="share-btn share-btn-fb" onClick={openFacebook}>
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
-              <path d="M13.5 22v-8h2.7l.4-3.13H13.5V8.87c0-.9.25-1.52 1.55-1.52h1.65V4.56c-.3-.04-1.27-.13-2.4-.13-2.37 0-4 1.45-4 4.1v2.34H7.5V14h2.8v8h3.2z" />
-            </svg>
-            Facebook
-          </button>
-          <button type="button" className="share-btn share-btn-ig" onClick={copyForInstagram}>
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="4" />
-              <circle cx="12" cy="12" r="4" />
-              <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-            </svg>
-            Instagram
-          </button>
-          <button type="button" className="share-btn share-btn-copy" onClick={copyCaption}>
-            {copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy caption</>}
-          </button>
-          {typeof navigator !== 'undefined' && navigator.share && (
-            <button type="button" className="share-btn share-btn-native" onClick={nativeShare}>
-              <Share2 size={16} /> More…
-            </button>
-          )}
-        </div>
+        <ShareButtons
+          text={caption}
+          url={shareUrl}
+          copyLabel="Copy caption"
+          trackEvent="share_completed"
+          trackProps={{ league_id: leagueId || null }}
+          notify={notify}
+        />
       </div>
     </div>
   );
