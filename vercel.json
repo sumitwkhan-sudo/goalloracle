@@ -11,8 +11,6 @@
     { "path": "/api/cron/incomplete-bracket-reminder", "schedule": "0 * * * *" }
   ],
   "rewrites": [
-    { "source": "/__/auth/:path*", "destination": "https://goaloracle-f348f.firebaseapp.com/__/auth/:path*" },
-    { "source": "/__/firebase/:path*", "destination": "https://goaloracle-f348f.firebaseapp.com/__/firebase/:path*" },
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/assets/:path*", "destination": "/assets/:path*" },
     { "source": "/robots.txt", "destination": "/robots.txt" },
@@ -33,12 +31,6 @@
       "source": "/logo.svg",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=604800, s-maxage=604800" }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
       ]
     }
   ]
