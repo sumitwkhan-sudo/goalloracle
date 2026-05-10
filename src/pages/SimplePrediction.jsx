@@ -153,10 +153,15 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // editing later-stage picks even after earlier stages have started.
   const isMatchLocked = useCallback((matchId) => isMatchStageLocked(matchId), []);
 
-  // Track whether the bracket was already complete on hydration so we
-  // don't show the "you finished!" celebration to users returning to an
-  // already-complete bracket (only on the false → true transition).
-  const wasCompleteOnLoadRef = useRef(!!frozenInitial?.isComplete);
+  // Track whether the bracket was already fully picked on hydration so
+  // we don't show the "you finished!" celebration to users returning to
+  // a bracket they already finished. "Fully picked" means BOTH the Final
+  // winner AND the 3rd-place match — same condition the celebration
+  // trigger watches for, so the false → true transition is symmetric.
+  const wasCompleteOnLoadRef = useRef(
+    !!(frozenInitial?.knockoutPredictions?.final?.[0]?.winnerId
+      && frozenInitial?.knockoutPredictions?.thirdPlace?.[0]?.winnerId)
+  );
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationChampion, setCelebrationChampion] = useState({ name: null, flag: null });
 
@@ -180,12 +185,18 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
       // skipped the 3rd-Place match.
       const finalPick = next?.final?.[0];
       const finalPicked = !!finalPick?.winnerId;
+      const thirdPicked = !!next?.thirdPlace?.[0]?.winnerId;
       save({ knockoutPredictions: next, isComplete: finalPicked });
 
-      // Celebration: only when this save is the moment the bracket
-      // BECOMES complete. Skip if the user already had isComplete=true
-      // when the wizard mounted (they're just editing).
-      if (finalPicked && !wasCompleteOnLoadRef.current && !celebrationOpen) {
+      // Celebration: hold the modal until BOTH the Final winner AND the
+      // 3rd-place match are picked. Firing on Final alone interrupted
+      // users who still wanted to enter the 3rd-place pick. Order of
+      // picking doesn't matter — the celebration triggers on the second
+      // of the two saves to land. Skip if the user already had a
+      // complete-with-3rd bracket when the wizard mounted (they're
+      // just editing).
+      const fullyPicked = finalPicked && thirdPicked;
+      if (fullyPicked && !wasCompleteOnLoadRef.current && !celebrationOpen) {
         wasCompleteOnLoadRef.current = true; // don't fire again this session
         setCelebrationChampion({
           name: finalPick.winnerId || null,
