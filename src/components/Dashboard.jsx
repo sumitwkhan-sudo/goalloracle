@@ -9,6 +9,8 @@ import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints,
 import { STAGES, STAGE_FIRST_KICKOFF_UTC, stageLockTimeUtc } from '../utils/stageLock';
 import { TOTAL_MAX } from '../utils/scoringSimple';
 import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
+import FriendsWidget from './dashboard/FriendsWidget';
+import DailyCheckIn from './dashboard/DailyCheckIn';
 import AnimatedCounter from './AnimatedCounter';
 import InsightsCarousel from './simple/InsightsCarousel';
 import BracketInsightsRow from './BracketInsightsRow';
@@ -286,6 +288,16 @@ export default function Dashboard({
             {quickPicks?.isComplete && <StageLockTimeline />}
           </>
         )}
+
+        {/* #14 — Daily check-in / streak loop. Shown pre-tournament so
+            users have a reason to come back daily. Hidden once kickoff
+            arrives and real match streaks take over. */}
+        <DailyCheckIn userId={uData?.id} />
+
+        {/* #8 — Friends-in-leagues widget. Hidden when the user has no
+            private league (otherwise we'd just show the global crowd,
+            which isn't a "friends" surface). */}
+        <FriendsWidget leagues={leagues} currentUserId={uData?.id} nav={nav} />
 
         {liveMatches.length > 0 && (
           <div className="td-live-stack">

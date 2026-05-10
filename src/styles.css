@@ -7000,6 +7000,81 @@ body.light .lsd-head,
 .td-stage-name { font-weight: 700; }
 .td-stage-when { color: var(--text-sec); font-family: var(--mono); }
 
+/* #8 — Friends-in-leagues widget on the dashboard */
+.dash-friends-widget {
+  margin: 0.85rem 0 0;
+  padding: 0.85rem 0.95rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.dash-friends-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; margin-bottom: 0.55rem;
+}
+.dash-friends-title { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
+.dash-friends-count { color: var(--text-sec); font-size: 0.78rem; margin-left: 4px; }
+.dash-friends-view {
+  background: transparent; border: none; color: var(--text-sec);
+  font-size: 0.76rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 2px;
+}
+.dash-friends-view:hover { color: var(--text); }
+.dash-friends-list { list-style: none; margin: 0; padding: 0; }
+.dash-friends-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed var(--border);
+}
+.dash-friends-row:last-child { border-bottom: none; }
+.dash-friends-row-you { font-weight: 700; }
+.dash-friends-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.dash-friends-state { font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px; }
+.dash-friends-state.is-done { color: var(--success); }
+.dash-friends-state.is-pending { color: var(--text-sec); }
+.dash-friends-invite {
+  margin-top: 0.6rem; width: 100%;
+  background: transparent; border: 1px dashed var(--border);
+  color: var(--text-sec); border-radius: 8px;
+  padding: 0.45rem; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  font-size: 0.82rem; font-weight: 600;
+}
+.dash-friends-invite:hover { color: var(--text); border-color: var(--text-sec); }
+
+/* #14 — Daily check-in row (pre-tournament only) */
+.dash-checkin {
+  margin: 0.85rem 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber);
+  border-radius: 10px;
+}
+.dash-checkin.is-checked { border-left-color: var(--success); opacity: 0.95; }
+.dash-checkin-icon { color: var(--amber); display: inline-flex; }
+.dash-checkin.is-checked .dash-checkin-icon { color: var(--success); }
+.dash-checkin-body { min-width: 0; }
+.dash-checkin-title { font-weight: 700; font-size: 0.9rem; }
+.dash-checkin-sub { font-size: 0.74rem; color: var(--text-sec); margin-top: 1px; }
+.dash-checkin-streak {
+  display: inline-flex; flex-direction: column; align-items: center;
+  font-family: var(--mono); padding: 0 0.35rem;
+}
+.dash-checkin-streak-num { font-size: 1.05rem; font-weight: 800; color: var(--amber); line-height: 1; }
+.dash-checkin.is-checked .dash-checkin-streak-num { color: var(--success); }
+.dash-checkin-streak-label { font-size: 0.62rem; color: var(--text-sec); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
+.dash-checkin-cta {
+  background: var(--primary); color: var(--bg);
+  border: none; border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+  font-weight: 700; font-size: 0.78rem; cursor: pointer;
+}
+.dash-checkin-cta:hover { filter: brightness(1.08); }
+
 .td-live-stack { display: flex; flex-direction: column; gap: 0.4rem; }
 
 /* ── Streak dots + recent results block ───────────────────────────── */
