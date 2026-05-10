@@ -642,7 +642,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         <section className="simple-step-section">
           <div className="simple-step-intro">
             <div className="simple-step-intro-head">
-              <h2>Step 3 — Knockout bracket</h2>
+              <h2>Step 3 — Knockouts</h2>
               <span className="simple-bracket-save-pill" aria-live="polite">
                 {error ? (
                   <><AlertTriangle size={14} /> Save failed</>
