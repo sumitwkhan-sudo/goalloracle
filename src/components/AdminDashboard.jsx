@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -284,6 +284,25 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
       notify(`Role updated to ${newRole}`);
     } catch (e) { notify('Failed: ' + e.message, 'error'); }
+  };
+
+  // Permanent delete. Two-stage confirm because there's no undo.
+  const [deletingUserId, setDeletingUserId] = useState(null);
+  const handleDeleteUser = async (u) => {
+    const label = u.displayName || u.email || u.id.slice(0, 8);
+    const confirm1 = window.confirm(`Permanently delete user "${label}"?\n\nThis wipes:\n  • their account\n  • all predictions (classic + Quick Picks)\n  • league memberships\n  • device-fingerprint + IP records\n\nThere is no undo.`);
+    if (!confirm1) return;
+    const typed = window.prompt(`Type DELETE to confirm deleting "${label}".`);
+    if (typed !== 'DELETE') { notify('Delete cancelled.', 'info'); return; }
+    setDeletingUserId(u.id);
+    try {
+      const res = await adminDeleteUser(u.id);
+      setUsers(prev => prev.filter(x => x.id !== u.id));
+      const c = res.deleted || {};
+      notify(`Deleted "${label}" — ${c.predictions || 0} classic preds, ${c.simplePredictions || 0} simple preds, ${c.leagueMemberships || 0} memberships.`);
+    } catch (e) {
+      notify('Delete failed: ' + e.message, 'error');
+    } finally { setDeletingUserId(null); }
   };
 
   // Stats
@@ -597,6 +616,22 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     <option value="admin">admin</option>
                     <option value="superadmin">superadmin</option>
                   </select>
+                  {/* Permanent delete — superadmin only on the server, but
+                      we hide the button when looking at yourself or another
+                      superadmin so the obvious-bad cases aren't even
+                      clickable. Two-step confirm in handleDeleteUser. */}
+                  {u.id !== userData.id && (u.role || 'user') !== 'superadmin' && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      title="Permanently delete this user (no undo)"
+                      onClick={() => handleDeleteUser(u)}
+                      disabled={deletingUserId === u.id}
+                      style={{ color: 'var(--danger)' }}
+                    >
+                      {deletingUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />}
+                    </button>
+                  )}
                 </div>
               </div>
               );

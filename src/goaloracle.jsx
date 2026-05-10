@@ -67,6 +67,7 @@ const VIEW_META = {
   simplePredict: { title: 'Predictions — GoalOracle', path: '/quick-picks', index: false },
   feedback: { title: 'Feedback — GoalOracle', path: '/feedback', index: false },
   admin: { title: 'Admin — GoalOracle', path: '/admin', index: false },
+  terms: { title: 'Terms & Conditions — GoalOracle', description: 'GoalOracle Terms & Conditions, including payout eligibility and OFAC sanctions exclusions.', path: '/terms', index: true },
 };
 
 function ViewMeta({ view }) {
@@ -89,6 +90,7 @@ function ViewMeta({ view }) {
 const PATH_TO_VIEW = {
   '/': 'landing',
   '/faq': 'faq',
+  '/terms': 'terms',
   '/dashboard': 'dashboard',
   '/leagues': 'leagues',
   '/browse': 'browse',
@@ -2445,6 +2447,7 @@ const GoalOracle = () => {
               <a onClick={() => authenticated ? nav('browse') : login()}>Leagues</a>
               <a onClick={() => nav('faq')}>FAQ</a>
               <a onClick={() => nav('feedback')}>Feedback</a>
+              <a onClick={() => nav('terms')}>Terms</a>
             </div>
             <div className="footer-copy">A free prediction game for the FIFA World Cup 2026 &middot; Not affiliated with FIFA &middot; For entertainment purposes only</div>
             <div className="footer-disclaimer" style={{fontSize: '11px', opacity: 0.5, maxWidth: '600px', margin: '8px auto 0', lineHeight: 1.4}}>
@@ -3993,6 +3996,10 @@ const GoalOracle = () => {
             q: 'Is GoalOracle a gambling site?',
             a: 'No. GoalOracle is a free prediction game for entertainment purposes only. There is no real-money wagering, no entry fees, and no cash prizes. It is similar to a fantasy sports bracket challenge among friends.'
           },
+          {
+            q: 'Are there any restrictions on who can receive payouts or prizes?',
+            a: 'Yes. Even though GoalOracle is currently free, any future prize, giveaway, or payout — whether in cash, crypto, or other consideration — will not be issued to users located in or ordinarily resident in jurisdictions subject to comprehensive U.S. sanctions administered by the Office of Foreign Assets Control (OFAC). This currently includes Cuba, Iran, North Korea, Syria, the Crimea region of Ukraine, and the so-called Donetsk and Luhansk People\'s Republics, and may be updated as the U.S. sanctions list changes. We also reserve the right to withhold payouts to anyone appearing on the OFAC SDN list. By using GoalOracle you confirm that you are not located in such a jurisdiction and are not on any U.S. sanctions list.'
+          },
         ]
       },
       {
@@ -4060,6 +4067,80 @@ const GoalOracle = () => {
       </div>
     );
   };
+
+  // ================================
+  // TERMS & CONDITIONS PAGE
+  // ================================
+  const Terms = () => (
+    <div className="faq-page">
+      <div className="faq-container">
+        <div className="faq-header">
+          <h1 className="faq-title">Terms &amp; Conditions</h1>
+          <p className="faq-subtitle">Last updated: April 26, 2026</p>
+        </div>
+
+        <div className="faq-section">
+          <h2 className="faq-section-title">1. Service overview</h2>
+          <p className="faq-intro">
+            GoalOracle is a free entertainment platform offering a prediction game for the FIFA World Cup 2026. No real-money wagering, entry fees, or guaranteed cash prizes are part of the core service. &ldquo;FIFA World Cup&rdquo; and related marks are trademarks of FIFA. GoalOracle is not endorsed by, affiliated with, or sponsored by FIFA.
+          </p>
+        </div>
+
+        <div className="faq-section">
+          <h2 className="faq-section-title">2. Eligibility</h2>
+          <p className="faq-intro">
+            You may use GoalOracle if you are at least 13 years old and able to form a binding contract under the laws of your jurisdiction. You agree to provide accurate information when creating an account and to keep that information current.
+          </p>
+        </div>
+
+        <div className="faq-section">
+          <h2 className="faq-section-title">3. Prizes, giveaways, and payouts</h2>
+          <p className="faq-intro">
+            From time to time GoalOracle may offer optional prizes, giveaways, sweepstakes, or other forms of consideration to participating users. All such offerings are at GoalOracle&apos;s sole discretion and are governed by the additional rules published with each offering.
+          </p>
+          <p className="faq-intro" style={{ marginTop: 12 }}>
+            <strong>OFAC sanctions exclusion.</strong> No prize, giveaway, payout, or other thing of value (whether in cash, cryptocurrency, gift card, or otherwise) will be issued, transferred, or made available to any user who is:
+          </p>
+          <ul style={{ marginLeft: 20, color: 'var(--text-sec)', lineHeight: 1.7, fontSize: '0.95rem' }}>
+            <li>located in, ordinarily resident in, or a national of any country or region subject to comprehensive sanctions administered by the U.S. Department of the Treasury&apos;s Office of Foreign Assets Control (&ldquo;<strong>OFAC</strong>&rdquo;) — currently including <strong>Cuba, Iran, North Korea, Syria, the Crimea region of Ukraine, and the so-called Donetsk and Luhansk People&apos;s Republics</strong>, and any successor or additional jurisdictions added to OFAC&apos;s comprehensive sanctions list from time to time;</li>
+            <li>identified on OFAC&apos;s Specially Designated Nationals and Blocked Persons (&ldquo;<strong>SDN</strong>&rdquo;) List, the Foreign Sanctions Evaders List, or any other restricted-party list maintained by OFAC, the U.S. Department of Commerce, or the U.S. Department of State; or</li>
+            <li>otherwise prohibited from receiving the relevant payout under applicable U.S., U.N., or other governing-law sanctions, export-control, or anti-money-laundering regulations.</li>
+          </ul>
+          <p className="faq-intro" style={{ marginTop: 12 }}>
+            By participating in any prize, giveaway, sweepstakes, or payout, you represent and warrant that none of the above apply to you. GoalOracle reserves the right to require identity, residency, or sanctions-screening verification before issuing any payout, and to forfeit, cancel, or withhold any payout where it determines, in its sole discretion, that issuing the payout would violate applicable law or this section.
+          </p>
+        </div>
+
+        <div className="faq-section">
+          <h2 className="faq-section-title">4. Acceptable use</h2>
+          <p className="faq-intro">
+            You agree not to: (a) create more than the permitted number of accounts per device or person; (b) use bots, scrapers, or automated means to interact with the service; (c) attempt to manipulate leaderboards or scoring; (d) harass other users; or (e) use the service for any unlawful purpose. We may suspend or terminate accounts that violate these rules.
+          </p>
+        </div>
+
+        <div className="faq-section">
+          <h2 className="faq-section-title">5. Disclaimers and limitation of liability</h2>
+          <p className="faq-intro">
+            The service is provided &ldquo;as is&rdquo; and &ldquo;as available,&rdquo; without warranties of any kind. To the fullest extent permitted by law, GoalOracle is not liable for any indirect, incidental, special, consequential, or punitive damages arising from or related to your use of the service.
+          </p>
+        </div>
+
+        <div className="faq-section">
+          <h2 className="faq-section-title">6. Changes to these Terms</h2>
+          <p className="faq-intro">
+            We may update these Terms from time to time. The current version is always available at /terms. Continued use of the service after an update constitutes acceptance of the revised Terms.
+          </p>
+        </div>
+
+        <div className="faq-section">
+          <h2 className="faq-section-title">7. Contact</h2>
+          <p className="faq-intro">
+            Questions about these Terms? Email <a href="mailto:support@goaloracle.io">support@goaloracle.io</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 
   // ================================
   // USERNAME PROMPT (shown on first login / existing users without username)
@@ -4395,6 +4476,7 @@ const GoalOracle = () => {
         />
       )}
       {view === 'faq' && <FAQ />}
+      {view === 'terms' && <Terms />}
       {view === 'publicBracket' && (
         <PublicBracket
           userId={publicBracketUserId}
