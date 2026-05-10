@@ -117,6 +117,31 @@ async function postJSON(url, body) {
   return data;
 }
 
+// Fire-and-forget client-side breadcrumb to /api/client-log so we can see
+// what's happening in Vercel logs for mobile users who have no DevTools.
+// Never throws — auth flow continues regardless of the log endpoint's state.
+function clientLog(tag, data) {
+  try {
+    // navigator.sendBeacon survives the page unload that signInWithRedirect
+    // triggers right after we log. fetch() with keepalive would also work
+    // but sendBeacon is more reliable on Safari.
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const blob = new Blob([JSON.stringify({ tag, data })], { type: 'application/json' });
+      navigator.sendBeacon('/api/client-log', blob);
+      return;
+    }
+  } catch {}
+  // Fallback for environments without sendBeacon.
+  try {
+    fetch('/api/client-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag, data }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}
+
 async function safeFingerprint() {
   try { return await getVisitorId(); } catch { return null; }
 }
@@ -185,6 +210,9 @@ const POPUP_KILL_CODES = new Set([
 async function startRedirectFlow(provider) {
   _swapInFlight = true;
   try { sessionStorage.setItem(REDIRECT_FLAG, '1'); } catch {}
+  // Capture that we're about to navigate away. sendBeacon should survive
+  // the page unload that signInWithRedirect triggers next.
+  clientLog('auth.redirect.start', { innerWidth: typeof window !== 'undefined' ? window.innerWidth : null });
   try {
     await signInWithRedirect(auth, provider);
   } catch (e) {
@@ -275,13 +303,23 @@ export async function completeGoogleRedirectIfNeeded() {
   let hadRedirectFlag = false;
   try { hadRedirectFlag = sessionStorage.getItem(REDIRECT_FLAG) === '1'; } catch {}
   console.log('[auth] completeGoogleRedirectIfNeeded: REDIRECT_FLAG was', hadRedirectFlag ? 'SET' : 'unset');
+  clientLog('auth.redirect.flag-snapshot', { hadRedirectFlag, hasCurrentUser: !!auth.currentUser });
 
   let result;
   try {
     result = await getRedirectResult(auth);
     console.log('[auth] getRedirectResult returned', result ? `user=${result.user?.uid}` : 'null');
+    clientLog('auth.redirect.result', {
+      hadRedirectFlag,
+      hasResult: !!result,
+      resultUid: result?.user?.uid || null,
+      resultEmail: result?.user?.email || null,
+      providerId: result?.providerId || null,
+      operationType: result?.operationType || null,
+    });
   } catch (e) {
     console.error('[auth] getRedirectResult threw:', e?.code, e?.message);
+    clientLog('auth.redirect.result.error', { hadRedirectFlag, code: e?.code || null, message: e?.message || String(e) });
     _swapInFlight = false;
     try { sessionStorage.removeItem(REDIRECT_FLAG); } catch {}
     return { error: e?.message || 'Google sign-in failed', code: e?.code || null, wasRedirecting: hadRedirectFlag };
@@ -296,6 +334,12 @@ export async function completeGoogleRedirectIfNeeded() {
     // Firebase couldn't recover the credential — surface a recovery UI.
     if (hadRedirectFlag) {
       console.warn('[auth] silent redirect failure: flag was set, getRedirectResult returned null');
+      clientLog('auth.redirect.silent-null', {
+        hadRedirectFlag,
+        hasCurrentUser: !!auth.currentUser,
+        currentUserUid: auth.currentUser?.uid || null,
+        url: typeof window !== 'undefined' ? window.location.href : null,
+      });
       return { silentNull: true, wasRedirecting: true };
     }
     return null;
@@ -303,9 +347,12 @@ export async function completeGoogleRedirectIfNeeded() {
   console.log('[auth] redirect result received, completing sign-in for', result.user?.email);
   _swapInFlight = true;
   try {
-    return await completeGoogleSignIn(result);
+    const completed = await completeGoogleSignIn(result);
+    clientLog('auth.redirect.swap-complete', { uid: auth.currentUser?.uid || null });
+    return completed;
   } catch (e) {
     console.error('[auth] redirect swap failed:', e?.message || e);
+    clientLog('auth.redirect.swap-failed', { code: e?.code || null, message: e?.message || String(e) });
     _swapInFlight = false;
     return { error: e?.message || 'Google sign-in failed', code: e?.code || null, wasRedirecting: hadRedirectFlag };
   }
