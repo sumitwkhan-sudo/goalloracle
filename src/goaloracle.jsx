@@ -1214,6 +1214,13 @@ const GoalOracle = () => {
   const [selLeague, setSelLeague] = useState(null);
   const [role, setRole] = useState('user');
   const [uData, setUData] = useState(null);
+  // Last non-null uData snapshot. The username-prompt modal renders off this
+  // ref so a transient uData=null fire from onAuthStateChanged (which can
+  // happen during token refresh / Firebase auth-state churn) doesn't unmount
+  // the modal mid-onboarding. Without it the modal flashed a couple of
+  // times before settling.
+  const uDataStableRef = useRef(null);
+  if (uData) uDataStableRef.current = uData;
   const [preds, setPreds] = useState({});
   const [results, setResults] = useState({});
   const [leagues, setLeagues] = useState([]);
@@ -1357,6 +1364,7 @@ const GoalOracle = () => {
                 total: lb.length,
                 myPicksLeft: typeof myEntry?.picksLeft === 'number' ? myEntry.picksLeft : null,
                 myIsComplete: !!myEntry?.isComplete,
+                myHasSubmitted: !!myEntry?.hasSubmitted,
               },
             }));
           } else {
@@ -1427,6 +1435,14 @@ const GoalOracle = () => {
   // round-trip and is available when createOrUpdateUser writes the
   // new user doc.
   useEffect(() => { captureReferralFromUrl(); }, []);
+
+  // Warm the IP-country cache as soon as the app boots so the username
+  // prompt's country picker has a value ready on first paint instead of
+  // flashing empty while the lookup resolves. Result is memoised + cached
+  // in localStorage by detectCountryByIP.
+  useEffect(() => {
+    import('./utils/countries').then(({ detectCountryByIP }) => detectCountryByIP()).catch(() => {});
+  }, []);
 
   // Mobile Google sign-in uses signInWithRedirect (popups are unreliable on
   // mobile + in-app browsers). When the user comes back from the Google
@@ -2494,7 +2510,13 @@ const GoalOracle = () => {
         const remaining = rk.myPicksLeft;
         const picked = Math.max(0, QP_TOTAL_REQUIRED - remaining);
         const pct = Math.round((picked / QP_TOTAL_REQUIRED) * 100);
-        if (rk.myIsComplete || remaining === 0) {
+        // Only mark "done" when the user has actually submitted picks AND
+        // the bracket is complete. Without the hasSubmitted gate, a
+        // brand-new user with no doc was being shown "All picks in"
+        // because the leaderboard endpoint returns picksLeft=52 +
+        // isComplete=false for them but a stale isComplete=true could
+        // sneak in via copy operations or stale state.
+        if (rk.myHasSubmitted && (rk.myIsComplete || remaining === 0)) {
           return { done: true, remaining: 0, pct: 100 };
         }
         const etaMin = Math.max(1, Math.round(remaining * 8 / 60));
@@ -2505,7 +2527,8 @@ const GoalOracle = () => {
       const total = WORLD_CUP_MATCHES.length;
       const remaining = Math.max(0, total - rk.myPredCount);
       const pct = Math.round((rk.myPredCount / total) * 100);
-      if (remaining === 0) return { done: true, remaining: 0, pct: 100 };
+      // Same defensive gate for classic: zero predictions ≠ "done".
+      if (remaining === 0 && rk.myPredCount > 0) return { done: true, remaining: 0, pct: 100 };
       const etaMin = Math.max(1, Math.round(remaining * 20 / 60));
       return { done: false, remaining, etaMin, pct };
     };
@@ -4041,7 +4064,11 @@ const GoalOracle = () => {
   // ================================
   // USERNAME PROMPT (shown on first login / existing users without username)
   // ================================
-  const UsernamePrompt = () => {
+  // Replaced by WelcomeFlow (src/components/onboarding/WelcomeFlow.jsx) —
+  // dead code below kept only briefly for reference and removed in this
+  // commit. Search for `<WelcomeFlow` for the live render.
+  // eslint-disable-next-line no-unused-vars
+  const _UnusedUsernamePrompt = () => {
     const [username, setUsername] = useState('');
     const [country, setCountry] = useState('');
     const [err, setErr] = useState('');
@@ -4391,14 +4418,15 @@ const GoalOracle = () => {
           two consecutive modals. After submit, lands on dashboard so they
           discover the leaderboard / streak surface before being routed to
           the wizard via FirstTimeBanner. */}
-      {showUsernamePrompt && authenticated && uData && (
+      {showUsernamePrompt && (uData || uDataStableRef.current) && (
         <WelcomeFlow
-          emailPrefix={uData?.email?.split('@')[0] || ''}
+          emailPrefix={(uData || uDataStableRef.current)?.email?.split('@')[0] || ''}
           allLeagues={allLeagues}
           onSubmit={async ({ username, country, passcodeMatchedLeague, passcode }) => {
             const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
             const finalCountry = OVERRIDES[username] || country;
-            const updated = await updateUserProfile(uData.id, {
+            const targetUser = uData || uDataStableRef.current;
+            const updated = await updateUserProfile(targetUser.id, {
               displayName: username,
               usernameSet: true,
               country: finalCountry,

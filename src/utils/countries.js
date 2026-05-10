@@ -182,17 +182,65 @@ export function getCountryName(code) {
 // Best-effort IP geolocation. Uses ipapi.co's free endpoint (no key). Returns
 // an ISO-2 code or null if the request fails (we never throw — failure just
 // means the caller falls back to the US default).
-export async function detectCountryByIP() {
+//
+// The result is cached in-memory + localStorage so any later caller (e.g.
+// the username-prompt modal) can resolve synchronously and skip the empty-
+// picker flash. localStorage cache lives 7 days; in-memory persists until
+// page reload. Failed lookups are NOT cached so a flaky first request
+// doesn't poison subsequent ones.
+const _IP_COUNTRY_LS_KEY = 'goaloracle_ip_country_v1';
+const _IP_COUNTRY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+let _detectedCountryMemo = null;
+let _detectInflight = null;
+
+function _readCachedCountry() {
+  if (_detectedCountryMemo) return _detectedCountryMemo;
   try {
-    const res = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const code = (data?.country_code || data?.country || '').toString().toUpperCase();
-    if (code && CODE_MAP[code]) return code;
-    return null;
-  } catch {
-    return null;
-  }
+    const raw = localStorage.getItem(_IP_COUNTRY_LS_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (obj && obj.code && CODE_MAP[obj.code] && Date.now() - obj.ts < _IP_COUNTRY_TTL_MS) {
+      _detectedCountryMemo = obj.code;
+      return obj.code;
+    }
+  } catch {}
+  return null;
+}
+
+function _writeCachedCountry(code) {
+  _detectedCountryMemo = code;
+  try { localStorage.setItem(_IP_COUNTRY_LS_KEY, JSON.stringify({ code, ts: Date.now() })); } catch {}
+}
+
+// Synchronous accessor. Returns the cached country if known (memo or LS),
+// else null. Lets components avoid the empty-picker flash while the async
+// fetch resolves on a cold load.
+export function getCachedDetectedCountry() {
+  return _readCachedCountry();
+}
+
+export async function detectCountryByIP() {
+  const cached = _readCachedCountry();
+  if (cached) return cached;
+  if (_detectInflight) return _detectInflight;
+  _detectInflight = (async () => {
+    try {
+      const res = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const code = (data?.country_code || data?.country || '').toString().toUpperCase();
+      if (code && CODE_MAP[code]) {
+        _writeCachedCountry(code);
+        return code;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      _detectInflight = null;
+    }
+  })();
+  return _detectInflight;
 }
 
 export default COUNTRIES;
