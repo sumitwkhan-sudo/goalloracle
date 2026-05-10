@@ -51,7 +51,14 @@ export default function useGroupPredictions(initialData) {
       const remote = initialData[g]?.ranking;
       if (Array.isArray(remote) && remote.length === 4 && remote.every(Boolean)) {
         merged[g] = { ranking: [...remote] };
-        if (!rankingsEqual(remote, defaults[g].ranking)) nextTouched[g] = true;
+        // Any saved valid ranking counts as "touched" — the user
+        // explicitly committed to it via Confirm or by dragging.
+        // Earlier we only flipped `touched` when the saved order
+        // differed from alphabetical, which broke the wizard for users
+        // who saved an intentionally-alphabetical ranking: they were
+        // sent back to Step 1 to "re-confirm" rankings they'd already
+        // submitted.
+        nextTouched[g] = true;
       }
     }
     setPredictions(merged);
