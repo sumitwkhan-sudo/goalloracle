@@ -5413,6 +5413,32 @@ button.invite-option:hover,
 
 /* Mobile: round-by-round toggles */
 .bracket-mobile { display: flex; flex-direction: column; gap: 0.6rem; }
+
+/* "One pick left — pick 3rd place" prompt. Surfaces only when the
+   user has filled every other knockout pick and ONLY the 3rd-place
+   match is missing. The chevron at the right pulses downward toward
+   the 3rd-place section so the next action is unambiguous. */
+.bracket-third-nudge {
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  background: linear-gradient(90deg, rgba(255, 184, 0, 0.18), rgba(255, 89, 0, 0.10));
+  border: 1px solid rgba(255, 184, 0, 0.42);
+  border-radius: 10px;
+  font-size: 0.88rem; line-height: 1.35;
+  margin-bottom: 0.4rem;
+}
+.bracket-third-nudge-icon { color: var(--amber, #ffb800); flex-shrink: 0; }
+.bracket-third-nudge-body { color: var(--text); }
+.bracket-third-nudge-sub { color: var(--text-sec); }
+.bracket-third-nudge-chevron {
+  color: var(--amber, #ffb800);
+  animation: thirdNudgeBounce 1.2s ease-in-out infinite;
+}
+@keyframes thirdNudgeBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
+}
 /* Bracket round progress strip — one cell per round across the top, sticky
    below the wizard chrome so users always know where they are. */
 .bracket-progress {

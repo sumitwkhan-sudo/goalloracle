@@ -1301,54 +1301,48 @@ const GoalOracle = () => {
     return () => { cancelled = true; };
   }, [authenticated]);
 
-  // Fetch once per user. Max totalRemaining is 12 groups + 8 thirds + 32
-  // bracket winners = 52 (sentinel for brand-new users in Dashboard).
+  // Subscribe to the user's global-simple prediction doc so picks
+  // saved in the wizard propagate live to the dashboard / home / leagues
+  // counters. Earlier this was a one-shot getSimplePrediction call —
+  // submitting the last pick didn't move the dashboard's "1 pick left"
+  // pill until the user reloaded. onSnapshot updates within ~100ms.
   useEffect(() => {
     if (!uData?.id) { setQuickPicks(null); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const { getSimplePrediction } = await import('./utils/db');
-        const docData = await getSimplePrediction(uData.id, 'global-simple');
-        if (cancelled) return;
-        const groups = docData?.groupPredictions || {};
-        const thirds = Array.isArray(docData?.bestThirdPicks) ? docData.bestThirdPicks : [];
-        const ko = docData?.knockoutPredictions || {};
-        const groupsDone = Object.values(groups).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
-        const BRACKET_ROUNDS = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['final', 1], ['thirdPlace', 1]];
-        let bracketFilled = 0, bracketTotal = 0;
-        for (const [k, size] of BRACKET_ROUNDS) {
-          bracketTotal += size;
-          bracketFilled += (ko[k] || []).filter(Boolean).length;
-        }
-        const groupsRemaining = Math.max(0, 12 - groupsDone);
-        const thirdsRemaining = Math.max(0, 8 - thirds.filter(Boolean).length);
-        const bracketRemaining = Math.max(0, bracketTotal - bracketFilled);
-        const totalRemaining = groupsRemaining + thirdsRemaining + bracketRemaining;
-        // Pull champion + runner-up off the user's Final pick if they
-        // got that far — landing-page MyPicksCard renders these as the
-        // "your bracket" headline. Same source the share modal uses;
-        // we just preserve them on the quickPicks state so the
-        // landing card doesn't need a second fetch.
-        const finalSlot = (ko.final || []).find((p) => p?.matchId === 'final');
-        setQuickPicks({
-          groupsRemaining,
-          thirdsRemaining,
-          bracketRemaining,
-          totalRemaining,
-          isComplete: totalRemaining === 0,
-          winner: finalSlot?.winnerId || null,
-          runnerUp: finalSlot?.loserId || null,
-          // Raw knockout picks kept so HomeHeroCard insights can
-          // derive "biggest upset" (lowest-ranked team picked to
-          // advance furthest) without needing a second fetch.
-          knockoutPredictions: ko,
-        });
-      } catch {
-        if (!cancelled) setQuickPicks(null);
+    const computeFromDoc = (docData) => {
+      const groups = docData?.groupPredictions || {};
+      const thirds = Array.isArray(docData?.bestThirdPicks) ? docData.bestThirdPicks : [];
+      const ko = docData?.knockoutPredictions || {};
+      const groupsDone = Object.values(groups).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
+      const BRACKET_ROUNDS = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['final', 1], ['thirdPlace', 1]];
+      let bracketFilled = 0, bracketTotal = 0;
+      for (const [k, size] of BRACKET_ROUNDS) {
+        bracketTotal += size;
+        bracketFilled += (ko[k] || []).filter(Boolean).length;
       }
+      const groupsRemaining = Math.max(0, 12 - groupsDone);
+      const thirdsRemaining = Math.max(0, 8 - thirds.filter(Boolean).length);
+      const bracketRemaining = Math.max(0, bracketTotal - bracketFilled);
+      const totalRemaining = groupsRemaining + thirdsRemaining + bracketRemaining;
+      const finalSlot = (ko.final || []).find((p) => p?.matchId === 'final');
+      return {
+        groupsRemaining,
+        thirdsRemaining,
+        bracketRemaining,
+        totalRemaining,
+        isComplete: totalRemaining === 0,
+        winner: finalSlot?.winnerId || null,
+        runnerUp: finalSlot?.loserId || null,
+        knockoutPredictions: ko,
+      };
+    };
+    let unsub;
+    (async () => {
+      const { subscribeToSimplePrediction } = await import('./utils/db');
+      unsub = subscribeToSimplePrediction(uData.id, 'global-simple', (docData) => {
+        setQuickPicks(computeFromDoc(docData));
+      });
     })();
-    return () => { cancelled = true; };
+    return () => { if (typeof unsub === 'function') unsub(); };
   }, [uData?.id]);
 
   // Fetch per-league rank + picks-progress for every personal league.
@@ -1402,6 +1396,63 @@ const GoalOracle = () => {
   useEffect(() => {
     fetchLeagueRanks();
   }, [fetchLeagueRanks]);
+
+  // Live picks-progress updates for every Quick Picks league the user
+  // is in. Subscribes to /simplePredictions/{uid}__{leagueId} and
+  // overlays picks-left / isComplete / hasSubmitted onto the
+  // leaderboard-derived rank info already in leagueRanks. Without this,
+  // submitting the last pick in the wizard didn't propagate to the
+  // dashboard or the leagues page until a manual refresh.
+  useEffect(() => {
+    if (!uData?.id || leagues.length === 0) return;
+    let cancelled = false;
+    const unsubs = [];
+    const QP_TOTAL = 12 + 8 + 32;
+    const BRACKET_ROUNDS_LOCAL = ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final'];
+    const computeFromDoc = (doc) => {
+      if (!doc) return { myPicksLeft: QP_TOTAL, myIsComplete: false, myHasSubmitted: false };
+      const groups = doc.groupPredictions || {};
+      const thirds = Array.isArray(doc.bestThirdPicks) ? doc.bestThirdPicks : [];
+      const ko = doc.knockoutPredictions || {};
+      const groupsDone = Object.values(groups).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
+      const thirdsDone = Math.min(8, thirds.filter(Boolean).length);
+      let bracketDone = 0;
+      for (const k of BRACKET_ROUNDS_LOCAL) {
+        bracketDone += (ko[k] || []).filter(p => p && p.winnerId).length;
+      }
+      const totalPicked = groupsDone + thirdsDone + bracketDone;
+      const finalWinner = (ko.final || []).find(p => p?.winnerId);
+      return {
+        myPicksLeft: Math.max(0, QP_TOTAL - totalPicked),
+        myIsComplete: !!doc.isComplete || !!finalWinner,
+        myHasSubmitted: true,
+      };
+    };
+    (async () => {
+      const { subscribeToSimplePrediction } = await import('./utils/db');
+      if (cancelled) return;
+      for (const league of leagues.slice(0, 20)) {
+        if (league.predictionMode !== 'simple') continue;
+        const unsub = subscribeToSimplePrediction(uData.id, league.id, (doc) => {
+          if (cancelled) return;
+          const computed = computeFromDoc(doc);
+          setLeagueRanks(prev => ({
+            ...prev,
+            [league.id]: {
+              ...(prev[league.id] || {}),
+              ...computed,
+              fetchedAt: Date.now(),
+            },
+          }));
+        });
+        unsubs.push(unsub);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unsubs.forEach(u => u && u());
+    };
+  }, [uData?.id, leagues]);
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
