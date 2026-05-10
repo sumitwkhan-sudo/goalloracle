@@ -976,10 +976,16 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
 
       {sTab === 'predictions' && (
         <div className="predict-inline-header">
-          {/* Breadcrumb-style label — the page-header back already
-              returns up the stack; a second "Back to leaderboard"
-              affordance here was duplicate nav. */}
+          {/* Breadcrumb-style label + the active league name so the
+              user always knows which league these picks are for. The
+              page-header back already returns up the stack. */}
           <span className="predict-inline-crumb"><Target size={13} /> Predictions</span>
+          {league?.name && (
+            <span className="predict-inline-league" title={`Predictions for ${league.name}`}>
+              <span className="predict-inline-sep" aria-hidden="true">·</span>
+              {league.name}
+            </span>
+          )}
         </div>
       )}
 
@@ -1346,44 +1352,52 @@ const GoalOracle = () => {
   // status pills even when the user navigates straight to /leagues without
   // first visiting the dashboard. Otherwise leagueRanks stays empty there
   // and predStatus() returns null for every row → no pills render.
-  useEffect(() => {
+  //
+  // Extracted as a callable function (not just an effect) so the
+  // "Refresh" control on the leagues page can force a re-pull when the
+  // user wants to verify their status against a stale-looking pill.
+  const fetchLeagueRanks = useCallback(async ({ force = false } = {}) => {
     if (!uData?.id || leagues.length === 0) return;
-    let cancelled = false;
     const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
-    (async () => {
-      for (const league of leagues.slice(0, 20)) {
-        if (leagueRanks[league.id] || cancelled) continue;
-        try {
-          if (league.predictionMode === 'simple') {
-            const data = await getSimpleLeaderboard(league.id);
-            const lb = data.leaderboard || [];
-            const myIdx = lb.findIndex(e => e.userId === uData.id);
-            const myEntry = myIdx >= 0 ? lb[myIdx] : null;
-            if (!cancelled) setLeagueRanks(prev => ({
-              ...prev,
-              [league.id]: {
-                rank: myIdx >= 0 ? myIdx + 1 : lb.length + 1,
-                total: lb.length,
-                myPicksLeft: typeof myEntry?.picksLeft === 'number' ? myEntry.picksLeft : null,
-                myIsComplete: !!myEntry?.isComplete,
-                myHasSubmitted: !!myEntry?.hasSubmitted,
-              },
-            }));
-          } else {
-            const { leaderboard: bu } = await getLeagueLeaderboard(league.id);
-            const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || DEFAULT_PS) }));
-            const sorted = sortLeaderboard(entries);
-            const myIdx = sorted.findIndex(e => e.userId === uData.id);
-            const myPreds = bu[uData.id] || {};
-            const myPredCount = Object.values(myPreds).filter(p => p?.result).length;
-            if (!cancelled) setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0, myPredCount } }));
-          }
-        } catch {}
-      }
-    })();
-    return () => { cancelled = true; };
+    for (const league of leagues.slice(0, 20)) {
+      if (!force && leagueRanks[league.id]) continue;
+      try {
+        if (league.predictionMode === 'simple') {
+          const data = await getSimpleLeaderboard(league.id);
+          const lb = data.leaderboard || [];
+          const myIdx = lb.findIndex(e => e.userId === uData.id);
+          const myEntry = myIdx >= 0 ? lb[myIdx] : null;
+          setLeagueRanks(prev => ({
+            ...prev,
+            [league.id]: {
+              rank: myIdx >= 0 ? myIdx + 1 : lb.length + 1,
+              total: lb.length,
+              myPicksLeft: typeof myEntry?.picksLeft === 'number' ? myEntry.picksLeft : null,
+              myIsComplete: !!myEntry?.isComplete,
+              myHasSubmitted: !!myEntry?.hasSubmitted,
+              fetchedAt: Date.now(),
+            },
+          }));
+        } else {
+          const { leaderboard: bu } = await getLeagueLeaderboard(league.id);
+          const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || DEFAULT_PS) }));
+          const sorted = sortLeaderboard(entries);
+          const myIdx = sorted.findIndex(e => e.userId === uData.id);
+          const myPreds = bu[uData.id] || {};
+          const myPredCount = Object.values(myPreds).filter(p => p?.result).length;
+          setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0, myPredCount, fetchedAt: Date.now() } }));
+        }
+      } catch {}
+    }
+    // leagueRanks intentionally left out of deps — we only read the
+    // current value to decide whether to skip a league; including it
+    // would re-create the callback on every fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uData?.id, leagues.length, results]);
+  }, [uData?.id, leagues, results]);
+
+  useEffect(() => {
+    fetchLeagueRanks();
+  }, [fetchLeagueRanks]);
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
@@ -1488,11 +1502,10 @@ const GoalOracle = () => {
         await joinLeague(leagueId, uData.id, passcode);
         notify('Joined the league');
         // Wait one tick for the leagues subscription to refresh, then
-        // navigate. The subscribe handler will re-render with the new doc.
+        // navigate to the Predictions tab so the user is prompted to
+        // copy-from-Global or predict fresh right away.
         setTimeout(() => {
-          // Re-read from current state via a synthetic league object — the
-          // subscription will have populated it by the time the user lands.
-          nav('detail', { id: leagueId });
+          nav('detail', { id: leagueId }, { tab: 'predictions' });
         }, 600);
       } catch (e) {
         const msg = e?.message || 'Could not join — invite may have expired or passcode invalid';
@@ -2487,6 +2500,20 @@ const GoalOracle = () => {
     } catch { /* user cancelled native share */ }
   }, [uData?.id, notify]);
 
+  const [refreshingRanks, setRefreshingRanks] = useState(false);
+  const refreshLeagueRanks = useCallback(async () => {
+    setRefreshingRanks(true);
+    try {
+      // Force-refetch every league. Doesn't reset leagueRanks first
+      // — we update doc-by-doc as each fetch lands so the UI doesn't
+      // flicker through a "loading" state for already-correct rows.
+      await fetchLeagueRanks({ force: true });
+      notify?.('Status refreshed');
+    } catch (e) {
+      notify?.('Refresh failed: ' + e.message, 'error');
+    } finally { setRefreshingRanks(false); }
+  }, [fetchLeagueRanks]);
+
   const LeaguesList = () => {
     const seedAll = leagues.length > 0 ? leagues : [
       { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true, memberCount: stats.totalPlayers },
@@ -2517,13 +2544,19 @@ const GoalOracle = () => {
         const remaining = rk.myPicksLeft;
         const picked = Math.max(0, QP_TOTAL_REQUIRED - remaining);
         const pct = Math.round((picked / QP_TOTAL_REQUIRED) * 100);
-        // Only mark "done" when the user has actually submitted picks AND
-        // the bracket is complete. Without the hasSubmitted gate, a
-        // brand-new user with no doc was being shown "All picks in"
-        // because the leaderboard endpoint returns picksLeft=52 +
-        // isComplete=false for them but a stale isComplete=true could
-        // sneak in via copy operations or stale state.
-        if (rk.myHasSubmitted && (rk.myIsComplete || remaining === 0)) {
+        // Bulletproof "done" gate. The leaderboard endpoint has been the
+        // source of recurring false-positive "All picks in" pills when
+        // hasSubmitted gets set without an accompanying picks count, or
+        // when stale state from a previous session sneaks in. Three
+        // independent conditions ALL must hold for the green pill:
+        //   1. picked > 0           — at least ONE pick was made
+        //   2. remaining === 0      — every required pick is in
+        //   3. myHasSubmitted       — a real Firestore doc exists
+        // (myIsComplete is the explicit "I'm done" flag set when the
+        //  user picks the Final winner, but it's not enough on its own:
+        //  conditions 1 + 2 prevent a doc with only the isComplete flag
+        //  set being interpreted as a complete bracket.)
+        if (rk.myHasSubmitted && picked > 0 && remaining === 0) {
           return { done: true, remaining: 0, pct: 100 };
         }
         const etaMin = Math.max(1, Math.round(remaining * 8 / 60));
@@ -2649,6 +2682,17 @@ const GoalOracle = () => {
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            className="leagues-browse"
+            onClick={refreshLeagueRanks}
+            disabled={refreshingRanks}
+            title="Re-pull picks-progress for every league. Use this if a 'All picks in' or 'X picks left' pill looks wrong."
+            aria-label="Refresh league statuses"
+          >
+            <RefreshCw size={13} aria-hidden="true" className={refreshingRanks ? 'spin' : ''} />
+            {refreshingRanks ? 'Refreshing…' : 'Refresh status'}
+          </button>
           <button type="button" className="leagues-browse" onClick={() => nav('browse')}>
             <Search size={13} aria-hidden="true" /> Join another league
           </button>
@@ -2743,10 +2787,12 @@ const GoalOracle = () => {
         const isSimple = league.predictionMode === 'simple';
         if (isSimple) {
           // Tiny delay so the leagues subscription delivers the new
-          // membership before nav() picks up the league.
+          // membership before nav() picks up the league. Land on
+          // Predictions so the copy-from-global vs predict-fresh
+          // banner is the first thing the user sees.
           setTimeout(() => {
             const fresh = leagues.find(x => x.id === league.id) || allLeagues.find(x => x.id === league.id) || league;
-            nav('detail', fresh);
+            nav('detail', fresh, { tab: 'predictions' });
           }, 150);
         } else {
           setPostJoin({ id: league.id, name: league.name, mode: league.predictionMode || 'classic' });
@@ -4525,8 +4571,10 @@ const GoalOracle = () => {
             if (passcodeMatchedLeague) {
               try {
                 await joinLeague(passcodeMatchedLeague.id, uData.id, passcode);
-                setDetailTab('leaderboard');
-                nav('detail', passcodeMatchedLeague);
+                // Land on Predictions tab so the user is immediately
+                // prompted to copy from Global or predict fresh — the
+                // copy-banner gate inside SimplePrediction does the rest.
+                nav('detail', passcodeMatchedLeague, { tab: 'predictions' });
                 return;
               } catch (e) {
                 notify(`Couldn't join "${passcodeMatchedLeague.name}" — ${e.message || 'try again from Browse'}`, 'error');

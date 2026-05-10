@@ -2256,6 +2256,17 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   text-transform: uppercase; color: var(--text-dim); font-weight: 600;
 }
 .predict-inline-crumb svg { color: var(--primary); }
+/* Active-league name shown next to the PREDICTIONS chip. Same metallic
+   monospace tone but in body color so it reads as the dominant title
+   without an extra row of vertical chrome. */
+.predict-inline-league {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.85rem; font-weight: 600; color: var(--text);
+  margin-left: 0.5rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 60vw;
+}
+.predict-inline-sep { color: var(--text-dim); font-weight: 400; }
 
 /* Join-success modal actions row */
 .join-success-modal { max-width: 520px; }
