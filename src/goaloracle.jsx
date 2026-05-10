@@ -4572,69 +4572,32 @@ const GoalOracle = () => {
       <ViewMeta view={view} />
 
       {view === 'landing' && <Landing />}
-      {view === 'dashboard' && (() => {
-        // Three-state guard so /dashboard NEVER renders the real
-        // Dashboard with uData=null:
-        //   1. !ready                → spinner (auth resolution in flight)
-        //   2. !authenticated        → Sign-in CTA (logged-out user
-        //                              landed on /dashboard via deep link
-        //                              or after a redirect-recovery
-        //                              failure with no salvageable user)
-        //   3. authenticated && !uData → spinner (auth resolved, doc
-        //                                still loading from Firestore)
-        //   4. ready && authenticated && uData → real Dashboard
-        if (!ready) {
-          return (
-            <div className="dashboard" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-              <RefreshCw size={20} className="spin" aria-hidden="true" />
-              <span style={{ marginLeft: '0.75rem', color: 'var(--text-sec)' }}>Loading…</span>
-            </div>
-          );
-        }
-        if (!authenticated) {
-          return (
-            <div className="dashboard" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '1rem', padding: '0 1rem', textAlign: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '1.4rem' }}>Sign in to see your dashboard</h2>
-              <p style={{ margin: 0, color: 'var(--text-sec)', maxWidth: 380 }}>
-                Your bracket, picks, and stats live behind your account.
-                Use Google or your email to continue.
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                <button type="button" className="btn btn-primary" onClick={() => login && login()}>
-                  Sign in
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={() => nav('landing')}>
-                  Back home
-                </button>
-              </div>
-            </div>
-          );
-        }
-        if (!uData) {
-          return (
-            <div className="dashboard" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-              <RefreshCw size={20} className="spin" aria-hidden="true" />
-              <span style={{ marginLeft: '0.75rem', color: 'var(--text-sec)' }}>Loading your dashboard…</span>
-            </div>
-          );
-        }
-        return (
-          <Dashboard
-            leagues={leagues}
-            preds={preds}
-            results={results}
-            uData={uData}
-            stats={stats}
-            quickPicks={quickPicks}
-            featureFlags={featureFlags}
-            leagueRanks={leagueRanks}
-            setLeagueRanks={setLeagueRanks}
-            nav={nav}
-            consensus={globalConsensus}
-            onShare={handleShareOwnBracket}
-          />
-        );
-      })()}
+      {view === 'dashboard' && (
+        // Render Dashboard directly. Child components already handle
+        // uData=null via optional chaining (uData?.id) and the parent
+        // app's data effects all gate on uData?.id, so there's no
+        // crash while auth is still resolving. The four-state IIFE
+        // guard we briefly had here rendered a loading-state shell
+        // that read as "blank page" on some sessions after sign-in,
+        // breaking the post-login experience. Going back to the
+        // simpler render that was working state before PR #83 — the
+        // important PR #83 fix (processFirebaseUser + reconcile after
+        // redirect) stays in place above and unblocks mobile auth.
+        <Dashboard
+          leagues={leagues}
+          preds={preds}
+          results={results}
+          uData={uData}
+          stats={stats}
+          quickPicks={quickPicks}
+          featureFlags={featureFlags}
+          leagueRanks={leagueRanks}
+          setLeagueRanks={setLeagueRanks}
+          nav={nav}
+          consensus={globalConsensus}
+          onShare={handleShareOwnBracket}
+        />
+      )}
       {view === 'leagues' && <LeaguesList />}
       {view === 'browse' && <Browse key="browse" />}
       {view === 'create' && (
