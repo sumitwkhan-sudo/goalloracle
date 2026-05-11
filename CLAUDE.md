@@ -55,6 +55,60 @@ FIFA World Cup 26 prediction game. Two modes: **Quick Picks** (rank groups + pic
 | Serverless admin endpoint | `api/admin.js` |
 | Serverless predictions CRUD (GET + POST + DELETE) | `api/predictions.js` |
 
+## Prize contest (as of May 2026)
+
+GoalOracle launched a free-to-enter cash prize contest tied to the
+Global Quick Picks League (`global-simple`). Top 3 finishers at end
+of FIFA World Cup 2026 Final win **$150 / $100 / $50 in USDC**
+(USDG on request) paid to winner-provided EVM wallets on Polygon.
+
+### Where the legal+config lives
+
+- **`src/config/legal.js`** — single source of truth for everything
+  legal: `RULES_VERSION`, `PRIZES`, `SPONSOR_*`, `EXCLUDED_JURISDICTIONS`,
+  `LAUNCH_DATE` / `GROUP_STAGE_LOCK_DATE` / `FINAL_DATE` (all bracketed
+  placeholders until launch), notification + payout window constants.
+- Don't hardcode prize amounts, dates, or sponsor info anywhere else.
+- **`src/pages/OfficialRules.jsx`** renders the full rules from those
+  constants. Bracketed placeholders show through visibly so we don't
+  ship blanks.
+
+### Sponsor
+
+- **Suraam, LLC d/b/a GoalOracle** — Delaware LLC via Stripe Atlas.
+- Footer copyright: `© 2026 Suraam, LLC`.
+- `SPONSOR_ADDRESS` is currently `[STRIPE_ATLAS_DELAWARE_ADDRESS]` — replace once registration lands.
+
+### Consent semantics
+
+- New users: required eligibility checkbox at the bottom of `WelcomeFlow`. Submission blocked until checked. Captured at the earliest moment via `setContestConsent()` and stored on the user doc as `contestConsent: { rulesVersion, ageAttested, jurisdictionAttested, timestamp }`.
+- Existing users (auto-joined to global-simple before this feature): `ContestConsentBanner` renders subtly above the home shell. Confirm → consent persisted. Dismiss → `prizeIneligible: true`. Banner self-hides via localStorage so it doesn't keep popping back.
+- Helper functions: `hasCurrentConsent(user)` and `isPrizeIneligible(user)` in `src/config/legal.js`.
+- **Bumping `RULES_VERSION` automatically re-prompts every user** — the banner re-appears because `hasCurrentConsent` returns false.
+
+### Server-side
+
+- `/api/user` accepts `consent: { rulesVersion, ageAttested, jurisdictionAttested }` + `prizeIneligible: bool` in the POST body. Validates shape (rejects malformed silently — doesn't block the request, since this endpoint also handles wallet/displayName updates). Persists `contestConsent.timestamp` as a server timestamp so we have a tamper-resistant audit trail.
+- Auto-join to global-simple at signup is **unchanged** — consent is captured ASAP but doesn't gate league membership. Membership + contest eligibility are decoupled. A user can be in global-simple without being prize-eligible.
+
+### Analytics events (GA4 via track.js)
+
+7 conversion events fire today via `src/utils/track.js`: `prize_section_viewed`, `enter_free_cta_clicked`, `signup_started`, `signup_completed`, `eligibility_checkbox_checked`, `global_league_joined`, `first_prediction_submitted`.
+
+**TODO(posthog)**: PostHog SDK isn't installed yet. To add it:
+1. `npm install posthog-js`
+2. Init in `src/main.jsx` with `VITE_POSTHOG_KEY` env var
+3. Update `src/utils/track.js` — call `posthog.capture(event, params)` alongside the existing `gtag` call. Both vendors should receive every event.
+
+### Out-of-scope for v1
+
+- IP geo-blocking — disclosure in Official Rules is sufficient
+- KYC / identity verification — prize values are below 1099 thresholds
+- Automated payout — manual for World Cup 2026 (read leaderboard, email top 3, send USDC)
+- Winner-notification email automation
+- Tax form generation
+- BIMI / verified mark certificate for support@ branded emails
+
 ## Recent work (as of April 2026)
 
 **Quick Picks UX:**

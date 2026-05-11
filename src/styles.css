@@ -8916,3 +8916,205 @@ a.news-ticker-item:focus-visible {
   }
 }
 
+/* ─── PRIZE CONTEST ─────────────────────────────────────────────
+   Prize-led hero additions, prize structure card, eligibility
+   checkbox, contest consent banner, and Official Rules legal page. */
+
+/* Anonymous hero — eyebrow "FREE TO ENTER • WORLD CUP 2026" sits
+   above the headline in red caps. Reduces visual gap between the
+   hero meta and the headline so the prize framing reads as one beat. */
+.hero-eyebrow {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--primary);
+  margin: 0 0 0.6rem;
+  text-transform: uppercase;
+}
+.hero-trust-strip {
+  font-size: 0.78rem;
+  color: var(--text-sec);
+  margin: 0.85rem 0 0.25rem;
+  letter-spacing: 0.2px;
+}
+.hero-rules-link {
+  font-size: 0.78rem;
+  color: var(--text-sec);
+  margin: 0;
+}
+.hero-rules-anchor {
+  background: none; border: 0; padding: 0;
+  color: var(--primary); font-weight: 600; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+  font-size: inherit; font-family: inherit;
+}
+.hero-rules-anchor:hover { opacity: 0.85; }
+
+/* Prize structure card — used on homepage + Global League page.
+   3 columns on desktop, single column on mobile. Frosted card style
+   matches the rest of the site. */
+.prize-structure {
+  width: 100%;
+  padding: 2.5rem 1rem;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.04));
+}
+.prize-structure-inner {
+  max-width: 1100px; margin: 0 auto;
+  background: var(--card-bg, rgba(255, 255, 255, 0.65));
+  border: 1px solid var(--card-border, rgba(0, 0, 0, 0.08));
+  border-radius: 16px;
+  padding: 1.75rem 2rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+.prize-structure-head {
+  display: flex; align-items: center; gap: 0.6rem;
+  margin-bottom: 1.2rem;
+}
+.prize-structure-title {
+  font-size: 1.25rem; font-weight: 700; margin: 0;
+  letter-spacing: -0.3px;
+}
+.prize-structure-list {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.85rem;
+}
+.prize-structure-item {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.4rem;
+  padding: 1.1rem 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+[data-theme="dark"] .prize-structure-item { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.08); }
+.prize-structure-medal { font-size: 2rem; line-height: 1; }
+.prize-structure-place {
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.5px;
+}
+.prize-structure-amount {
+  font-size: 1.75rem; font-weight: 800; letter-spacing: -1px;
+  color: var(--text);
+}
+.prize-structure-item[data-place="1"] .prize-structure-amount { color: #d4a017; }
+.prize-structure-item[data-place="2"] .prize-structure-amount { color: #777; }
+.prize-structure-item[data-place="3"] .prize-structure-amount { color: #c08157; }
+.prize-structure-foot {
+  margin: 1.2rem 0 0; padding: 0;
+  font-size: 0.85rem; color: var(--text-sec);
+  text-align: center; line-height: 1.5;
+}
+.prize-structure-link {
+  background: none; border: 0; padding: 0;
+  color: var(--primary); font-weight: 600; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+  font-size: inherit; font-family: inherit;
+}
+@media (max-width: 720px) {
+  .prize-structure-inner { padding: 1.25rem 1rem; }
+  .prize-structure-list { grid-template-columns: 1fr; gap: 0.6rem; }
+  .prize-structure-item { flex-direction: row; justify-content: space-between; padding: 0.85rem 1rem; }
+  .prize-structure-medal { font-size: 1.5rem; }
+  .prize-structure-amount { font-size: 1.4rem; }
+}
+
+/* Eligibility checkbox — compact single-line consent control. Used
+   inside WelcomeFlow + ContestConsentBanner. */
+.eligibility-checkbox {
+  display: flex; align-items: flex-start; gap: 0.6rem;
+  margin: 0.5rem 0;
+  font-size: 0.85rem; line-height: 1.45;
+  color: var(--text-sec); cursor: pointer;
+}
+.eligibility-checkbox input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  width: 16px; height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+.eligibility-checkbox-text { flex: 1; }
+.eligibility-checkbox-link {
+  background: none; border: 0; padding: 0;
+  color: var(--primary); font-weight: 600; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+  font-size: inherit; font-family: inherit;
+}
+.wf-eligibility { margin-top: 0.25rem; }
+
+/* Contest consent banner — shown to existing users who joined Global
+   League before the prize contest existed. Sits inside .home-shell
+   above other home content; renders only when needed. */
+.contest-consent-banner {
+  margin: 0 0 1rem;
+  border-radius: 12px;
+  background: rgba(255, 200, 0, 0.10);
+  border: 1px solid rgba(255, 200, 0, 0.32);
+  padding: 0.85rem 1rem;
+}
+.contest-consent-inner {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+}
+.contest-consent-icon { flex-shrink: 0; color: var(--primary); margin-top: 2px; }
+.contest-consent-body { flex: 1; min-width: 0; }
+.contest-consent-title {
+  font-size: 0.9rem; font-weight: 700; margin-bottom: 0.25rem;
+  color: var(--text);
+}
+.contest-consent-eligibility { margin: 0.25rem 0 0; }
+.contest-consent-actions {
+  display: flex; align-items: center; gap: 0.5rem;
+  flex-shrink: 0;
+}
+.contest-consent-dismiss {
+  background: none; border: 0; padding: 4px;
+  color: var(--text-sec); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+}
+.contest-consent-dismiss:hover { background: rgba(0, 0, 0, 0.05); }
+@media (max-width: 720px) {
+  .contest-consent-inner { flex-direction: column; }
+  .contest-consent-actions { align-self: stretch; justify-content: space-between; }
+}
+
+/* Official Rules / legal page — generic legal-document typography. */
+.legal-page {
+  min-height: 70vh;
+  padding: 3rem 1rem 4rem;
+  background: var(--bg);
+}
+.legal-page-inner {
+  max-width: 760px; margin: 0 auto;
+  font-size: 0.95rem; line-height: 1.65;
+  color: var(--text);
+}
+.legal-header { margin-bottom: 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid rgba(0, 0, 0, 0.1); }
+[data-theme="dark"] .legal-header { border-bottom-color: rgba(255, 255, 255, 0.1); }
+.legal-title { font-size: 2.25rem; font-weight: 800; margin: 0 0 0.4rem; letter-spacing: -1px; }
+.legal-subtitle { font-size: 1.1rem; color: var(--text-sec); margin: 0 0 0.4rem; }
+.legal-meta { font-size: 0.82rem; color: var(--text-sec); margin: 0; }
+.legal-callout {
+  background: rgba(255, 200, 0, 0.10);
+  border: 1px solid rgba(255, 200, 0, 0.32);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin: 1.5rem 0 2rem;
+  font-size: 0.95rem;
+}
+.legal-section { margin-bottom: 1.75rem; }
+.legal-section h2 {
+  font-size: 1.15rem; font-weight: 700; margin: 0 0 0.6rem;
+  letter-spacing: -0.3px;
+}
+.legal-section p, .legal-section ul, .legal-section ol { margin: 0 0 0.85rem; }
+.legal-section ul, .legal-section ol { padding-left: 1.4rem; }
+.legal-section li { margin-bottom: 0.35rem; }
+.legal-prize-list { list-style: none; padding: 0 !important; }
+.legal-prize-list li {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+  padding: 0.5rem 0.85rem;
+  margin-bottom: 0.4rem;
+}
+[data-theme="dark"] .legal-prize-list li { background: rgba(255, 255, 255, 0.04); }

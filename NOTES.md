@@ -5,6 +5,126 @@ the top — newest entries first.
 
 ---
 
+## 2026-05-11 — Free-to-enter prize contest
+
+Launched the first prize-bearing contest. Top 3 in `global-simple` at end
+of WC 2026 Final win $150 / $100 / $50 in USDC (USDG on request) on
+Polygon. Entry is free, skill-based, no purchase necessary. Sponsored by
+Suraam, LLC d/b/a GoalOracle (Delaware via Stripe Atlas).
+
+This change touches both legal/compliance surfaces (Official Rules,
+eligibility consent, audit trail) AND conversion-critical surfaces
+(homepage hero rebuild, OG image, FAQ, prize structure card on multiple
+pages). They ship together because the prize is the lead value
+proposition for cold ad traffic — half the work is "make this look
+appealing within 3 seconds", half is "make this defensible in front of a
+state attorney general".
+
+### Architectural decisions
+
+**1. Single source of truth: `src/config/legal.js`**
+
+Every legal constant lives here — `RULES_VERSION`, `PRIZES`, sponsor
+identity, excluded jurisdictions, key dates, notification + payout
+windows. Any page that needs a prize amount, sponsor name, or rules
+version imports from this module. The only acceptable hardcoding is the
+$150 in social media copy where the OG image renders it as text.
+
+Bracketed placeholder values (`[STRIPE_ATLAS_DELAWARE_ADDRESS]`,
+`[LAUNCH_DATE]`, `[GROUP_STAGE_LOCK_DATE]`, `[FINAL_DATE]`) intentionally
+ship as visible-in-product strings until they're filled in. Catching a
+"[FOO]" in the live UI is easier than catching a silent empty span.
+
+**2. Consent decoupled from membership**
+
+Plan started by gating global-simple join on consent. User reversed:
+"keep auto-join, just collect consent as early as possible". So:
+
+- New users: required checkbox in WelcomeFlow. They can't finish onboarding
+  without it. Captured at the earliest moment via `setContestConsent`.
+- Existing users (joined Global before this feature shipped): subtle inline
+  ContestConsentBanner above the home shell. Confirm → eligible. Dismiss →
+  `prizeIneligible: true`. Banner self-hides via localStorage so it doesn't
+  keep popping back as the user navigates.
+
+The user keeps their leaderboard standing either way — only prize
+eligibility hinges on consent. This means winner determination logic must
+filter on `hasCurrentConsent(user) && !isPrizeIneligible(user)` at end of
+tournament. (Manual for v1; helper functions live in `src/config/legal.js`.)
+
+**3. RULES_VERSION reset**
+
+Bumping `RULES_VERSION` in `legal.js` (when rules materially change)
+automatically re-prompts every user — the banner gates on
+`hasCurrentConsent` which checks the stored version against the current
+constant. No additional code needed; just bump the string and ship.
+
+### What's NEW
+
+- `src/config/legal.js` — constants
+- `src/components/PrizeStructureCard.jsx` — 3-place visualization, used on
+  homepage and Global League page (intentional repetition per spec)
+- `src/components/EligibilityCheckbox.jsx` — single-line consent control
+- `src/components/ContestConsentBanner.jsx` — opt-in for existing users
+- `src/pages/OfficialRules.jsx` — full Official Rules page at /official-rules
+
+### What CHANGED
+
+- `src/goaloracle.jsx` — anonymous hero rewrite (eyebrow + prize headline
+  + Enter Free CTA + trust strip + Official Rules link), PrizeStructureCard
+  inserted below hero, OfficialRules route added, footer gains Official
+  Rules link + new copyright (`© 2026 Suraam, LLC`), FAQ section "Prize
+  Leagues & Future Plans" replaced with "Prize Contest" containing the
+  10 prize-related questions, ContestConsentBanner mounted on home shell
+- `src/components/onboarding/WelcomeFlow.jsx` — EligibilityCheckbox added
+  at bottom; submit gated until checked; `consent` payload threaded
+  through `onSubmit`
+- `src/utils/db.js` — new `setContestConsent` and `setPrizeIneligible`
+  helpers; `saveSimplePrediction` fires `first_prediction_submitted`
+  via the new `trackOnce` helper
+- `src/utils/track.js` — new `trackOnce(event, params)` for fire-once
+  funnel events; TODO(posthog) marker for the eventual SDK install
+- `api/user.js` — accepts and persists `contestConsent` + `prizeIneligible`
+  on POST. Validates consent shape; silently ignores malformed
+- `api/og.jsx` — default OG image rebuilt with prize messaging
+- `index.html` — title, description, OG, Twitter card, JSON-LD
+  SoftwareApplication + FAQPage all updated for prize positioning
+- `src/styles.css` — new sections for `.hero-eyebrow`, `.hero-trust-strip`,
+  `.prize-structure*`, `.eligibility-checkbox*`, `.contest-consent-banner*`,
+  `.legal-page` (Official Rules typography)
+
+### What's INTENTIONALLY NOT in this PR
+
+- IP geo-blocking — Official Rules disclosure is sufficient for v1
+- KYC / identity verification — prize amounts below 1099 thresholds
+- Automated payout pipeline — manual for WC 2026
+- Winner-notification email automation — operator runs this manually from
+  leaderboard data after the Final
+- PostHog SDK install — `track.js` carries a TODO(posthog) marker; CLAUDE.md
+  has the install recipe. User explicitly deferred
+- Tax form generation
+- BIMI / VMC for branded support@ emails (separate setup)
+
+### Gotchas for future-Claude
+
+1. **Don't add new prize amounts or sponsor info anywhere except `legal.js`.**
+   The whole point of the constants module is single-source-of-truth.
+2. **The consent banner uses localStorage to self-suppress.** If a user
+   dismisses, then clears localStorage, they'll see the banner again. That
+   re-prompt is the SECOND chance — the server-side `prizeIneligible: true`
+   was already written on the first dismiss. They'd have to confirm to
+   become eligible.
+3. **`api/user.js` consent validation is intentionally lenient.** Malformed
+   consent payloads are silently ignored, NOT rejected with 400, because
+   this endpoint also handles unrelated updates (wallet, displayName).
+   Strict rejection would block those.
+4. **OfficialRules + FAQ + JSON-LD have parallel copy.** Three places
+   declare the prize amounts. They all source from `legal.js` so updates
+   propagate, BUT if you add a new prize FAQ, also add it to the JSON-LD
+   in `index.html` so search engines pick it up.
+
+---
+
 ## 2026-05-08 — Home page (logged-in) → calm dashboard rebuild
 
 Second pass on the home page. The previous iteration (entry below) cleaned
