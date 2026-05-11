@@ -4269,6 +4269,24 @@ const GoalOracle = () => {
         ]
       },
       {
+        title: 'Fair Play',
+        icon: '🛡️',
+        questions: [
+          {
+            q: 'How does GoalOracle prevent cheating?',
+            a: (<>
+              Several layers, working together. Predictions automatically lock 5 minutes before each match kicks off, so no one can edit a pick after seeing what&rsquo;s happening on the pitch. On top of that we use a combination of automated signals and manual review to identify accounts behaving suspiciously — we deliberately don&rsquo;t publish the exact detection criteria so they stay effective. Accounts found to be cheating may have results invalidated, leaderboard standings reset, and be permanently banned, and would be excluded from any future prize eligibility. If something looks off, email <a href="mailto:support@goaloracle.io" className="faq-link">support@goaloracle.io</a> — we investigate every report.
+            </>)
+          },
+          {
+            q: 'Can I have multiple accounts?',
+            a: (<>
+              No. Each person may have only one GoalOracle account. Creating additional accounts to enter the same league more than once, inflate referrals, or manipulate leaderboards violates our terms and is automatically detected. If duplicate accounts linked to the same person are identified, all of them may be removed, points reset, and the person excluded from future prize eligibility. If you&rsquo;ve lost access to your existing account (forgotten which email, signed in via a different method, etc.), email <a href="mailto:support@goaloracle.io" className="faq-link">support@goaloracle.io</a> instead of creating a new one — we can help recover it.
+            </>)
+          },
+        ]
+      },
+      {
         title: 'Prize Leagues & Future Plans',
         icon: '💰',
         questions: [
