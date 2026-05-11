@@ -8790,11 +8790,11 @@ a.news-ticker-item:focus-visible {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
-/* QUICK ACTIONS — 5 equal-weight icon tiles. Same card style as
+/* QUICK ACTIONS — 6 equal-weight icon tiles. Same card style as
    the hero, just sized down and arranged in a grid. */
 .home-tiles {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 0.6rem;
 }
 .home-tile {
@@ -8841,18 +8841,24 @@ a.news-ticker-item:focus-visible {
   line-height: 1.2;
 }
 
-/* Mobile: 2x3 grid (5th tile spans both columns on the bottom row
-   for a clean visual). */
+/* Mobile: 3x2 grid (3 columns × 2 rows). 6 tiles divides evenly so
+   no orphan-spanning hack needed like the previous 5-tile layout. */
 @media (max-width: 720px) {
   .home-tiles {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
   }
-  .home-tile { padding: 0.85rem 0.4rem; }
+  .home-tile { padding: 0.85rem 0.3rem; font-size: 0.75rem; }
   .home-tile-icon { width: 32px; height: 32px; }
-  /* 5th tile spans full width on its row so we don't have a
-     ragged orphan tile on the bottom row of the 2x3 grid. */
-  .home-tile:nth-child(5) { grid-column: 1 / -1; }
+  .home-tile-label { text-align: center; line-height: 1.15; }
+}
+
+/* Very narrow viewports (older / smaller phones): drop to 2x3 to
+   keep labels readable. */
+@media (max-width: 380px) {
+  .home-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* GLOBAL LEAGUE PREVIEW — wraps existing HeroLeaderboardPreview
