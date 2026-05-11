@@ -2273,11 +2273,25 @@ const GoalOracle = () => {
     // Anonymous-only big-button CTAs. Logged-in users use the unified
     // chip row instead — keeps the home page CTA UX consistent
     // instead of pairing a random-gradient pill with neutral chips.
+    //
+    // Primary says "Sign Up Free" explicitly so new mobile users
+    // understand clicking it creates an account (the previous
+    // "Start Predicting — It's Free" left "sign up" implicit, which
+    // is fine on desktop with more context but confusing on a small
+    // screen). Secondary is now "Sign in" so returning users who've
+    // logged out have an unambiguous re-entry path — the previous
+    // "Create a League" secondary led to the same login modal but
+    // hid that fact behind misleading copy.
+    //
+    // Create-a-league remains discoverable post-login via the Quick
+    // Actions panel and /create. Anonymous visitors who want to
+    // create a league sign up first, which is the required flow
+    // anyway.
     const anonCtas = useMemo(() => {
       if (authenticated) return null;
       return {
-        primary: { label: <>Start Predicting &mdash; It&rsquo;s Free</>, onClick: startSimplePredicting },
-        secondary: { label: 'Create a League', onClick: () => login() },
+        primary: { label: <>Start Predicting &mdash; Sign Up Free</>, onClick: startSimplePredicting },
+        secondary: { label: 'Sign in', onClick: () => { track('cta_signin', { source: 'hero' }); login(); } },
       };
     }, [authenticated]);
 
