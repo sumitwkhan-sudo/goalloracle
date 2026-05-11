@@ -2,52 +2,38 @@ import { initializeApp } from 'firebase/app';
 import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
-// authDomain selects where Firebase's OAuth handler is served. There are
-// THREE valid shapes we accept:
+// authDomain MUST be auth.goaloracle.io — our Firebase-Hosting custom
+// subdomain. It shares the registrable domain (goaloracle.io) with the
+// SPA, so the OAuth handler's IndexedDB is FIRST-PARTY storage from the
+// SPA's perspective. This is the only configuration that works reliably
+// on iOS Safari (ITP) and Android Chrome (storage partitioning) for the
+// signInWithRedirect mobile flow:
+//   https://firebase.google.com/docs/auth/web/redirect-best-practices
 //
-//   1. auth.goaloracle.io          — our custom subdomain on Firebase
-//                                    Hosting. Same registrable domain as
-//                                    the SPA (goaloracle.io), so storage
-//                                    at the auth handler is FIRST-PARTY
-//                                    from the SPA's perspective. This is
-//                                    the official Firebase workaround for
-//                                    Safari ITP + Chrome storage
-//                                    partitioning that breaks mobile
-//                                    signInWithRedirect.
-//                                    https://firebase.google.com/docs/auth/web/redirect-best-practices
+// The previous version of this file also accepted *.firebaseapp.com and
+// *.web.app values from VITE_FIREBASE_AUTH_DOMAIN as a "fallback". That
+// turned out to be a footgun: PR #91 changed the hardcoded value to
+// auth.goaloracle.io but the Vercel env var was still set to
+// goaloracle-f348f.firebaseapp.com, so the *.firebaseapp.com branch
+// matched and the env var silently overrode the new hardcoded value.
+// Mobile sign-in continued failing because Firebase kept loading from
+// the cross-site host.
 //
-//   2. *.firebaseapp.com           — the default Firebase-managed host.
-//                                    Works on desktop. Breaks silently on
-//                                    mobile in 2025+ browsers because the
-//                                    cross-domain credential handoff
-//                                    requires third-party storage access
-//                                    that ITP / partitioning blocks.
-//
-//   3. *.web.app                   — Firebase Hosting alternate domain.
-//                                    Same characteristics as #2.
-//
-// Anything else (e.g. raw `goaloracle.io` — which we tried and reverted
-// in PR #79, because Vercel's catch-all rewrite serves index.html at
-// /__/auth/handler instead of Firebase's actual handler) gets ignored
-// and the hardcoded canonical value below is used.
-//
-// We hardcode auth.goaloracle.io as the canonical value because the
-// Vercel env var has historically been set to wrong values (raw
-// goaloracle.io, the firebaseapp.com fallback, empty) that silently
-// break Google sign-in. The hardcoded value means a misconfigured env
-// var can't blank the popup or strand mobile users.
+// New rule: only auth.goaloracle.io (or empty) is honoured. Anything
+// else logs a warning and falls back to the hardcoded canonical. The
+// console.log on success means the operator can verify the actual
+// resolved value in DevTools without guessing.
 const FIREBASE_AUTH_HOST = 'auth.goaloracle.io';
 function resolveAuthDomain() {
   const raw = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim();
-  // Accept the env var only if it matches one of the three valid shapes
-  // documented above.
-  if (raw === FIREBASE_AUTH_HOST) return raw;
-  if (/\.firebaseapp\.com$|\.web\.app$/.test(raw)) return raw;
   if (raw && raw !== FIREBASE_AUTH_HOST && typeof console !== 'undefined') {
     console.warn(
       '[firebase] VITE_FIREBASE_AUTH_DOMAIN is "' + raw + '" — overriding to "' +
-      FIREBASE_AUTH_HOST + '" because Google sign-in only works on a Firebase-served auth host.',
+      FIREBASE_AUTH_HOST + '" because only the custom subdomain works on mobile.',
     );
+  }
+  if (typeof console !== 'undefined') {
+    console.log('[firebase] authDomain resolved to:', FIREBASE_AUTH_HOST);
   }
   return FIREBASE_AUTH_HOST;
 }
