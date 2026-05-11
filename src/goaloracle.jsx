@@ -2359,6 +2359,7 @@ const GoalOracle = () => {
                 onMyLeagues={() => nav('leagues')}
                 onLeaderboard={goLeaderboardLanding}
                 onJoin={() => nav('browse')}
+                onCreate={() => nav('create')}
                 onInvite={() => setInviteOpen(true)}
               />
               <div className="home-card home-leaderboard">

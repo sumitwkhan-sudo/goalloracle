@@ -1,24 +1,28 @@
 /**
  * QuickActionsTiles
  *
- * Five equal-weight icon tiles for the logged-in landing page —
- * Dashboard, My Leagues, Global Leaderboard, Join a League, Invite
- * Friends. Same card style + spacing across all five (no
- * gradients, no accent), all the same size. Replaces the old
- * chip row that mixed accent + neutral chips at uneven weights.
+ * Six equal-weight icon tiles for the logged-in landing page —
+ * Dashboard, My Leagues, Global Leaderboard, Join a League, Create
+ * a League, Invite Friends. Same card style + spacing across all
+ * six. Create-a-League sits next to Join-a-League so the two
+ * league-entry actions are visually paired.
  *
- * On mobile the grid drops to two columns and the 5th tile spans
- * the bottom row in full so we don't have a ragged orphan.
+ * Layout:
+ *   Desktop (>720px): 6 in a row, equal width.
+ *   Mobile  (<=720px): 3×2 grid (3 columns × 2 rows). 6 tiles is
+ *   actually cleaner on mobile than the previous 5 — no need for
+ *   the orphan-spanning hack the 5-tile version used.
  */
 
 import React from 'react';
-import { Trophy, Users, TrendingUp, Search, UserPlus } from 'lucide-react';
+import { Trophy, Users, TrendingUp, Search, PlusCircle, UserPlus } from 'lucide-react';
 
 export default function QuickActionsTiles({
   onDashboard,
   onMyLeagues,
   onLeaderboard,
   onJoin,
+  onCreate,
   onInvite,
 }) {
   const tiles = [
@@ -26,6 +30,7 @@ export default function QuickActionsTiles({
     { icon: Users,     label: 'My Leagues',        onClick: onMyLeagues },
     { icon: TrendingUp,label: 'Global Leaderboard',onClick: onLeaderboard },
     { icon: Search,    label: 'Join a League',     onClick: onJoin },
+    { icon: PlusCircle,label: 'Create a League',   onClick: onCreate },
     { icon: UserPlus,  label: 'Invite Friends',    onClick: onInvite },
   ];
 
