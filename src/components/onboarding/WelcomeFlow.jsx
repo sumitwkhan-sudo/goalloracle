@@ -19,11 +19,14 @@ import React, { useState, useEffect } from 'react';
 import { Check, RefreshCw, AlertTriangle } from 'lucide-react';
 import { validateUsername } from '../../utils/profanity';
 import COUNTRIES, { getCachedDetectedCountry, detectCountryByIP } from '../../utils/countries';
+import EligibilityCheckbox from '../EligibilityCheckbox';
+import { RULES_VERSION } from '../../config/legal';
 
 export default function WelcomeFlow({
   emailPrefix,
   allLeagues,
-  onSubmit,        // async ({ username, country, passcodeMatchedLeague, passcode }) => void
+  onSubmit,        // async ({ username, country, passcodeMatchedLeague, passcode, consent }) => void
+  onSeeRules,      // function — opens Official Rules in a new tab
 }) {
   const [username, setUsername] = useState(emailPrefix || '');
   // Seed country from the synchronous cache (warmed at app boot) so the
@@ -31,6 +34,7 @@ export default function WelcomeFlow({
   // empty while the async IP lookup resolves.
   const [country, setCountry] = useState(() => getCachedDetectedCountry() || '');
   const [passcode, setPasscode] = useState('');
+  const [eligible, setEligible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   // Country list is bundled with the modal — no async import needed.
@@ -77,6 +81,8 @@ export default function WelcomeFlow({
       passcodeMatchedLeague = match;
     }
 
+    if (!eligible) { setErr('Please confirm eligibility to finish.'); return; }
+
     setBusy(true);
     try {
       await onSubmit({
@@ -84,6 +90,14 @@ export default function WelcomeFlow({
         country,
         passcode: trimmedPass || null,
         passcodeMatchedLeague,
+        // Captured at the earliest possible moment — the user can't
+        // finish onboarding without checking the box. Persisted on the
+        // user doc by the parent's createOrUpdateUser flow.
+        consent: {
+          rulesVersion: RULES_VERSION,
+          ageAttested: true,
+          jurisdictionAttested: true,
+        },
       });
     } catch (e2) {
       setErr(e2?.message || 'Could not finish setup — try again.');
@@ -149,12 +163,24 @@ export default function WelcomeFlow({
             <span className="wf-hint">Auto-joins their private league. Skip if you don't have one.</span>
           </label>
 
+          {/* Single-line eligibility consent. Required for the submit
+              button to enable. Captured the moment the user finishes
+              their account so we never have to re-prompt for the same
+              rules version unless they truly need to re-consent. */}
+          <EligibilityCheckbox
+            checked={eligible}
+            onChange={(v) => { setEligible(v); if (err) setErr(''); }}
+            disabled={busy}
+            onSeeRules={onSeeRules}
+            className="wf-eligibility"
+          />
+
           {err && <div className="wf-err" role="alert"><AlertTriangle size={14} /> {err}</div>}
 
           <button
             type="submit"
             className="btn btn-primary btn-lg wf-submit"
-            disabled={busy || !username.trim() || !country}
+            disabled={busy || !username.trim() || !country || !eligible}
           >
             {busy ? <><RefreshCw size={16} className="spin" /> Setting up…</> : <><Check size={16} /> Let's go</>}
           </button>

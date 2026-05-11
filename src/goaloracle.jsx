@@ -17,7 +17,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -26,6 +26,10 @@ import AnimatedCounter from './components/AnimatedCounter';
 import LeagueLeaderboardLayout from './components/LeagueLeaderboardLayout';
 import LeagueListRow from './components/LeagueListRow';
 import SimplePrediction from './pages/SimplePrediction';
+import OfficialRules from './pages/OfficialRules';
+import PrizeStructureCard from './components/PrizeStructureCard';
+import ContestConsentBanner from './components/ContestConsentBanner';
+import { PRIZE_TOP_USD, PRIZE_DEFAULT_CURRENCY } from './config/legal';
 import BracketShareModal from './components/BracketShareModal';
 import InviteFriendsModal from './components/InviteFriendsModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
@@ -68,6 +72,7 @@ const VIEW_META = {
   feedback: { title: 'Feedback — GoalOracle', path: '/feedback', index: false },
   admin: { title: 'Admin — GoalOracle', path: '/admin', index: false },
   terms: { title: 'Terms & Conditions — GoalOracle', description: 'GoalOracle Terms & Conditions, including payout eligibility and OFAC sanctions exclusions.', path: '/terms', index: true },
+  officialRules: { title: 'Official Rules — GoalOracle Prize Contest', description: 'Official Rules for the GoalOracle World Cup 2026 prediction contest. Free to enter. Sponsored by Suraam, LLC d/b/a GoalOracle.', path: '/official-rules', index: true },
 };
 
 function ViewMeta({ view }) {
@@ -91,6 +96,7 @@ const PATH_TO_VIEW = {
   '/': 'landing',
   '/faq': 'faq',
   '/terms': 'terms',
+  '/official-rules': 'officialRules',
   '/dashboard': 'dashboard',
   '/leagues': 'leagues',
   '/browse': 'browse',
@@ -1164,7 +1170,10 @@ const GoalOracle = () => {
   // the top of the modal — instead of a floating banner over the
   // hero, which looked terrible and was easy to miss.
   const [googleRecoveryNotice, setGoogleRecoveryNotice] = useState(null);
-  const login = useCallback(() => setShowLogin(true), []);
+  const login = useCallback((trigger = 'unknown') => {
+    track('signup_started', { trigger });
+    setShowLogin(true);
+  }, []);
   const logout = useCallback(async () => {
     try { await authSignOut(); } catch (e) { console.warn('[auth] sign-out failed:', e.message); }
   }, []);
@@ -2384,6 +2393,24 @@ const GoalOracle = () => {
             notify={notify}
             onCreateLeague={() => nav('create')}
           />
+          {/* Subtle inline opt-in for users who joined Global League BEFORE
+              the prize contest existed (or before RULES_VERSION bumped).
+              Renders only if needed — invisible to anyone with current
+              consent or who explicitly opted out. */}
+          <ContestConsentBanner
+            userDoc={uData}
+            onSeeRules={() => nav('officialRules')}
+            onConfirm={async (consent) => {
+              await setContestConsent(consent);
+              setUData((prev) => prev ? { ...prev, contestConsent: { ...consent, timestamp: new Date() }, prizeIneligible: false } : prev);
+              track('global_league_joined', { rulesVersion: consent.rulesVersion, hadPriorConsent: false });
+              notify('Eligibility confirmed.');
+            }}
+            onDecline={async () => {
+              await setPrizeIneligible();
+              setUData((prev) => prev ? { ...prev, prizeIneligible: true } : prev);
+            }}
+          />
         </div>
       );
     }
@@ -2400,14 +2427,24 @@ const GoalOracle = () => {
           <WorldCupCountdown />
           <div className="hero-split-inner" ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
             <div className="hero-left">
-              <h1 className="hero-title">Predict the<br/><span className="highlight">World Cup.</span></h1>
-              <p className="hero-subtitle">Compete with friends. Climb the leaderboard. Win rewards. Become the Oracle.</p>
+              <div className="hero-eyebrow">FREE TO ENTER &middot; WORLD CUP 2026</div>
+              <h1 className="hero-title">Predict the World Cup.<br/><span className="highlight">Win up to ${PRIZE_TOP_USD}.</span></h1>
+              <p className="hero-subtitle">Free skill-based prediction contest. Top 3 finishers win cash prizes paid in stablecoin.</p>
               {anonCtas && (
                 <div className="hero-cta">
-                  <button className="btn btn-primary btn-lg" onClick={anonCtas.primary.onClick}>{anonCtas.primary.label}</button>
+                  <button
+                    className="btn btn-primary btn-lg"
+                    onClick={() => { track('enter_free_cta_clicked', { source: 'homepage_hero' }); anonCtas.primary.onClick(); }}
+                  >
+                    Enter Free
+                  </button>
                   <button className="btn btn-secondary btn-lg" onClick={anonCtas.secondary.onClick}>{anonCtas.secondary.label}</button>
                 </div>
               )}
+              <p className="hero-trust-strip">No purchase necessary &middot; Skill-based contest &middot; Powered by {PRIZE_DEFAULT_CURRENCY}</p>
+              <p className="hero-rules-link">
+                See <button type="button" className="hero-rules-anchor" onClick={() => nav('officialRules')}>Official Rules</button>
+              </p>
             </div>
             <div className="hero-right">
               <HeroLeaderboardPreview
@@ -2427,6 +2464,9 @@ const GoalOracle = () => {
             </div>
           </div>
         </section>
+
+        {/* ─── 1.5 PRIZE STRUCTURE ─── */}
+        <PrizeStructureCard source="homepage" onSeeRules={() => nav('officialRules')} />
 
         {/* ─── 2. HOW IT WORKS ─── */}
         <section className="hiw-section"><div className="container">
@@ -2692,9 +2732,10 @@ const GoalOracle = () => {
               <a onClick={() => authenticated ? nav('browse') : login()}>Leagues</a>
               <a onClick={() => nav('faq')}>FAQ</a>
               <a onClick={() => nav('feedback')}>Feedback</a>
+              <a onClick={() => nav('officialRules')}>Official Rules</a>
               <a onClick={() => nav('terms')}>Terms</a>
             </div>
-            <div className="footer-copy">A free prediction game for the FIFA World Cup 2026 &middot; Not affiliated with FIFA &middot; For entertainment purposes only</div>
+            <div className="footer-copy">© 2026 Suraam, LLC &middot; A free prediction contest for the FIFA World Cup 2026 &middot; Not affiliated with FIFA</div>
             <div className="footer-disclaimer" style={{fontSize: '11px', opacity: 0.5, maxWidth: '600px', margin: '8px auto 0', lineHeight: 1.4}}>
               GoalOracle is a free entertainment platform. No real money is wagered, collected, or distributed. This is not a gambling service. &ldquo;FIFA World Cup&rdquo; and related marks are trademarks of FIFA. GoalOracle is not endorsed by or affiliated with FIFA.
             </div>
@@ -4288,28 +4329,54 @@ const GoalOracle = () => {
         ]
       },
       {
-        title: 'Prize Leagues & Future Plans',
+        title: 'Prize Contest',
         icon: '💰',
         questions: [
           {
-            q: 'Do I need crypto or money to play?',
-            a: 'No. GoalOracle is completely free to play. All leagues are free — there are no entry fees, no real-money prizes, and no gambling of any kind. You compete for fun and bragging rights only.'
+            q: 'Is GoalOracle free to play?',
+            a: 'Yes. Free to enter. No purchase necessary to participate or win prizes.'
           },
           {
-            q: 'Are prize leagues available?',
-            a: 'Not yet. We are exploring ways to let leagues offer prizes in the future, but this feature is not currently available. We will announce if and when prize leagues become available.'
+            q: 'How do I win prizes?',
+            a: 'Top 3 finishers on the Global League leaderboard at the end of the World Cup 2026 Final win cash prizes paid in stablecoin.'
           },
           {
-            q: 'What about the wallets I see on the platform?',
-            a: 'GoalOracle does not create wallets for users. If a future sweepstakes or prize league pays out in crypto, a payout wallet address can be linked to your account by an administrator on request. No funds are collected, held, or managed by GoalOracle.'
+            q: 'What are the prizes?',
+            a: '$150 (1st), $100 (2nd), $50 (3rd) in USDC stablecoin. USDG alternative available on request.'
           },
           {
-            q: 'Is GoalOracle a gambling site?',
-            a: 'No. GoalOracle is a free prediction game for entertainment purposes only. There is no real-money wagering, no entry fees, and no cash prizes. It is similar to a fantasy sports bracket challenge among friends.'
+            q: 'Is this gambling?',
+            a: 'No. GoalOracle is a free-to-enter, skill-based prediction contest. No purchase, payment, or wager is required to enter or win.'
           },
           {
-            q: 'Are there any restrictions on who can receive payouts or prizes?',
-            a: 'Yes. Even though GoalOracle is currently free, any future prize, giveaway, or payout — whether in cash, crypto, or other consideration — will not be issued to users located in or ordinarily resident in jurisdictions subject to comprehensive U.S. sanctions administered by the Office of Foreign Assets Control (OFAC). This currently includes Cuba, Iran, North Korea, Syria, the Crimea region of Ukraine, and the so-called Donetsk and Luhansk People\'s Republics, and may be updated as the U.S. sanctions list changes. We also reserve the right to withhold payouts to anyone appearing on the OFAC SDN list. By using GoalOracle you confirm that you are not located in such a jurisdiction and are not on any U.S. sanctions list.'
+            q: 'Who can enter?',
+            a: (<>
+              Eligible participants must be 18 or older and reside in an eligible jurisdiction. Residents of Washington State, Quebec, and certain other regions are excluded. See <button type="button" className="faq-link" onClick={() => nav('officialRules')}>Official Rules</button>.
+            </>)
+          },
+          {
+            q: 'Do I need a crypto wallet to play?',
+            a: 'No. You only need a wallet to receive a prize if you finish in the top 3.'
+          },
+          {
+            q: 'How do I get paid if I win?',
+            a: 'After the World Cup Final, top 3 finishers will be contacted by email and asked to provide an EVM wallet address. We send your prize in USDC (or USDG on request) to that wallet within 3 days.'
+          },
+          {
+            q: 'What kind of wallet do I need?',
+            a: 'Any EVM-compatible wallet you control — MetaMask, Coinbase Wallet, Rainbow, etc. We pay out on the Polygon network.'
+          },
+          {
+            q: 'What if I don\'t have a wallet?',
+            a: 'You don\'t need one to play. If you finish in the top 3, you\'ll have time to set one up — it takes about 5 minutes.'
+          },
+          {
+            q: 'When are winners announced?',
+            a: 'Within 7 days of the World Cup 2026 Final.'
+          },
+          {
+            q: 'Are there any restrictions on who can receive payouts?',
+            a: 'Yes. Prizes will not be issued to users located in or ordinarily resident in jurisdictions subject to comprehensive U.S. sanctions administered by the Office of Foreign Assets Control (OFAC). This currently includes Cuba, Iran, North Korea, Syria, the Crimea region of Ukraine, and the so-called Donetsk and Luhansk People\'s Republics, and may be updated as the U.S. sanctions list changes. We also reserve the right to withhold payouts to anyone appearing on the OFAC SDN list. By using GoalOracle you confirm that you are not located in such a jurisdiction and are not on any U.S. sanctions list.'
           },
         ]
       },
@@ -4798,6 +4865,7 @@ const GoalOracle = () => {
       )}
       {view === 'faq' && <FAQ />}
       {view === 'terms' && <Terms />}
+      {view === 'officialRules' && <OfficialRules onNavPrivacy={() => nav('terms')} />}
       {view === 'publicBracket' && (
         <PublicBracket
           userId={publicBracketUserId}
@@ -4826,7 +4894,8 @@ const GoalOracle = () => {
         <WelcomeFlow
           emailPrefix={(uData || uDataStableRef.current)?.email?.split('@')[0] || ''}
           allLeagues={allLeagues}
-          onSubmit={async ({ username, country, passcodeMatchedLeague, passcode }) => {
+          onSeeRules={() => window.open('/official-rules', '_blank', 'noopener,noreferrer')}
+          onSubmit={async ({ username, country, passcodeMatchedLeague, passcode, consent }) => {
             const OVERRIDES = { 'lebida2352': 'PK', 'Sumit': 'BD' };
             const finalCountry = OVERRIDES[username] || country;
             const targetUser = uData || uDataStableRef.current;
@@ -4837,7 +4906,18 @@ const GoalOracle = () => {
               onboardingComplete: true,
             });
             if (updated) setUData(updated);
+            // Persist contest consent in parallel — separate call so a
+            // hiccup on one doesn't lose the other. Server merges both
+            // onto the same user doc. Fires global_league_joined here
+            // since auto-join already happened at signup; this is the
+            // first eligible-membership confirmation.
+            if (consent) {
+              setContestConsent(consent)
+                .then(() => track('global_league_joined', { rulesVersion: consent.rulesVersion, hadPriorConsent: false }))
+                .catch((e) => console.warn('[consent] welcome consent persist failed:', e?.message));
+            }
             setShowUsernamePrompt(false);
+            track('signup_completed', { method: 'welcome_flow' });
             notify(`Welcome, ${username}!`);
 
             if (passcodeMatchedLeague) {

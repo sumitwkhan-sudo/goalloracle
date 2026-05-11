@@ -60,15 +60,23 @@ function Frame({ children }) {
 function renderDefault() {
   return (
     <Frame>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 40 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 30 }}>
         <div style={{ fontSize: 28, color: RED, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase' }}>
-          Predict the World Cup
+          Free to enter &middot; World Cup 2026
         </div>
-        <div style={{ fontSize: 88, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2, maxWidth: 900 }}>
-          Free World Cup 2026<br />prediction game.
+        <div style={{ fontSize: 84, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2, maxWidth: 1000 }}>
+          Predict the World Cup.<br />
+          <span style={{ color: GOLD }}>Win up to $150.</span>
         </div>
-        <div style={{ fontSize: 30, color: DIM, maxWidth: 900, marginTop: 16, lineHeight: 1.35 }}>
-          Build your bracket, join leagues, compete with friends. No gambling. FIFA-rules compliant.
+        <div style={{ fontSize: 28, color: DIM, maxWidth: 1000, marginTop: 12, lineHeight: 1.35 }}>
+          Free skill-based prediction contest. Top 3 finishers win cash prizes paid in stablecoin.
+        </div>
+        <div style={{ fontSize: 22, color: DIM, marginTop: 14, display: 'flex', gap: 14 }}>
+          <span>No purchase necessary</span>
+          <span>·</span>
+          <span>Skill-based contest</span>
+          <span>·</span>
+          <span>Powered by USDC</span>
         </div>
       </div>
     </Frame>

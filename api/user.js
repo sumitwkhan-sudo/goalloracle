@@ -84,9 +84,38 @@ export default async function handler(req, res) {
   if (!claims) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    const { displayName, usernameSet, deviceFingerprint, walletAddress } = req.body;
+    const { displayName, usernameSet, deviceFingerprint, walletAddress, consent, prizeIneligible } = req.body;
     const userId = claims.userId || claims.sub;
     if (!userId) return res.status(500).json({ error: 'No user ID in auth claims' });
+
+    // Prize-contest consent. Captured at WelcomeFlow submit (new users)
+    // and at ContestConsentBanner Confirm (existing users). The shape
+    // mirrors src/config/legal.js#hasCurrentConsent so the client and
+    // server agree on what "valid consent" means without a shared file.
+    //
+    // We accept this on the same /api/user POST path so the banner +
+    // welcome flow share one well-tested endpoint instead of inventing
+    // a new one. Server validates the inner shape — anything else gets
+    // ignored silently rather than blocking the request, since this
+    // endpoint also handles unrelated wallet / displayName updates.
+    let consentUpdate;
+    if (consent && typeof consent === 'object') {
+      const okShape = (
+        typeof consent.rulesVersion === 'string'
+        && consent.rulesVersion.length > 0
+        && consent.rulesVersion.length < 32
+        && consent.ageAttested === true
+        && consent.jurisdictionAttested === true
+      );
+      if (okShape) {
+        consentUpdate = {
+          rulesVersion: consent.rulesVersion,
+          ageAttested: true,
+          jurisdictionAttested: true,
+          timestamp: FieldValue.serverTimestamp(),
+        };
+      }
+    }
 
     // Wallet self-link: allow the user to set their own walletAddress
     // through this server path (rules block direct client writes), but
@@ -167,6 +196,8 @@ export default async function handler(req, res) {
         deviceFingerprint: existingData?.deviceFingerprint || (isValidVisitorId(deviceFingerprint) ? deviceFingerprint : null),
       };
       if (!existingData?.createdAt) initPayload.createdAt = FieldValue.serverTimestamp();
+      if (consentUpdate) initPayload.contestConsent = consentUpdate;
+      if (prizeIneligible === true) initPayload.prizeIneligible = true;
       await userRef.set(initPayload, { merge: true });
 
       if (isValidVisitorId(deviceFingerprint) && !existingData?.deviceFingerprint) {
@@ -221,6 +252,16 @@ export default async function handler(req, res) {
         updates.displayNameLower = trimmed.toLowerCase();
       }
       if (usernameSet === true) updates.usernameSet = true;
+
+      // Prize-contest consent: only write when supplied. Bumps overwrite
+      // any prior consent (rules-version change requires fresh attestation).
+      if (consentUpdate) updates.contestConsent = consentUpdate;
+      // Explicit opt-out from the dismiss button on ContestConsentBanner.
+      // We never auto-flag — must be explicit.
+      if (prizeIneligible === true) updates.prizeIneligible = true;
+      // Allow opting back IN: send prizeIneligible:false alongside a
+      // fresh consent block.
+      if (prizeIneligible === false && consentUpdate) updates.prizeIneligible = false;
 
       // Ensure user's leagues array includes both globals (idempotent)
       const userLeagues = existingData.leagues || [];

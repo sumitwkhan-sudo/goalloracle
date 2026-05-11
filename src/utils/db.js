@@ -431,6 +431,12 @@ export async function saveSimplePrediction(userId, leagueId, partial) {
   if (partial.knockoutPredictions !== undefined) body.partial.knockoutPredictions = partial.knockoutPredictions;
   if (partial.isComplete !== undefined) body.partial.isComplete = partial.isComplete;
   await apiCall('simple-predictions', 'POST', body);
+  // Funnel: count the first prediction submit per browser. trackOnce gates
+  // on localStorage so subsequent saves don't spam the event.
+  try {
+    const { trackOnce } = await import('./track');
+    trackOnce('first_prediction_submitted', { league_id: leagueId, mode: 'simple' });
+  } catch {}
 }
 
 // Replace the current user's simple prediction for a league with the payload
@@ -632,6 +638,25 @@ export async function adminBackfillEmails(dryRun = false) {
 // Read-only — superadmin gated server-side.
 export async function adminInspectUser(email) {
   return await apiCall('admin', 'POST', { action: 'inspectUser', email });
+}
+
+// Persist prize-contest consent on the current user's doc. Used by:
+//   - ContestConsentBanner Confirm button (existing users)
+//   - WelcomeFlow submit (via createOrUpdateUser → /api/user)
+// The consent shape mirrors src/config/legal.js#hasCurrentConsent. Server
+// silently ignores malformed payloads; we throw here only on transport errors.
+export async function setContestConsent({ rulesVersion, ageAttested, jurisdictionAttested }) {
+  return await apiCall('user', 'POST', {
+    consent: { rulesVersion, ageAttested, jurisdictionAttested },
+    prizeIneligible: false,
+  });
+}
+
+// Explicit opt-out from prize eligibility (banner Dismiss). The user keeps
+// their leaderboard standing but isn't a winner candidate. Reversible by
+// sending a fresh consent later.
+export async function setPrizeIneligible() {
+  return await apiCall('user', 'POST', { prizeIneligible: true });
 }
 
 // Fetch the current anti-Sybil bypass allowlist (Firestore-managed).
