@@ -42,11 +42,20 @@ export const EXCLUDED_JURISDICTIONS = [
   'Any country/region where free-to-enter prize promotions are restricted',
 ];
 
-// Key dates. Bracketed = placeholder; fill in before launch comms.
-// The Final date drives winner-notification timing in Official Rules.
-export const LAUNCH_DATE = '[LAUNCH_DATE]';
-export const GROUP_STAGE_LOCK_DATE = '[GROUP_STAGE_LOCK_DATE]';
-export const FINAL_DATE = '[FINAL_DATE]';
+// Key dates. LAUNCH_DATE is the day these Rules become effective and
+// the day the contest is publicly announced. GROUP_STAGE_LOCK_DATE is
+// the entry cutoff — predictions submitted after this don't qualify.
+// FINAL_DATE is when winners are determined.
+//
+// Time of day intentionally omitted from GROUP_STAGE_LOCK_DATE. The
+// app's existing 5-minute-before-kickoff lock buffer
+// (src/utils/points.js:isPredictionLocked) is the precise mechanism;
+// the rules say "before the Group Stage opener kicks off" and that's
+// enforced in code. Putting "at 2:55 PM ET" in legal copy reads
+// engineering-y and risks confusion with the user's local timezone.
+export const LAUNCH_DATE = 'May 12, 2026';
+export const GROUP_STAGE_LOCK_DATE = 'June 11, 2026';
+export const FINAL_DATE = 'July 19, 2026';
 
 // Notification + payout windows (days). Constants so the Official Rules
 // page stays in lock-step with whatever we put in the FAQ.
