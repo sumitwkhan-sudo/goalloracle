@@ -2393,24 +2393,6 @@ const GoalOracle = () => {
             notify={notify}
             onCreateLeague={() => nav('create')}
           />
-          {/* Subtle inline opt-in for users who joined Global League BEFORE
-              the prize contest existed (or before RULES_VERSION bumped).
-              Renders only if needed — invisible to anyone with current
-              consent or who explicitly opted out. */}
-          <ContestConsentBanner
-            userDoc={uData}
-            onSeeRules={() => nav('officialRules')}
-            onConfirm={async (consent) => {
-              await setContestConsent(consent);
-              setUData((prev) => prev ? { ...prev, contestConsent: { ...consent, timestamp: new Date() }, prizeIneligible: false } : prev);
-              track('global_league_joined', { rulesVersion: consent.rulesVersion, hadPriorConsent: false });
-              notify('Eligibility confirmed.');
-            }}
-            onDecline={async () => {
-              await setPrizeIneligible();
-              setUData((prev) => prev ? { ...prev, prizeIneligible: true } : prev);
-            }}
-          />
         </div>
       );
     }
@@ -4757,6 +4739,29 @@ const GoalOracle = () => {
       <Nav />
       <NewsTicker />
       <ViewMeta view={view} />
+      {/* Global contest-eligibility banner. Visible to authenticated
+          users who lack on-file consent (or whose consent is stale
+          after a RULES_VERSION bump). Hidden once they confirm or
+          explicitly opt out. Mounted here above all page views so
+          existing users see it regardless of which route they land
+          on. Anonymous users see nothing — userDoc is null. */}
+      {authenticated && uData && (
+        <ContestConsentBanner
+          userDoc={uData}
+          variant="top"
+          onSeeRules={() => nav('officialRules')}
+          onConfirm={async (consent) => {
+            await setContestConsent(consent);
+            setUData((prev) => prev ? { ...prev, contestConsent: { ...consent, timestamp: new Date() }, prizeIneligible: false } : prev);
+            track('global_league_joined', { rulesVersion: consent.rulesVersion, hadPriorConsent: false });
+            notify('Eligibility confirmed.');
+          }}
+          onDecline={async () => {
+            await setPrizeIneligible();
+            setUData((prev) => prev ? { ...prev, prizeIneligible: true } : prev);
+          }}
+        />
+      )}
 
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && (

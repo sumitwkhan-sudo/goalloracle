@@ -33,6 +33,7 @@ function writeDismissed() {
 
 export default function ContestConsentBanner({
   userDoc,
+  variant = 'inline',  // 'inline' (rounded card) or 'top' (full-width bar)
   onConfirm,         // async ({ rulesVersion, ageAttested, jurisdictionAttested }) => void
   onDecline,         // async () => void  (sets prizeIneligible: true server-side)
   onSeeRules,
@@ -80,7 +81,11 @@ export default function ContestConsentBanner({
   };
 
   return (
-    <div className="contest-consent-banner" role="region" aria-label="Confirm prize contest eligibility">
+    <div
+      className={`contest-consent-banner contest-consent-banner-${variant}`}
+      role="region"
+      aria-label="Confirm prize contest eligibility"
+    >
       <div className="contest-consent-inner">
         <Award size={16} className="contest-consent-icon" aria-hidden="true" />
         <div className="contest-consent-body">
