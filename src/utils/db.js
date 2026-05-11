@@ -25,7 +25,27 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   try {
-    const res = await fetch(`/api/${endpoint}`, opts);
+    let res = await fetch(`/api/${endpoint}`, opts);
+
+    // Auto-refresh on 401. The cached _authToken can go stale if the
+    // 30-minute refresh interval in goaloracle.jsx missed a tick (browser
+    // tabs throttle setInterval to ~60s minimum when inactive, so a long-
+    // idle tab can end up sending an expired ID token). One forced
+    // refresh + retry catches this without surfacing the failure.
+    // Limited to a single retry to prevent loops when the user is
+    // actually signed out.
+    if (res.status === 401 && auth.currentUser) {
+      try {
+        const fresh = await auth.currentUser.getIdToken(true);
+        _authToken = fresh;
+        opts.headers['Authorization'] = `Bearer ${fresh}`;
+        res = await fetch(`/api/${endpoint}`, opts);
+      } catch (refreshErr) {
+        console.warn('[apiCall] token refresh failed:', refreshErr?.message || refreshErr);
+        // fall through with the original 401 — the catch below surfaces it
+      }
+    }
+
     clearTimeout(timeout);
     const text = await res.text();
     let data;
