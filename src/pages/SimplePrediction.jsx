@@ -24,6 +24,7 @@ import BracketDesktop from '../components/simple/BracketDesktop';
 import RarityCard from '../components/simple/RarityCard';
 import CompletionCelebration from '../components/simple/CompletionCelebration';
 import WizardCoachmarks, { hasSeenWizardTutorial } from '../components/onboarding/WizardCoachmarks';
+import HouseRulesSection from '../components/HouseRulesSection';
 import useSimplePrediction from '../hooks/useSimplePrediction';
 import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
@@ -436,6 +437,16 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             <h1>{league?.name || 'Simple Mode'}</h1>
             <span className="simple-page-subtitle">Predict rankings, not scores</span>
           </div>
+          {/* House Rules — only renders on private user-created
+              leagues. Hidden on global-simple and any public league.
+              Placed in the header area so it's visible across all
+              wizard steps, not just the start. */}
+          <HouseRulesSection
+            league={league}
+            userId={userId}
+            isCreator={league?.createdBy === userId}
+            notify={() => { /* no-op: SimplePrediction has its own toast surface */ }}
+          />
           <div className="simple-page-status" aria-live="polite">
             {error && <span className="simple-page-error"><AlertTriangle size={14} /> {error}</span>}
             {!error && saving && <span className="simple-page-saving">Saving…</span>}

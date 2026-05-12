@@ -29,6 +29,7 @@ import SimplePrediction from './pages/SimplePrediction';
 import OfficialRules from './pages/OfficialRules';
 import PrizeStructureCard from './components/PrizeStructureCard';
 import ContestConsentBanner from './components/ContestConsentBanner';
+import HouseRulesSection from './components/HouseRulesSection';
 import { PRIZE_TOP_USD, PRIZE_DEFAULT_CURRENCY } from './config/legal';
 import BracketShareModal from './components/BracketShareModal';
 import InviteFriendsModal from './components/InviteFriendsModal';
@@ -1287,6 +1288,7 @@ const GoalOracle = () => {
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState('');
   const [createMode, setCreateMode] = useState('simple');
+  const [createHouseRules, setCreateHouseRules] = useState('');
 
   // Lifted from Dashboard/Leagues — survives Firestore re-renders
   const [dashLeagueFilter, setDashLeagueFilter] = useState('all');
@@ -3129,7 +3131,7 @@ const GoalOracle = () => {
                         <span className="lt-members"><Users size={12} /> {l.memberCount || 0}</span>
                       </td>
                       <td className="lt-col-entry">
-                        {l.type === 'paid'
+                        {featureFlags?.enablePrizeLeagues === true && l.type === 'paid'
                           ? <span className="badge badge-premium"><Coins size={12} /> {l.entryFee} {l.currency}</span>
                           : <span className="badge badge-free">Free</span>}
                       </td>
@@ -3431,7 +3433,7 @@ const GoalOracle = () => {
             <h1 className="phc-title">{selLeague?.name}</h1>
             <div className="phc-meta">
               <span><Users size={14} /> {(selLeague?.memberCount || selLeague?.members?.length || 0)}</span>
-              {selLeague?.type === 'paid' && <span><Coins size={14} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}
+              {featureFlags?.enablePrizeLeagues === true && selLeague?.type === 'paid' && <span><Coins size={14} /> {selLeague?.entryFee} {selLeague?.currency || 'USDC'}</span>}
               <span><Target size={14} /> {filledCount}/{augmentedMatches.length}</span>
               {isPrivate ? <span className="badge badge-private"><EyeOff size={10} /> Private</span> : <span className="badge badge-public"><Eye size={10} /> Public</span>}
             </div>
@@ -3470,6 +3472,16 @@ const GoalOracle = () => {
             </div>
           </div>
         </div>}
+
+        {/* House Rules — collapsible card + edit modal + report modal,
+            all owned by HouseRulesSection. Renders null when the league
+            has no rules set, is a global league, or is public. */}
+        <HouseRulesSection
+          league={selLeague}
+          userId={uData?.id}
+          isCreator={isCreator}
+          notify={notify}
+        />
 
         <div className="tabs">
           <button className={`tab ${tab === 'predictions' ? 'active' : ''}`} onClick={() => setTab('predictions')}><Target size={16} /> Predictions</button>
@@ -3631,7 +3643,9 @@ const GoalOracle = () => {
         {tab === 'settings' && <div className="settings-view">
           <div className="rules-card">
             <h3>League Info</h3>
-            <div className="settings-row"><span className="settings-label">Type</span><span className="badge badge-free">{selLeague?.type === 'paid' ? 'Paid' : 'Free'}</span></div>
+            {featureFlags?.enablePrizeLeagues === true && (
+              <div className="settings-row"><span className="settings-label">Type</span><span className="badge badge-free">{selLeague?.type === 'paid' ? 'Paid' : 'Free'}</span></div>
+            )}
             <div className="settings-row"><span className="settings-label">Visibility</span><span className={`badge ${isPrivate ? 'badge-private' : 'badge-public'}`}>{isPrivate ? <><EyeOff size={12} /> Private</> : <><Eye size={12} /> Public</>}</span></div>
             {isPrivate && (isCreator || isAdmin) && <div className="settings-row"><span className="settings-label">Passcode</span><code className="settings-code">{selLeague?.passcode}</code></div>}
             <div className="settings-row"><span className="settings-label">Created by</span><span>{selLeague?.createdBy === uData?.id ? 'You' : selLeague?.createdBy?.slice(0,8)}</span></div>
@@ -4479,21 +4493,28 @@ const GoalOracle = () => {
         </div>
 
         <div className="faq-section">
-          <h2 className="faq-section-title">5. Disclaimers and limitation of liability</h2>
+          <h2 className="faq-section-title">5. User-generated league content</h2>
+          <p className="faq-intro">
+            League creators may add House Rules or other notes to their private leagues. This content is created and managed by users, not by GoalOracle. GoalOracle does not endorse, verify, or enforce any user-generated league content. Users are solely responsible for the content they post and for complying with all applicable laws. GoalOracle reserves the right to remove content that violates these Terms.
+          </p>
+        </div>
+
+        <div className="faq-section">
+          <h2 className="faq-section-title">6. Disclaimers and limitation of liability</h2>
           <p className="faq-intro">
             The service is provided &ldquo;as is&rdquo; and &ldquo;as available,&rdquo; without warranties of any kind. To the fullest extent permitted by law, GoalOracle is not liable for any indirect, incidental, special, consequential, or punitive damages arising from or related to your use of the service.
           </p>
         </div>
 
         <div className="faq-section">
-          <h2 className="faq-section-title">6. Changes to these Terms</h2>
+          <h2 className="faq-section-title">7. Changes to these Terms</h2>
           <p className="faq-intro">
             We may update these Terms from time to time. The current version is always available at /terms. Continued use of the service after an update constitutes acceptance of the revised Terms.
           </p>
         </div>
 
         <div className="faq-section">
-          <h2 className="faq-section-title">7. Contact</h2>
+          <h2 className="faq-section-title">8. Contact</h2>
           <p className="faq-intro">
             Questions about these Terms? Email <a href="mailto:support@goaloracle.io">support@goaloracle.io</a>.
           </p>
@@ -4808,6 +4829,7 @@ const GoalOracle = () => {
           createErr={createErr} setCreateErr={setCreateErr}
           createMode={createMode} setCreateMode={setCreateMode}
           createSuccess={createSuccess} setCreateSuccess={setCreateSuccess}
+          createHouseRules={createHouseRules} setCreateHouseRules={setCreateHouseRules}
           uData={uData}
           leagues={leagues}
           nav={nav}

@@ -383,14 +383,27 @@ export default async function handler(req, res) {
     }
 
     if (action === 'setFeatureFlag') {
-      // Admin-toggleable feature flags. Stored at /settings/featureFlags
+      // Platform-wide feature flags. Stored at /settings/featureFlags
       // and read by every client on mount via /api/public?type=flags.
       // Allowed flags are whitelisted so a typo can't write arbitrary
       // keys onto the doc.
-      const ALLOWED = new Set(['quickPicksEnabled', 'classicEnabled']);
-      const { flag, value } = req.body;
+      //
+      // Superadmin-only — feature flags are platform-wide config and
+      // tightening here matches the security model for the other
+      // platform-level superadmin actions (setRole-to-superadmin,
+      // deleteUser, etc). The previous admin-or-superadmin gate was
+      // legacy; this is the right policy going forward.
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can change feature flags' });
+      }
+      const ALLOWED = new Set(['quickPicksEnabled', 'classicEnabled', 'enablePrizeLeagues']);
+      const { flag, value, reason } = req.body;
       if (!ALLOWED.has(flag)) return res.status(400).json({ error: `Unknown flag: ${flag}` });
       if (typeof value !== 'boolean') return res.status(400).json({ error: 'value must be boolean' });
+      // Reason is optional free text for the audit trail. Cap at 280
+      // chars (tweet-length) so the audit log doc stays small.
+      const trimmedReason = typeof reason === 'string' ? reason.trim().slice(0, 280) : null;
       const ref = db.collection('settings').doc('featureFlags');
       const snap = await ref.get();
       const prev = snap.exists ? (snap.data() || {}) : {};
@@ -399,10 +412,58 @@ export default async function handler(req, res) {
         action: 'set_feature_flag',
         flag, value,
         previousValue: prev[flag] ?? null,
+        reason: trimmedReason || null,
         adminId: userId,
         timestamp: FieldValue.serverTimestamp(),
       });
       return res.status(200).json({ success: true, flag, value });
+    }
+
+    if (action === 'getFeatureFlagAuditLog') {
+      // Recent feature-flag changes for display in the admin console.
+      // Superadmin-only, same as setFeatureFlag. Filters by `flag` if
+      // supplied; otherwise returns the most recent changes across all
+      // flags. Capped at 50 entries to bound the read cost.
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can read the audit log' });
+      }
+      const { flag, limit } = req.body || {};
+      const cap = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
+      // Fetch the most recent set_feature_flag entries with a single
+      // composite-free query, then filter by flag in-memory if needed.
+      // Avoids requiring a manual Firestore index for (action ==, flag ==,
+      // timestamp desc) and keeps the audit log discovery cheap.
+      const overFetch = flag ? cap * 5 : cap;
+      const snap = await db.collection('adminLogs')
+        .where('action', '==', 'set_feature_flag')
+        .orderBy('timestamp', 'desc')
+        .limit(overFetch)
+        .get();
+      // Resolve adminId → displayName so the UI doesn't show raw UIDs.
+      const filtered = (flag && typeof flag === 'string')
+        ? snap.docs.filter((d) => d.data().flag === flag)
+        : snap.docs;
+      const limited = filtered.slice(0, cap);
+      const entries = await Promise.all(limited.map(async (d) => {
+        const data = d.data();
+        let actorName = data.adminId;
+        try {
+          const u = await db.collection('users').doc(data.adminId).get();
+          if (u.exists) actorName = u.data().displayName || data.adminId;
+        } catch {}
+        return {
+          id: d.id,
+          flag: data.flag,
+          value: data.value,
+          previousValue: data.previousValue ?? null,
+          reason: data.reason || null,
+          actorId: data.adminId,
+          actorName,
+          timestamp: data.timestamp?.toDate?.()?.toISOString?.() || null,
+        };
+      }));
+      return res.status(200).json({ entries });
     }
 
     if (action === 'banIp') {

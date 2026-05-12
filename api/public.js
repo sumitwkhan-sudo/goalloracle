@@ -10,15 +10,24 @@ export default async function handler(req, res) {
 
   try {
     if (type === 'stats') {
-      const [usersSnap, leaguesSnap] = await Promise.all([
+      const [usersSnap, leaguesSnap, settingsSnap] = await Promise.all([
         db.collection('users').get(),
         db.collection('leagues').get(),
+        db.collection('settings').doc('featureFlags').get(),
       ]);
       const leagues = leaguesSnap.docs.map(d => d.data());
+      // Aggregate totalPrizePools (sum of entryFee × memberCount) ONLY
+      // when the prize-leagues feature is on. With the flag off the
+      // metric is meaningless — the create flow can't produce paid
+      // leagues — so we report 0 to avoid surfacing inert legacy data.
+      const flags = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
+      const prizeLeaguesEnabled = flags.enablePrizeLeagues === true;
       return res.status(200).json({
         totalPlayers: usersSnap.size,
         activeLeagues: leaguesSnap.size,
-        totalPrizePools: leagues.reduce((s, l) => s + (l.entryFee || 0) * (l.memberCount || 0), 0),
+        totalPrizePools: prizeLeaguesEnabled
+          ? leagues.reduce((s, l) => s + (l.entryFee || 0) * (l.memberCount || 0), 0)
+          : 0,
       });
 
     } else if (type === 'results') {
@@ -53,8 +62,8 @@ export default async function handler(req, res) {
     if (type === 'flags') {
       // Admin-toggleable feature flags. Public so unauthenticated visitors
       // (landing page) get the same hide/show treatment as logged-in users.
-      // Defaults: Quick Picks on, Classic on. Once an admin flips a flag
-      // it persists in /settings/featureFlags.
+      // Defaults: Quick Picks on, Classic off, Prize Leagues off. Once a
+      // superadmin flips a flag it persists in /settings/featureFlags.
       const snap = await db.collection('settings').doc('featureFlags').get();
       const stored = snap.exists ? (snap.data() || {}) : {};
       // Short edge cache so changes propagate within a minute without
@@ -63,6 +72,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         quickPicksEnabled: stored.quickPicksEnabled !== false,
         classicEnabled: stored.classicEnabled !== false,
+        enablePrizeLeagues: stored.enablePrizeLeagues === true,
       });
     }
 

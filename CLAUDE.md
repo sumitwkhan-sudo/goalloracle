@@ -55,6 +55,77 @@ FIFA World Cup 26 prediction game. Two modes: **Quick Picks** (rank groups + pic
 | Serverless admin endpoint | `api/admin.js` |
 | Serverless predictions CRUD (GET + POST + DELETE) | `api/predictions.js` |
 
+## User-created leagues — Prize Leagues feature flag + House Rules (May 2026)
+
+User-created leagues now have an **admin-toggleable Prize League gate**
+plus an **optional House Rules** field on private leagues. This is
+unrelated to the platform-wide Global League contest (see below).
+
+### Prize Leagues flag
+
+- Stored at `/settings/featureFlags` doc, key `enablePrizeLeagues`.
+  Default `false` — user-created leagues are free-only and the Create
+  League form hides the type picker entirely.
+- Superadmin-only toggle in **Admin → Feature flags**. Toggling
+  prize-leagues prompts for an optional reason that lands in
+  `/adminLogs` (action `set_feature_flag`) for audit.
+- Live propagation via the existing `subscribeToFeatureFlags` real-time
+  subscription — clients pick up changes within ~60 seconds.
+- Server enforcement: `api/leagues.js` reads the flag on every create.
+  When off, requests carrying `type === 'paid'` or `entryFee > 0` are
+  rejected with `403 Prize leagues are currently disabled.`
+- Prize-league SCAFFOLDING (paid form fields, `entryFee`, `prizeDistribution`,
+  `l.type === 'paid'` badges, `totalPrizePools` aggregate) stays in
+  source — gated, not deleted. Re-enabling is a one-line flag flip.
+
+### House Rules
+
+- Optional free-text note from a private league's creator to its
+  members. Stored on the league doc as
+  `houseRules: { content, lastUpdatedAt, lastUpdatedBy } | null`.
+- 500-char hard limit, enforced both client + server. Plain text
+  only — `white-space: pre-wrap` preserves line breaks; no markdown,
+  no link auto-linking in v1.
+- Server actions in `api/leagues.js`:
+  - `create` accepts `houseRules.content` (private leagues only)
+  - `editHouseRules` — creator-only update
+  - `acknowledgeHouseRules` — member opt-in stamp; idempotent
+  - `reportContent` — generic UGC report (only `contentType: 'league_house_rules'` for v1)
+- Acknowledgments live in `/leagueMemberAcks/{userId__leagueId}` so we
+  know whether to expand or collapse the card on next view.
+- localStorage cache (`goaloracle_hr_ack_${leagueId}_${userId}`) avoids
+  a per-render fetch; server-side ack is best-effort.
+- When the creator edits the rules, all per-member acks are reset and
+  `houseRulesUpdatedSinceAck: true` is stamped so the card re-expands
+  with an "Updated" badge on each member's next visit.
+- Reports persist in `/contentReports` with `status: 'pending'`. No
+  admin review tooling in v1 — operator queries Firestore manually.
+
+### Components
+
+| Component | Purpose |
+|---|---|
+| `HouseRulesInput` | Textarea + char counter; used in create + edit |
+| `HouseRulesCard` | Collapsible card on league detail page |
+| `HouseRulesJoinView` | Always-expanded display on join modal |
+| `HouseRulesSection` | Self-contained wrapper: card + edit modal + report modal + localStorage ack |
+| `ReportContentModal` | Generic UGC report form, reusable |
+
+### ToS update
+
+A new section 5 "User-generated league content" was added to `/terms`
+clarifying that GoalOracle does not enforce or administer user-posted
+content.
+
+### Out-of-scope for v1
+
+- Admin review tooling for `/contentReports` (operator queries Firestore directly)
+- Voting / approval flows on rules changes (creator has unilateral edit)
+- Markdown / link parsing in House Rules content (plain text only)
+- Automatic notification when rules change (just the "Updated" badge on next view)
+
+---
+
 ## Prize contest (as of May 2026)
 
 GoalOracle launched a free-to-enter cash prize contest tied to the

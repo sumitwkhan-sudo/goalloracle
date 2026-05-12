@@ -269,6 +269,23 @@ export async function joinLeague(leagueId, userId, passcode = null) {
   await apiCall('leagues', 'POST', { action: 'join', leagueId, passcode });
 }
 
+// House Rules — edit (creator only). Pass empty string or null to clear.
+export async function editLeagueHouseRules(leagueId, content) {
+  return await apiCall('leagues', 'POST', { action: 'editHouseRules', leagueId, content: content == null ? '' : content });
+}
+
+// Acknowledge house rules (any member). Idempotent — server keeps the
+// first-acknowledged timestamp and clears the houseRulesUpdatedSinceAck
+// flag set by the creator's most recent edit.
+export async function acknowledgeLeagueHouseRules(leagueId) {
+  return await apiCall('leagues', 'POST', { action: 'acknowledgeHouseRules', leagueId });
+}
+
+// Report user-generated content. v1 only handles 'league_house_rules'.
+export async function reportContent({ contentType, contentId, reason }) {
+  return await apiCall('leagues', 'POST', { action: 'reportContent', contentType, contentId, reason: reason || null });
+}
+
 export async function leaveLeague(leagueId, userId) {
   await apiCall('leagues', 'POST', { action: 'leave', leagueId });
 }
@@ -675,10 +692,14 @@ export async function adminSetAntiSybilBypassList(emails) {
 // Defaults: Classic is opt-in. Quick Picks is the product surface; the
 // Classic flow is preserved in code for re-enabling later but stays
 // hidden from the UI unless /settings/featureFlags has classicEnabled
-// set to literal true.
+// set to literal true. Same shape for enablePrizeLeagues — user-created
+// Prize Leagues (entry fee + payout config) stay dormant in code until
+// a superadmin flips this on from the admin console. Default false so
+// the simplified Create League flow ships behind the flag.
 export const DEFAULT_FEATURE_FLAGS = {
   quickPicksEnabled: true,
   classicEnabled: false,
+  enablePrizeLeagues: false,
 };
 
 export async function fetchFeatureFlags() {
@@ -689,6 +710,7 @@ export async function fetchFeatureFlags() {
     return {
       quickPicksEnabled: data.quickPicksEnabled !== false,
       classicEnabled: data.classicEnabled === true,
+      enablePrizeLeagues: data.enablePrizeLeagues === true,
     };
   } catch {
     return { ...DEFAULT_FEATURE_FLAGS };
@@ -709,14 +731,23 @@ export function subscribeToFeatureFlags(callback) {
     callback({
       quickPicksEnabled: data.quickPicksEnabled !== false,
       classicEnabled: data.classicEnabled === true,
+      enablePrizeLeagues: data.enablePrizeLeagues === true,
     });
   }, (err) => {
     console.warn('[featureFlags] subscription error (keeping last value):', err?.message || err);
   });
 }
 
-export async function adminSetFeatureFlag(flag, value) {
-  return await apiCall('admin', 'POST', { action: 'setFeatureFlag', flag, value: !!value });
+// Superadmin-only: flip a feature flag and write an audit-log entry.
+// `reason` is optional free text for the audit trail (e.g. "launch ramp").
+export async function adminSetFeatureFlag(flag, value, reason = null) {
+  return await apiCall('admin', 'POST', { action: 'setFeatureFlag', flag, value: !!value, reason: reason || null });
+}
+
+// Returns the most recent N audit-log entries for a given flag (or all
+// flags if `flag` is omitted). Superadmin-only.
+export async function adminGetFeatureFlagAuditLog(flag = null, limit = 10) {
+  return await apiCall('admin', 'POST', { action: 'getFeatureFlagAuditLog', flag, limit });
 }
 
 export async function setUserRole(userId, role, adminId) {
