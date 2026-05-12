@@ -3481,6 +3481,166 @@ button.invite-option:hover,
   font-style: italic; line-height: 1.5;
 }
 
+/* Audit log card — appears below the feature-flag toggles. Shows
+   recent setFeatureFlag entries with who/when/from-to/reason. */
+.admin-audit-card {
+  background: var(--card-bg, rgba(255, 255, 255, 0.65));
+  border: 1px solid var(--card-border, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+}
+
+/* ─── HOUSE RULES ────────────────────────────────────────────
+   Optional UGC text field on private user-created leagues. Used in
+   three places: the create-league form (textarea), the league
+   detail page (collapsible card), and the join screen (expanded). */
+
+.house-rules-input { display: flex; flex-direction: column; gap: 0.4rem; }
+.house-rules-label { font-weight: 600; font-size: 0.85rem; }
+.house-rules-textarea {
+  min-height: 96px; resize: vertical;
+  font-family: inherit; line-height: 1.5;
+}
+.house-rules-meta {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 1rem; font-size: 0.75rem;
+}
+.house-rules-helper { color: var(--text-sec); flex: 1; line-height: 1.4; }
+.house-rules-counter { font-variant-numeric: tabular-nums; color: var(--text-sec); white-space: nowrap; }
+.house-rules-counter-warn { color: var(--amber, #d4a017); }
+.house-rules-counter-over { color: var(--danger, #c44); font-weight: 600; }
+
+/* Collapsible card on the league detail page. */
+.house-rules-card {
+  background: var(--card-bg, rgba(255, 255, 255, 0.65));
+  border: 1px solid var(--card-border, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  margin: 0 0 1rem;
+}
+.house-rules-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.65rem 0.9rem;
+}
+.house-rules-card-toggle {
+  display: flex; align-items: center; gap: 0.4rem;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-weight: 600; font-size: 0.92rem;
+  color: var(--text);
+}
+.house-rules-card-chev { transition: transform 0.15s ease; }
+.house-rules-card-chev.rotated { transform: rotate(90deg); }
+.house-rules-badge {
+  background: rgba(255, 200, 0, 0.18); color: var(--text);
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.3px;
+  padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
+  margin-left: 0.4rem;
+}
+.house-rules-card-menu-wrap { position: relative; }
+.house-rules-card-menu-btn {
+  background: none; border: 0; padding: 4px;
+  color: var(--text-sec); cursor: pointer;
+  border-radius: 6px;
+}
+.house-rules-card-menu-btn:hover { background: rgba(0, 0, 0, 0.05); color: var(--text); }
+.house-rules-card-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 50;
+  min-width: 130px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--card-border, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  display: flex; flex-direction: column;
+}
+.house-rules-card-menu button {
+  display: flex; align-items: center; gap: 0.45rem;
+  background: none; border: 0; padding: 0.5rem 0.6rem;
+  font-size: 0.85rem; text-align: left; cursor: pointer;
+  border-radius: 6px; color: var(--text);
+}
+.house-rules-card-menu button:hover { background: rgba(0, 0, 0, 0.05); }
+.house-rules-card-body {
+  border-top: 1px solid var(--card-border, rgba(0, 0, 0, 0.08));
+  padding: 0.85rem 0.9rem;
+}
+.house-rules-card-content {
+  margin: 0 0 0.6rem; font-size: 0.92rem; line-height: 1.55;
+  white-space: pre-wrap;       /* preserve line breaks in plain text */
+  word-wrap: break-word;
+  color: var(--text);
+}
+.house-rules-card-foot {
+  margin: 0; font-size: 0.75rem; color: var(--text-sec); font-style: italic;
+}
+
+/* Expanded view on the join screen — always open, no toggle. */
+.house-rules-join {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  background: rgba(0, 122, 204, 0.05);
+  border: 1px solid rgba(0, 122, 204, 0.18);
+  border-radius: 10px;
+}
+.house-rules-join-head {
+  display: flex; align-items: center; gap: 0.4rem;
+  margin-bottom: 0.4rem; color: var(--primary, #007acc);
+}
+.house-rules-join-title { font-size: 0.95rem; font-weight: 700; margin: 0; }
+.house-rules-join-content {
+  margin: 0 0 0.5rem; font-size: 0.9rem; line-height: 1.55;
+  white-space: pre-wrap; word-wrap: break-word; color: var(--text);
+}
+.house-rules-join-foot { margin: 0; font-size: 0.75rem; color: var(--text-sec); font-style: italic; }
+
+/* Edit modal — wraps HouseRulesInput in a standard modal frame. */
+.edit-house-rules-modal {
+  background: var(--card-bg, #fff);
+  border-radius: 14px;
+  padding: 1.5rem;
+  max-width: 520px; width: calc(100% - 2rem);
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.edit-house-rules-title { font-size: 1.2rem; font-weight: 700; margin: 0 0 0.4rem; }
+.edit-house-rules-desc { color: var(--text-sec); font-size: 0.85rem; margin: 0 0 1rem; }
+
+/* Report content modal — generic UGC report form. */
+.report-content-modal {
+  background: var(--card-bg, #fff);
+  border-radius: 14px;
+  padding: 1.5rem;
+  max-width: 460px; width: calc(100% - 2rem);
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.report-content-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+.report-content-head h2 { font-size: 1.15rem; font-weight: 700; margin: 0; }
+.report-content-desc { color: var(--text-sec); font-size: 0.85rem; margin: 0 0 1rem; }
+.report-content-label { display: flex; flex-direction: column; gap: 0.4rem; }
+.report-content-label > span:first-child { font-size: 0.85rem; font-weight: 600; }
+.report-content-textarea { resize: vertical; min-height: 72px; font-family: inherit; }
+.report-content-counter {
+  font-size: 0.75rem; color: var(--text-sec); text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.report-content-err {
+  background: rgba(196, 68, 68, 0.08); border: 1px solid rgba(196, 68, 68, 0.3);
+  border-radius: 6px; padding: 0.5rem 0.75rem; margin: 0.5rem 0;
+  color: var(--danger, #c44); font-size: 0.85rem;
+}
+.report-content-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+.admin-audit-list { list-style: none; padding: 0; margin: 0; }
+.admin-audit-item {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--card-border, rgba(0, 0, 0, 0.06));
+  font-size: 0.85rem;
+}
+.admin-audit-item:last-child { border-bottom: none; }
+.admin-audit-line { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+.admin-audit-arrow { color: var(--text-sec); font-family: monospace; font-size: 0.8rem; }
+.admin-audit-meta { font-size: 0.75rem; color: var(--text-sec); margin-top: 2px; }
+.admin-audit-reason { font-size: 0.8rem; color: var(--text); font-style: italic; margin-top: 4px; }
+
 /* ============================================
    RESPONSIVE
    ============================================ */

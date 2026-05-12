@@ -14,6 +14,7 @@ import {
   RefreshCw, ChevronRight, Loader, Copy, Target,
 } from 'lucide-react';
 import ModePicker from './simple/ModePicker';
+import HouseRulesInput from './HouseRulesInput';
 import { copyPredictions, copySimplePrediction } from '../utils/db';
 
 function generatePasscode() {
@@ -124,6 +125,10 @@ export default function CreateLeagueForm({
   createErr, setCreateErr,
   createMode, setCreateMode,
   createSuccess, setCreateSuccess,
+  // House rules — optional textarea wired on private leagues only.
+  // Lives in parent state so a draft survives toggling visibility
+  // back and forth before submit.
+  createHouseRules, setCreateHouseRules,
   // parent data + handlers
   uData,
   leagues,
@@ -146,10 +151,24 @@ export default function CreateLeagueForm({
   const fe = createFe, setFe = setCreateFe;
   const di = createDi, setDi = setCreateDi;
   const ps = createPs, setPs = setCreatePs;
+  const houseRules = createHouseRules || '';
+  const setHouseRules = setCreateHouseRules || (() => {});
   const busy = createBusy, setBusy = setCreateBusy;
   const err = createErr, setErr = setCreateErr;
   const cu = 'USDC';
   const tot = di.first + di.second + di.third;
+
+  // Prize-league capability is platform-wide config gated by the
+  // enablePrizeLeagues superadmin flag. Off by default. When off the
+  // entire "League Type" picker hides; user-created leagues are just
+  // free leagues with a public/private toggle.
+  const prizeLeaguesEnabled = featureFlags?.enablePrizeLeagues === true;
+
+  // If a prior session left tp === 'paid' in state but the flag is now
+  // off, snap back to free so submit doesn't carry stale paid config.
+  useEffect(() => {
+    if (!prizeLeaguesEnabled && tp === 'paid') setTp('free');
+  }, [prizeLeaguesEnabled, tp, setTp]);
 
   const genCode = () => setPasscode(generatePasscode());
 
@@ -160,24 +179,35 @@ export default function CreateLeagueForm({
     setCreateScope('all'); setCreateGroups([]); setCreateRounds([]);
     setCreateBusy(false); setCreateErr('');
     setCreateMode('simple');
+    setHouseRules('');
   };
 
   const go = async () => {
     if (!uData?.id) { setErr('Still loading your account. Please wait a moment and try again.'); return; }
     if (!nm.trim()) { setErr('Name required'); return; }
     if (vis === 'private' && !passcode.trim()) { setErr('Passcode required for private leagues'); return; }
-    if (tp === 'paid' && (!fe || parseFloat(fe) <= 0)) { setErr('Fee required'); return; }
-    if (tp === 'paid' && tot !== 100) { setErr('Must total 100%'); return; }
+    // Prize-league validations only run when the feature is enabled
+    // platform-wide. With the flag off, tp is forced to 'free' above.
+    if (prizeLeaguesEnabled && tp === 'paid' && (!fe || parseFloat(fe) <= 0)) { setErr('Fee required'); return; }
+    if (prizeLeaguesEnabled && tp === 'paid' && tot !== 100) { setErr('Must total 100%'); return; }
+    // House rules: 500-char client-side cap (server enforces the same).
+    // Trim whitespace; an all-whitespace value persists as null.
+    const trimmedRules = (houseRules || '').trim();
+    if (trimmedRules.length > 500) { setErr('House Rules must be 500 characters or fewer.'); return; }
     setBusy(true); setErr('');
     try {
       const leagueData = {
-        name: nm.trim(), type: tp, visibility: vis,
+        name: nm.trim(),
+        type: prizeLeaguesEnabled ? tp : 'free',
+        visibility: vis,
         passcode: vis === 'private' ? passcode.trim().toUpperCase() : null,
-        entryFee: tp === 'paid' ? parseFloat(fe) : 0, currency: cu,
-        prizeDistribution: tp === 'paid' ? di : null,
+        entryFee: (prizeLeaguesEnabled && tp === 'paid') ? parseFloat(fe) : 0, currency: cu,
+        prizeDistribution: (prizeLeaguesEnabled && tp === 'paid') ? di : null,
         pointsSystem: createMode === 'simple' ? null : ps,
         predictionMode: createMode,
         matchScope: 'all',
+        // House rules only on private leagues; server rejects on public.
+        houseRules: (vis === 'private' && trimmedRules) ? { content: trimmedRules } : null,
       };
       const lid = await createLeague(leagueData, uData.id);
       const savedName = nm.trim();
@@ -227,15 +257,21 @@ export default function CreateLeagueForm({
           );
         })()}
         <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={(e) => setNm(e.target.value)} className="input-field" /></div>
-        <div className="form-section"><label>League Type</label>
-          <div className="type-selector">
-            <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and bragging rights</p></div></button>
-            <button type="button" className="type-option disabled-option" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }} onClick={(e) => e.preventDefault()}><Lock size={24} /><div><h4>Prize League</h4><p>Coming soon</p></div></button>
+        {/* League Type selector: hidden when prize-leagues feature flag
+            is off. With the flag off there's only one type (free), so
+            the picker becomes pointless visual clutter — users go
+            straight from name → visibility. */}
+        {prizeLeaguesEnabled && (
+          <div className="form-section"><label>League Type</label>
+            <div className="type-selector">
+              <button type="button" className={`type-option ${tp === 'free' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setTp('free'); }}><Unlock size={24} /><div><h4>Free League</h4><p>Play for fun and bragging rights</p></div></button>
+              <button type="button" className={`type-option ${tp === 'paid' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setTp('paid'); }}><Lock size={24} /><div><h4>Prize League</h4><p>Custom entry fee + payout split</p></div></button>
+            </div>
           </div>
-        </div>
+        )}
         <div className="form-section"><label>Visibility</label>
           <div className="type-selector">
-            <button type="button" className={`type-option ${vis === 'public' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setVis('public'); }}><Eye size={24} /><div><h4>Public</h4><p>Anyone can find & join</p></div></button>
+            <button type="button" className={`type-option ${vis === 'public' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setVis('public'); }}><Eye size={24} /><div><h4>Public</h4><p>Anyone can find &amp; join</p></div></button>
             <button type="button" className={`type-option ${vis === 'private' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setVis('private'); if (!passcode) genCode(); }}><EyeOff size={24} /><div><h4>Private</h4><p>Invite-only with passcode</p></div></button>
           </div>
         </div>
@@ -245,10 +281,17 @@ export default function CreateLeagueForm({
               <input type="text" value={passcode} onChange={(e) => setPasscode(e.target.value.toUpperCase())} className="input-field passcode-input" maxLength={8} placeholder="e.g., GOAL2026" />
               <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.preventDefault(); genCode(); }}><RefreshCw size={14} /> Generate</button>
             </div>
-            <p className="form-hint">Share this code with people you want to invite. They'll need it to join.</p>
+            <p className="form-hint">Share this code with people you want to invite. They&rsquo;ll need it to join.</p>
           </div>
         )}
-        {tp === 'paid' && <>
+        {/* House Rules — private leagues only, optional. Plain-text
+            free-form note from the league creator to members. */}
+        {vis === 'private' && (
+          <div className="form-section">
+            <HouseRulesInput value={houseRules} onChange={setHouseRules} disabled={busy} />
+          </div>
+        )}
+        {prizeLeaguesEnabled && tp === 'paid' && <>
           <div className="form-section"><label>Entry Fee</label><div className="input-group"><input type="number" placeholder="50" value={fe} min="1" onChange={(e) => setFe(e.target.value)} className="input-field" /><span className="input-currency">USDC</span></div></div>
           <div className="form-section"><label>Prize Distribution {tot !== 100 && <span className="validation-error">(Currently {tot}%)</span>}</label>
             <div className="prize-distribution">{['first', 'second', 'third'].map((k, i) => <div key={k} className="prize-item"><span>{['1st', '2nd', '3rd'][i]} Place</span><input type="number" value={di[k]} onChange={(e) => setDi({ ...di, [k]: parseInt(e.target.value) || 0 })} className="input-field-sm" /><span>%</span></div>)}</div>

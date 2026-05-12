@@ -5,6 +5,115 @@ the top — newest entries first.
 
 ---
 
+## 2026-05-12 — Prize-league feature flag + House Rules + simplified create flow
+
+Three-phase change to user-created leagues. **The Global League prize
+contest (PR #98) is completely untouched** — its files, components,
+data model, and analytics all stay exactly as they are.
+
+### Phase 0 — Admin-toggleable Prize League flag
+
+The dead "Prize League — Coming soon" tile and all its supporting
+scaffolding (entry fee, prize distribution, `type: 'paid'` branches,
+`totalPrizePools` aggregate, paid badges) are now hidden behind a new
+`enablePrizeLeagues` feature flag at `/settings/featureFlags`,
+defaulting to `false`. Superadmin-only toggle in Admin → Feature flags
+with optional reason that lands in `adminLogs`.
+
+Reused existing infrastructure rather than building parallel
+`system_settings` / `system_settings_audit_log` collections per the
+original spec:
+
+| Spec  | Existing equivalent |
+|---|---|
+| `system_settings` table | `/settings/featureFlags` doc (already exists) |
+| Polling cache (30s TTL) | `subscribeToFeatureFlags()` real-time onSnapshot (better) |
+| `GET /api/settings/public` | `GET /api/public?type=flags` (already exists) |
+| `PATCH /api/admin/settings/:key` | `POST /api/admin { action: 'setFeatureFlag' }` (already exists; tightened to superadmin-only in this PR) |
+| `system_settings_audit_log` | `/adminLogs` with `action: 'set_feature_flag'` (already writing; added `reason` field) |
+
+Server-side enforcement in `api/leagues.js`: the `create` action reads
+the flag on every request. When off, requests with `type === 'paid'` or
+`entryFee > 0` are rejected `403 Prize leagues are currently disabled.`
+Frontend reads the flag on mount via `subscribeToFeatureFlags`; clients
+with a stale `true` still get blocked by the server.
+
+`api/admin.js`'s `setFeatureFlag` action was tightened from
+admin-or-superadmin → superadmin-only. Feature flags are platform-wide
+config, which matches the policy for other superadmin actions
+(setRole-to-superadmin, deleteUser, etc).
+
+### Phase 1 — Simplified Create League flow
+
+When `enablePrizeLeagues === false`, the form drops:
+- the entire "League Type" picker (Free + the disabled Prize tile)
+- the Entry Fee + Prize Distribution sections
+- the "Free League" / "Prize League" labels
+
+Users now go directly: name → public/private toggle → House Rules
+(if private) → Create. No type concept visible.
+
+Three render sites in `goaloracle.jsx` (Browse table, league header
+badge, settings row "Type: Free") + AdminDashboard's paid stats also
+gate on the same flag.
+
+### Phase 2 — House Rules
+
+Optional free-text field on private user-created leagues. 500 char
+hard cap, plain text only (`white-space: pre-wrap` preserves line
+breaks; no markdown, no link auto-linking).
+
+**Data model:**
+- `/leagues/{id}.houseRules: { content, lastUpdatedAt, lastUpdatedBy } | null`
+- `/leagueMemberAcks/{userId__leagueId}` — per-member ack timestamp + `houseRulesUpdatedSinceAck` flag for the "Updated" badge after a creator edit
+- `/contentReports/{auto}` — generic UGC report shape; v1 only persists `contentType: 'league_house_rules'`
+
+**Server actions** (all in `api/leagues.js`):
+- `create` — accepts `houseRules.content` (rejects on public leagues, rejects >500 chars)
+- `join` — auto-stamps `houseRulesAcknowledgedAt` when the league has rules
+- `editHouseRules` — creator-only update; resets all members' acks so the card re-expands with "Updated" badge
+- `acknowledgeHouseRules` — idempotent member-side ack
+- `reportContent` — generic, member-only, persists to `/contentReports` with `status: 'pending'`
+
+**Components:**
+- `HouseRulesInput` — textarea + live char counter
+- `HouseRulesCard` — collapsible card on league detail page; three-dot menu (Edit for creator, Report for any member)
+- `HouseRulesJoinView` — always-expanded display on the join screen
+- `HouseRulesSection` — self-contained integration owning card + edit modal + report modal + localStorage ack cache
+- `ReportContentModal` — generic UGC report form
+
+Mounted on both the Classic detail page (`goaloracle.jsx`) and the
+Quick Picks detail page (`src/pages/SimplePrediction.jsx`). Renders
+null on global leagues, public leagues, and leagues with no rules.
+
+### ToS update
+
+New section 5 "User-generated league content" in `/terms` clarifying
+that GoalOracle doesn't enforce or administer user-posted content.
+
+### Gotchas for future-Claude
+
+1. **Existing `classicEnabled` flag has an inconsistency** — public.js
+   defaults it to `true` while client defaults to `false`. Pre-existing
+   bug, NOT fixed here (out of scope). The new `enablePrizeLeagues`
+   uses `=== true` consistently across all reads (defaults FALSE).
+2. **localStorage ack cache vs server ack** — the card's
+   defaultExpanded gating reads from localStorage to avoid a per-render
+   fetch. The server-side ack still fires for audit. If a user clears
+   storage, they'll see the card re-expand once and re-ack.
+3. **Audit log query** — to avoid requiring a Firestore composite
+   index, `getFeatureFlagAuditLog` over-fetches (5x cap) on `action ==
+   set_feature_flag` ordered by timestamp, then filters by flag
+   client-side. Cheap because flag changes are rare.
+4. **The audit query previously needed `where(action) + where(flag) +
+   orderBy(timestamp)` which IS a composite index. Removed that to keep
+   index-free.**
+5. **Prize-league scaffolding intentionally preserved** — `entryFee`,
+   `prizeDistribution`, `l.type === 'paid'` branches all stay in
+   source code, just gated. Re-enabling is one superadmin toggle.
+
+---
+
 ## 2026-05-11 — Free-to-enter prize contest
 
 Launched the first prize-bearing contest. Top 3 in `global-simple` at end

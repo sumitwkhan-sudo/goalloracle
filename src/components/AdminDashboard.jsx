@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -61,20 +61,61 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // Feature flag toggle — pessimistic: tell the user immediately on
    // failure rather than letting the UI drift out of sync with the
    // server. Live subscription in App will update featureFlags after
-   // a successful write.
+   // a successful write. Defaults to false unless explicitly set to
+   // true for the new opt-in flags (enablePrizeLeagues); existing
+   // flags keep their original `!== false` shape for back-compat.
   const [flagBusy, setFlagBusy] = useState(null);
+  const flagLabels = {
+    quickPicksEnabled: 'Bracket',
+    classicEnabled: 'Classic Predictions',
+    enablePrizeLeagues: 'Prize Leagues',
+  };
+  const isFlagOn = (flag) => (
+    flag === 'enablePrizeLeagues'
+      ? featureFlags[flag] === true       // opt-in: defaults OFF
+      : featureFlags[flag] !== false       // legacy: defaults ON
+  );
   const toggleFeatureFlag = async (flag) => {
     setFlagBusy(flag);
     try {
-      const next = !(featureFlags[flag] !== false);
-      await adminSetFeatureFlag(flag, next);
-      notify(`${flag === 'classicEnabled' ? 'Classic Predictions' : 'Bracket'} ${next ? 'enabled' : 'disabled'}`);
+      const next = !isFlagOn(flag);
+      // Sensitive flags ask for a reason that lands in the audit log.
+      // Other flags toggle silently.
+      let reason = null;
+      if (flag === 'enablePrizeLeagues') {
+        const promptMsg = next
+          ? 'Enable user-created Prize Leagues. Reason (optional, saved to audit log):'
+          : 'Disable user-created Prize Leagues. Reason (optional, saved to audit log):';
+        const raw = window.prompt(promptMsg, '');
+        if (raw === null) { setFlagBusy(null); return; } // user cancelled
+        reason = raw.trim().slice(0, 280) || null;
+      }
+      await adminSetFeatureFlag(flag, next, reason);
+      notify(`${flagLabels[flag] || flag} ${next ? 'enabled' : 'disabled'}`);
+      // Refresh the audit log so the new entry shows up.
+      loadFlagAuditLog();
     } catch (e) {
       notify('Toggle failed: ' + e.message, 'error');
     } finally {
       setFlagBusy(null);
     }
   };
+
+  // Recent feature-flag audit log — last 10 changes across all flags.
+  // Fetched once on mount + after every successful toggle. Superadmin-
+  // gated server-side; non-superadmins see a friendly empty state.
+  const [flagAuditLog, setFlagAuditLog] = useState([]);
+  const [flagAuditError, setFlagAuditError] = useState(null);
+  const loadFlagAuditLog = async () => {
+    try {
+      const data = await adminGetFeatureFlagAuditLog(null, 10);
+      setFlagAuditLog(data.entries || []);
+      setFlagAuditError(null);
+    } catch (e) {
+      setFlagAuditError(e?.message || 'Could not load audit log');
+    }
+  };
+  useEffect(() => { loadFlagAuditLog(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const runBackfillCountries = async () => {
     if (!window.confirm('Backfill country for every user that does not already have one? Sumit → BD, lebida2352 → PK, everyone else → US.')) return;
@@ -366,7 +407,13 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // Stats
   const verifiedCount = Object.values(matchResults).filter(r => r.completed).length;
   const totalMatches = WORLD_CUP_MATCHES.length;
-  const paidLeagues = (allLeagues || []).filter(l => l.type === 'paid').length;
+  // Paid-league stats only render when the prize-leagues feature is
+  // enabled platform-wide. Otherwise show a simple total — "PAID · X"
+  // would be misleading when the create flow can't produce paid leagues.
+  const prizeLeaguesEnabled = featureFlags?.enablePrizeLeagues === true;
+  const paidLeagues = prizeLeaguesEnabled
+    ? (allLeagues || []).filter(l => l.type === 'paid').length
+    : 0;
   const freeLeagues = (allLeagues || []).length - paidLeagues;
 
   // Referral attribution: count how many other users each user brought
@@ -436,13 +483,15 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
         <div className="admin-stat-card">
           <span className="admin-stat-lbl">Active Leagues</span>
           <span className="admin-stat-num" style={{color: 'var(--amber)'}}>{platformStats.activeLeagues || 0}</span>
-          <span className="admin-stat-sub">{paidLeagues} paid · {freeLeagues} free</span>
+          <span className="admin-stat-sub">{prizeLeaguesEnabled ? `${paidLeagues} paid · ${freeLeagues} free` : `${freeLeagues} leagues`}</span>
         </div>
-        <div className="admin-stat-card">
-          <span className="admin-stat-lbl">Prize Pools</span>
-          <span className="admin-stat-num" style={{color: 'var(--lime)'}}>${(platformStats.totalPrizePools || 0).toLocaleString()}</span>
-          <span className="admin-stat-sub">USDC on Polygon</span>
-        </div>
+        {prizeLeaguesEnabled && (
+          <div className="admin-stat-card">
+            <span className="admin-stat-lbl">Prize Pools</span>
+            <span className="admin-stat-num" style={{color: 'var(--lime)'}}>${(platformStats.totalPrizePools || 0).toLocaleString()}</span>
+            <span className="admin-stat-sub">USDC on Polygon</span>
+          </div>
+        )}
         <div className="admin-stat-card">
           <span className="admin-stat-lbl">Results Verified</span>
           <span className="admin-stat-num" style={{color: 'var(--magenta)'}}>{verifiedCount}/{totalMatches}</span>
@@ -766,8 +815,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     </div>
                   </div>
                   <div className="admin-list-right">
-                    <span className={`admin-league-type ${l.type === 'paid' ? 'paid' : 'free'}`}>
-                      {l.type === 'paid' ? `PAID · ${l.entryFee} ${l.currency || 'USDC'}` : 'FREE'}
+                    <span className={`admin-league-type ${prizeLeaguesEnabled && l.type === 'paid' ? 'paid' : 'free'}`}>
+                      {prizeLeaguesEnabled && l.type === 'paid' ? `PAID · ${l.entryFee} ${l.currency || 'USDC'}` : 'FREE'}
                     </span>
                     <span className="admin-league-members">{l.memberCount || l.members?.length || 0} members</span>
                     {l.id !== 'global' && !isEditing && (
@@ -1176,12 +1225,58 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 <span className="admin-flag-switch-label">{featureFlags.classicEnabled !== false ? 'ON' : 'OFF'}</span>
               </button>
             </div>
+            <div className="admin-flag-row">
+              <div className="admin-flag-text">
+                <strong>User-created Prize Leagues</strong>
+                <span>Off by default. When enabled, users can create private leagues with an entry fee + payout split. Disabling hides the &ldquo;Prize League&rdquo; option in the create flow and the &ldquo;PAID&rdquo; badges; existing prize leagues (if any) gracefully degrade to standard private leagues until re-enabled. Toggling prompts for an optional reason logged to the audit trail.</span>
+              </div>
+              <button
+                type="button"
+                className={`admin-flag-switch ${isFlagOn('enablePrizeLeagues') ? 'is-on' : 'is-off'}`}
+                onClick={() => toggleFeatureFlag('enablePrizeLeagues')}
+                disabled={flagBusy === 'enablePrizeLeagues'}
+                aria-pressed={isFlagOn('enablePrizeLeagues')}
+                aria-label="Toggle Prize Leagues"
+              >
+                <span className="admin-flag-switch-knob" />
+                <span className="admin-flag-switch-label">{isFlagOn('enablePrizeLeagues') ? 'ON' : 'OFF'}</span>
+              </button>
+            </div>
             <p className="admin-flag-note">
               Toggles propagate to every connected client within ~60 seconds via the live
               feature-flags subscription. Existing predictions and league data are untouched
-              when a mode is turned off — they're just hidden from the UI.
+              when a mode is turned off — they&rsquo;re just hidden from the UI. Feature-flag
+              changes are restricted to superadmins.
             </p>
           </div>
+
+          {(flagAuditLog.length > 0 || flagAuditError) && (
+            <>
+              <h3 className="admin-section-title" style={{ marginTop: '1.5rem' }}>Recent flag changes</h3>
+              <div className="admin-audit-card">
+                {flagAuditError ? (
+                  <p className="admin-flag-note" style={{ color: 'var(--danger, #c44)' }}>{flagAuditError}</p>
+                ) : (
+                  <ul className="admin-audit-list">
+                    {flagAuditLog.map((e) => (
+                      <li key={e.id} className="admin-audit-item">
+                        <div className="admin-audit-line">
+                          <strong>{flagLabels[e.flag] || e.flag}</strong>
+                          <span className="admin-audit-arrow">
+                            {String(e.previousValue)} <span aria-hidden="true">→</span> <strong>{String(e.value)}</strong>
+                          </span>
+                        </div>
+                        <div className="admin-audit-meta">
+                          {e.actorName} · {e.timestamp ? new Date(e.timestamp).toLocaleString() : 'unknown time'}
+                        </div>
+                        {e.reason && <div className="admin-audit-reason">&ldquo;{e.reason}&rdquo;</div>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
 
           <h3 className="admin-section-title">Platform configuration</h3>
           <div className="admin-contract-card">
