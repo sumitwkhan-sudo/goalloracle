@@ -232,7 +232,6 @@ export default function Dashboard({
         totalCompleted={totalCompleted}
         streak={streak}
         streakBadge={streakBadge}
-        lvl={lvl}
         quickPicks={quickPicks}
         quickPicksIncomplete={quickPicksIncomplete}
       />
