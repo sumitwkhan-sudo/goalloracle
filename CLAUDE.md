@@ -162,14 +162,16 @@ of FIFA World Cup 2026 Final win **$150 / $100 / $50 in USDC**
 - `/api/user` accepts `consent: { rulesVersion, ageAttested, jurisdictionAttested }` + `prizeIneligible: bool` in the POST body. Validates shape (rejects malformed silently — doesn't block the request, since this endpoint also handles wallet/displayName updates). Persists `contestConsent.timestamp` as a server timestamp so we have a tamper-resistant audit trail.
 - Auto-join to global-simple at signup is **unchanged** — consent is captured ASAP but doesn't gate league membership. Membership + contest eligibility are decoupled. A user can be in global-simple without being prize-eligible.
 
-### Analytics events (GA4 via track.js)
+### Analytics events (GA4 + PostHog via track.js)
 
-7 conversion events fire today via `src/utils/track.js`: `prize_section_viewed`, `enter_free_cta_clicked`, `signup_started`, `signup_completed`, `eligibility_checkbox_checked`, `global_league_joined`, `first_prediction_submitted`.
+`track(event, params)` from `src/utils/track.js` dual-fires to **both** GA4 and PostHog on every call. Init lives in `src/main.jsx`:
 
-**TODO(posthog)**: PostHog SDK isn't installed yet. To add it:
-1. `npm install posthog-js`
-2. Init in `src/main.jsx` with `VITE_POSTHOG_KEY` env var
-3. Update `src/utils/track.js` — call `posthog.capture(event, params)` alongside the existing `gtag` call. Both vendors should receive every event.
+- GA4 — via the `gtag` script tag in `index.html` + `window.gtag('event', ...)`.
+- PostHog — `posthog.init()` runs at boot when `VITE_POSTHOG_KEY` env var is present. Hosted on US Cloud (`https://us.i.posthog.com`). Autocapture + page views + identified-only person profiles. Instance exposed as `window.posthog` for `track.js` to use without a circular import.
+
+Local dev without `VITE_POSTHOG_KEY` set: PostHog init silently skips, everything else keeps working.
+
+The 7 prize-contest funnel events: `prize_section_viewed`, `enter_free_cta_clicked`, `signup_started`, `signup_completed`, `eligibility_checkbox_checked`, `global_league_joined`, `first_prediction_submitted`.
 
 ### Out-of-scope for v1
 
