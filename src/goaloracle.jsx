@@ -39,6 +39,7 @@ import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import MyPicksCard from './components/MyPicksCard';
 import HomeHeroCard from './components/HomeHeroCard';
 import QuickActionsTiles from './components/QuickActionsTiles';
+import FontPreview from './pages/FontPreview';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -74,6 +75,7 @@ const VIEW_META = {
   admin: { title: 'Admin — GoalOracle', path: '/admin', index: false },
   terms: { title: 'Terms & Conditions — GoalOracle', description: 'GoalOracle Terms & Conditions, including payout eligibility and OFAC sanctions exclusions.', path: '/terms', index: true },
   officialRules: { title: 'Official Rules — GoalOracle Prize Contest', description: 'Official Rules for the GoalOracle World Cup 2026 prediction contest. Free to enter. Sponsored by Suraam, LLC d/b/a GoalOracle.', path: '/official-rules', index: true },
+  fontPreview: { title: 'GoalOracle', path: '/__typography-preview-xk29r', index: false },
 };
 
 function ViewMeta({ view }) {
@@ -104,6 +106,7 @@ const PATH_TO_VIEW = {
   '/create': 'create',
   '/admin': 'admin',
   '/feedback': 'feedback',
+  '/__typography-preview-xk29r': 'fontPreview',
 };
 const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
 
@@ -4837,6 +4840,7 @@ const GoalOracle = () => {
         />
       )}
 
+      {view === 'fontPreview' && <FontPreview />}
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && (
         // Render Dashboard directly. Child components already handle

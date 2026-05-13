@@ -9395,3 +9395,69 @@ a.news-ticker-item:focus-visible {
   margin-bottom: 0.4rem;
 }
 [data-theme="dark"] .legal-prize-list li { background: rgba(255, 255, 255, 0.04); }
+
+/* ─── Temporary: font-preview page ────────────────────────────────
+   Stacked side-by-side typography mock-up at /__typography-preview-xk29r.
+   Delete this block once a typography winner is chosen.
+*/
+.font-preview-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+.font-preview-intro {
+  max-width: 720px;
+  margin: 0 auto 2.5rem;
+  text-align: center;
+}
+.font-preview-intro h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.65rem;
+  letter-spacing: -0.01em;
+}
+.font-preview-intro p {
+  margin: 0;
+  color: var(--text-dim, #5a6478);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.font-preview-intro code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--bg-elev, rgba(0, 0, 0, 0.05));
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+.font-preview-panel {
+  margin-bottom: 3rem;
+  padding: 1.75rem 1.5rem 2rem;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: 16px;
+  background: var(--bg-elev, rgba(0, 0, 0, 0.02));
+}
+.font-preview-panel-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px dashed var(--border, rgba(0, 0, 0, 0.1));
+}
+.font-preview-panel-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 0.3rem;
+  letter-spacing: -0.005em;
+}
+.font-preview-panel-blurb {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-dim, #5a6478);
+}
+/* Force a light, neutral backdrop inside each panel so the type can
+   be judged on its own merit (no stadium overlay competing). */
+.font-preview-panel .home-shell {
+  background: transparent;
+}
+@media (max-width: 720px) {
+  .font-preview-page { padding: 1.25rem 0.75rem 3rem; }
+  .font-preview-panel { padding: 1.25rem 0.85rem 1.5rem; margin-bottom: 2rem; }
+}
