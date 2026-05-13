@@ -119,7 +119,7 @@ export default function HomeHeroCard({
         {isPreTournament ? (
           <>
             <strong>Unranked</strong>
-            <span>— rank locks in once matches go live</span>
+            <span>— locks when matches start</span>
           </>
         ) : rank?.rank ? (
           <>
@@ -138,7 +138,7 @@ export default function HomeHeroCard({
           the tournament starts. Single line; intentionally subtle so
           it doesn't crowd the rank + picks above. */}
       <p className="home-hero-edit-hint">
-        Each round&rsquo;s picks lock 5 min before that round&rsquo;s first match — edit any pick until then, including knockouts after the group stage finishes.
+        Picks lock 5 min before each round&rsquo;s first match — edit anytime until then.
       </p>
 
       <BracketInsightsRow

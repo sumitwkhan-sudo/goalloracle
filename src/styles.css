@@ -8892,6 +8892,38 @@ a.news-ticker-item:focus-visible {
 .home-hero-secondary:hover { background: var(--bg-elev); border-color: var(--text-dim); }
 .home-hero-secondary:active { transform: translateY(1px); }
 
+/* Mobile: condense the hero card so the tiles + leaderboard below
+   are visible without a long scroll. Trims padding, gaps, the
+   greeting size, the edit-hint margin, the insights chips, and the
+   CTA buttons. Content unchanged — just tighter rhythm. */
+@media (max-width: 720px) {
+  .home-hero {
+    gap: 0.7rem;
+    padding: 1.05rem 1.1rem;
+  }
+  .home-hero-greeting { font-size: 1.4rem; line-height: 1.1; }
+  .home-hero-picks { gap: 0.3rem 1rem; font-size: 0.85rem; }
+  .home-hero-pick { gap: 0.3rem; }
+  .home-hero-pick-flag { font-size: 1rem; }
+  .home-hero-rank { padding-top: 0.55rem; font-size: 0.82rem; }
+  .home-hero-rank strong { font-size: 0.95rem; }
+  .home-hero-edit-hint { margin: 0.1rem 0 0; font-size: 0.68rem; line-height: 1.4; }
+  .home-hero-cta-row { gap: 0.5rem; margin-top: 0.1rem; }
+  .home-hero-primary {
+    min-height: 42px;
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .home-hero-secondary {
+    min-height: 42px;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.85rem;
+    flex: 0 0 auto;
+  }
+}
+
 /* Bracket insights row — shared between HomeHeroCard and the
    Dashboard. Three small chips (leagues / biggest upset / crowd
    alignment) plus a Share button. Wraps on narrow widths so each
@@ -8990,6 +9022,19 @@ a.news-ticker-item:focus-visible {
   pointer-events: none;
   z-index: 200;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+/* Mobile: shrink the insight chips so 2–3 fit per row instead of
+   stacking. Keeps the same shape, just less padding + smaller text. */
+@media (max-width: 720px) {
+  .bracket-insights { gap: 0.4rem; padding-top: 0.55rem; }
+  .bracket-insight { padding: 0.35rem 0.55rem; gap: 0.35rem; }
+  .bracket-insight-icon { width: 18px; height: 18px; border-radius: 5px; }
+  .bracket-insight-label { font-size: 0.56rem; letter-spacing: 0.05em; }
+  .bracket-insight-value { font-size: 0.78rem; }
+  .bracket-insight-value-team { font-size: 0.78rem; }
+  .bracket-insight-sub { font-size: 0.6rem; }
+  .bracket-insight-share { width: 28px; height: 28px; }
 }
 
 /* QUICK ACTIONS — 6 equal-weight icon tiles. Same card style as
