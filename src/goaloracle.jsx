@@ -2749,21 +2749,25 @@ const GoalOracle = () => {
   // dividers, chevron-only nav, one-state-pill cascade. Tap = navigate.
 
   // App-level bracket-share modal state. Reused by HomeHeroCard +
-  // Dashboard share CTAs. Different from the in-Detail variant which
-  // operates against the current league context — this one always
-  // shares the user's global-simple bracket from the home surface.
+  // Dashboard share CTAs (default: global-simple) AND the bracket
+  // viewer (passes the currently-viewed league's id so the share
+  // reflects whichever bracket the user is looking at).
   const [appShareBracket, setAppShareBracket] = useState(null);
   const [appShareConsensus, setAppShareConsensus] = useState(null);
-  const handleShareOwnBracket = useCallback(async () => {
+  const [appShareLeagueMeta, setAppShareLeagueMeta] = useState({ id: 'global-simple', name: 'Global League' });
+  const handleShareOwnBracket = useCallback(async (opts = {}) => {
     const userId = uData?.id;
     if (!userId) return;
+    // League context: defaults to global-simple (home + dashboard
+    // share CTAs). Bracket viewer passes the league it's showing so
+    // the share matches what the user clicked Share on.
+    const leagueId = opts.leagueId || 'global-simple';
+    const leagueName = opts.leagueName || 'Global League';
+    setAppShareLeagueMeta({ id: leagueId, name: leagueName });
     try {
-      // Same fetch pattern as the in-detail variant, hardcoded to the
-      // global-simple league since that's what the home + dashboard
-      // surfaces always represent.
       const { getSimplePrediction } = await import('./utils/db');
       const { getTeamFlags } = await import('./utils/bracketUtils');
-      const doc = await getSimplePrediction(userId, 'global-simple');
+      const doc = await getSimplePrediction(userId, leagueId);
       const flags = getTeamFlags();
       const ko = doc?.knockoutPredictions || {};
       const finalPick = (ko.final || []).find((p) => p?.matchId === 'final');
@@ -2782,7 +2786,7 @@ const GoalOracle = () => {
         knockoutPredictions: ko,
       });
       // Fire-and-forget rarity computation. Caption still ships without it.
-      getSimpleConsensus('global-simple')
+      getSimpleConsensus(leagueId)
         .then((c) => setAppShareConsensus(c))
         .catch(() => {});
     } catch (e) {
@@ -4970,8 +4974,8 @@ const GoalOracle = () => {
         open={!!appShareBracket}
         onClose={() => setAppShareBracket(null)}
         displayName={uData?.displayName}
-        leagueName="Global League"
-        leagueId="global-simple"
+        leagueName={appShareLeagueMeta.name}
+        leagueId={appShareLeagueMeta.id}
         userId={uData?.id}
         winner={appShareBracket?.winner}
         runnerUp={appShareBracket?.runnerUp}
@@ -5106,7 +5110,18 @@ const GoalOracle = () => {
             setViewingOwnBracket(null);
             nav('simplePredict', league);
           }}
-          onShare={handleShareOwnBracket}
+          onShare={() => {
+            // Capture the viewed league BEFORE closing the viewer so
+            // we share whatever bracket the user is looking at. Then
+            // close the viewer first — otherwise the share modal opens
+            // BEHIND the still-mounted PicksViewer (both are .modal-
+            // overlay z-index 2000) and the user sees a translucent
+            // backdrop with no apparent action. Close-then-share also
+            // avoids two stacked modals which would trap focus.
+            const league = viewingOwnBracket;
+            setViewingOwnBracket(null);
+            handleShareOwnBracket({ leagueId: league.id, leagueName: league.name });
+          }}
           onClose={() => setViewingOwnBracket(null)}
         />
       )}
