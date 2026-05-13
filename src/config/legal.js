@@ -18,7 +18,7 @@ export const SPONSOR_DBA = 'Suraam, LLC d/b/a GoalOracle';
 // Replace with real Stripe Atlas Delaware address once registration
 // completes. Bracketed string is intentional — it surfaces visibly on
 // the Official Rules page so we don't accidentally ship blank.
-export const SPONSOR_ADDRESS = '[STRIPE_ATLAS_DELAWARE_ADDRESS]';
+export const SPONSOR_ADDRESS = '131 Continental Dr, Suite 305, Newark, DE 19713';
 export const SPONSOR_FOOTER = '© 2026 Suraam, LLC';
 
 // Prize structure. Three places, USDC default with USDG on request.
