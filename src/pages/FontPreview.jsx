@@ -105,6 +105,26 @@ const VARIANTS = [
       '--mono': "'JetBrains Mono', monospace",
     },
   },
+  {
+    id: 'hanken',
+    name: '7. Hanken Grotesk — Polymarket-direction',
+    blurb: 'Neutral grotesk in the Söhne family. "The data is the product, type gets out of the way."',
+    style: {
+      '--font': "'Hanken Grotesk', system-ui, sans-serif",
+      '--font-display': "'Hanken Grotesk', system-ui, sans-serif",
+      '--mono': "'JetBrains Mono', monospace",
+    },
+  },
+  {
+    id: 'outfit',
+    name: '8. Outfit — Robinhood-direction',
+    blurb: 'Geometric, lightly rounded. Capsule Sans-adjacent. Friendly-but-precise consumer fintech.',
+    style: {
+      '--font': "'Outfit', system-ui, sans-serif",
+      '--font-display': "'Outfit', system-ui, sans-serif",
+      '--mono': "'JetBrains Mono', monospace",
+    },
+  },
 ];
 
 // Single stylesheet that pulls every family we need for the six
@@ -119,6 +139,8 @@ const FONTS_HREF =
   '&family=Manrope:wght@400;500;600;700' +
   '&family=Bricolage+Grotesque:wght@400;500;600;700' +
   '&family=Big+Shoulders+Display:wght@500;700;800' +
+  '&family=Hanken+Grotesk:wght@400;500;600;700' +
+  '&family=Outfit:wght@400;500;600;700' +
   '&display=swap';
 
 function useExternalFonts() {
