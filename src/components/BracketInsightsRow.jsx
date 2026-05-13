@@ -23,6 +23,9 @@ export default function BracketInsightsRow({
   consensus,         // { champion: {Team: pct}, ... } | null
   leagueCount,       // number
   onShare,           // () => void — opens share flow
+  onLeaguesClick,    // optional () => void — clicking the Leagues stat (nav to My Leagues)
+  onUpsetClick,      // optional () => void — clicking the Biggest upset stat
+  onConsensusClick,  // optional () => void — clicking the Crowd alignment stat
   variant = 'home',  // 'home' | 'dashboard' — minor styling hook
 }) {
   const winner = quickPicks?.winner;
@@ -47,37 +50,80 @@ export default function BracketInsightsRow({
     return null;
   }
 
+  // Each stat becomes a <button> when a click handler is wired, and
+  // a <div> otherwise. Keeps the markup semantic (buttons announce as
+  // buttons to screen readers) and prevents non-interactive divs from
+  // looking clickable.
   return (
     <div className={`bracket-insights bracket-insights-${variant}`} role="group" aria-label="Bracket insights">
       {insights.leagues != null && (
-        <div className="bracket-insight">
-          <span className="bracket-insight-icon"><Layers size={13} aria-hidden="true" /></span>
-          <span className="bracket-insight-label">Leagues</span>
-          <span className="bracket-insight-value">{insights.leagues}</span>
-        </div>
+        onLeaguesClick ? (
+          <button type="button" className="bracket-insight bracket-insight-btn" onClick={onLeaguesClick} aria-label={`View my ${insights.leagues} leagues`}>
+            <span className="bracket-insight-icon"><Layers size={13} aria-hidden="true" /></span>
+            <span className="bracket-insight-label">Leagues</span>
+            <span className="bracket-insight-value">{insights.leagues}</span>
+          </button>
+        ) : (
+          <div className="bracket-insight">
+            <span className="bracket-insight-icon"><Layers size={13} aria-hidden="true" /></span>
+            <span className="bracket-insight-label">Leagues</span>
+            <span className="bracket-insight-value">{insights.leagues}</span>
+          </div>
+        )
       )}
       {insights.upset && (
-        <div
-          className="bracket-insight"
-          title={`Picked ${insights.upset.team} (FIFA #${insights.upset.rank}) to reach ${ROUND_LABEL[insights.upset.round]}`}
-        >
-          <span className="bracket-insight-icon"><Flame size={13} aria-hidden="true" /></span>
-          <span className="bracket-insight-label">Biggest upset</span>
-          <span className="bracket-insight-value bracket-insight-value-team">
-            {teamFlags[insights.upset.team] || '🏳️'} {insights.upset.team}
-            <span className="bracket-insight-sub">→ {ROUND_LABEL[insights.upset.round]}</span>
-          </span>
-        </div>
+        onUpsetClick ? (
+          <button
+            type="button"
+            className="bracket-insight bracket-insight-btn"
+            onClick={onUpsetClick}
+            title={`Picked ${insights.upset.team} (FIFA #${insights.upset.rank}) to reach ${ROUND_LABEL[insights.upset.round]}`}
+            aria-label={`Biggest upset: ${insights.upset.team} to reach ${ROUND_LABEL[insights.upset.round]}`}
+          >
+            <span className="bracket-insight-icon"><Flame size={13} aria-hidden="true" /></span>
+            <span className="bracket-insight-label">Biggest upset</span>
+            <span className="bracket-insight-value bracket-insight-value-team">
+              {teamFlags[insights.upset.team] || '🏳️'} {insights.upset.team}
+              <span className="bracket-insight-sub">→ {ROUND_LABEL[insights.upset.round]}</span>
+            </span>
+          </button>
+        ) : (
+          <div
+            className="bracket-insight"
+            title={`Picked ${insights.upset.team} (FIFA #${insights.upset.rank}) to reach ${ROUND_LABEL[insights.upset.round]}`}
+          >
+            <span className="bracket-insight-icon"><Flame size={13} aria-hidden="true" /></span>
+            <span className="bracket-insight-label">Biggest upset</span>
+            <span className="bracket-insight-value bracket-insight-value-team">
+              {teamFlags[insights.upset.team] || '🏳️'} {insights.upset.team}
+              <span className="bracket-insight-sub">→ {ROUND_LABEL[insights.upset.round]}</span>
+            </span>
+          </div>
+        )
       )}
       {insights.crowdAlignment != null && (
-        <div
-          className="bracket-insight"
-          title={`${insights.crowdAlignment}% of players agree your champion (${winner}) will win`}
-        >
-          <span className="bracket-insight-icon"><Users size={13} aria-hidden="true" /></span>
-          <span className="bracket-insight-label">Crowd alignment</span>
-          <span className="bracket-insight-value">{insights.crowdAlignment}%</span>
-        </div>
+        onConsensusClick ? (
+          <button
+            type="button"
+            className="bracket-insight bracket-insight-btn"
+            onClick={onConsensusClick}
+            title={`${insights.crowdAlignment}% of players agree your champion (${winner}) will win`}
+            aria-label={`Crowd alignment: ${insights.crowdAlignment} percent agree with your champion`}
+          >
+            <span className="bracket-insight-icon"><Users size={13} aria-hidden="true" /></span>
+            <span className="bracket-insight-label">Crowd alignment</span>
+            <span className="bracket-insight-value">{insights.crowdAlignment}%</span>
+          </button>
+        ) : (
+          <div
+            className="bracket-insight"
+            title={`${insights.crowdAlignment}% of players agree your champion (${winner}) will win`}
+          >
+            <span className="bracket-insight-icon"><Users size={13} aria-hidden="true" /></span>
+            <span className="bracket-insight-label">Crowd alignment</span>
+            <span className="bracket-insight-value">{insights.crowdAlignment}%</span>
+          </div>
+        )
       )}
       {onShare && (
         <button

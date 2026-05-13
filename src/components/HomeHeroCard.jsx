@@ -53,6 +53,9 @@ export default function HomeHeroCard({
   onView,         // () => void — open read-only viewer (primary CTA)
   onEdit,         // () => void — open the wizard (secondary CTA)
   onShare,        // () => void — share the bracket / insights
+  onLeaguesClick, // () => void — clicking the Leagues stat (e.g. nav to /leagues)
+  onUpsetClick,   // () => void — clicking the Biggest upset stat
+  onConsensusClick, // () => void — clicking the Crowd alignment stat
 }) {
   const countdown = useCountdown();
   const isPreTournament = !!countdown;
@@ -130,11 +133,22 @@ export default function HomeHeroCard({
         )}
       </div>
 
+      {/* Edit-window hint — surfaces the round-by-round lock rule so
+          users understand they're not stuck with first-pass picks once
+          the tournament starts. Single line; intentionally subtle so
+          it doesn't crowd the rank + picks above. */}
+      <p className="home-hero-edit-hint">
+        Each round&rsquo;s picks lock 5 min before that round&rsquo;s first match — edit any pick until then, including knockouts after the group stage finishes.
+      </p>
+
       <BracketInsightsRow
         quickPicks={quickPicks}
         consensus={consensus}
         leagueCount={leagueCount}
         onShare={onShare}
+        onLeaguesClick={onLeaguesClick}
+        onUpsetClick={onUpsetClick}
+        onConsensusClick={onConsensusClick}
         variant="home"
       />
 
