@@ -77,11 +77,15 @@ export default function BracketShareModal({
   const upset = biggestUpset(knockoutPredictions);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="bracket-share-modal-title">
       <div className="bracket-share-modal" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close">
           <X size={20} />
         </button>
+        {/* Visually-hidden title for screen readers — the share card's
+            brand mark is the visual title, but a11y APIs need a real
+            heading associated via aria-labelledby. */}
+        <h2 id="bracket-share-modal-title" className="sr-only">Share your World Cup 2026 bracket</h2>
 
         {/* Screenshot-friendly preview */}
         <div className="bracket-share-card" id="bracket-share-card">

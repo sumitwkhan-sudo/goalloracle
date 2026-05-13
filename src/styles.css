@@ -233,6 +233,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
+/* ---- A11Y UTILITIES ---- */
+/* Visually-hidden text for screen readers. Use on a heading that
+   provides the modal's aria-labelledby target without showing it,
+   or on any text-only label that's visually replaced by an icon. */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important; height: 1px !important;
+  padding: 0 !important; margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 /* ---- BUTTONS ---- */
 .btn {
   display: inline-flex; align-items: center; gap: 0.5rem;
@@ -2828,7 +2842,7 @@ button.invite-option:hover,
 /* Fund tabs */
 .fund-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; padding: 0.2rem; background: var(--bg-elev); border-radius: 8px; }
 .fund-tab { flex: 1; padding: 0.5rem; border: none; background: transparent; color: var(--text-dim); font-size: 0.8rem; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
-.fund-tab.active { background: var(--card-bg); color: var(--text); box-shadow: var(--shadow); }
+.fund-tab.active { background: var(--bg-card); color: var(--text); box-shadow: var(--shadow); }
 
 /* Direct transfer notes */
 .fund-note-box { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; background: var(--bg-elev); border-radius: 8px; margin-top: 0.75rem; }
@@ -3484,8 +3498,8 @@ button.invite-option:hover,
 /* Audit log card — appears below the feature-flag toggles. Shows
    recent setFeatureFlag entries with who/when/from-to/reason. */
 .admin-audit-card {
-  background: var(--card-bg, rgba(255, 255, 255, 0.65));
-  border: 1px solid var(--card-border, rgba(0, 0, 0, 0.08));
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.85rem 1rem;
 }
@@ -3512,8 +3526,8 @@ button.invite-option:hover,
 
 /* Collapsible card on the league detail page. */
 .house-rules-card {
-  background: var(--card-bg, rgba(255, 255, 255, 0.65));
-  border: 1px solid var(--card-border, rgba(0, 0, 0, 0.1));
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 10px;
   margin: 0 0 1rem;
 }
@@ -3545,8 +3559,8 @@ button.invite-option:hover,
 .house-rules-card-menu {
   position: absolute; top: calc(100% + 4px); right: 0; z-index: 50;
   min-width: 130px;
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--card-border, rgba(0, 0, 0, 0.1));
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   padding: 4px;
@@ -3560,7 +3574,7 @@ button.invite-option:hover,
 }
 .house-rules-card-menu button:hover { background: rgba(0, 0, 0, 0.05); }
 .house-rules-card-body {
-  border-top: 1px solid var(--card-border, rgba(0, 0, 0, 0.08));
+  border-top: 1px solid var(--border);
   padding: 0.85rem 0.9rem;
 }
 .house-rules-card-content {
@@ -3594,7 +3608,7 @@ button.invite-option:hover,
 
 /* Edit modal — wraps HouseRulesInput in a standard modal frame. */
 .edit-house-rules-modal {
-  background: var(--card-bg, #fff);
+  background: var(--bg-card);
   border-radius: 14px;
   padding: 1.5rem;
   max-width: 520px; width: calc(100% - 2rem);
@@ -3606,7 +3620,7 @@ button.invite-option:hover,
 
 /* Report content modal — generic UGC report form. */
 .report-content-modal {
-  background: var(--card-bg, #fff);
+  background: var(--bg-card);
   border-radius: 14px;
   padding: 1.5rem;
   max-width: 460px; width: calc(100% - 2rem);
@@ -3632,7 +3646,7 @@ button.invite-option:hover,
 .admin-audit-list { list-style: none; padding: 0; margin: 0; }
 .admin-audit-item {
   padding: 0.6rem 0;
-  border-bottom: 1px solid var(--card-border, rgba(0, 0, 0, 0.06));
+  border-bottom: 1px solid var(--border);
   font-size: 0.85rem;
 }
 .admin-audit-item:last-child { border-bottom: none; }
@@ -6145,7 +6159,8 @@ button.invite-option:hover,
 .bsc-row-main { flex: 1; min-width: 0; }
 .bsc-row-label {
   font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
-  color: rgba(255,255,255,0.55); margin-bottom: 0.1rem;
+  /* Bumped from 0.55 (~3.1:1) — passes WCAG AA on the gradient share card. */
+  color: rgba(255,255,255,0.78); margin-bottom: 0.1rem;
 }
 .bsc-row-team { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.92rem; }
 .bsc-flag { font-size: 1.15rem; }
@@ -6157,7 +6172,8 @@ button.invite-option:hover,
   font-size: 0.76rem; color: var(--text-sec);
 }
 .bsc-footer strong { color: var(--primary, #7c5cff); font-weight: 700; }
-.bsc-tags { font-size: 0.68rem; color: rgba(255,255,255,0.4); margin-top: 0.25rem; }
+/* Bumped from 0.4 (~1.5:1, FAIL) — now passes WCAG AA on share gradient. */
+.bsc-tags { font-size: 0.68rem; color: rgba(255,255,255,0.72); margin-top: 0.25rem; }
 
 .bracket-share-hint {
   display: flex; align-items: flex-start; gap: 0.5rem;
@@ -8714,7 +8730,7 @@ a.news-ticker-item:focus-visible {
   --home-card-border: rgba(0, 0, 0, 0.08);
   --home-text: #1A1A2E;
   --home-text-sec: #4A4A60;
-  --home-text-dim: #888899;
+  --home-text-dim: #5E5E72;     /* darkened from #888899 — fails WCAG AA at 2.7:1 on white cards; now ~6.1:1 */
   --home-divider: rgba(0, 0, 0, 0.08);
 }
 
@@ -9120,8 +9136,8 @@ a.news-ticker-item:focus-visible {
 }
 .prize-structure-inner {
   max-width: 1100px; margin: 0 auto;
-  background: var(--card-bg, rgba(255, 255, 255, 0.65));
-  border: 1px solid var(--card-border, rgba(0, 0, 0, 0.08));
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 1.75rem 2rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
@@ -9157,8 +9173,11 @@ a.news-ticker-item:focus-visible {
   color: var(--text);
 }
 .prize-structure-item[data-place="1"] .prize-structure-amount { color: #d4a017; }
-.prize-structure-item[data-place="2"] .prize-structure-amount { color: #777; }
-.prize-structure-item[data-place="3"] .prize-structure-amount { color: #c08157; }
+/* Silver + bronze tones darkened to pass WCAG AA on the white-card
+   background. Previous #777 was 3.3:1 and #c08157 was 4.0:1 — both
+   under the 4.5:1 threshold for the prominent $NN amount text. */
+.prize-structure-item[data-place="2"] .prize-structure-amount { color: #5a5a5a; }
+.prize-structure-item[data-place="3"] .prize-structure-amount { color: #9c5b35; }
 .prize-structure-foot {
   margin: 1.2rem 0 0; padding: 0;
   font-size: 0.85rem; color: var(--text-sec);
