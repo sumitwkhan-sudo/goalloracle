@@ -1,21 +1,36 @@
-// Thin wrapper around GA4's global gtag(). Safe no-op when gtag isn't loaded
-// (e.g., local dev without the GA script) and swallows any runtime error so
-// analytics never breaks the UI.
+// Thin wrapper around GA4's global gtag() AND PostHog's window-level
+// capture(). Safe no-op when neither is loaded (e.g., local dev without
+// the GA script or VITE_POSTHOG_KEY env var) and swallows any runtime
+// error so analytics never breaks the UI.
+//
+// Both vendors receive every track() call. PostHog is initialised in
+// src/main.jsx and exposed as window.posthog. GA4 is loaded by the
+// gtag script tag in index.html.
 //
 // Usage: track('bracket_start', { league_id: 'global-simple' })
-//
-// TODO(posthog): when PostHog is added, also call posthog.capture(event,
-// params) here. Both vendors should receive every track() call. PostHog SDK
-// install + init in main.jsx is the only other change needed.
 export function track(event, params = {}) {
+  if (typeof window === 'undefined') return;
+
+  // GA4 / dataLayer
   try {
-    if (typeof window === 'undefined') return;
-    if (typeof window.gtag !== 'function') {
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', event, params);
+    } else {
       // Push into dataLayer anyway so GA picks it up if gtag loads later.
       (window.dataLayer = window.dataLayer || []).push({ event, ...params });
-      return;
     }
-    window.gtag('event', event, params);
+  } catch {
+    // analytics failures must never surface to users
+  }
+
+  // PostHog — best effort. window.posthog is set in main.jsx after
+  // posthog.init(). The optional-chain + typeof guard handles both
+  // "key not configured" (window.posthog undefined) and "loaded but
+  // capture method not available yet" cases without throwing.
+  try {
+    if (typeof window.posthog?.capture === 'function') {
+      window.posthog.capture(event, params);
+    }
   } catch {
     // analytics failures must never surface to users
   }
