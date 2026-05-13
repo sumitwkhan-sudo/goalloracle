@@ -4,13 +4,14 @@ import {
   Lock, Zap, Star, Flame, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { calculateXP, getLevelInfo } from '../utils/xp';
+// calculateXP / getLevelInfo were removed from the dashboard surface
+// per user feedback; the imports stay available in src/utils/xp for
+// future use elsewhere.
 import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints, getMatchStatus } from '../utils/points';
 import { STAGES, STAGE_FIRST_KICKOFF_UTC, stageLockTimeUtc } from '../utils/stageLock';
 import { TOTAL_MAX } from '../utils/scoringSimple';
 import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
 import FriendsWidget from './dashboard/FriendsWidget';
-import DailyCheckIn from './dashboard/DailyCheckIn';
 import AnimatedCounter from './AnimatedCounter';
 import InsightsCarousel from './simple/InsightsCarousel';
 import BracketInsightsRow from './BracketInsightsRow';
@@ -98,8 +99,9 @@ export default function Dashboard({
   const { streak, bestStreak } = useMemo(() => calculateStreak(preds, results), [preds, results]);
   const streakBadge = getStreakBadge(streak);
   const totalStats = useMemo(() => calculateTotalPoints(preds, results, ps), [preds, results, ps]);
-  const xpTotal = useMemo(() => calculateXP(preds, results, leagues.length), [preds, results, leagues.length]);
-  const lvl = useMemo(() => getLevelInfo(xpTotal), [xpTotal]);
+  // XP + Level removed from the dashboard — user-facing leveling wasn't
+  // adding signal. Keeping the helpers imported in case we surface them
+  // elsewhere later; if not, the imports can be cleaned up in a follow-up.
   const totalCompleted = useMemo(() => Object.entries(preds).filter(([id]) => results[id]?.completed).length, [preds, results]);
   const accuracy = totalCompleted > 0 ? Math.round((totalStats.correctResults / totalCompleted) * 100) : 0;
 
@@ -193,7 +195,6 @@ export default function Dashboard({
           totalCompleted={totalCompleted}
           streak={streak}
           streakBadge={streakBadge}
-          lvl={lvl}
           quickPicks={quickPicks}
           quickPicksIncomplete={quickPicksIncomplete}
         />
@@ -213,6 +214,13 @@ export default function Dashboard({
         consensus={consensus}
         leagueCount={leagues?.length || 0}
         onShare={onShare}
+        onLeaguesClick={() => nav('leagues')}
+        // Both upset + consensus deep-link to the user's own bracket
+        // view via the same Quick Picks detail page nav. The parent
+        // (goaloracle.jsx) handles the actual modal/route — Dashboard
+        // just routes the click upward via nav.
+        onUpsetClick={() => nav('detail', { id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
+        onConsensusClick={() => nav('detail', { id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
         variant="dashboard"
       />
 
@@ -248,10 +256,9 @@ export default function Dashboard({
           </>
         )}
 
-        {/* #14 — Daily check-in / streak loop. Shown pre-tournament so
-            users have a reason to come back daily. Hidden once kickoff
-            arrives and real match streaks take over. */}
-        <DailyCheckIn userId={uData?.id} />
+        {/* DailyCheckIn removed per user feedback — the daily streak
+            loop wasn't pulling weight on the dashboard surface. Friends
+            widget below is the more durable engagement surface. */}
 
         {/* #8 — Friends-in-leagues widget. Hidden when the user has no
             private league (otherwise we'd just show the global crowd,
@@ -372,7 +379,7 @@ export default function Dashboard({
 // as React.createElement children of Dashboard, NOT as inline functions of
 // the parent GoalOracle, so they don't re-mount on parent state changes.
 
-function DashboardStrip({ qpRank, points, accuracy, totalCompleted, streak, streakBadge, lvl, quickPicks, quickPicksIncomplete }) {
+function DashboardStrip({ qpRank, points, accuracy, totalCompleted, streak, streakBadge, quickPicks, quickPicksIncomplete }) {
   return (
     <div className="td-strip">
       <div className="td-strip-cell td-strip-cell-rank">
@@ -395,11 +402,6 @@ function DashboardStrip({ qpRank, points, accuracy, totalCompleted, streak, stre
         <span className="td-label">Streak</span>
         <span className="td-num"><Flame size={13} /> {streak}</span>
         {streakBadge && <span className="td-sub">{streakBadge.name}</span>}
-      </div>
-      <div className="td-strip-cell">
-        <span className="td-label">Level</span>
-        <span className="td-num">L{lvl.level}</span>
-        <span className="td-sub">{lvl.title}</span>
       </div>
       <div className="td-strip-cell">
         <span className="td-label">My picks</span>

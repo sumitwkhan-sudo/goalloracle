@@ -5,7 +5,7 @@ import { auth as fbAuth } from './config/firebase';
 import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil, FileText } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
@@ -1829,15 +1829,14 @@ const GoalOracle = () => {
   useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
   useEffect(loadAllLeagues, [loadAllLeagues]);
 
-  // Auto-redirect from landing → dashboard on first successful sign-in
-  // (only once; user can still navigate back to landing via the Home link).
-  const autoRedirectedRef = useRef(false);
-  useEffect(() => {
-    if (!authenticated || !uData?.id) return;
-    if (autoRedirectedRef.current) return;
-    autoRedirectedRef.current = true;
-    setView(prev => (prev === 'landing' ? 'dashboard' : prev));
-  }, [authenticated, uData?.id]);
+  // No auto-redirect to /dashboard on sign-in. The home page (authed
+  // landing) IS the dashboard-ish experience for existing users — it
+  // has HomeHeroCard with bracket summary, BracketInsightsRow with
+  // stats, and the quick-actions tile row. Sending them to /dashboard
+  // bypasses this richer surface. Users who want the full per-match
+  // dashboard can still click Dashboard in the quick actions row.
+  // (Previous behavior was `autoRedirectedRef` flipping landing →
+  // dashboard once per session — removed.)
 
   // If the active view is a Classic league but Classic has been turned off
   // by an admin (deep-linked from an old URL), bounce back to the dashboard
@@ -2364,6 +2363,13 @@ const GoalOracle = () => {
                 onView={() => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
                 onEdit={startSimplePredicting}
                 onShare={handleShareOwnBracket}
+                onLeaguesClick={() => nav('leagues')}
+                // Biggest upset + Crowd alignment both deep-link to the
+                // user's own bracket view — that's where they can see
+                // the picked team in context, scroll to the relevant
+                // round, and see consensus deltas next to each pick.
+                onUpsetClick={() => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
+                onConsensusClick={() => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
               />
               <QuickActionsTiles
                 onDashboard={() => nav('dashboard')}
@@ -2386,6 +2392,10 @@ const GoalOracle = () => {
             <span>Free to play</span>
             <span className="home-footer-strip-divider">·</span>
             <span>FIFA-compliant</span>
+            <span className="home-footer-strip-divider">·</span>
+            <button type="button" className="home-footer-strip-link" onClick={() => nav('officialRules')}>Official Rules</button>
+            <span className="home-footer-strip-divider">·</span>
+            <button type="button" className="home-footer-strip-link" onClick={() => nav('terms')}>Terms &amp; Privacy</button>
           </div>
           <InviteFriendsModal
             open={inviteOpen}
@@ -2737,20 +2747,47 @@ const GoalOracle = () => {
   // ─── Your Leagues — Apple HIG redesign ────────────────────────────────
   // Page paired with LeagueLeaderboardLayout: same row anatomy, hairline
   // dividers, chevron-only nav, one-state-pill cascade. Tap = navigate.
+
+  // App-level bracket-share modal state. Reused by HomeHeroCard +
+  // Dashboard share CTAs. Different from the in-Detail variant which
+  // operates against the current league context — this one always
+  // shares the user's global-simple bracket from the home surface.
+  const [appShareBracket, setAppShareBracket] = useState(null);
+  const [appShareConsensus, setAppShareConsensus] = useState(null);
   const handleShareOwnBracket = useCallback(async () => {
     const userId = uData?.id;
     if (!userId) return;
-    const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
-    const url = `${origin}/u/${encodeURIComponent(userId)}/bracket?ref=${encodeURIComponent(userId)}`;
-    const text = `Check out my World Cup 2026 bracket on GoalOracle: ${url}`;
     try {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({ title: 'My GoalOracle bracket', text, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        notify?.('Bracket link copied — share it with friends');
+      // Same fetch pattern as the in-detail variant, hardcoded to the
+      // global-simple league since that's what the home + dashboard
+      // surfaces always represent.
+      const { getSimplePrediction } = await import('./utils/db');
+      const { getTeamFlags } = await import('./utils/bracketUtils');
+      const doc = await getSimplePrediction(userId, 'global-simple');
+      const flags = getTeamFlags();
+      const ko = doc?.knockoutPredictions || {};
+      const finalPick = (ko.final || []).find((p) => p?.matchId === 'final');
+      const thirdPick = (ko.thirdPlace || []).find((p) => p?.matchId === '3rd');
+      const winnerName = finalPick?.winnerId || null;
+      const runnerUpName = finalPick?.loserId || null;
+      const thirdName = thirdPick?.winnerId || null;
+      if (!winnerName && !runnerUpName && !thirdName) {
+        notify?.('Finish your bracket first — no picks to share yet', 'error');
+        return;
       }
-    } catch { /* user cancelled native share */ }
+      setAppShareBracket({
+        winner: winnerName ? { name: winnerName, flag: flags[winnerName] || '🏳️' } : null,
+        runnerUp: runnerUpName ? { name: runnerUpName, flag: flags[runnerUpName] || '🏳️' } : null,
+        thirdPlace: thirdName ? { name: thirdName, flag: flags[thirdName] || '🏳️' } : null,
+        knockoutPredictions: ko,
+      });
+      // Fire-and-forget rarity computation. Caption still ships without it.
+      getSimpleConsensus('global-simple')
+        .then((c) => setAppShareConsensus(c))
+        .catch(() => {});
+    } catch (e) {
+      notify?.(e?.message || 'Failed to load bracket', 'error');
+    }
   }, [uData?.id, notify]);
 
   const [refreshingRanks, setRefreshingRanks] = useState(false);
@@ -3978,6 +4015,18 @@ const GoalOracle = () => {
               </div>
             )}
             <div className="dropdown-divider"></div>
+            {/* Legal links — surfaced in the account dropdown for
+                logged-in users since the authed home doesn't show the
+                full site footer (only the slim home-footer-strip). */}
+            <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); nav('officialRules'); }}>
+              <FileText size={16} />
+              <span>Official Rules</span>
+            </button>
+            <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); nav('terms'); }}>
+              <Shield size={16} />
+              <span>Terms &amp; Privacy</span>
+            </button>
+            <div className="dropdown-divider"></div>
             <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); logout(); nav('landing'); }}>
               <LogOut size={16} />
               <span>Log Out</span>
@@ -4912,6 +4961,35 @@ const GoalOracle = () => {
           recoveryNotice={googleRecoveryNotice}
         />
       )}
+      {/* App-level bracket share modal. Triggered by HomeHeroCard and
+          Dashboard share CTAs against the user's global-simple bracket.
+          The in-Detail page has its own BracketShareModal instance
+          bound to that league's context — this one is the home /
+          dashboard counterpart. */}
+      <BracketShareModal
+        open={!!appShareBracket}
+        onClose={() => setAppShareBracket(null)}
+        displayName={uData?.displayName}
+        leagueName="Global League"
+        leagueId="global-simple"
+        userId={uData?.id}
+        winner={appShareBracket?.winner}
+        runnerUp={appShareBracket?.runnerUp}
+        thirdPlace={appShareBracket?.thirdPlace}
+        knockoutPredictions={appShareBracket?.knockoutPredictions}
+        rarityPct={(() => {
+          if (!appShareConsensus || !appShareBracket?.winner?.name || !appShareBracket?.runnerUp?.name) return undefined;
+          const c = appShareConsensus.champion?.[appShareBracket.winner.name];
+          const r = appShareConsensus.runnerUp?.[appShareBracket.runnerUp.name];
+          const t = appShareBracket.thirdPlace?.name
+            ? appShareConsensus.third?.[appShareBracket.thirdPlace.name]
+            : undefined;
+          if (c == null || r == null) return undefined;
+          // Match the in-Detail formula: champion × runnerUp × third (when present).
+          return t != null ? c * r * t : c * r;
+        })()}
+        notify={notify}
+      />
       {/* Brand-new user (usernameSet=false): single onboarding card combines
           username + country + optional passcode, replacing what used to be
           two consecutive modals. After submit, lands on dashboard so they

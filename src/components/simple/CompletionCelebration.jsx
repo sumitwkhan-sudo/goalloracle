@@ -61,7 +61,7 @@ export default function CompletionCelebration({
         </div>
 
         <p className="ccel-hint">
-          You can still tweak later rounds until each stage starts. Tournament kicks off June 11.
+          Each round&rsquo;s picks lock 5 minutes before that round&rsquo;s first match kicks off. Until then you can edit any pick — including knockouts after the group stage finishes. Tournament kicks off June 11.
         </p>
       </div>
     </div>

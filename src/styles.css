@@ -8049,7 +8049,13 @@ body.light .lsd-head,
 }
 .leagues-create {
   background: var(--grad);
-  color: #000;
+  /* White text per product direction. The cyan→magenta→amber gradient
+     has high-luminance bands where white alone is sub-AA (~1.5–3:1);
+     the text-shadow adds a subtle dark halo that pushes effective
+     contrast back over the threshold without changing the brand
+     gradient. */
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
   border: none;
   border-radius: 8px;
   padding: 0.55rem 1rem;
@@ -8830,6 +8836,12 @@ a.news-ticker-item:focus-visible {
   padding-top: 0.85rem;
   border-top: 1px solid var(--home-divider);
 }
+.home-hero-edit-hint {
+  margin: 0.5rem 0 0;
+  font-size: var(--home-fs-caption);
+  color: var(--home-text-dim);
+  line-height: 1.45;
+}
 .home-hero-rank strong {
   font-family: var(--mono);
   font-size: var(--home-fs-large);
@@ -8898,6 +8910,20 @@ a.news-ticker-item:focus-visible {
   border-radius: 10px;
   flex-shrink: 0;
   min-width: 0;
+}
+/* Interactive variant — same look, plus hover/focus affordances and
+   resetting native button styles. Used when a click handler is wired
+   (Leagues → My Leagues route, Upset → detail, etc). */
+.bracket-insight-btn {
+  font: inherit; color: inherit;
+  cursor: pointer; text-align: left;
+  transition: background-color 0.12s, border-color 0.12s, transform 0.08s;
+}
+.bracket-insight-btn:hover { background: var(--bg-card); border-color: var(--border-br); }
+.bracket-insight-btn:active { transform: translateY(1px); }
+.bracket-insight-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .bracket-insight-icon {
   display: inline-flex; align-items: center; justify-content: center;
@@ -9084,6 +9110,19 @@ a.news-ticker-item:focus-visible {
 [data-theme="light"] .home-footer-strip-divider {
   color: rgba(0,0,0,0.2);
 }
+/* Inline legal links in the home footer strip — sit alongside the
+   stats so authed users can find Official Rules + Terms without
+   digging through nav or account dropdown. */
+.home-footer-strip-link {
+  background: none; border: 0; padding: 0;
+  font: inherit; color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  opacity: 0.85;
+}
+.home-footer-strip-link:hover { opacity: 1; }
+.home-footer-strip-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 2px; }
 @media (max-width: 720px) {
   .home-footer-strip {
     padding: 1.25rem 1rem 1.5rem;
