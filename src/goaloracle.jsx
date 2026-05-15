@@ -2425,7 +2425,7 @@ const GoalOracle = () => {
           <div className="hero-split-inner" ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
             <div className="hero-left">
               <div className="hero-eyebrow">FREE TO ENTER &middot; WORLD CUP 2026</div>
-              <h1 className="hero-title">Predict the World Cup.<br/><span className="highlight">Win up to ${PRIZE_TOP_USD}.</span></h1>
+              <h1 className="hero-title">Predict the World Cup.<span className="highlight">Win up to ${PRIZE_TOP_USD}.</span></h1>
               <p className="hero-subtitle">Free skill-based prediction contest. Top 3 finishers win cash prizes paid in stablecoin.</p>
               {anonCtas && (
                 <div className="hero-cta">
