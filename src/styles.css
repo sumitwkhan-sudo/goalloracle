@@ -1,11 +1,9 @@
 /* ============================================
-   GOALORACLE — TYPOGRAPHY: GEIST
-   Fonts: Geist (UI + display) + Geist Mono (data)
-   Dashboard-v2 scope retains Barlow Condensed + DM Mono for the
-   match-day broadcast aesthetic (see ".dashboard-v2" override below).
+   GOALORACLE — DIRECTION B2: CODE WALL + STADIUM
+   Fonts: Space Grotesk (UI) + Chakra Petch (crypto-futuristic display) + JetBrains Mono (meta)
    Palette: Cyan/Magenta/Lime/Amber + editorial Gold/Rose/Platinum
    ============================================ */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Barlow+Condensed:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500&family=DM+Mono:wght@400;500&family=Chakra+Petch:wght@400;500;600;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap');
 
 /* Flag-emoji polyfill for Windows (Chrome/Edge/Firefox all fall back to
    regional-indicator letters like "MX" because Windows ships no flag
@@ -30,10 +28,10 @@
   --text: #E8E8EF; --text-sec: #7A7A8E; --text-dim: #3E3E4F;
   --radius: 10px; --radius-lg: 14px;
   --shadow: 0 4px 20px rgba(0,0,0,0.3);
-  --font: 'Geist', system-ui, -apple-system, sans-serif, 'Twemoji Country Flags';
-  --font-display: 'Geist', system-ui, sans-serif;
-  --font-editorial: 'Geist', system-ui, sans-serif;
-  --mono: 'Geist Mono', ui-monospace, monospace;
+  --font: 'Space Grotesk', 'Inter Tight', -apple-system, sans-serif, 'Twemoji Country Flags';
+  --font-display: 'Chakra Petch', 'Space Grotesk', system-ui, sans-serif;
+  --font-editorial: 'Chakra Petch', 'Space Grotesk', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
 }
 
 [data-theme="light"] {
