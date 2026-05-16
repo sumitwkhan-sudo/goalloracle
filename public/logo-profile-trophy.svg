@@ -1,0 +1,88 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D4FF"/>
+      <stop offset="50%" stop-color="#FF2D87"/>
+      <stop offset="100%" stop-color="#FFB800"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="35%" stop-color="#F5C400"/>
+      <stop offset="75%" stop-color="#C8930C"/>
+      <stop offset="100%" stop-color="#8B6914"/>
+    </linearGradient>
+    <linearGradient id="goldGradLight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="50%" stop-color="#F5C400"/>
+      <stop offset="100%" stop-color="#A87C00"/>
+    </linearGradient>
+    <linearGradient id="goldBaseGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F5C400"/>
+      <stop offset="100%" stop-color="#8B6914"/>
+    </linearGradient>
+    <radialGradient id="globeSheen" cx="0.3" cy="0.3" r="0.55">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bgGrad" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0%" stop-color="#13193a"/>
+      <stop offset="70%" stop-color="#06070d"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Dark gradient background (will be visible inside FB's circular crop) -->
+  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
+
+  <!-- Atmospheric gold glow upper-right -->
+  <circle cx="850" cy="200" r="380" fill="#FFC107" opacity="0.10"/>
+  <!-- Atmospheric blue glow lower-left -->
+  <circle cx="200" cy="900" r="380" fill="#409CFF" opacity="0.07"/>
+
+  <!-- GoalOracle hex shield + GO mark, LEFT side -->
+  <!-- Mark is 100x100 native; scale 4.0, sized + positioned to stay inside FB's circular crop -->
+  <g transform="translate(140, 280) scale(4.0)">
+    <path d="M50 4 L88 22 Q96 26 96 35 L96 65 Q96 74 88 78 L50 96 L12 78 Q4 74 4 65 L4 35 Q4 26 12 22 Z" fill="none" stroke="url(#brandGrad)" stroke-width="5"/>
+    <path d="M30 38 Q30 28 42 28 L52 28" stroke="url(#brandGrad)" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M30 38 L30 58 Q30 68 42 68 L52 68 L52 55 L44 55" stroke="url(#brandGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="66" cy="48" r="18" stroke="url(#brandGrad)" stroke-width="7" fill="none"/>
+  </g>
+
+  <!-- FIFA-style World Cup trophy, RIGHT side -->
+  <!-- Native ~160x230; scale 2.0, sized + positioned to stay inside FB's circular crop -->
+  <g transform="translate(610, 270) scale(2.0)">
+
+    <!-- ===== ROUND BASE ===== -->
+    <ellipse cx="80" cy="190" rx="68" ry="8" fill="url(#goldGradLight)"/>
+    <rect x="12" y="190" width="136" height="32" fill="url(#goldBaseGrad)"/>
+    <ellipse cx="80" cy="222" rx="68" ry="8" fill="#6b4f0e"/>
+    <!-- Malachite green rings -->
+    <rect x="12" y="197" width="136" height="4" fill="#1f7a3a"/>
+    <rect x="12" y="211" width="136" height="4" fill="#1f7a3a"/>
+    <rect x="12" y="190" width="136" height="2" fill="#FFE066" opacity="0.85"/>
+
+    <!-- ===== STEM ===== -->
+    <path d="M 52,92
+             C 58,108 72,116 72,138
+             C 72,156 52,170 46,190
+             L 114,190
+             C 108,170 88,156 88,138
+             C 88,116 102,108 108,92
+             Z" fill="url(#goldGrad)"/>
+    <path d="M 80,92 C 78,120 78,160 80,190" stroke="#6b4f0e" stroke-width="1.5" fill="none" opacity="0.55"/>
+    <path d="M 80,92 C 88,116 100,130 100,150 C 100,168 92,180 86,190 L 80,190 Z"
+          fill="#000000" opacity="0.08"/>
+
+    <!-- ===== COLLAR ===== -->
+    <rect x="56" y="86" width="48" height="8" rx="2" fill="url(#goldBaseGrad)"/>
+    <rect x="56" y="86" width="48" height="2" fill="#FFE066" opacity="0.85"/>
+
+    <!-- ===== GLOBE ===== -->
+    <circle cx="80" cy="46" r="42" fill="url(#goldGrad)"/>
+    <ellipse cx="80" cy="46" rx="42" ry="11" fill="none" stroke="#6b4f0e" stroke-width="1.6" opacity="0.7"/>
+    <path d="M 80,4  Q 98,46 80,88" fill="none" stroke="#6b4f0e" stroke-width="1.6" opacity="0.65"/>
+    <path d="M 80,4  Q 62,46 80,88" fill="none" stroke="#6b4f0e" stroke-width="1.6" opacity="0.65"/>
+    <ellipse cx="80" cy="46" rx="28" ry="42" fill="none" stroke="#6b4f0e" stroke-width="1" opacity="0.35"/>
+    <ellipse cx="64" cy="32" rx="14" ry="18" fill="url(#globeSheen)"/>
+  </g>
+</svg>
