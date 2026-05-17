@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#06070d" />
+
+  <title>GoalOracle — Free World Cup 2026 Prediction Game</title>
+  <meta name="description" content="Free skill-based World Cup 2026 prediction game. Build your bracket in 10 minutes. Play solo or with friends. No purchase necessary." />
+
+  <!-- This page is a self-contained, Reddit-policy-compliant landing
+       for paid ad traffic. It deliberately does not mention any cash
+       prize, USDC, or wager language, so the creative and landing
+       page consistently describe a free skill-based prediction game
+       per the platform's gaming services policy. -->
+
+  <meta name="robots" content="noindex, follow" />
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+
+  <!-- Social unfurls reuse the prize-free creative we ship to /public/ -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="GoalOracle — Free World Cup 2026 Prediction Game" />
+  <meta property="og:description" content="Skill-based bracket game. 10 minutes to build. Play solo or with friends. No purchase necessary." />
+  <meta property="og:image" content="https://goaloracle.io/reddit-ad-slide1-free.png" />
+  <meta property="og:url" content="https://goaloracle.io/play.html" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <style>
+    :root {
+      --bg: #06070d;
+      --bg-navy: #15193e;
+      --gold: #FFC107;
+      --gold-light: #FFE066;
+      --text: #ffffff;
+      --text-dim: #a8acb5;
+      --brand-cyan: #00D4FF;
+      --brand-pink: #FF2D87;
+      --brand-gold: #FFB800;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: radial-gradient(ellipse at top, var(--bg-navy) 0%, var(--bg) 60%, #000 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    body { overflow-x: hidden; }
+
+    /* Top accent bar */
+    .accent-bar {
+      height: 6px;
+      background: linear-gradient(90deg, #FF3B30 0%, var(--gold-light) 100%);
+    }
+
+    /* Atmospheric glows */
+    .glow-gold {
+      position: absolute; top: -200px; right: -200px;
+      width: 700px; height: 700px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 193, 7, 0.18) 0%, rgba(255, 193, 7, 0) 70%);
+      pointer-events: none; z-index: 0;
+    }
+    .glow-blue {
+      position: absolute; bottom: -250px; left: -150px;
+      width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(64, 156, 255, 0.12) 0%, rgba(64, 156, 255, 0) 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 80px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand img { width: 56px; height: 56px; }
+    .brand-name { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+
+    .kickoff-pill {
+      display: inline-flex; align-items: center;
+      padding: 10px 22px;
+      border: 2px solid var(--gold);
+      background: rgba(255, 193, 7, 0.10);
+      color: var(--gold-light);
+      border-radius: 999px;
+      font-size: 14px; font-weight: 800; letter-spacing: 2px;
+    }
+
+    /* Hero */
+    .eyebrow {
+      color: var(--gold-light);
+      font-size: 14px; font-weight: 800; letter-spacing: 6px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: clamp(56px, 11vw, 132px);
+      font-weight: 900;
+      line-height: 0.95;
+      letter-spacing: -3px;
+      margin-bottom: 32px;
+    }
+    h1 .gold { color: var(--gold); }
+    .subhead {
+      font-size: clamp(20px, 2.5vw, 28px);
+      color: #d4d4d8;
+      font-weight: 500;
+      line-height: 1.4;
+      max-width: 720px;
+      margin-bottom: 48px;
+    }
+
+    /* CTA */
+    .cta-row {
+      display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+      margin-bottom: 64px;
+    }
+    .cta-primary {
+      display: inline-block;
+      padding: 22px 44px;
+      background: linear-gradient(90deg, #FF3B30 0%, var(--gold-light) 100%);
+      color: #0a0a0a;
+      font-size: 22px; font-weight: 900; letter-spacing: 0.5px;
+      text-decoration: none;
+      border-radius: 999px;
+      transition: transform 0.15s ease;
+    }
+    .cta-primary:hover { transform: translateY(-2px); }
+    .cta-secondary {
+      color: var(--text-dim);
+      font-size: 16px;
+    }
+
+    /* Steps */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 64px;
+    }
+    .step {
+      padding: 28px;
+      border: 1.5px solid rgba(255, 193, 7, 0.25);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--gold);
+      color: #0a0a0a;
+      font-weight: 900; font-size: 20px;
+      margin-bottom: 18px;
+    }
+    .step h3 {
+      font-size: 22px; font-weight: 800; margin-bottom: 10px;
+    }
+    .step p {
+      color: var(--text-dim);
+      font-size: 16px; line-height: 1.55;
+    }
+
+    /* Feature row */
+    .features {
+      display: flex; flex-wrap: wrap; gap: 32px;
+      padding: 32px;
+      border-top: 1px solid rgba(255, 193, 7, 0.20);
+      border-bottom: 1px solid rgba(255, 193, 7, 0.20);
+      margin-bottom: 48px;
+    }
+    .feature {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 16px; font-weight: 600;
+    }
+    .feature .check {
+      color: var(--gold);
+      font-size: 20px; font-weight: 900;
+    }
+
+    /* Footer */
+    footer {
+      padding: 32px 0 16px;
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    footer .disclosure {
+      padding: 16px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      margin-bottom: 16px;
+    }
+    footer a {
+      color: var(--gold-light);
+      text-decoration: none;
+    }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      header { margin-bottom: 48px; flex-direction: column; gap: 20px; align-items: flex-start; }
+      .container { padding: 24px 18px; }
+      h1 { letter-spacing: -2px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="accent-bar"></div>
+  <div class="glow-gold"></div>
+  <div class="glow-blue"></div>
+
+  <div class="container">
+
+    <header>
+      <div class="brand">
+        <img src="/logo.svg" alt="GoalOracle" />
+        <span class="brand-name">GoalOracle</span>
+      </div>
+      <span class="kickoff-pill">KICKOFF · JUNE 11, 2026</span>
+    </header>
+
+    <main>
+      <p class="eyebrow">World Cup 2026 Predictions</p>
+      <h1>Predict the<br /><span class="gold">World Cup.</span></h1>
+      <p class="subhead">
+        A free, skill-based prediction game. Build your bracket in 10 minutes, then watch your picks score points across every match of the 2026 World Cup. Play solo or in a private league with friends.
+      </p>
+
+      <div class="cta-row">
+        <a class="cta-primary" href="/?utm_source=reddit&amp;utm_medium=paid&amp;utm_campaign=play_landing">
+          Play Free →
+        </a>
+        <span class="cta-secondary">No card. No purchase. 10-minute setup.</span>
+      </div>
+
+      <section class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Rank the groups</h3>
+          <p>Drag-and-drop teams into your predicted finishing order for all 12 groups.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>Pick the best thirds</h3>
+          <p>Choose which third-placed teams advance into the round of 32 knockouts.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Fill the bracket</h3>
+          <p>Predict winners through to the final. Earn points for every correct call across 104 matches.</p>
+        </div>
+      </section>
+
+      <div class="features">
+        <div class="feature"><span class="check">✓</span> 100% free to play</div>
+        <div class="feature"><span class="check">✓</span> Skill-based scoring</div>
+        <div class="feature"><span class="check">✓</span> Private leagues with friends</div>
+        <div class="feature"><span class="check">✓</span> Custom house rules</div>
+        <div class="feature"><span class="check">✓</span> No purchase necessary</div>
+      </div>
+
+    </main>
+
+    <footer>
+      <div class="disclosure">
+        <strong style="color: var(--text);">Free skill-based prediction game.</strong>
+        No purchase necessary. Open to legal residents 18 years and older in eligible jurisdictions.
+        See <a href="/official-rules">Official Rules</a> for full details, eligibility, and prize disclosures
+        (where applicable). Void where prohibited.
+      </div>
+      <p>
+        © 2026 Suraam, LLC d/b/a GoalOracle.
+        &nbsp;·&nbsp; <a href="/terms">Terms</a>
+        &nbsp;·&nbsp; <a href="/official-rules">Official Rules</a>
+        &nbsp;·&nbsp; <a href="/faq">FAQ</a>
+      </p>
+      <p style="margin-top:8px;">
+        Not affiliated with FIFA. All trademarks belong to their respective owners.
+      </p>
+    </footer>
+  </div>
+</body>
+</html>

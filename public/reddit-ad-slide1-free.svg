@@ -1,0 +1,121 @@
+<svg width="1440" height="1080" viewBox="0 0 1440 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D4FF"/>
+      <stop offset="50%" stop-color="#FF2D87"/>
+      <stop offset="100%" stop-color="#FFB800"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="35%" stop-color="#F5C400"/>
+      <stop offset="75%" stop-color="#C8930C"/>
+      <stop offset="100%" stop-color="#8B6914"/>
+    </linearGradient>
+    <linearGradient id="goldGradLight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="50%" stop-color="#F5C400"/>
+      <stop offset="100%" stop-color="#A87C00"/>
+    </linearGradient>
+    <linearGradient id="goldBaseGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F5C400"/>
+      <stop offset="100%" stop-color="#8B6914"/>
+    </linearGradient>
+    <linearGradient id="topAccentBar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF3B30"/>
+      <stop offset="100%" stop-color="#FFD66B"/>
+    </linearGradient>
+    <radialGradient id="bgGrad" cx="0.4" cy="0.3" r="0.85">
+      <stop offset="0%" stop-color="#15193e"/>
+      <stop offset="65%" stop-color="#06070d"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+    <radialGradient id="globeSheen" cx="0.3" cy="0.3" r="0.55">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1440" height="1080" fill="url(#bgGrad)"/>
+
+  <circle cx="1200" cy="380" r="500" fill="#FFC107" opacity="0.13"/>
+  <circle cx="180" cy="920" r="420" fill="#409CFF" opacity="0.07"/>
+
+  <rect x="0" y="0" width="1440" height="8" fill="url(#topAccentBar)"/>
+
+  <!-- TOP STRIP -->
+  <g transform="translate(60, 50) scale(1.1)">
+    <path d="M50 4 L88 22 Q96 26 96 35 L96 65 Q96 74 88 78 L50 96 L12 78 Q4 74 4 65 L4 35 Q4 26 12 22 Z" fill="none" stroke="url(#brandGrad)" stroke-width="5"/>
+    <path d="M30 38 Q30 28 42 28 L52 28" stroke="url(#brandGrad)" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M30 38 L30 58 Q30 68 42 68 L52 68 L52 55 L44 55" stroke="url(#brandGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="66" cy="48" r="18" stroke="url(#brandGrad)" stroke-width="7" fill="none"/>
+  </g>
+
+  <g transform="translate(990, 70)">
+    <rect x="0" y="0" width="400" height="60" rx="30" fill="#FFC107" fill-opacity="0.12" stroke="#FFC107" stroke-width="2.5"/>
+    <text x="200" y="40" text-anchor="middle" fill="#FFE066" font-size="22" font-weight="800" letter-spacing="2.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">KICKOFF · JUNE 11, 2026</text>
+  </g>
+
+  <!-- LEFT COLUMN: TEXT -->
+  <text x="60" y="270" fill="#FFD66B" font-size="32" font-weight="800" letter-spacing="8" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">WORLD CUP 2026 PREDICTIONS</text>
+
+  <text x="60" y="430" fill="#FFFFFF" font-size="160" font-weight="900" letter-spacing="-4" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">Predict the</text>
+  <text x="60" y="590" fill="#FFC107" font-size="160" font-weight="900" letter-spacing="-4" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">World Cup.</text>
+
+  <text x="60" y="660" fill="#d4d4d8" font-size="30" font-weight="500" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">Skill-based prediction game. 10 minutes to build your bracket.</text>
+
+  <!-- POLICY-COMPLIANT CHIPS: no $ amounts, no medal tiers -->
+  <g transform="translate(60, 740)" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+    <!-- 100% FREE -->
+    <rect x="0" y="0" width="240" height="90" rx="16" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFC107" stroke-width="2.5"/>
+    <text x="20" y="40" fill="#FFC107" font-size="22" font-weight="900">✓</text>
+    <text x="50" y="40" fill="#FFE066" font-size="22" font-weight="800" letter-spacing="2">100% FREE</text>
+    <text x="20" y="74" fill="#d4d4d8" font-size="18" font-weight="500">No card. No fees.</text>
+
+    <!-- SKILL-BASED -->
+    <rect x="260" y="0" width="240" height="90" rx="16" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFC107" stroke-width="2.5"/>
+    <text x="280" y="40" fill="#FFC107" font-size="22" font-weight="900">✓</text>
+    <text x="310" y="40" fill="#FFE066" font-size="22" font-weight="800" letter-spacing="2">SKILL-BASED</text>
+    <text x="280" y="74" fill="#d4d4d8" font-size="18" font-weight="500">Predict 104 matches.</text>
+
+    <!-- NO PURCHASE -->
+    <rect x="520" y="0" width="240" height="90" rx="16" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFC107" stroke-width="2.5"/>
+    <text x="540" y="40" fill="#FFC107" font-size="22" font-weight="900">✓</text>
+    <text x="570" y="40" fill="#FFE066" font-size="22" font-weight="800" letter-spacing="2">NO PURCHASE</text>
+    <text x="540" y="74" fill="#d4d4d8" font-size="18" font-weight="500">Ever necessary.</text>
+  </g>
+
+  <!-- RIGHT COLUMN: TROPHY -->
+  <g transform="translate(1040, 230) scale(2.6)">
+    <ellipse cx="80" cy="190" rx="68" ry="8" fill="url(#goldGradLight)"/>
+    <rect x="12" y="190" width="136" height="32" fill="url(#goldBaseGrad)"/>
+    <ellipse cx="80" cy="222" rx="68" ry="8" fill="#6b4f0e"/>
+    <rect x="12" y="197" width="136" height="4" fill="#1f7a3a"/>
+    <rect x="12" y="211" width="136" height="4" fill="#1f7a3a"/>
+    <rect x="12" y="190" width="136" height="2" fill="#FFE066" opacity="0.85"/>
+
+    <path d="M 52,92 C 58,108 72,116 72,138 C 72,156 52,170 46,190 L 114,190 C 108,170 88,156 88,138 C 88,116 102,108 108,92 Z" fill="url(#goldGrad)"/>
+    <path d="M 80,92 C 78,120 78,160 80,190" stroke="#6b4f0e" stroke-width="1.5" fill="none" opacity="0.55"/>
+    <path d="M 80,92 C 88,116 100,130 100,150 C 100,168 92,180 86,190 L 80,190 Z" fill="#000000" opacity="0.08"/>
+
+    <rect x="56" y="86" width="48" height="8" rx="2" fill="url(#goldBaseGrad)"/>
+    <rect x="56" y="86" width="48" height="2" fill="#FFE066" opacity="0.85"/>
+
+    <circle cx="80" cy="46" r="42" fill="url(#goldGrad)"/>
+    <ellipse cx="80" cy="46" rx="42" ry="11" fill="none" stroke="#6b4f0e" stroke-width="1.6" opacity="0.7"/>
+    <path d="M 80,4 Q 98,46 80,88" fill="none" stroke="#6b4f0e" stroke-width="1.6" opacity="0.65"/>
+    <path d="M 80,4 Q 62,46 80,88" fill="none" stroke="#6b4f0e" stroke-width="1.6" opacity="0.65"/>
+    <ellipse cx="80" cy="46" rx="28" ry="42" fill="none" stroke="#6b4f0e" stroke-width="1" opacity="0.35"/>
+    <ellipse cx="64" cy="32" rx="14" ry="18" fill="url(#globeSheen)"/>
+  </g>
+
+  <!-- BOTTOM STRIP -->
+  <line x1="60" y1="930" x2="1380" y2="930" stroke="#FFC107" stroke-width="1.5" opacity="0.25"/>
+
+  <text x="60" y="1000" fill="#FFFFFF" font-size="54" font-weight="900" letter-spacing="-1.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">goaloracle.io</text>
+  <text x="60" y="1045" fill="#a8acb5" font-size="22" font-weight="500" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">Free skill-based prediction game · No purchase necessary · 18+</text>
+
+  <g transform="translate(1140, 950)">
+    <rect x="0" y="0" width="240" height="90" rx="45" fill="url(#topAccentBar)"/>
+    <text x="120" y="60" text-anchor="middle" fill="#0a0a0a" font-size="30" font-weight="900" letter-spacing="1" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">PLAY FREE</text>
+  </g>
+</svg>
