@@ -1,0 +1,165 @@
+<svg width="1440" height="1080" viewBox="0 0 1440 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D4FF"/>
+      <stop offset="50%" stop-color="#FF2D87"/>
+      <stop offset="100%" stop-color="#FFB800"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="35%" stop-color="#F5C400"/>
+      <stop offset="75%" stop-color="#C8930C"/>
+      <stop offset="100%" stop-color="#8B6914"/>
+    </linearGradient>
+    <linearGradient id="topAccentBar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF3B30"/>
+      <stop offset="100%" stop-color="#FFD66B"/>
+    </linearGradient>
+    <linearGradient id="youRowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFC107" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#FFC107" stop-opacity="0.06"/>
+    </linearGradient>
+    <linearGradient id="avatarPink" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF2D87"/>
+      <stop offset="100%" stop-color="#FFB800"/>
+    </linearGradient>
+    <linearGradient id="avatarCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D4FF"/>
+      <stop offset="100%" stop-color="#FF2D87"/>
+    </linearGradient>
+    <linearGradient id="avatarGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#F5C400"/>
+    </linearGradient>
+    <radialGradient id="bgGrad" cx="0.4" cy="0.3" r="0.85">
+      <stop offset="0%" stop-color="#15193e"/>
+      <stop offset="65%" stop-color="#06070d"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Dark navy background -->
+  <rect width="1440" height="1080" fill="url(#bgGrad)"/>
+
+  <!-- Atmospheric glows -->
+  <circle cx="1200" cy="380" r="500" fill="#FFC107" opacity="0.10"/>
+  <circle cx="180" cy="920" r="420" fill="#FF2D87" opacity="0.06"/>
+
+  <!-- Top accent bar -->
+  <rect x="0" y="0" width="1440" height="8" fill="url(#topAccentBar)"/>
+
+  <!-- ============ TOP STRIP ============ -->
+  <g transform="translate(60, 50) scale(1.1)">
+    <path d="M50 4 L88 22 Q96 26 96 35 L96 65 Q96 74 88 78 L50 96 L12 78 Q4 74 4 65 L4 35 Q4 26 12 22 Z" fill="none" stroke="url(#brandGrad)" stroke-width="5"/>
+    <path d="M30 38 Q30 28 42 28 L52 28" stroke="url(#brandGrad)" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M30 38 L30 58 Q30 68 42 68 L52 68 L52 55 L44 55" stroke="url(#brandGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="66" cy="48" r="18" stroke="url(#brandGrad)" stroke-width="7" fill="none"/>
+  </g>
+
+  <g transform="translate(990, 70)">
+    <rect x="0" y="0" width="400" height="60" rx="30" fill="#FFC107" fill-opacity="0.12" stroke="#FFC107" stroke-width="2.5"/>
+    <text x="200" y="40" text-anchor="middle" fill="#FFE066" font-size="22" font-weight="800" letter-spacing="2.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">KICKOFF · JUNE 11, 2026</text>
+  </g>
+
+  <!-- ============ LEFT COLUMN: TEXT ============ -->
+  <!-- Eyebrow -->
+  <text x="60" y="270" fill="#FFD66B" font-size="32" font-weight="800" letter-spacing="8" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">PRIVATE LEAGUES</text>
+
+  <!-- HERO line 1 -->
+  <text x="60" y="400" fill="#FFFFFF" font-size="142" font-weight="900" letter-spacing="-4" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">Beat your</text>
+
+  <!-- HERO line 2 -->
+  <text x="60" y="520" fill="#FFFFFF" font-size="142" font-weight="900" letter-spacing="-4" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">friends.</text>
+
+  <!-- HERO line 3 (parenthetical aside, gold) -->
+  <text x="60" y="620" fill="#FFC107" font-size="96" font-weight="900" letter-spacing="-2" font-style="italic" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">(or your boss.)</text>
+
+  <!-- Subtitle -->
+  <text x="60" y="690" fill="#d4d4d8" font-size="28" font-weight="500" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">Create a private league. Invite anyone.</text>
+  <text x="60" y="730" fill="#d4d4d8" font-size="28" font-weight="500" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">Set your own house rules. Trash talk included.</text>
+
+  <!-- Feature row -->
+  <g transform="translate(60, 800)" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+    <!-- Invite-only -->
+    <text x="0" y="30" fill="#FFC107" font-size="28" font-weight="900">✓</text>
+    <text x="36" y="30" fill="#FFFFFF" font-size="22" font-weight="600">Invite-only</text>
+    <!-- Custom scoring -->
+    <text x="230" y="30" fill="#FFC107" font-size="28" font-weight="900">✓</text>
+    <text x="266" y="30" fill="#FFFFFF" font-size="22" font-weight="600">Custom scoring</text>
+    <!-- House rules -->
+    <text x="510" y="30" fill="#FFC107" font-size="28" font-weight="900">✓</text>
+    <text x="546" y="30" fill="#FFFFFF" font-size="22" font-weight="600">House rules</text>
+  </g>
+
+  <!-- ============ RIGHT COLUMN: MOCK LEADERBOARD ============ -->
+  <g transform="translate(900, 200)" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+    <!-- Card container -->
+    <rect x="0" y="0" width="480" height="600" rx="22" fill="#0a0e26" stroke="#FFC107" stroke-width="2" stroke-opacity="0.35"/>
+
+    <!-- Card header -->
+    <text x="32" y="56" fill="#FFFFFF" font-size="30" font-weight="800" letter-spacing="-0.5">The Office Bracket</text>
+    <text x="32" y="92" fill="#a8acb5" font-size="20" font-weight="500">12 members · World Cup 2026</text>
+    <line x1="32" y1="118" x2="448" y2="118" stroke="#FFC107" stroke-width="1" opacity="0.25"/>
+
+    <!-- Row: 1st place (Alex) -->
+    <g transform="translate(32, 145)">
+      <text x="0" y="40" fill="#FFE066" font-size="26" font-weight="900" letter-spacing="2">1ST</text>
+      <circle cx="100" cy="30" r="26" fill="url(#avatarPink)"/>
+      <text x="100" y="40" text-anchor="middle" fill="#FFFFFF" font-size="22" font-weight="900">A</text>
+      <text x="148" y="40" fill="#FFFFFF" font-size="24" font-weight="700">Alex K.</text>
+      <text x="416" y="40" text-anchor="end" fill="#FFFFFF" font-size="28" font-weight="800">127</text>
+    </g>
+
+    <!-- Row: 2nd place (YOU) — highlighted -->
+    <g transform="translate(0, 220)">
+      <rect x="16" y="0" width="448" height="74" rx="14" fill="url(#youRowGrad)" stroke="#FFC107" stroke-width="2"/>
+      <text x="32" y="48" fill="#FFE066" font-size="26" font-weight="900" letter-spacing="2">2ND</text>
+      <circle cx="132" cy="38" r="26" fill="url(#avatarCyan)"/>
+      <text x="132" y="48" text-anchor="middle" fill="#FFFFFF" font-size="20" font-weight="900">★</text>
+      <text x="180" y="48" fill="#FFFFFF" font-size="24" font-weight="800">YOU</text>
+      <text x="448" y="48" text-anchor="end" fill="#FFFFFF" font-size="28" font-weight="800">119</text>
+    </g>
+
+    <!-- Row: 3rd place (Jordan) -->
+    <g transform="translate(32, 320)">
+      <text x="0" y="40" fill="#FFE066" font-size="26" font-weight="900" letter-spacing="2">3RD</text>
+      <circle cx="100" cy="30" r="26" fill="url(#avatarGold)"/>
+      <text x="100" y="40" text-anchor="middle" fill="#0a0e26" font-size="22" font-weight="900">J</text>
+      <text x="148" y="40" fill="#FFFFFF" font-size="24" font-weight="700">Jordan M.</text>
+      <text x="416" y="40" text-anchor="end" fill="#FFFFFF" font-size="28" font-weight="800">98</text>
+    </g>
+
+    <!-- Row: 4 -->
+    <g transform="translate(32, 395)">
+      <text x="0" y="36" fill="#a8acb5" font-size="22" font-weight="700" letter-spacing="1">4</text>
+      <circle cx="100" cy="28" r="22" fill="#3a3f5e"/>
+      <text x="100" y="36" text-anchor="middle" fill="#FFFFFF" font-size="18" font-weight="800">S</text>
+      <text x="148" y="36" fill="#d4d4d8" font-size="22" font-weight="600">Sam T.</text>
+      <text x="416" y="36" text-anchor="end" fill="#d4d4d8" font-size="24" font-weight="700">74</text>
+    </g>
+
+    <!-- Row: 5 -->
+    <g transform="translate(32, 460)">
+      <text x="0" y="36" fill="#a8acb5" font-size="22" font-weight="700" letter-spacing="1">5</text>
+      <circle cx="100" cy="28" r="22" fill="#3a3f5e"/>
+      <text x="100" y="36" text-anchor="middle" fill="#FFFFFF" font-size="18" font-weight="800">C</text>
+      <text x="148" y="36" fill="#d4d4d8" font-size="22" font-weight="600">Casey R.</text>
+      <text x="416" y="36" text-anchor="end" fill="#d4d4d8" font-size="24" font-weight="700">61</text>
+    </g>
+
+    <!-- Footer hint -->
+    <text x="240" y="558" text-anchor="middle" fill="#a8acb5" font-size="18" font-weight="500" font-style="italic">+ 7 more · House rules: loser buys lunch</text>
+  </g>
+
+  <!-- ============ BOTTOM STRIP ============ -->
+  <line x1="60" y1="930" x2="1380" y2="930" stroke="#FFC107" stroke-width="1.5" opacity="0.25"/>
+
+  <text x="60" y="1000" fill="#FFFFFF" font-size="54" font-weight="900" letter-spacing="-1.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">goaloracle.io</text>
+  <text x="60" y="1045" fill="#a8acb5" font-size="22" font-weight="500" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">Free skill-based contest · Create unlimited leagues · No card, no fees</text>
+
+  <!-- CTA button -->
+  <g transform="translate(1100, 950)">
+    <rect x="0" y="0" width="280" height="90" rx="45" fill="url(#topAccentBar)"/>
+    <text x="140" y="60" text-anchor="middle" fill="#0a0a0a" font-size="28" font-weight="900" letter-spacing="1" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">START A LEAGUE</text>
+  </g>
+</svg>
