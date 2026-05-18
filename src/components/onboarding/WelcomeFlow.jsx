@@ -18,6 +18,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, RefreshCw, AlertTriangle } from 'lucide-react';
 import { validateUsername } from '../../utils/profanity';
+import { lookupLeagueByPasscode } from '../../utils/db';
 import COUNTRIES, { getCachedDetectedCountry, detectCountryByIP } from '../../utils/countries';
 import EligibilityCheckbox from '../EligibilityCheckbox';
 import { RULES_VERSION } from '../../config/legal';
@@ -69,16 +70,22 @@ export default function WelcomeFlow({
 
     // Passcode is optional. If provided, find a matching league before
     // submitting so we can show a clear error in-card rather than only
-    // after the parent's join attempt fails.
+    // after the parent's join attempt fails. Lookup is server-side
+    // because new private leagues store passcodes in a subcollection
+    // (allLeagues won't have the field populated).
     let passcodeMatchedLeague = null;
     const trimmedPass = passcode.trim().toUpperCase();
     if (trimmedPass) {
-      const match = (allLeagues || []).find((l) => l.passcode && l.passcode === trimmedPass);
-      if (!match) {
+      try {
+        passcodeMatchedLeague = await lookupLeagueByPasscode(trimmedPass);
+      } catch (lookupErr) {
         setErr(`No league found with passcode "${trimmedPass}". Double-check with your friend, or leave it blank.`);
         return;
       }
-      passcodeMatchedLeague = match;
+      if (!passcodeMatchedLeague) {
+        setErr(`No league found with passcode "${trimmedPass}". Double-check with your friend, or leave it blank.`);
+        return;
+      }
     }
 
     if (!eligible) { setErr('Please confirm eligibility to finish.'); return; }

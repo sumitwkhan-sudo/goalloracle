@@ -14,6 +14,7 @@
 
 import React, { useState } from 'react';
 import { Users, X, Check } from 'lucide-react';
+import { lookupLeagueByPasscode } from '../utils/db';
 
 export default function PasscodePromptModal({
   open,
@@ -32,12 +33,24 @@ export default function PasscodePromptModal({
     setErr('');
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) { setErr('Enter a passcode to continue, or tap Skip.'); return; }
-    const match = (allLeagues || []).find(l => l.passcode && l.passcode === trimmed);
-    if (!match) {
+    setBusy(true);
+    // Server-side lookup — new private leagues keep their passcode in a
+    // subcollection that clients can't read directly, so the legacy
+    // allLeagues.find() check silently failed for every league created
+    // since that refactor.
+    let match;
+    try {
+      match = await lookupLeagueByPasscode(trimmed);
+    } catch (lookupErr) {
       setErr('No league found with that passcode. Double-check with your friend.');
+      setBusy(false);
       return;
     }
-    setBusy(true);
+    if (!match) {
+      setErr('No league found with that passcode. Double-check with your friend.');
+      setBusy(false);
+      return;
+    }
     try {
       await onJoin(match, trimmed);
       if (notify) notify(`Joined "${match.name}"`);
