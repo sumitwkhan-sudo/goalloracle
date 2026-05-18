@@ -200,6 +200,58 @@ export default async function handler(req, res) {
       await Promise.all(memberWrites);
       return res.status(200).json({ success: true });
 
+    // ─── LOOKUP BY PASSCODE ───────────────────────────────
+    // Passcodes for new private leagues live in the
+    // /leagues/{id}/private/auth subcollection — clients can't read
+    // it directly, so they can't search for a matching league
+    // locally. This action takes a passcode, scans private leagues
+    // server-side, and returns minimal public metadata (or 404) so
+    // the client can call the `join` action by id.
+    //
+    // Legacy private leagues stored the passcode on the public doc
+    // itself; we check that field first as a fast path before
+    // batch-fetching the subcollection auth docs.
+    } else if (action === 'lookupByPasscode') {
+      const raw = req.body?.passcode;
+      if (!raw || typeof raw !== 'string') return res.status(400).json({ error: 'Passcode required' });
+      const passcode = raw.trim().toUpperCase();
+      if (!passcode) return res.status(400).json({ error: 'Passcode required' });
+
+      const privateLeaguesSnap = await db.collection('leagues').where('visibility', '==', 'private').get();
+      if (privateLeaguesSnap.empty) {
+        return res.status(404).json({ error: 'No league found with that passcode' });
+      }
+
+      // Legacy match: passcode still on the public doc (unmigrated leagues).
+      const legacyDoc = privateLeaguesSnap.docs.find(d => d.data().passcode === passcode);
+      const publicView = (doc) => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          name: d.name || null,
+          predictionMode: d.predictionMode || 'classic',
+          memberCount: d.memberCount || 0,
+          houseRules: d.houseRules || null,
+          visibility: 'private',
+        };
+      };
+      if (legacyDoc) {
+        return res.status(200).json({ league: publicView(legacyDoc) });
+      }
+
+      // Subcollection match: batch-fetch every private/auth doc in one round trip.
+      const authRefs = privateLeaguesSnap.docs.map(d =>
+        db.collection('leagues').doc(d.id).collection('private').doc('auth')
+      );
+      const authSnaps = await db.getAll(...authRefs);
+      for (let i = 0; i < authSnaps.length; i++) {
+        const snap = authSnaps[i];
+        if (snap.exists && snap.data()?.passcode === passcode) {
+          return res.status(200).json({ league: publicView(privateLeaguesSnap.docs[i]) });
+        }
+      }
+      return res.status(404).json({ error: 'No league found with that passcode' });
+
     // ─── LEAVE ────────────────────────────────────────────
     } else if (action === 'leave') {
       const { leagueId } = req.body;

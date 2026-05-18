@@ -17,7 +17,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, lookupLeagueByPasscode, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -3127,7 +3127,19 @@ const GoalOracle = () => {
               if (!passInput.trim() || !uData?.id) return;
               try {
                 setJoinErr('');
-                const match = allLeagues.find(l => l.passcode && l.passcode === passInput.trim());
+                // Server-side lookup because new private leagues keep their
+                // passcode in a /private/auth subcollection that clients
+                // can't read. The legacy client-side find() on allLeagues
+                // (l.passcode === ...) silently failed for every league
+                // created since that refactor — see lookupLeagueByPasscode.
+                let match = null;
+                try {
+                  match = await lookupLeagueByPasscode(passInput.trim());
+                } catch (lookupErr) {
+                  setJoinErr('No league found with that passcode');
+                  notify('No league found with that passcode', 'error');
+                  return;
+                }
                 if (!match) { setJoinErr('No league found with that passcode'); notify('No league found with that passcode', 'error'); return; }
                 await joinLeague(match.id, uData.id, passInput.trim());
                 notify(`Joined ${match.name}!`);

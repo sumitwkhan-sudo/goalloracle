@@ -269,6 +269,15 @@ export async function joinLeague(leagueId, userId, passcode = null) {
   await apiCall('leagues', 'POST', { action: 'join', leagueId, passcode });
 }
 
+// Look up a private league by its invite passcode. Server-side because
+// new-format passcodes live in /leagues/{id}/private/auth and aren't
+// readable by clients. Returns minimal public metadata, or throws when
+// no league matches.
+export async function lookupLeagueByPasscode(passcode) {
+  const { league } = await apiCall('leagues', 'POST', { action: 'lookupByPasscode', passcode });
+  return league;
+}
+
 // House Rules — edit (creator only). Pass empty string or null to clear.
 export async function editLeagueHouseRules(leagueId, content) {
   return await apiCall('leagues', 'POST', { action: 'editHouseRules', leagueId, content: content == null ? '' : content });
