@@ -987,6 +987,18 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         </div>
       )}
 
+      {/* House Rules — collapsible card + edit/report modals, all owned
+          by HouseRulesSection. Renders null when the league doesn't
+          qualify (no rules, global, or public league). Lives outside
+          the sTab conditionals so it's visible from both Predictions
+          and Leaderboard tabs, matching the Classic Detail behavior. */}
+      <HouseRulesSection
+        league={league}
+        userId={userData?.id}
+        isCreator={league?.createdBy === userData?.id}
+        notify={notify}
+      />
+
       {sTab === 'predictions' && (
         <div className="predict-inline-header">
           {/* Breadcrumb-style label + the active league name so the
