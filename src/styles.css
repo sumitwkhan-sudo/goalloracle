@@ -901,6 +901,77 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   font-size: 0.7rem; color: var(--text-dim); margin-top: 0.4rem;
   font-style: italic;
 }
+
+/* ─── Auto-scrolling leaderboard ticker ─────────────────────────
+   When the global Quick Picks leaderboard has any entries with a
+   Champion + Runner-up picked, the hero card renders a vertical
+   ticker. The list is duplicated in JSX so translateY(-50%) loops
+   seamlessly. */
+.hero-lb-scroll-mask {
+  position: relative;
+  height: 340px;
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+}
+.hero-lb-scroller {
+  display: flex; flex-direction: column;
+  animation: hero-lb-scroll-up 45s linear infinite;
+  will-change: transform;
+}
+.hero-lb-scroll-mask:hover .hero-lb-scroller {
+  animation-play-state: paused;
+}
+@keyframes hero-lb-scroll-up {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-lb-scroller { animation: none; }
+  .hero-lb-scroll-mask {
+    mask-image: none; -webkit-mask-image: none;
+    overflow-y: auto;
+  }
+}
+
+/* Two-line row variant: top: rank + country + name + pts;
+   bottom: 🏆 winner + 🥈 runner-up predictions. */
+.hero-lb-row-2line {
+  display: flex;
+  grid-template-columns: none;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.55rem 0.1rem;
+}
+.hero-lb-row-2line .hero-lb-rank { padding-top: 2px; }
+.hero-lb-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.hero-lb-top {
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.hero-lb-pts-spacer { flex: 1; min-width: 0.5rem; }
+.hero-lb-picks {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.78rem; color: var(--text-sec);
+  flex-wrap: wrap;
+}
+.hero-lb-pick {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  min-width: 0;
+}
+.hero-lb-pick-tag { font-size: 0.85em; opacity: 0.75; }
+.hero-lb-pick-flag { font-size: 0.95rem; line-height: 1; }
+.hero-lb-pick-name {
+  color: var(--text); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 12ch;
+}
+.hero-lb-pick-sep { color: var(--text-dim); opacity: 0.6; }
 .hero-lb-empty {
   text-align: center; padding: 0.5rem 0.25rem 0.25rem;
   display: flex; flex-direction: column; gap: 0.2rem;
