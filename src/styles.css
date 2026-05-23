@@ -342,12 +342,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   font-size: 0.55em;
   font-weight: 600;
   margin-top: 0.6rem;
-  /* Match parent .hero-title's letter-spacing + zero out any
-     inherited indent so the highlight line is flush left against
-     the title — fixes the optical misalignment that the prior
-     -0.01em + auto-margin combo produced. */
+  /* Match parent .hero-title's letter-spacing + inherit text-align
+     so the highlight follows the parent's alignment (left on the
+     desktop split hero, center on mobile per the @media block).
+     Zero margin/padding/indent prevents any inherited offset. */
   letter-spacing: -0.02em;
-  text-align: left;
+  text-align: inherit;
   margin-left: 0;
   padding-left: 0;
   text-indent: 0;
