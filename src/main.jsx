@@ -4,6 +4,10 @@ import { HelmetProvider } from 'react-helmet-async';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import posthog from 'posthog-js';
+// Plus Jakarta Sans — site-wide typeface. Variable font loaded
+// once at boot; --font and --font-display in styles.css point at
+// "Plus Jakarta Sans Variable" so every surface picks it up.
+import '@fontsource-variable/plus-jakarta-sans';
 import GoalOracle from './goaloracle';
 
 // PostHog — initialise once at app boot. Every track() call in
