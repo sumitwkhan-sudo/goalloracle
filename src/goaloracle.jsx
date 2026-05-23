@@ -28,6 +28,7 @@ import LeagueListRow from './components/LeagueListRow';
 import SimplePrediction from './pages/SimplePrediction';
 import OfficialRules from './pages/OfficialRules';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import InterPreview from './pages/InterPreview';
 import PrizeStructureCard from './components/PrizeStructureCard';
 import ContestConsentBanner from './components/ContestConsentBanner';
 import HouseRulesSection from './components/HouseRulesSection';
@@ -109,6 +110,7 @@ const PATH_TO_VIEW = {
   '/admin': 'admin',
   '/feedback': 'feedback',
   '/__typography-preview-xk29r': 'fontPreview',
+  '/__inter-preview-7q4m9': 'interPreview',
 };
 const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
 
@@ -4987,6 +4989,7 @@ const GoalOracle = () => {
       {view === 'terms' && <Terms />}
       {view === 'officialRules' && <OfficialRules onNavPrivacy={() => nav('privacy')} />}
       {view === 'privacy' && <PrivacyPolicy />}
+      {view === 'interPreview' && <InterPreview />}
       {view === 'publicBracket' && (
         <PublicBracket
           userId={publicBracketUserId}

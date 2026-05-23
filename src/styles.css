@@ -9418,6 +9418,219 @@ a.news-ticker-item:focus-visible {
 }
 [data-theme="dark"] .legal-footer { border-top-color: rgba(255, 255, 255, 0.1); }
 
+/* ─── Temporary: Inter typography preview page ────────────────────
+   Renders at /__inter-preview-7q4m9 to preview the proposed Inter
+   (Polymarket-style) typography swap WITHOUT touching the rest of
+   the site. Scoped via CSS-variable overrides on .inter-preview-page
+   so existing classes that reference var(--font) and var(--font-display)
+   resolve to Inter inside the preview, while the global theme stays
+   on Space Grotesk / Chakra Petch.
+
+   Zero color changes — only font-family overrides + a handful of
+   layout primitives for the two-column comparison and weight demo.
+
+   Delete this block + src/pages/InterPreview.jsx + the /__inter-preview-7q4m9
+   route in goaloracle.jsx once a typography direction is committed.
+*/
+.inter-preview-page {
+  font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  font-optical-sizing: auto;
+  --font: 'Inter Variable', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Inter Variable', 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.inter-preview-wrapper {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 4rem;
+}
+.inter-preview-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  background: rgba(255, 193, 7, 0.08);
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  font-size: 0.92rem;
+}
+.inter-preview-banner strong { color: var(--text); }
+.inter-preview-banner span { color: var(--text-sec); }
+.inter-preview-banner a { color: var(--cyan); text-decoration: underline; }
+
+.inter-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+@media (max-width: 880px) {
+  .inter-preview-grid { grid-template-columns: 1fr; }
+}
+
+.inter-preview-col {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: var(--bg-card);
+}
+.inter-preview-col-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-sec);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Mock hero */
+.ipc-hero { margin-bottom: 1.5rem; }
+.ipc-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--cyan);
+  margin: 0 0 0.6rem;
+}
+.ipc-title {
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0 0 0.85rem;
+  color: var(--text);
+}
+.ipc-title-highlight {
+  display: block;
+  color: var(--cyan);
+  font-weight: 700;
+  margin-top: 0.15rem;
+}
+.ipc-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-sec);
+  margin: 0 0 1.1rem;
+  line-height: 1.5;
+}
+.ipc-cta-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.ipc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.ipc-btn-primary { background: var(--cyan); color: #0a0a0a; }
+.ipc-btn-secondary { background: transparent; color: var(--text); border-color: var(--border); }
+
+/* Section */
+.ipc-section { margin-bottom: 1.5rem; }
+.ipc-h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0 0 0.55rem;
+  color: var(--text);
+}
+.ipc-body {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-sec);
+  margin: 0;
+}
+
+/* Tabs */
+.ipc-tabs { display: flex; gap: 0.3rem; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+.ipc-tab {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.55rem 0.85rem;
+  background: transparent;
+  border: none;
+  color: var(--text-sec);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.ipc-tab-active { color: var(--text); border-bottom-color: var(--cyan); font-weight: 600; }
+
+/* Card */
+.ipc-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+.ipc-card-head { margin-bottom: 0.85rem; }
+.ipc-card-title { font-size: 1rem; font-weight: 600; margin: 0 0 0.2rem; color: var(--text); }
+.ipc-card-sub { font-size: 0.8rem; color: var(--text-sec); }
+.ipc-list { list-style: none; padding: 0; margin: 0; }
+.ipc-list li {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.45rem 0;
+  font-size: 0.88rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.ipc-list li:last-child { border-bottom: 0; }
+.ipc-list-num { width: 1.5rem; color: var(--text-sec); font-weight: 600; font-size: 0.78rem; }
+.ipc-list-score { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ipc-list-you { background: rgba(255, 193, 7, 0.08); border-radius: 6px; padding-left: 0.5rem; padding-right: 0.5rem; }
+
+/* Features */
+.ipc-features { display: flex; flex-wrap: wrap; gap: 0.85rem; }
+.ipc-feature {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-sec);
+}
+
+/* Detail / weight hierarchy */
+.inter-preview-detail {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.75rem;
+  background: var(--bg-card);
+}
+.ipd-title { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.4rem; color: var(--text); }
+.ipd-sub { font-size: 0.9rem; color: var(--text-sec); margin: 0 0 1rem; }
+.ipd-weights { display: flex; flex-direction: column; gap: 0.5rem; }
+.ipd-weight-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
+  align-items: baseline;
+}
+.ipd-weight-row:last-child { border-bottom: 0; }
+.ipd-weight-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; color: var(--text-sec); text-transform: uppercase; }
+.ipd-weight-sample { font-size: 1.05rem; color: var(--text); }
+
+.ipd-numbers { display: flex; flex-direction: column; }
+.ipd-num-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+.ipd-num-row:last-child { border-bottom: 0; }
+.ipd-num-rank { color: var(--text-sec); font-weight: 600; }
+.ipd-num-name { color: var(--text); font-weight: 500; }
+.ipd-num-score { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
 /* ─── Temporary: font-preview page ────────────────────────────────
    Stacked side-by-side typography mock-up at /__typography-preview-xk29r.
    Delete this block once a typography winner is chosen.
