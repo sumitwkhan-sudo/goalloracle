@@ -27,6 +27,7 @@ import LeagueLeaderboardLayout from './components/LeagueLeaderboardLayout';
 import LeagueListRow from './components/LeagueListRow';
 import SimplePrediction from './pages/SimplePrediction';
 import OfficialRules from './pages/OfficialRules';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import PrizeStructureCard from './components/PrizeStructureCard';
 import ContestConsentBanner from './components/ContestConsentBanner';
 import HouseRulesSection from './components/HouseRulesSection';
@@ -100,6 +101,7 @@ const PATH_TO_VIEW = {
   '/faq': 'faq',
   '/terms': 'terms',
   '/official-rules': 'officialRules',
+  '/privacy': 'privacy',
   '/dashboard': 'dashboard',
   '/leagues': 'leagues',
   '/browse': 'browse',
@@ -2410,7 +2412,9 @@ const GoalOracle = () => {
             <span className="home-footer-strip-divider">·</span>
             <button type="button" className="home-footer-strip-link" onClick={() => nav('officialRules')}>Official Rules</button>
             <span className="home-footer-strip-divider">·</span>
-            <button type="button" className="home-footer-strip-link" onClick={() => nav('terms')}>Terms &amp; Privacy</button>
+            <button type="button" className="home-footer-strip-link" onClick={() => nav('terms')}>Terms</button>
+            <span className="home-footer-strip-divider">·</span>
+            <button type="button" className="home-footer-strip-link" onClick={() => nav('privacy')}>Privacy</button>
           </div>
           <InviteFriendsModal
             open={inviteOpen}
@@ -2743,6 +2747,7 @@ const GoalOracle = () => {
               <a onClick={() => nav('feedback')}>Feedback</a>
               <a onClick={() => nav('officialRules')}>Official Rules</a>
               <a onClick={() => nav('terms')}>Terms</a>
+              <a onClick={() => nav('privacy')}>Privacy</a>
             </div>
             <div className="footer-copy">© 2026 Suraam, LLC &middot; A free prediction contest for the FIFA World Cup 2026 &middot; Not affiliated with FIFA</div>
             <div className="footer-disclaimer" style={{fontSize: '11px', opacity: 0.5, maxWidth: '600px', margin: '8px auto 0', lineHeight: 1.4}}>
@@ -4055,7 +4060,11 @@ const GoalOracle = () => {
             </button>
             <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); nav('terms'); }}>
               <Shield size={16} />
-              <span>Terms &amp; Privacy</span>
+              <span>Terms</span>
+            </button>
+            <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); nav('privacy'); }}>
+              <Shield size={16} />
+              <span>Privacy</span>
             </button>
             <div className="dropdown-divider"></div>
             <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); logout(); nav('landing'); }}>
@@ -4531,6 +4540,9 @@ const GoalOracle = () => {
         <div className="faq-header">
           <h1 className="faq-title">Terms &amp; Conditions</h1>
           <p className="faq-subtitle">Last updated: April 26, 2026</p>
+          <p className="faq-subtitle" style={{ fontSize: '0.92rem', marginTop: 4 }}>
+            See our <button type="button" className="faq-link" onClick={() => nav('privacy')}>Privacy Policy</button> for details on how we collect, use, and share information.
+          </p>
         </div>
 
         <div className="faq-section">
@@ -4973,7 +4985,8 @@ const GoalOracle = () => {
       )}
       {view === 'faq' && <FAQ />}
       {view === 'terms' && <Terms />}
-      {view === 'officialRules' && <OfficialRules onNavPrivacy={() => nav('terms')} />}
+      {view === 'officialRules' && <OfficialRules onNavPrivacy={() => nav('privacy')} />}
+      {view === 'privacy' && <PrivacyPolicy />}
       {view === 'publicBracket' && (
         <PublicBracket
           userId={publicBracketUserId}
