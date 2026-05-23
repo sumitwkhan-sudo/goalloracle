@@ -13,8 +13,16 @@ import React, { useLayoutEffect, useRef, useState, useMemo, useCallback } from '
 import BracketMatch from './BracketMatch';
 import BracketHintTooltip from './BracketHintTooltip';
 
-const LEFT_SIDE_R32_IDS  = ['r32-01', 'r32-02', 'r32-03', 'r32-04', 'r32-05', 'r32-06', 'r32-07', 'r32-08'];
-const RIGHT_SIDE_R32_IDS = ['r32-09', 'r32-10', 'r32-11', 'r32-12', 'r32-13', 'r32-14', 'r32-15', 'r32-16'];
+// R32 ids are listed in BRACKET-FLOW ORDER, not numerical order, so that
+// each pair of R32 matches sits adjacent in the column and visually feeds
+// into the R16 match they actually advance to. With `justify-content:
+// space-around` on the column, an 8-item column places adjacent pairs at
+// vertical midpoints 1/8, 3/8, 5/8, 7/8 — exactly where the 4 R16 items
+// sit. Reordering R32 (rather than fighting it with CSS) is what makes
+// the SVG connectors land cleanly. Logical routing in CONNECTIONS below
+// is unchanged; only display order is.
+const LEFT_SIDE_R32_IDS  = ['r32-01', 'r32-04', 'r32-03', 'r32-06', 'r32-02', 'r32-05', 'r32-07', 'r32-08'];
+const RIGHT_SIDE_R32_IDS = ['r32-09', 'r32-10', 'r32-13', 'r32-12', 'r32-15', 'r32-11', 'r32-14', 'r32-16'];
 const LEFT_R16_IDS  = ['r16-02', 'r16-01', 'r16-03', 'r16-04'];
 const RIGHT_R16_IDS = ['r16-06', 'r16-05', 'r16-07', 'r16-08'];
 const LEFT_QF_IDS   = ['qf-01', 'qf-03'];
