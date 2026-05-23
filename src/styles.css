@@ -9402,6 +9402,21 @@ a.news-ticker-item:focus-visible {
   margin-bottom: 0.4rem;
 }
 [data-theme="dark"] .legal-prize-list li { background: rgba(255, 255, 255, 0.04); }
+.legal-section .legal-subhead {
+  font-size: 0.98rem;
+  font-weight: 700;
+  margin: 0.85rem 0 0.45rem;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+.legal-footer {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 0.88rem;
+  color: var(--text-sec);
+}
+[data-theme="dark"] .legal-footer { border-top-color: rgba(255, 255, 255, 0.1); }
 
 /* ─── Temporary: font-preview page ────────────────────────────────
    Stacked side-by-side typography mock-up at /__typography-preview-xk29r.
