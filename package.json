@@ -15,8 +15,6 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@fingerprintjs/fingerprintjs": "^5.2.0",
-    "@fontsource-variable/manrope": "^5.2.8",
-    "@fontsource-variable/onest": "^5.2.11",
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
     "@vercel/analytics": "^1.1.1",
     "@vercel/og": "^0.11.1",
