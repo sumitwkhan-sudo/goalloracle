@@ -4522,7 +4522,7 @@ button.invite-option:hover,
    SIMPLE MODE — WIZARD, GROUP RANKING, BEST THIRD
    ============================================ */
 .simple-page {
-  max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 4rem;
+  max-width: 1100px; margin: 0 auto; padding: 1rem 1rem 4rem;
   color: var(--text); font-family: var(--font);
 }
 
@@ -4597,7 +4597,7 @@ button.invite-option:hover,
 
 .simple-page-header {
   display: grid; grid-template-columns: auto 1fr auto; align-items: center;
-  gap: 1rem; margin-bottom: 1.25rem;
+  gap: 1rem; margin-bottom: 0.75rem;
 }
 .simple-page-title h1 { font-size: 1.5rem; margin: 0; }
 .simple-page-subtitle {
@@ -4758,7 +4758,7 @@ button.invite-option:hover,
 /* Step progress (wizard) */
 .simple-steps {
   display: flex; align-items: center; justify-content: center;
-  gap: 0.4rem; margin: 1rem 0 2rem; flex-wrap: nowrap;
+  gap: 0.4rem; margin: 0.5rem 0 1rem; flex-wrap: nowrap;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -4800,7 +4800,7 @@ button.invite-option:hover,
 }
 
 /* Step intro + nav */
-.simple-step-section { display: flex; flex-direction: column; gap: 1.5rem; }
+.simple-step-section { display: flex; flex-direction: column; gap: 1rem; }
 .simple-step-intro { text-align: center; }
 .simple-step-intro h2 { font-size: 1.1rem; margin: 0 0 0.25rem; }
 .simple-step-intro p { margin: 0; color: var(--text-sec); font-size: 0.88rem; }
@@ -4813,7 +4813,7 @@ button.invite-option:hover,
   background: rgba(0, 212, 255, 0.08); border: 1px solid rgba(0, 212, 255, 0.2);
   color: var(--text-sec);
 }
-.simple-step-nav { display: flex; justify-content: center; padding-top: 0.5rem; }
+.simple-step-nav { display: flex; justify-content: center; padding-top: 0; }
 .simple-step-nav-split { justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 
 /* Skeleton loader */
@@ -4823,7 +4823,7 @@ button.invite-option:hover,
 @keyframes simple-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 0.85; } }
 
 /* Group grid */
-.group-grid-wrap { display: flex; flex-direction: column; gap: 1rem; }
+.group-grid-wrap { display: flex; flex-direction: column; gap: 0.5rem; }
 .group-grid-progress {
   display: flex; flex-direction: column; gap: 0.5rem;
   background: var(--bg-card); border: 1px solid var(--border);
@@ -4880,13 +4880,13 @@ button.invite-option:hover,
 /* Group card */
 .group-card {
   background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 0.75rem;
+  border-radius: var(--radius-lg); padding: 0.5rem;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .group-card.touched { border-color: rgba(0,230,118,0.3); }
 .group-card-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 0.25rem 0.5rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;
+  padding: 0 0.25rem 0.35rem; border-bottom: 1px solid var(--border); margin-bottom: 0.35rem;
 }
 .group-card-title { font-weight: 600; font-size: 0.95rem; letter-spacing: 0.02em; }
 .group-card-check {
@@ -4894,11 +4894,11 @@ button.invite-option:hover,
   width: 20px; height: 20px; border-radius: 50%;
   background: var(--success); color: #000;
 }
-.group-card-rows { display: flex; flex-direction: column; gap: 0.35rem; }
+.group-card-rows { display: flex; flex-direction: column; gap: 0.25rem; }
 .group-row {
   display: grid; grid-template-columns: auto auto 1fr auto;
   align-items: center; gap: 0.5rem;
-  padding: 0.55rem 0.6rem; border-radius: 8px;
+  padding: 0.45rem 0.55rem; border-radius: 8px;
   background: rgba(255,255,255,0.02); border: 1px solid var(--border);
   transition: background 0.15s;
   touch-action: none;
@@ -5040,7 +5040,7 @@ button.invite-option:hover,
   background: var(--bg-card);
   border: 1px solid var(--border-subtle, var(--border));
   border-radius: var(--radius);
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   overflow: hidden;
 }
 .qp-scoring-head {
@@ -5118,6 +5118,12 @@ button.invite-option:hover,
   color: var(--text-dim);
   animation: qp-nudge-fade-in 0.45s ease-out both, qp-nudge-fade-out 0.6s ease-in 5.4s both;
   pointer-events: none; user-select: none;
+}
+/* The scroll nudge is only useful on phones where viewport is tight.
+   On desktop the group grid is now reachable above the fold without
+   scrolling, so the bouncing chevron just adds noise — hide it. */
+@media (min-width: 768px) {
+  .qp-scroll-nudge { display: none; }
 }
 .qp-scroll-nudge-label {
   font-family: var(--mono);
