@@ -25,10 +25,24 @@
 ## Key pages
 
 - [Home](https://goaloracle.io/): Hero, next-match countdown, how it works, scoring breakdown, social proof.
+- [How It Works](https://goaloracle.io/how-it-works): Full overview of the 2026 World Cup format, both prediction modes (Quick Picks + Classic), the scoring table, the prize contest, and the dual-source result verification.
 - [FAQ](https://goaloracle.io/faq): How the game works, leagues and privacy, score verification methodology, contest policy, account support.
+- [Annexe C Guide](https://goaloracle.io/guides/annexe-c-third-place-routing): Deep explainer of FIFA's third-place routing for the 2026 World Cup — all 495 combinations, the Article 13 tiebreaker order, why head-to-head isn't used cross-group.
 - [Official Rules](https://goaloracle.io/official-rules): Full contest rules including eligibility, prize amounts, jurisdiction restrictions, and dispute process.
 - [Terms & Conditions](https://goaloracle.io/terms): Payout eligibility, OFAC sanctions exclusions, acceptable use.
 - [Privacy Policy](https://goaloracle.io/privacy): What we collect, how we use it, who we share it with, CCPA / GDPR rights.
+
+## Developer resources
+
+For AI agents, integrations, and machine-readable consumers:
+
+- [Developer documentation](https://goaloracle.io/developers): Public API reference, authentication, rate limits, AI-engine resources.
+- [OpenAPI 3.1.0 spec](https://goaloracle.io/openapi.json): Machine-readable API definition for the public no-auth read endpoints.
+- [llms.txt](https://goaloracle.io/llms.txt): This file. Short authoritative summary.
+- [llms-full.txt](https://goaloracle.io/llms-full.txt): Deep reference (full scoring tables, Annexe C explanation, prize contest mechanics).
+- [robots.txt](https://goaloracle.io/robots.txt): AI crawler allow-list (GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot, Meta-ExternalAgent, Google-Extended, and others).
+
+No MCP server is published yet; planned but not built. Contact support@goaloracle.io if you have an integration use case that needs it.
 
 ## Annexe C — Third-place team routing
 

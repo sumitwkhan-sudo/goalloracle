@@ -28,6 +28,9 @@ import LeagueListRow from './components/LeagueListRow';
 import SimplePrediction from './pages/SimplePrediction';
 import OfficialRules from './pages/OfficialRules';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import HowItWorks from './pages/HowItWorks';
+import Developers from './pages/Developers';
+import GuideAnnexeC from './pages/GuideAnnexeC';
 import PrizeStructureCard from './components/PrizeStructureCard';
 import ContestConsentBanner from './components/ContestConsentBanner';
 import HouseRulesSection from './components/HouseRulesSection';
@@ -77,6 +80,9 @@ const VIEW_META = {
   terms: { title: 'Terms & Conditions — GoalOracle', description: 'GoalOracle Terms & Conditions, including payout eligibility and OFAC sanctions exclusions.', path: '/terms', index: true },
   privacy: { title: 'Privacy Policy — GoalOracle', description: 'GoalOracle Privacy Policy: what we collect, how we use it, who we share it with, your rights (CCPA/GDPR), and how to opt out of personalized advertising.', path: '/privacy', index: true },
   officialRules: { title: 'Official Rules — GoalOracle Prize Contest', description: 'Official Rules for the GoalOracle World Cup 2026 prediction contest. Free to enter. Sponsored by Suraam, LLC d/b/a GoalOracle.', path: '/official-rules', index: true },
+  howItWorks: { title: 'How GoalOracle Works — World Cup 2026 Bracket Predictions', description: 'How the 2026 FIFA World Cup bracket game works on GoalOracle: format, scoring tables, prize contest mechanics, dual-source result verification, and Annexe C third-place routing.', path: '/how-it-works', index: true },
+  developers: { title: 'Developers & API — GoalOracle', description: 'Public REST API for GoalOracle. OpenAPI 3.1.0 spec, authentication, rate limits, AI-engine resources, and integration guidance.', path: '/developers', index: true },
+  guideAnnexeC: { title: 'Annexe C — 2026 World Cup Third-Place Routing Explained', description: 'How FIFA\'s Annexe C decides which 8 of 12 third-placed teams advance and which Round of 32 slot each one fills. All 495 combinations, the Article 13 tiebreaker order, and why head-to-head isn\'t used cross-group.', path: '/guides/annexe-c-third-place-routing', index: true },
   fontPreview: { title: 'GoalOracle', path: '/__typography-preview-xk29r', index: false },
 };
 
@@ -103,6 +109,9 @@ const PATH_TO_VIEW = {
   '/terms': 'terms',
   '/official-rules': 'officialRules',
   '/privacy': 'privacy',
+  '/how-it-works': 'howItWorks',
+  '/developers': 'developers',
+  '/guides/annexe-c-third-place-routing': 'guideAnnexeC',
   '/dashboard': 'dashboard',
   '/leagues': 'leagues',
   '/browse': 'browse',
@@ -4988,6 +4997,9 @@ const GoalOracle = () => {
       {view === 'terms' && <Terms />}
       {view === 'officialRules' && <OfficialRules onNavPrivacy={() => nav('privacy')} />}
       {view === 'privacy' && <PrivacyPolicy />}
+      {view === 'howItWorks' && <HowItWorks />}
+      {view === 'developers' && <Developers />}
+      {view === 'guideAnnexeC' && <GuideAnnexeC />}
       {view === 'publicBracket' && (
         <PublicBracket
           userId={publicBracketUserId}

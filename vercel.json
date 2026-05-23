@@ -18,13 +18,14 @@
     { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
     { "source": "/llms.txt", "destination": "/llms.txt" },
     { "source": "/llms-full.txt", "destination": "/llms-full.txt" },
+    { "source": "/openapi.json", "destination": "/openapi.json" },
     { "source": "/manifest.json", "destination": "/manifest.json" },
     { "source": "/logo.svg", "destination": "/logo.svg" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
-      "source": "/(robots.txt|sitemap.xml|llms.txt|llms-full.txt|manifest.json)",
+      "source": "/(robots.txt|sitemap.xml|llms.txt|llms-full.txt|openapi.json|manifest.json)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=3600, s-maxage=86400" }
       ]
