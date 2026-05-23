@@ -61,8 +61,8 @@ const VIEW_META = {
     index: true,
   },
   faq: {
-    title: 'FAQ — GoalOracle',
-    description: 'How GoalOracle works: predictions, leagues, scoring, result verification, and our no-gambling policy.',
+    title: 'World Cup 2026 Prediction FAQ — GoalOracle',
+    description: 'World Cup 2026 bracket FAQ: how scoring works, leagues, result verification, prizes, and our skill-based contest policy.',
     path: '/faq',
     index: true,
   },
@@ -75,6 +75,7 @@ const VIEW_META = {
   feedback: { title: 'Feedback — GoalOracle', path: '/feedback', index: false },
   admin: { title: 'Admin — GoalOracle', path: '/admin', index: false },
   terms: { title: 'Terms & Conditions — GoalOracle', description: 'GoalOracle Terms & Conditions, including payout eligibility and OFAC sanctions exclusions.', path: '/terms', index: true },
+  privacy: { title: 'Privacy Policy — GoalOracle', description: 'GoalOracle Privacy Policy: what we collect, how we use it, who we share it with, your rights (CCPA/GDPR), and how to opt out of personalized advertising.', path: '/privacy', index: true },
   officialRules: { title: 'Official Rules — GoalOracle Prize Contest', description: 'Official Rules for the GoalOracle World Cup 2026 prediction contest. Free to enter. Sponsored by Suraam, LLC d/b/a GoalOracle.', path: '/official-rules', index: true },
   fontPreview: { title: 'GoalOracle', path: '/__typography-preview-xk29r', index: false },
 };

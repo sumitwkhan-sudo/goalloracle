@@ -110,9 +110,9 @@
       "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
       "sport": "Association Football",
       "location": [
-        { "@type": "Country", "name": "United States" },
-        { "@type": "Country", "name": "Canada" },
-        { "@type": "Country", "name": "Mexico" }
+        { "@type": "Place", "name": "United States", "address": { "@type": "PostalAddress", "addressCountry": "US" } },
+        { "@type": "Place", "name": "Canada",        "address": { "@type": "PostalAddress", "addressCountry": "CA" } },
+        { "@type": "Place", "name": "Mexico",        "address": { "@type": "PostalAddress", "addressCountry": "MX" } }
       ],
       "organizer": {
         "@type": "Organization",
@@ -231,6 +231,54 @@
             "@type": "Answer",
             "text": "No. Each person may have only one GoalOracle account. Creating additional accounts to enter the same league more than once, inflate referrals, or manipulate leaderboards violates the terms and is automatically detected. If duplicate accounts linked to the same person are identified, all of them may be removed, points reset, and the person excluded from future prize eligibility."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "How does the 2026 World Cup bracket work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The 2026 FIFA World Cup is the first 48-team tournament. 48 teams are drawn into 12 groups of 4 (Groups A through L). Each team plays 3 group games (48 matches total). The top two from each group plus the 8 best third-placed teams (per FIFA's Annexe C routing matrix) advance to the Round of 32. From there it's single-elimination — Round of 32, Round of 16, Quarterfinals, Semifinals, Third-Place Match, and Final. 104 matches total across the tournament."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How many matches are in the 2026 World Cup?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "104 matches total: 48 group-stage matches + 16 Round of 32 + 8 Round of 16 + 4 Quarterfinals + 2 Semifinals + 1 Third-Place Match + 1 Final."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is Annexe C in the 2026 World Cup?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Annexe C is FIFA's official routing matrix for the 8 best third-placed teams in the 2026 World Cup. With 12 groups, there are 12 third-placed teams; the top 8 of them advance to the Round of 32. Annexe C is the published table that determines which 8 advance AND which specific bracket slot each one occupies, depending on which group combinations they came from. There are 495 possible combinations, all enumerated in the FIFA rulebook. GoalOracle's prediction engine implements all 495 combinations exactly to the rulebook."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Where can I make free World Cup 2026 predictions?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "GoalOracle (goaloracle.io) is a free skill-based prediction game for the 2026 FIFA World Cup. Sign up with email, Google, or Twitter/X. No purchase or payment is required to play. Two prediction modes are available: Quick Picks (10-minute guided bracket) and Classic Predictions (predict every match score). The top 3 finishers on the Global Quick Picks Leaderboard at the end of the World Cup Final receive $150, $100, and $50 in USDC stablecoin respectively."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the best World Cup bracket app?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "GoalOracle is the most rule-faithful World Cup 2026 prediction game available — it's the only public English-language tool that implements FIFA's Annexe C third-place routing matrix with all 495 combinations enumerated. It offers two free modes (Quick Picks for casual users, Classic Predictions for diehards), per-league custom scoring rules, private leagues with passcodes, and dual-source result verification (football-data.org + api-football.com must agree before points are awarded). Free to play, no entry fee. The Global Quick Picks Leaderboard pays $150/$100/$50 in USDC to top 3 finishers."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can you win money on World Cup bracket pools?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes — GoalOracle's Global Quick Picks League pays $150 (1st), $100 (2nd), and $50 (3rd) in USDC stablecoin to the top 3 finishers at the end of the World Cup 2026 Final. This is a skill-based contest (no entry fee, no purchase necessary, not gambling) sponsored by Suraam, LLC d/b/a GoalOracle. Eligibility: 18+, resident of an eligible jurisdiction. See the Official Rules at goaloracle.io/official-rules for full details."
+          }
         }
       ]
     }
@@ -292,13 +340,14 @@
       -->
       <div id="seo-shell" hidden>
         <header>
-          <h1>GoalOracle — Free World Cup 2026 Prediction Game</h1>
-          <p>Predict every match of the 2026 FIFA World Cup. Build your bracket, join leagues with friends, and compete on the global leaderboard. Free to play. No gambling. Prediction engine compliant with the official FIFA World Cup 26 rulebook.</p>
+          <h1>GoalOracle — Free World Cup 2026 Prediction Game &amp; Bracket Maker</h1>
+          <p>Predict every match of the 2026 FIFA World Cup. Build your bracket, join leagues with friends, and compete on the global leaderboard. Free to enter — no purchase necessary. Top 3 finishers on the Global Quick Picks Leaderboard win cash prizes of $150 / $100 / $50 in USDC stablecoin. Skill-based contest, not gambling. Prediction engine compliant with the official FIFA World Cup 26 rulebook including Annexe C third-place routing (all 495 combinations).</p>
           <nav>
             <a href="/">Home</a>
             <a href="/faq">Frequently Asked Questions</a>
-            <a href="/how-it-works">How it works</a>
-            <a href="/leaderboard">Leaderboard</a>
+            <a href="/official-rules">Official Rules</a>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
           </nav>
         </header>
 
@@ -318,7 +367,7 @@
           <h2>Frequently asked questions</h2>
           <article>
             <h3>Is GoalOracle free?</h3>
-            <p>Yes. GoalOracle is completely free to play. There are no entry fees, no real-money prizes, and no gambling of any kind.</p>
+            <p>Yes. GoalOracle is completely free to play. There is no entry fee, no purchase requirement, and no wagering of any kind. The top 3 finishers on the Global Quick Picks Leaderboard at the end of the World Cup 2026 Final receive cash prizes of $150 (1st), $100 (2nd), and $50 (3rd) paid in USDC stablecoin — this is a skill-based contest, not gambling.</p>
           </article>
           <article>
             <h3>When does the 2026 World Cup start?</h3>
@@ -343,6 +392,14 @@
           <article>
             <h3>When do predictions lock?</h3>
             <p>Predictions lock five minutes before each match kicks off. You can update your picks as many times as you want before the lock.</p>
+          </article>
+          <article>
+            <h3>What is Annexe C third-place routing?</h3>
+            <p>Annexe C is FIFA's official routing matrix for the 8 best third-placed teams. With 12 groups in the 2026 World Cup, 12 teams finish third; the top 8 advance to the Round of 32. Annexe C determines which 8 advance and which specific bracket slot each one fills — there are 495 possible combinations, all enumerated in the FIFA rulebook. GoalOracle's prediction engine implements all 495 combinations exactly, making it the only public English-language tool that's fully rule-faithful on this.</p>
+          </article>
+          <article>
+            <h3>How many matches are in the 2026 World Cup?</h3>
+            <p>104 matches total: 48 group-stage games + 16 Round of 32 + 8 Round of 16 + 4 Quarterfinals + 2 Semifinals + 1 Third-Place Match + 1 Final.</p>
           </article>
         </section>
 

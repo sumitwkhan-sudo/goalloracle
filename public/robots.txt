@@ -44,4 +44,19 @@ Allow: /
 User-agent: CCBot
 Allow: /
 
+# Meta AI (powers Meta AI Studio + product recommendation surfaces)
+User-agent: Meta-ExternalAgent
+Allow: /
+
+User-agent: Meta-ExternalFetcher
+Allow: /
+
+# DuckDuckGo's AI assistant
+User-agent: DuckAssistBot
+Allow: /
+
+# Mistral AI's web fetcher
+User-agent: MistralAI-User
+Allow: /
+
 Sitemap: https://goaloracle.io/sitemap.xml
