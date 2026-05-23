@@ -30,7 +30,7 @@ import {
 const EFFECTIVE_DATE = LAUNCH_DATE;
 const POLICY_VERSION = '1.0.0';
 const CONTACT_EMAIL = 'support@goaloracle.io';
-const PRIVACY_EMAIL = 'privacy@goaloracle.io';
+const PRIVACY_EMAIL = 'support@goaloracle.io';
 
 export default function PrivacyPolicy() {
   return (
@@ -535,8 +535,7 @@ export default function PrivacyPolicy() {
             Questions, requests, or complaints? You can reach us at:
           </p>
           <ul className="legal-list">
-            <li>Email (privacy): <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a></li>
-            <li>Email (general support): <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></li>
+            <li>Email: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> (privacy requests, general support, and complaints)</li>
             <li>Mail: {SPONSOR_DBA}, {SPONSOR_ADDRESS}</li>
           </ul>
         </section>
