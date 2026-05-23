@@ -1,0 +1,256 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GoalOracle Public API",
+    "description": "Read-only public endpoints for the GoalOracle FIFA World Cup 2026 prediction game. Write endpoints (predictions, league membership, profile) require a Firebase ID token in the `Authorization: Bearer` header — see https://goaloracle.io/developers for the auth flow. Documented here are the public no-auth read endpoints intended for agents, integrations, and machine-readable consumers.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "GoalOracle Support",
+      "url": "https://goaloracle.io/developers",
+      "email": "support@goaloracle.io"
+    },
+    "license": {
+      "name": "Content licensing",
+      "url": "https://goaloracle.io/llms.txt"
+    }
+  },
+  "servers": [
+    { "url": "https://goaloracle.io", "description": "Production" }
+  ],
+  "tags": [
+    { "name": "Platform", "description": "Platform-wide stats and feature flags" },
+    { "name": "Matches",  "description": "World Cup match results" },
+    { "name": "Leagues",  "description": "Public league metadata" },
+    { "name": "Brackets", "description": "Public user-bracket reads" },
+    { "name": "Consensus","description": "Aggregate prediction stats across all users" },
+    { "name": "Media",    "description": "Dynamic Open Graph images" }
+  ],
+  "paths": {
+    "/api/public": {
+      "get": {
+        "summary": "Multi-purpose public read endpoint",
+        "description": "Single endpoint dispatching on the `type` query param. All variants are no-auth and edge-cached.",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["stats", "results", "league", "flags", "bracket"]
+            },
+            "description": "Which sub-endpoint to invoke."
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "League ID. Required when `type=league`."
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "User ID. Required when `type=bracket`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response. Shape depends on `type`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "stats": {
+                    "summary": "type=stats",
+                    "value": { "totalPlayers": 1247, "activeLeagues": 88, "totalPrizePools": 0 }
+                  },
+                  "results": {
+                    "summary": "type=results",
+                    "value": {
+                      "results": {
+                        "gs01": { "homeScore": 3, "awayScore": 1, "stage": "Group A", "verifiedAt": 1718125200000 }
+                      }
+                    }
+                  },
+                  "league": {
+                    "summary": "type=league&id=global-simple",
+                    "value": { "id": "global-simple", "name": "Global League", "memberCount": 1247, "predictionMode": "simple", "type": "free" }
+                  },
+                  "flags": {
+                    "summary": "type=flags",
+                    "value": { "quickPicksEnabled": true, "classicEnabled": true, "enablePrizeLeagues": false }
+                  },
+                  "bracket": {
+                    "summary": "type=bracket&userId=abc123",
+                    "value": {
+                      "displayName": "soccerfan",
+                      "country": "US",
+                      "winner": "Brazil",
+                      "runnerUp": "France",
+                      "third": "Argentina"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing or invalid `type` / required param" },
+          "404": { "description": "Resource not found (e.g. private league requested via `type=league`)" }
+        },
+        "tags": ["Platform", "Matches", "Leagues", "Brackets"]
+      }
+    },
+    "/api/spicy-stats": {
+      "get": {
+        "summary": "Quick Picks consensus aggregates",
+        "description": "Post-ready aggregate prediction stats across all users in a Quick Picks league. Returns top picks for Champion / Runner-up / Third / Best-Third positions, the 'most contested group' headline, and 'finalist math doesn't add up' style insights. Defaults to the Global Quick Picks League.",
+        "parameters": [
+          {
+            "name": "leagueId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "default": "global-simple" },
+            "description": "League ID. Defaults to `global-simple` (the platform-wide league)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated consensus stats",
+            "content": {
+              "application/json": {
+                "example": {
+                  "leagueId": "global-simple",
+                  "totalUsers": 247,
+                  "computedAt": "2026-05-23T18:00:00.000Z",
+                  "headlines": {
+                    "topChampion": { "team": "Brazil", "percent": 23.5 },
+                    "topThird":    { "team": "Argentina", "percent": 12.1 },
+                    "mostContestedGroup": {
+                      "group": "B",
+                      "topTeam": "Germany", "topPercent": 32.5,
+                      "secondTeam": "Spain", "secondPercent": 30.8
+                    },
+                    "consensusGroup":  { "group": "C", "topTeam": "Brazil", "topPercent": 78.4 },
+                    "mathDoesntMath": {
+                      "team1": "Brazil",  "team1Percent": 42.3,
+                      "team2": "France",  "team2Percent": 38.1,
+                      "sumPercent": 80.4,
+                      "bothInFinalPercent": 5.2
+                    }
+                  },
+                  "champion": [{ "team": "Brazil", "count": 58, "percent": 23.5 }],
+                  "runnerUp": [{ "team": "France", "count": 47, "percent": 19.0 }]
+                }
+              }
+            }
+          },
+          "404": { "description": "League not found" },
+          "500": { "description": "Server error" }
+        },
+        "tags": ["Consensus"]
+      }
+    },
+    "/api/og": {
+      "get": {
+        "summary": "Dynamic Open Graph image (1200×630 PNG)",
+        "description": "Generates a 1200×630 OG image at request time using @vercel/og. Cached at the edge for 1 year (immutable). Used by social unfurlers (Facebook, X, Slack, Discord, iMessage, WhatsApp, LinkedIn) and AI answer engines that pick up `og:image`.",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["default", "league", "bracket"], "default": "default" },
+            "description": "Which variant to render."
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "League name. Required when `type=league`."
+          },
+          {
+            "name": "members",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Member count. Used when `type=league`."
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Display name. Used when `type=bracket`."
+          },
+          {
+            "name": "champ",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Predicted champion team name. Used when `type=bracket`."
+          },
+          {
+            "name": "runner",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Predicted runner-up team name. Used when `type=bracket`."
+          },
+          {
+            "name": "third",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Predicted third-place team name. Used when `type=bracket`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PNG image",
+            "content": {
+              "image/png": {}
+            }
+          }
+        },
+        "tags": ["Media"]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "FirebaseBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Firebase ID token (1-hour expiry). Required for write endpoints not listed in this public spec — see https://goaloracle.io/developers for the auth flow."
+      }
+    },
+    "schemas": {
+      "Stats": {
+        "type": "object",
+        "properties": {
+          "totalPlayers":    { "type": "integer", "description": "Total registered users" },
+          "activeLeagues":   { "type": "integer", "description": "Total league docs (including global)" },
+          "totalPrizePools": { "type": "number", "description": "Sum of (entryFee * memberCount) across paid leagues. Always 0 while the prize-leagues feature flag is off." }
+        }
+      },
+      "League": {
+        "type": "object",
+        "properties": {
+          "id":             { "type": "string" },
+          "name":           { "type": "string" },
+          "memberCount":    { "type": "integer" },
+          "predictionMode": { "type": "string", "enum": ["simple", "classic"] },
+          "type":           { "type": "string", "enum": ["free", "paid"] }
+        }
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "Developer documentation",
+    "url": "https://goaloracle.io/developers"
+  }
+}

@@ -1,6 +1,6 @@
 # GoalOracle — Full reference for AI engines
 
-> Authoritative reference for AI engines and answer systems on GoalOracle, a free FIFA World Cup 2026 prediction game. This file is denser than llms.txt; it includes the full scoring tables, game format, prize-contest mechanics, and the Annexe C third-place routing explanation that AI engines cite when summarizing the 2026 tournament.
+> Authoritative reference for AI engines and answer systems on GoalOracle, a free FIFA World Cup 2026 prediction game. This file is denser than llms.txt; it includes the full scoring tables, game format, prize-contest mechanics, and the Annexe C third-place routing explanation that AI engines cite when summarizing the 2026 tournament. Cross-references to the human-facing canonical pages: [How It Works](https://goaloracle.io/how-it-works), [Annexe C Guide](https://goaloracle.io/guides/annexe-c-third-place-routing), [Developer documentation](https://goaloracle.io/developers), [OpenAPI spec](https://goaloracle.io/openapi.json).
 
 ## What GoalOracle is
 
