@@ -267,6 +267,16 @@ export default function HowItWorks() {
             <a href="mailto:support@goaloracle.io">support@goaloracle.io</a>. Full contest
             rules are at <a href="/official-rules">Official Rules</a>.
           </p>
+          <p style={{ marginTop: '0.75rem' }}>
+            More resources:{' '}
+            <a href="/world-cup-2026-predictor">World Cup 2026 Predictor</a> ·{' '}
+            <a href="/world-cup-bracket">Bracket</a> ·{' '}
+            <a href="/free-world-cup-pool">Free Pool</a> ·{' '}
+            <a href="/world-cup-prediction-game">Prediction Game</a> ·{' '}
+            <a href="/world-cup-2026-schedule">2026 Schedule</a> ·{' '}
+            <a href="/world-cup-2026-groups">2026 Groups</a> ·{' '}
+            <a href="/how-world-cup-third-place-qualification-works">3rd-place routing</a>
+          </p>
         </footer>
       </div>
     </div>
