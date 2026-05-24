@@ -596,6 +596,16 @@ export async function adminSendOutreachPreview(template = 'noPicksReminder', toE
   });
 }
 
+// Admin outreach — render the email HTML (subject + html + text) without
+// sending. Used by the in-tab iframe preview so the operator can see
+// exactly what users will receive without leaving the dashboard.
+export async function adminRenderOutreachPreview(template = 'noPicksReminder') {
+  return await apiCall('admin', 'POST', {
+    action: 'outreachRenderPreview',
+    template,
+  });
+}
+
 // Admin outreach — send the chosen template to the supplied user list.
 // Server re-validates eligibility per-user, throttles to respect Resend
 // rate limits, and logs both per-user audit rows and a per-run summary.
