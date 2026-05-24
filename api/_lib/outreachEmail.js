@@ -187,6 +187,182 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
   return { subject, html, text };
 }
 
+// ─── Template: Welcome ───────────────────────────────────────────
+
+function welcomeTemplate({ user, ctx }) {
+  const days = ctx?.daysUntilKickoff ?? daysUntilKickoff();
+  const name = user.displayName || user.username || null;
+  const subject = name
+    ? `Welcome to GoalOracle, ${name}`
+    : `Welcome to GoalOracle`;
+
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=welcome`;
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <h1 style="margin:0 0 18px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">
+                Welcome to GoalOracle.
+              </h1>
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Glad you&apos;re here. GoalOracle is a free skill-based prediction game for the FIFA World Cup 2026. ${(days != null && days > 0) ? `Kickoff is in <strong>${days} day${days === 1 ? '' : 's'}</strong>.` : `Kickoff is coming up fast.`}
+              </p>
+              <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Build your bracket in 10 minutes. No card, no fees. Top 3 finishers on the global leaderboard at the end of the Final win <strong>$150 / $100 / $50 in USDC</strong>.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:8px 0 28px;">
+                <tr>
+                  <td style="background:#0a0a0f;border-radius:999px;">
+                    <a href="${ctaUrl}" style="display:inline-block;padding:16px 32px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px;border-radius:999px;background:linear-gradient(135deg,#FF3B30,#FFD66B);">
+                      Build my bracket →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 8px;font-size:13px;color:#6e6e80;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">A quick tour</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 12px;">
+                <tr>
+                  <td style="padding:12px 14px;background:#f5f5f7;border-radius:8px;font-size:14px;color:#3c3c43;line-height:1.6;">
+                    <strong>Quick Picks</strong> — 3-step guided wizard (rank groups, pick best thirds, fill bracket). Most users finish in ~10 minutes.<br />
+                    <strong>Classic Predictions</strong> — predict every match&apos;s exact score, if you want the full hardcore experience.<br />
+                    <strong>Private leagues</strong> — invite friends, set custom scoring, trash-talk included.
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:18px 0 0;font-size:13px;color:#6e6e80;line-height:1.55;">
+                Questions? Just reply to this email — it lands in our inbox.
+              </p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+        <p style="margin:14px 0 0;font-size:11px;color:#9999aa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">You&apos;re receiving this because you recently signed up for GoalOracle.</p>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `${greeting(user).replace(/<[^>]+>/g, '')}
+
+Welcome to GoalOracle.
+
+GoalOracle is a free skill-based prediction game for the FIFA World Cup 2026.${days != null && days > 0 ? ` Kickoff is in ${days} day${days === 1 ? '' : 's'}.` : ''}
+
+Build your bracket in 10 minutes. No card, no fees. Top 3 finishers on the global leaderboard at the end of the Final win $150 / $100 / $50 in USDC.
+
+Start here: ${ctaUrl}
+
+Quick tour:
+- Quick Picks: 3-step guided wizard (rank groups, pick best thirds, fill bracket). ~10 minutes.
+- Classic Predictions: predict every match's exact score.
+- Private leagues: invite friends, set custom scoring.
+
+Questions? Reply to this email.
+
+Free skill-based prediction contest. No purchase necessary.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
+// ─── Template: Kickoff Tomorrow ──────────────────────────────────
+
+function kickoffTomorrowTemplate({ user, ctx }) {
+  const name = user.displayName || user.username || null;
+  const subject = name
+    ? `${name}, World Cup 2026 kicks off tomorrow`
+    : `World Cup 2026 kicks off tomorrow`;
+
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=kickoff_tomorrow`;
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <h1 style="margin:0 0 14px;font-size:30px;line-height:1.15;letter-spacing:-0.6px;font-weight:800;color:#0a0a0f;">
+                The World Cup kicks off tomorrow.
+              </h1>
+              <p style="margin:0 0 12px;font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#FF3B30;">
+                Last call to lock in your bracket
+              </p>
+              <p style="margin:0 0 22px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Predictions lock 5 minutes before each match. Mexico vs South Africa kicks off at <strong>15:00 ET</strong> at the Estadio Azteca. After that, the group-stage scoring opens — and you&apos;ll start the tournament with whatever picks you have on file.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:0 0 28px;">
+                <tr>
+                  <td style="background:#0a0a0f;border-radius:999px;">
+                    <a href="${ctaUrl}" style="display:inline-block;padding:18px 36px;color:#ffffff;text-decoration:none;font-weight:800;font-size:17px;letter-spacing:0.3px;border-radius:999px;background:linear-gradient(135deg,#FF3B30,#FFD66B);">
+                      Lock in my bracket →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 18px;">
+                <tr>
+                  <td style="padding:14px 16px;background:#fff7e6;border:1px solid #ffd66b;border-radius:8px;font-size:14px;color:#3c2a00;line-height:1.55;">
+                    <strong>Prize contest still open.</strong> Top 3 finishers on the Global Quick Picks Leaderboard at the end of the Final win <strong>$150 / $100 / $50 in USDC</strong>. Free entry, no purchase necessary.
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;font-size:13px;color:#6e6e80;line-height:1.55;">
+                Need 10 minutes? Use Quick Picks. Want full control? Classic Predictions lets you set the exact score for every match.
+              </p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `${greeting(user).replace(/<[^>]+>/g, '')}
+
+THE WORLD CUP KICKS OFF TOMORROW.
+
+Last call to lock in your bracket. Predictions lock 5 minutes before each match. Mexico vs South Africa kicks off at 15:00 ET at the Estadio Azteca. After that, group-stage scoring opens.
+
+Lock in your bracket: ${ctaUrl}
+
+Prize contest still open. Top 3 finishers on the Global Quick Picks Leaderboard at the end of the Final win $150 / $100 / $50 in USDC. Free entry, no purchase necessary.
+
+Need 10 minutes? Use Quick Picks. Want full control? Classic Predictions lets you set the exact score for every match.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 // ─── Registry ────────────────────────────────────────────────────
 
 export const TEMPLATES = {
@@ -195,6 +371,18 @@ export const TEMPLATES = {
     label: 'No Picks Reminder',
     description: 'For users who signed up but have not started their group-stage picks in the Global Quick Picks League.',
     build: noPicksReminderTemplate,
+  },
+  welcome: {
+    id: 'welcome',
+    label: 'Welcome (recent signups)',
+    description: 'Soft welcome + brand intro for users who signed up recently. Default eligibility: signed up in the last 14 days, has email, not opted out, has never received this template before (no cooldown — single-shot per user).',
+    build: welcomeTemplate,
+  },
+  kickoffTomorrow: {
+    id: 'kickoffTomorrow',
+    label: 'Kickoff Tomorrow (last call)',
+    description: 'Urgent last-call alert sent the day before the tournament opener. Default eligibility: in the Global Quick Picks League, has email, not opted out — regardless of pick status (intentional — even users with locked picks may want the heads-up).',
+    build: kickoffTomorrowTemplate,
   },
 };
 
@@ -206,7 +394,7 @@ export function buildEmail(templateId, args) {
 
 // ─── Send ────────────────────────────────────────────────────────
 
-export async function sendOutreachEmail({ to, subject, html, text }) {
+export async function sendOutreachEmail({ to, subject, html, text, tags = [] }) {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {
     console.error('[outreach] RESEND_API_KEY not set, email dropped:', subject);
@@ -220,10 +408,16 @@ export async function sendOutreachEmail({ to, subject, html, text }) {
   let lastError = null;
   for (const from of senders) {
     try {
+      const body = { from, to: [to], subject, html, text };
+      // Resend tags: array of { name, value }. We send userId + template
+      // so the webhook can route opened/clicked/bounced events back to
+      // the right /outreachSent row. Resend echoes tags in webhook
+      // payloads — see api/webhooks/resend.js.
+      if (Array.isArray(tags) && tags.length > 0) body.tags = tags;
       const r = await fetch(RESEND_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
-        body: JSON.stringify({ from, to: [to], subject, html, text }),
+        body: JSON.stringify(body),
       });
       if (r.ok) { sent = true; break; }
       if (r.status !== 403 && r.status !== 422) { lastError = `HTTP ${r.status}`; break; }

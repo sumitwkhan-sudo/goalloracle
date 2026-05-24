@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -16,7 +16,15 @@ function _countryFlagFromCode(code) {
 const OUTREACH_TEMPLATES = {
   noPicksReminder: {
     label: 'No Picks Reminder',
-    description: 'For users who signed up for the Global Quick Picks League but have not started their group-stage picks. Default eligibility filter: signed up, has email, not opted out, no recent outreach (7-day cooldown), zero group rankings completed.',
+    description: 'For users who signed up for the Global Quick Picks League but have not started their group-stage picks. Eligibility filter: signed up, has email, not opted out, zero group rankings completed.',
+  },
+  welcome: {
+    label: 'Welcome (recent signups)',
+    description: 'Soft welcome + brand intro for users who signed up recently. Eligibility filter: signed up in the last 14 days, has email, not opted out.',
+  },
+  kickoffTomorrow: {
+    label: 'Kickoff Tomorrow (last call)',
+    description: 'Urgent last-call alert sent the day before the tournament opener. Eligibility filter: in the Global Quick Picks League, has email, not opted out — regardless of pick status.',
   },
 };
 
@@ -47,6 +55,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // Track which user IDs the operator wants to include in the batch.
   // Default = everyone in `outreachUsers`. Operator can uncheck.
   const [outreachSelectedIds, setOutreachSelectedIds] = useState(new Set());
+  // Rendered email preview from the server. Stashed once per template
+  // change so the iframe doesn't re-fetch on every render.
+  const [outreachPreviewHtml, setOutreachPreviewHtml] = useState(null);
+  const [outreachPreviewSubject, setOutreachPreviewSubject] = useState('');
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -172,10 +184,14 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   }, [tab]);
 
   // ─── Outreach handlers ────────────────────────────────────────
+  // Cooldown set to 0 — operator preference is to see every eligible
+  // recipient every time and decide manually who to include via the
+  // checkbox list, rather than have the server hide anyone who was
+  // sent something recently.
   const reloadOutreachEligible = async () => {
     setOutreachLoading(true);
     try {
-      const data = await adminListOutreachEligible(outreachTemplate, 7);
+      const data = await adminListOutreachEligible(outreachTemplate, 0);
       const users = data?.users || [];
       setOutreachUsers(users);
       // Default selection: all eligible users.
@@ -189,9 +205,26 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       setOutreachLoading(false);
     }
   };
+
+  // Fetch the rendered HTML for the iframe preview. Same admin-as-
+  // stand-in pattern as the send-to-email preview; calling this is
+  // free aside from the network hop.
+  const reloadOutreachRenderPreview = async () => {
+    try {
+      const r = await adminRenderOutreachPreview(outreachTemplate);
+      setOutreachPreviewHtml(r?.html || '');
+      setOutreachPreviewSubject(r?.subject || '');
+    } catch (e) {
+      console.warn('[outreach] render preview failed:', e?.message || e);
+      setOutreachPreviewHtml('');
+      setOutreachPreviewSubject('');
+    }
+  };
+
   useEffect(() => {
     if (tab !== 'outreach') return;
     reloadOutreachEligible();
+    reloadOutreachRenderPreview();
     // Pre-fill the preview-email field with the admin's own account email.
     setOutreachPreviewEmail(userData?.email || '');
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
@@ -1134,6 +1167,37 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
 
             {/* RIGHT: preview + send controls */}
             <div className="admin-outreach-right">
+              {/* In-page rendered preview. Iframe is sandboxed (no
+                  scripts, no forms, no top-nav) — pure visual render so
+                  the operator can spot copy / layout issues without
+                  leaving the dashboard. The send-to-email preview below
+                  is still useful for verifying client-side rendering
+                  (Gmail, Apple Mail, Outlook all render differently). */}
+              <div className="admin-outreach-card">
+                <h3>Live preview</h3>
+                <p className="admin-outreach-step-desc">
+                  Rendered with your admin account as the recipient stand-in. Subject and personalization tokens reflect what a real recipient would see.
+                </p>
+                {outreachPreviewSubject && (
+                  <div className="admin-outreach-preview-subject">
+                    <span className="admin-outreach-preview-subject-label">Subject</span>
+                    <span className="admin-outreach-preview-subject-text">{outreachPreviewSubject}</span>
+                  </div>
+                )}
+                {outreachPreviewHtml === null ? (
+                  <div className="admin-outreach-preview-loading">Loading preview…</div>
+                ) : outreachPreviewHtml ? (
+                  <iframe
+                    title="Email preview"
+                    className="admin-outreach-preview-iframe"
+                    srcDoc={outreachPreviewHtml}
+                    sandbox=""
+                  />
+                ) : (
+                  <div className="admin-outreach-preview-loading">Could not render preview.</div>
+                )}
+              </div>
+
               <div className="admin-outreach-card">
                 <h3>1. Send a preview to your inbox</h3>
                 <p className="admin-outreach-step-desc">

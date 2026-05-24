@@ -738,18 +738,38 @@ export default async function handler(req, res) {
     //  because the body carries the template id + filter knobs and we
     //  want CSRF protection via the existing admin auth.)
     if (action === 'outreachListEligibleUsers') {
-      const { template = 'noPicksReminder', cooldownDays = 7 } = req.body;
-      if (template !== 'noPicksReminder') {
-        return res.status(400).json({ error: `No filter defined for template: ${template}` });
-      }
+      // cooldownDays defaults to 0 — operator preference is to see
+      // every eligible user every time and decide manually, rather
+      // than have the server hide anyone who was sent something
+      // recently. Passing a non-zero value still works for templates
+      // that want it (e.g. an automated welcome cron later).
+      const { template = 'noPicksReminder', cooldownDays = 0 } = req.body;
+      const { TEMPLATES } = await import('./_lib/outreachEmail.js');
+      if (!TEMPLATES[template]) return res.status(400).json({ error: `Unknown template: ${template}` });
 
-      // 1) Pull every member of the global Quick Picks league.
-      const leagueSnap = await db.collection('leagues').doc('global-simple').get();
-      const members = leagueSnap.exists ? (leagueSnap.data().members || []) : [];
-      if (members.length === 0) return res.status(200).json({ users: [], total: 0 });
+      // 1) Decide the candidate user-set per template.
+      //    - noPicksReminder + kickoffTomorrow: members of global-simple
+      //    - welcome:                          ALL signed-up users
+      //                                        (so we can welcome users
+      //                                        who haven't joined a
+      //                                        league yet, though most
+      //                                        get auto-joined)
+      let candidateIds = [];
+      let leagueMembers = 0;
+      if (template === 'welcome') {
+        // All users — small enough at current scale to iterate.
+        const usersSnap = await db.collection('users').get();
+        candidateIds = usersSnap.docs.map(d => d.id);
+      } else {
+        const leagueSnap = await db.collection('leagues').doc('global-simple').get();
+        const members = leagueSnap.exists ? (leagueSnap.data().members || []) : [];
+        leagueMembers = members.length;
+        candidateIds = members;
+      }
+      if (candidateIds.length === 0) return res.status(200).json({ users: [], total: 0, leagueMembers });
 
       // 2) Resolve the user docs (with email).
-      const userIds = Array.from(new Set(members));
+      const userIds = Array.from(new Set(candidateIds));
       const userDocs = {};
       const CHUNK = 1000;
       for (let i = 0; i < userIds.length; i += CHUNK) {
@@ -761,31 +781,70 @@ export default async function handler(req, res) {
         }
       }
 
-      // 3) Pull simple-prediction docs for each member (composite id
-      //    `${uid}__global-simple`). 30-doc 'in' query limit.
+      // 3) Only fetch simple-prediction docs when the template's filter
+      //    actually needs them (i.e. noPicksReminder cares about
+      //    groupsDone; the other two don't).
       const preds = {};
-      const compositeIds = userIds.map(uid => `${uid}__global-simple`);
-      for (let i = 0; i < compositeIds.length; i += 30) {
-        const slice = compositeIds.slice(i, i + 30);
-        const snap = await db.collection('simplePredictions')
-          .where(admin.firestore.FieldPath.documentId(), 'in', slice)
-          .get();
-        for (const d of snap.docs) {
-          const data = d.data();
-          if (data?.userId) preds[data.userId] = data;
+      if (template === 'noPicksReminder') {
+        const compositeIds = userIds.map(uid => `${uid}__global-simple`);
+        for (let i = 0; i < compositeIds.length; i += 30) {
+          const slice = compositeIds.slice(i, i + 30);
+          const snap = await db.collection('simplePredictions')
+            .where(admin.firestore.FieldPath.documentId(), 'in', slice)
+            .get();
+          for (const d of snap.docs) {
+            const data = d.data();
+            if (data?.userId) preds[data.userId] = data;
+          }
         }
       }
 
-      // 4) Pull outreach-sent log so we honor the cooldown.
-      const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
-      const cutoff = Date.now() - cooldownMs;
-      const sentSnap = await db.collection('outreachSent')
-        .where('template', '==', template)
-        .where('sentAt', '>=', new Date(cutoff))
-        .get();
-      const recentlySent = new Set(sentSnap.docs.map(d => d.data().userId));
+      // 4) Cooldown — when cooldownDays > 0, exclude users sent this
+      //    template recently. Skipped entirely when cooldownDays === 0.
+      let recentlySent = new Set();
+      if (cooldownDays > 0) {
+        const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+        const cutoff = Date.now() - cooldownMs;
+        const sentSnap = await db.collection('outreachSent')
+          .where('template', '==', template)
+          .where('sentAt', '>=', new Date(cutoff))
+          .get();
+        recentlySent = new Set(sentSnap.docs.map(d => d.data().userId));
+      }
 
-      // 5) Build the eligible list.
+      // 5) Per-template eligibility predicate. Returns
+      //    { eligible: bool, extra?: {} } where `extra` is merged
+      //    into the row for UI display.
+      const NOW = Date.now();
+      const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+      function templateFilter(user) {
+        if (template === 'noPicksReminder') {
+          const groups = preds[user.id]?.groupPredictions || {};
+          const groupsDone = Object.values(groups).filter(g =>
+            Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)
+          ).length;
+          if (groupsDone > 0) return { eligible: false };
+          return { eligible: true, extra: { groupsDone } };
+        }
+        if (template === 'welcome') {
+          // Signed up in the last 14 days. createdAt is a Firestore
+          // Timestamp; handle the two shapes (server timestamp vs
+          // already-resolved millis).
+          const created = user.createdAt?._seconds
+            ? user.createdAt._seconds * 1000
+            : (user.createdAt?.toMillis?.() ?? null);
+          if (!created) return { eligible: false };
+          if (NOW - created > FOURTEEN_DAYS_MS) return { eligible: false };
+          return { eligible: true };
+        }
+        if (template === 'kickoffTomorrow') {
+          // No additional filter beyond email + opt-out.
+          return { eligible: true };
+        }
+        return { eligible: false };
+      }
+
+      // 6) Build the eligible list.
       const eligible = [];
       for (const uid of userIds) {
         const user = userDocs[uid];
@@ -794,12 +853,8 @@ export default async function handler(req, res) {
         if (user.emailOptOut === true) continue;
         if (recentlySent.has(uid)) continue;
 
-        // Filter: zero groups picked.
-        const groups = preds[uid]?.groupPredictions || {};
-        const groupsDone = Object.values(groups).filter(g =>
-          Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)
-        ).length;
-        if (groupsDone > 0) continue;
+        const result = templateFilter(user);
+        if (!result.eligible) continue;
 
         eligible.push({
           userId: uid,
@@ -809,7 +864,7 @@ export default async function handler(req, res) {
             ? user.createdAt._seconds * 1000
             : (user.createdAt?.toMillis?.() ?? null),
           country: user.country || null,
-          groupsDone,
+          ...(result.extra || {}),
         });
       }
 
@@ -821,8 +876,26 @@ export default async function handler(req, res) {
         cooldownDays,
         users: eligible,
         total: eligible.length,
-        leagueMembers: members.length,
+        leagueMembers,
       });
+    }
+
+    // ─── OUTREACH: RENDER PREVIEW ───────────────────────────────
+    // Returns the rendered email (subject + html + text) without
+    // sending it anywhere. The admin tab uses this to populate an
+    // in-page <iframe srcdoc={html}> so the operator can preview
+    // without leaving the dashboard. Send-to-email preview is still
+    // available via outreachSendPreview.
+    if (action === 'outreachRenderPreview') {
+      const { template = 'noPicksReminder' } = req.body;
+      const { buildEmail, TEMPLATES } = await import('./_lib/outreachEmail.js');
+      if (!TEMPLATES[template]) return res.status(400).json({ error: `Unknown template: ${template}` });
+
+      const adminSnap = await db.collection('users').doc(userId).get();
+      const adminUser = adminSnap.exists ? { id: adminSnap.id, ...adminSnap.data() } : { id: userId };
+
+      const { subject, html, text } = buildEmail(template, { user: adminUser, ctx: {} });
+      return res.status(200).json({ subject, html, text });
     }
 
     // ─── OUTREACH: SEND BATCH ───────────────────────────────────
@@ -850,7 +923,17 @@ export default async function handler(req, res) {
           if (!user.email || user.emailOptOut === true) { results.skipped++; continue; }
 
           const { subject, html, text } = buildEmail(template, { user, ctx: {} });
-          const r = await sendOutreachEmail({ to: user.email, subject, html, text });
+          const r = await sendOutreachEmail({
+            to: user.email,
+            subject, html, text,
+            // Tags echoed back in Resend webhook payloads so
+            // /api/webhooks/resend can stamp open/click/bounce on the
+            // matching /outreachSent doc.
+            tags: [
+              { name: 'userId', value: uid },
+              { name: 'template', value: template },
+            ],
+          });
 
           // Audit log — one doc per (user, template) lifetime, last
           // sent timestamp updated on every send.
