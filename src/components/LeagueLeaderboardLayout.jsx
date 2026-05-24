@@ -16,7 +16,8 @@
  *  - Touch targets: 56px row height on mobile (44pt + breathing room).
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { getLeaguePasscode } from '../utils/db';
 import {
   Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus, LogOut,
   Award,
@@ -339,7 +340,28 @@ export default function LeagueLeaderboardLayout({
   // Reveal the passcode only when the viewer is a member of the league —
   // for public leaderboards or anonymous viewers we keep it hidden.
   const isMember = !!currentUserId && (Array.isArray(league?.members) ? league.members.includes(currentUserId) : false);
-  const passcode = (isPrivate && isMember && league?.passcode) ? league.passcode : null;
+
+  // Passcode is no longer on the public league doc (PR #121 moved it
+  // into a private subcollection). Fetch it server-side once when the
+  // viewer is a private-league member, then fall back to the legacy
+  // public field for any league created before that refactor.
+  const [fetchedPasscode, setFetchedPasscode] = useState(null);
+  useEffect(() => {
+    if (!isPrivate || !isMember || !league?.id) return;
+    if (league?.passcode) return; // legacy league — public field still set
+    let cancelled = false;
+    (async () => {
+      try {
+        const p = await getLeaguePasscode(league.id);
+        if (!cancelled) setFetchedPasscode(p);
+      } catch {
+        // 403 / 404 are fine — pill just stays hidden. No retry, no toast.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isPrivate, isMember, league?.id, league?.passcode]);
+
+  const passcode = (isPrivate && isMember) ? (league?.passcode || fetchedPasscode) : null;
 
   // Pull the user's own row out so we can render it sticky and put the
   // edit/share actions inline. The rest renders top-down without it.
