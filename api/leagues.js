@@ -277,6 +277,42 @@ export default async function handler(req, res) {
         .then(snap => { if (!snap.empty) { const batch = db.batch(); snap.docs.forEach(d => batch.delete(d.ref)); return batch.commit(); } })
         .catch(e => console.error('Prediction cleanup failed:', e.message));
 
+    // ─── GET PASSCODE (member-only) ──────────────────────
+    // After the subcollection refactor in PR #121, the actual passcode
+    // for a private league lives at /leagues/{id}/private/auth and
+    // isn't readable from the public doc. Members still need to see
+    // the passcode so they can invite others — this action returns
+    // it after verifying the caller is in the league's members list.
+    // Falls back to the legacy passcode on the public doc for any
+    // unmigrated leagues.
+    } else if (action === 'getPasscode') {
+      const { leagueId } = req.body;
+      if (!leagueId) return res.status(400).json({ error: 'League ID required' });
+
+      const leagueRef = db.collection('leagues').doc(leagueId);
+      const leagueSnap = await leagueRef.get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+
+      const league = leagueSnap.data();
+      if (league.visibility !== 'private') {
+        return res.status(400).json({ error: 'League is not private' });
+      }
+      if (!league.members?.includes(userId)) {
+        return res.status(403).json({ error: 'Not a member of this league' });
+      }
+
+      // Legacy fast path: passcode still on the public doc.
+      if (league.passcode) {
+        return res.status(200).json({ passcode: league.passcode });
+      }
+
+      // Current path: passcode in the private/auth subcollection.
+      const authSnap = await leagueRef.collection('private').doc('auth').get();
+      if (!authSnap.exists || !authSnap.data()?.passcode) {
+        return res.status(404).json({ error: 'No passcode on file for this league' });
+      }
+      return res.status(200).json({ passcode: authSnap.data().passcode });
+
     // ─── DELETE ────────────────────────────────────────────
     } else if (action === 'delete') {
       const { leagueId } = req.body;

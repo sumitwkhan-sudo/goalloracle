@@ -3300,6 +3300,27 @@ const GoalOracle = () => {
     const isPrivate = selLeague?.visibility === 'private';
     const isMember = selLeague?.members?.includes(uData?.id);
 
+    // Passcode lives in /leagues/{id}/private/auth (PR #121) — not on
+    // the public league doc. Fetch it server-side once per (league, user)
+    // when the viewer is a member of a private league; the legacy field
+    // on selLeague.passcode is preferred for any unmigrated leagues so
+    // we don't pay the round trip when the value is already available.
+    const [fetchedPasscode, setFetchedPasscode] = useState(null);
+    useEffect(() => {
+      if (!isPrivate || !isMember || !selLeague?.id) return;
+      if (selLeague?.passcode) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          const { getLeaguePasscode } = await import('./utils/db');
+          const p = await getLeaguePasscode(selLeague.id);
+          if (!cancelled) setFetchedPasscode(p);
+        } catch { /* 403/404 → silently leave hidden */ }
+      })();
+      return () => { cancelled = true; };
+    }, [isPrivate, isMember, selLeague?.id, selLeague?.passcode]);
+    const leaguePasscode = selLeague?.passcode || fetchedPasscode || '';
+
     // Fetch the raw leaderboard once per (tab, league) pair. Previously this
     // effect also depended on `results`, but the matchResults Firestore
     // snapshot callback emits a fresh object on every event — including
@@ -3347,7 +3368,7 @@ const GoalOracle = () => {
       try { await leaveLeague(selLeague.id, uData.id); notify(`Left "${selLeague.name}"`); nav('dashboard'); } catch(e) { notify(e.message, 'error'); }
     };
     const copyInvite = () => {
-      const msg = `Join my GoalOracle league "${selLeague.name}"!\n\nPasscode: ${selLeague.passcode}\n\nSign up at ${window.location.origin}`;
+      const msg = `Join my GoalOracle league "${selLeague.name}"!\n\nPasscode: ${leaguePasscode}\n\nSign up at ${window.location.origin}`;
       navigator.clipboard.writeText(msg).then(() => { setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); });
     };
 
@@ -3537,7 +3558,7 @@ const GoalOracle = () => {
             <div className="fund-modal-header"><h3><Key size={20} /> Invite to League</h3><button className="modal-close" onClick={() => setShowInvite(false)}><X size={18} /></button></div>
             <p className="fund-desc">Share this passcode with people you want to invite to <strong>{selLeague?.name}</strong>.</p>
             <div className="invite-code-box">
-              <code className="invite-code">{selLeague?.passcode}</code>
+              <code className="invite-code">{leaguePasscode || '—'}</code>
               <button className="btn btn-primary btn-sm" onClick={copyInvite}>{inviteCopied ? <><CheckCircle size={14} /> Copied!</> : <><Copy size={14} /> Copy Invite</>}</button>
             </div>
             <p className="form-hint" style={{marginTop:'0.75rem'}}>They'll need this code when joining from the Browse Leagues page.</p>
@@ -3730,7 +3751,7 @@ const GoalOracle = () => {
               <div className="settings-row"><span className="settings-label">Type</span><span className="badge badge-free">{selLeague?.type === 'paid' ? 'Paid' : 'Free'}</span></div>
             )}
             <div className="settings-row"><span className="settings-label">Visibility</span><span className={`badge ${isPrivate ? 'badge-private' : 'badge-public'}`}>{isPrivate ? <><EyeOff size={12} /> Private</> : <><Eye size={12} /> Public</>}</span></div>
-            {isPrivate && (isCreator || isAdmin) && <div className="settings-row"><span className="settings-label">Passcode</span><code className="settings-code">{selLeague?.passcode}</code></div>}
+            {isPrivate && (isCreator || isAdmin) && <div className="settings-row"><span className="settings-label">Passcode</span><code className="settings-code">{leaguePasscode || '—'}</code></div>}
             <div className="settings-row"><span className="settings-label">Created by</span><span>{selLeague?.createdBy === uData?.id ? 'You' : selLeague?.createdBy?.slice(0,8)}</span></div>
           </div>
           {selLeague?.id !== 'global' && isMember && !isCreator && (

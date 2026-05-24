@@ -278,6 +278,16 @@ export async function lookupLeagueByPasscode(passcode) {
   return league;
 }
 
+// Fetch the invite passcode for a private league. Server verifies the
+// caller is a member before returning the value (the passcode itself
+// lives in a private subcollection that clients can't read directly).
+// Returns the passcode string, or throws when the caller isn't a
+// member / league isn't private / passcode is missing.
+export async function getLeaguePasscode(leagueId) {
+  const { passcode } = await apiCall('leagues', 'POST', { action: 'getPasscode', leagueId });
+  return passcode || null;
+}
+
 // House Rules — edit (creator only). Pass empty string or null to clear.
 export async function editLeagueHouseRules(leagueId, content) {
   return await apiCall('leagues', 'POST', { action: 'editHouseRules', leagueId, content: content == null ? '' : content });
