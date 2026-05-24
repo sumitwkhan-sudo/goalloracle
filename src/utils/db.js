@@ -305,6 +305,32 @@ export async function reportContent({ contentType, contentId, reason }) {
   return await apiCall('leagues', 'POST', { action: 'reportContent', contentType, contentId, reason: reason || null });
 }
 
+// ─── Creator-initiated emails (private leagues) ──────────
+// Server enforces creator role + rate limits. UI surfaces the errors
+// returned (429 for rate-limited, 400 for bad input, 403 for non-creator).
+
+export async function creatorInviteByEmail(leagueId, emails, personalNote) {
+  return await apiCall('leagues', 'POST', {
+    action: 'creatorInvite',
+    leagueId,
+    emails,
+    personalNote: personalNote || null,
+  });
+}
+
+export async function creatorListNudgeEligible(leagueId) {
+  return await apiCall('leagues', 'POST', { action: 'creatorListNudgeEligible', leagueId });
+}
+
+export async function creatorSendNudge(leagueId, userIds, personalNote) {
+  return await apiCall('leagues', 'POST', {
+    action: 'creatorNudge',
+    leagueId,
+    userIds,
+    personalNote: personalNote || null,
+  });
+}
+
 export async function leaveLeague(leagueId, userId) {
   await apiCall('leagues', 'POST', { action: 'leave', leagueId });
 }

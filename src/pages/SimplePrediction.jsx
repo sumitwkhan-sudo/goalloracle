@@ -632,9 +632,28 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               className="btn btn-primary"
               onClick={() => goToStep(2)}
               disabled={!step1Complete}
+              aria-label={step1Complete
+                ? 'Save and continue to best third-place teams'
+                : `Finish ${GROUPS.length - groups.touchedCount} more group${GROUPS.length - groups.touchedCount === 1 ? '' : 's'} to continue`}
             >
-              Save &amp; Continue <ArrowRight size={16} />
+              {step1Complete
+                ? <>Save &amp; Continue <ArrowRight size={16} /></>
+                : <>Finish {GROUPS.length - groups.touchedCount} more group{GROUPS.length - groups.touchedCount === 1 ? '' : 's'} to continue</>}
             </button>
+            {!step1Complete && (
+              <button
+                type="button"
+                className="simple-step-jump-link"
+                onClick={() => {
+                  const firstIncomplete = GROUPS.find((g) => !groups.touched[g]);
+                  if (!firstIncomplete) return;
+                  const el = document.getElementById(`group-card-${firstIncomplete}`);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+              >
+                Jump to next unfinished group &uarr;
+              </button>
+            )}
           </div>
         </section>
       )}
