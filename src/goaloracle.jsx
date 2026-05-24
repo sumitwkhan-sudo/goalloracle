@@ -763,7 +763,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -1202,6 +1202,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             onExit={onBack}
             onComplete={handleComplete}
             onShareBracket={openShareBracket}
+            onCelebrate={onCelebrate}
             embedded
           />
         ) : (
@@ -1298,6 +1299,14 @@ const GoalOracle = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [confetti, setConfetti] = useState(false);
+  // Reusable celebration trigger. Re-firing while a burst is mid-flight
+  // just resets the countdown — no need to debounce. Used by the
+  // SimplePrediction wizard when the user locks in the 3rd-place pick
+  // and the Final pick.
+  const celebrate = useCallback(() => {
+    setConfetti(true);
+    setTimeout(() => setConfetti(false), 3000);
+  }, []);
   const [homeTeam, setHomeTeam] = useState(() => localStorage.getItem('goaloracle_home_team') || '');
   const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const teamPickerRef = useRef(null);
@@ -5118,6 +5127,7 @@ const GoalOracle = () => {
           lbScopeCountry={lbScopeCountry}
           setLbScope={setLbScope}
           setLbScopeCountry={setLbScopeCountry}
+          onCelebrate={celebrate}
         />
       )}
       {view === 'detail' && selLeague?.predictionMode !== 'simple' && featureFlags.classicEnabled !== false && <Detail key={selLeague?.id || 'detail'} />}
@@ -5127,6 +5137,7 @@ const GoalOracle = () => {
           userId={uData?.id}
           league={selLeague}
           onExit={() => nav('leagues')}
+          onCelebrate={celebrate}
         />
       )}
       {view === 'faq' && <FAQ />}

@@ -72,7 +72,26 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
     // the round they're currently looking at.
     if (!wasComplete && nowComplete) {
       const next = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r));
-      if (next) setOpenRound(next);
+      if (next) {
+        setOpenRound(next);
+        // After auto-advancing, scroll the new round's section header
+        // to the top of the viewport (offset by the sticky chrome via
+        // scroll-margin-top in CSS). Without this, the previous round
+        // collapsing pushes content up — and because the user finished
+        // their LAST pick at the bottom of that round, the new round's
+        // body opens with the *end* of it under the viewport, leaving
+        // the user looking at "match 8 of R16" instead of "match 1".
+        // requestAnimationFrame waits for React to commit the new body
+        // before we attempt to scroll to it.
+        requestAnimationFrame(() => {
+          const el = typeof document !== 'undefined'
+            ? document.querySelector(`[data-bracket-round="${next}"]`)
+            : null;
+          if (el && typeof el.scrollIntoView === 'function') {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      }
     }
   }, [openRound, bracket, isRoundComplete, isRoundUnlocked]);
 
@@ -153,6 +172,7 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
         return (
           <section
             key={roundKey}
+            data-bracket-round={roundKey}
             className={`bracket-round ${isOpen ? 'open' : ''} ${!unlocked ? 'disabled' : ''}`}
           >
             <button
