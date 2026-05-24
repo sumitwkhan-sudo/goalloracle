@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -25,6 +25,10 @@ const OUTREACH_TEMPLATES = {
   kickoffTomorrow: {
     label: 'Kickoff Tomorrow (last call)',
     description: 'Urgent last-call alert sent the day before the tournament opener. Eligibility filter: in the Global Quick Picks League, has email, not opted out — regardless of pick status.',
+  },
+  midTournamentNudge: {
+    label: 'Mid-Tournament Nudge',
+    description: "Sent during the group stage to bring users back to check their standings. Eligibility filter: in the Global Quick Picks League, has email, not opted out, has at least one completed group ranking (we don't nag users who haven't started — No Picks Reminder is the right tool for that).",
   },
 };
 
@@ -59,6 +63,16 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // change so the iframe doesn't re-fetch on every render.
   const [outreachPreviewHtml, setOutreachPreviewHtml] = useState(null);
   const [outreachPreviewSubject, setOutreachPreviewSubject] = useState('');
+  // userIds we've already sent to in this session (canary OR batch).
+  // Excluded from subsequent send-batch clicks so canary recipients
+  // don't double-receive.
+  const [outreachSentThisSession, setOutreachSentThisSession] = useState(new Set());
+  const [outreachCanaryCount, setOutreachCanaryCount] = useState(3);
+  const [outreachCanaryBusy, setOutreachCanaryBusy] = useState(false);
+  // Recent runs panel — last 20 runs + per-template aggregate stats
+  // from the Resend webhook data.
+  const [outreachRecentRuns, setOutreachRecentRuns] = useState(null);
+  const [outreachTemplateStats, setOutreachTemplateStats] = useState({});
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -221,12 +235,30 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     }
   };
 
+  // Fetch the recent-runs panel data. Cheap — single query + a small
+  // per-template fanout. Refreshed on tab open + after each send.
+  const reloadOutreachRecentRuns = async () => {
+    try {
+      const { runs, templateStats } = await fetchAdminOutreachRecentRuns(20);
+      setOutreachRecentRuns(runs);
+      setOutreachTemplateStats(templateStats);
+    } catch (e) {
+      console.warn('[outreach] recent-runs fetch failed:', e?.message || e);
+      setOutreachRecentRuns([]);
+      setOutreachTemplateStats({});
+    }
+  };
+
   useEffect(() => {
     if (tab !== 'outreach') return;
     reloadOutreachEligible();
     reloadOutreachRenderPreview();
+    reloadOutreachRecentRuns();
     // Pre-fill the preview-email field with the admin's own account email.
     setOutreachPreviewEmail(userData?.email || '');
+    // Reset session-sent set when template changes — different templates
+    // are independent send queues.
+    setOutreachSentThisSession(new Set());
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [tab, outreachTemplate]);
 
@@ -253,8 +285,12 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   };
 
   const handleSendBatch = async () => {
-    const ids = Array.from(outreachSelectedIds);
-    if (ids.length === 0) { notify('No users selected.', 'error'); return; }
+    // Exclude users we've already sent to this session (canary or a
+    // previous batch click). Server isn't strict about this since
+    // cooldown is 0; the client tracks it to keep the operator from
+    // accidentally double-emailing.
+    const ids = Array.from(outreachSelectedIds).filter(uid => !outreachSentThisSession.has(uid));
+    if (ids.length === 0) { notify('No users to send to (all selected users were already sent this session).', 'error'); return; }
     const confirmed = window.confirm(
       `Send the "${OUTREACH_TEMPLATES[outreachTemplate]?.label || outreachTemplate}" email to ${ids.length} user${ids.length === 1 ? '' : 's'}?\n\nThis cannot be undone.`
     );
@@ -265,13 +301,49 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       const r = await adminSendOutreachBatch(outreachTemplate, ids);
       setOutreachBatchResult(r);
       notify(`Batch complete: ${r.sent} sent, ${r.skipped} skipped, ${r.failed} failed.`);
-      // Reload so users who were just sent the email drop out of the
-      // eligible list (cooldown excludes them).
-      reloadOutreachEligible();
+      setOutreachSentThisSession(prev => {
+        const next = new Set(prev);
+        for (const uid of ids) next.add(uid);
+        return next;
+      });
+      reloadOutreachRecentRuns();
     } catch (e) {
       notify('Batch failed: ' + (e?.message || e), 'error');
     } finally {
       setOutreachBatchBusy(false);
+    }
+  };
+
+  // Canary send — pick N random users from the current selection, send
+  // to them, then mark them as already-sent so the subsequent full batch
+  // excludes them. Server picks the random subset so the client just
+  // forwards the pool + count.
+  const handleSendCanary = async () => {
+    const pool = Array.from(outreachSelectedIds).filter(uid => !outreachSentThisSession.has(uid));
+    if (pool.length === 0) { notify('No eligible users for the canary.', 'error'); return; }
+    const n = Math.max(1, Math.min(pool.length, Number(outreachCanaryCount) || 3));
+    const confirmed = window.confirm(
+      `Send a canary of the "${OUTREACH_TEMPLATES[outreachTemplate]?.label || outreachTemplate}" email to ${n} randomly-picked user${n === 1 ? '' : 's'} from your selection?`
+    );
+    if (!confirmed) return;
+    setOutreachCanaryBusy(true);
+    try {
+      const r = await adminSendOutreachCanary(outreachTemplate, pool, n);
+      const picked = r?.canaryIds || [];
+      notify(`Canary complete: ${r?.sent || 0} sent to ${picked.length} user${picked.length === 1 ? '' : 's'}.`);
+      setOutreachSentThisSession(prev => {
+        const next = new Set(prev);
+        for (const uid of picked) next.add(uid);
+        return next;
+      });
+      // Treat a successful canary as enabling the batch button — the
+      // operator did test-send + saw it work.
+      setOutreachPreviewSent(true);
+      reloadOutreachRecentRuns();
+    } catch (e) {
+      notify('Canary failed: ' + (e?.message || e), 'error');
+    } finally {
+      setOutreachCanaryBusy(false);
     }
   };
 
@@ -1230,11 +1302,53 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 )}
               </div>
 
+              {/* CANARY CARD — optional safety step between preview and
+                  full batch. Sends to N randomly-picked users from the
+                  current selection so the operator can verify rendering
+                  in real inboxes (different clients render differently)
+                  before broadcasting to everyone. Counts as completing
+                  the preview gate. */}
               <div className="admin-outreach-card">
-                <h3>2. Send to {selectedCount} selected user{selectedCount === 1 ? '' : 's'}</h3>
+                <h3>2. Canary send (optional)</h3>
                 <p className="admin-outreach-step-desc">
-                  Disabled until you&apos;ve sent a preview to your own inbox above. The batch send writes a per-user audit row to{' '}
-                  <code>/outreachSent</code> and a summary row to <code>/outreachRuns</code>. The 7-day cooldown then excludes these users from the eligible list until next week.
+                  Send to a small random subset before the full batch. Catches issues a single-recipient preview misses — odd display names, missing emails, weird country flags. Recipients are automatically excluded from the full batch below.
+                </p>
+                <div className="admin-outreach-canary-row">
+                  <label className="admin-outreach-canary-count-label">
+                    Count
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      className="input-field admin-outreach-canary-count"
+                      value={outreachCanaryCount}
+                      onChange={(e) => setOutreachCanaryCount(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                      disabled={outreachCanaryBusy}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleSendCanary}
+                    disabled={outreachCanaryBusy || selectedCount === 0}
+                  >
+                    {outreachCanaryBusy
+                      ? <><RefreshCw size={14} className="spin" /> Sending canary…</>
+                      : <>Send canary to {Math.min(outreachCanaryCount, selectedCount)} random</>}
+                  </button>
+                </div>
+                {outreachSentThisSession.size > 0 && (
+                  <p className="admin-outreach-canary-meta">
+                    {outreachSentThisSession.size} user{outreachSentThisSession.size === 1 ? '' : 's'} already sent this session — excluded from the batch below.
+                  </p>
+                )}
+              </div>
+
+              <div className="admin-outreach-card">
+                <h3>3. Send to {Math.max(0, selectedCount - outreachSentThisSession.size)} remaining user{Math.max(0, selectedCount - outreachSentThisSession.size) === 1 ? '' : 's'}</h3>
+                <p className="admin-outreach-step-desc">
+                  Disabled until you&apos;ve sent a preview to your own inbox OR a canary above. The batch send writes a per-user audit row to{' '}
+                  <code>/outreachSent</code> and a summary row to <code>/outreachRuns</code>. Resend webhook events (delivered / opened / clicked / bounced) stamp those same rows in the background.
                 </p>
                 <button
                   type="button"
@@ -1249,7 +1363,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 >
                   {outreachBatchBusy
                     ? <><RefreshCw size={14} className="spin" /> Sending…</>
-                    : <>Send to {selectedCount} user{selectedCount === 1 ? '' : 's'} →</>}
+                    : <>Send to {Math.max(0, selectedCount - outreachSentThisSession.size)} user{Math.max(0, selectedCount - outreachSentThisSession.size) === 1 ? '' : 's'} →</>}
                 </button>
                 {outreachBatchResult && (
                   <div className="admin-outreach-batch-result">
@@ -1270,6 +1384,88 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 )}
               </div>
             </div>
+          </div>
+
+          {/* ─── Recent Runs panel ─────────────────────────────────
+              Last 20 batches/canaries + per-template aggregate stats
+              from the Resend webhook data (delivered / opened /
+              clicked / bounced / complained). Refreshes every time
+              the operator switches into the tab and after each send. */}
+          <div className="admin-outreach-runs">
+            <div className="admin-outreach-runs-head">
+              <h3>Recent runs</h3>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={reloadOutreachRecentRuns}>
+                <RefreshCw size={11} /> Refresh
+              </button>
+            </div>
+
+            {/* Per-template stats — show once at the top, rolls up all-time. */}
+            {Object.keys(outreachTemplateStats).length > 0 && (
+              <div className="admin-outreach-template-stats">
+                {Object.entries(outreachTemplateStats).map(([tpl, s]) => {
+                  const sent = s.totalSendRows || 0;
+                  const open = s.opened || 0;
+                  const click = s.clicked || 0;
+                  const openRate = sent > 0 ? Math.round((open / sent) * 100) : 0;
+                  const clickRate = sent > 0 ? Math.round((click / sent) * 100) : 0;
+                  return (
+                    <div key={tpl} className="admin-outreach-tstat-card">
+                      <div className="admin-outreach-tstat-name">{OUTREACH_TEMPLATES[tpl]?.label || tpl}</div>
+                      <div className="admin-outreach-tstat-row">
+                        <span>{sent}</span><em>sent</em>
+                      </div>
+                      <div className="admin-outreach-tstat-row">
+                        <span>{open}</span><em>opened ({openRate}%)</em>
+                      </div>
+                      <div className="admin-outreach-tstat-row">
+                        <span>{click}</span><em>clicked ({clickRate}%)</em>
+                      </div>
+                      {(s.bounced > 0 || s.complained > 0) && (
+                        <div className="admin-outreach-tstat-row admin-outreach-tstat-warn">
+                          <span>{s.bounced + s.complained}</span><em>bounced/complained</em>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Per-run audit table */}
+            {outreachRecentRuns === null && (
+              <div className="admin-empty">Loading recent runs…</div>
+            )}
+            {outreachRecentRuns?.length === 0 && (
+              <div className="admin-empty">No outreach runs yet.</div>
+            )}
+            {outreachRecentRuns && outreachRecentRuns.length > 0 && (
+              <table className="admin-outreach-runs-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Template</th>
+                    <th>Type</th>
+                    <th className="admin-outreach-runs-num">Sent</th>
+                    <th className="admin-outreach-runs-num">Skipped</th>
+                    <th className="admin-outreach-runs-num">Failed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outreachRecentRuns.map((r) => (
+                    <tr key={r.id}>
+                      <td title={r.triggeredAtMs ? new Date(r.triggeredAtMs).toString() : ''}>
+                        {r.triggeredAtMs ? new Date(r.triggeredAtMs).toLocaleString() : '—'}
+                      </td>
+                      <td>{OUTREACH_TEMPLATES[r.template]?.label || r.template}</td>
+                      <td>{r.canary ? <span className="admin-outreach-runs-canary">canary</span> : 'batch'}</td>
+                      <td className="admin-outreach-runs-num"><strong>{r.sent}</strong> / {r.attempted}</td>
+                      <td className="admin-outreach-runs-num">{r.skipped}</td>
+                      <td className="admin-outreach-runs-num">{r.failed}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
         );

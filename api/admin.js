@@ -111,6 +111,60 @@ export default async function handler(req, res) {
         // requests. ~30 bytes per (userId, displayName) pair × thousands
         // of users = well under 200 KB, fine for an admin-only payload.
         return res.status(200).json({ leagues: enriched, userNames });
+      } else if (type === 'outreachRecentRuns') {
+        // Last N runs from /outreachRuns plus aggregate per-template
+        // delivery/open/click counts joined from /outreachSent. The
+        // admin Outreach tab uses this to render the Recent runs panel.
+        const limit = Math.min(Math.max(1, Number(req.query.limit) || 20), 100);
+        const runsSnap = await db.collection('outreachRuns')
+          .orderBy('triggeredAt', 'desc')
+          .limit(limit)
+          .get();
+        const runs = runsSnap.docs.map(d => {
+          const data = d.data();
+          const ts = data.triggeredAt;
+          return {
+            id: d.id,
+            template: data.template,
+            triggeredBy: data.triggeredBy,
+            triggeredAtMs: ts?._seconds ? ts._seconds * 1000 : (ts?.toMillis?.() || null),
+            attempted: data.attempted || 0,
+            sent: data.sent || 0,
+            skipped: data.skipped || 0,
+            failed: data.failed || 0,
+            canary: !!data.canary,
+          };
+        });
+
+        // Per-template aggregate stats across all /outreachSent docs.
+        // Cheap — one query per template; the docs are small. Skip
+        // gracefully if a template has zero history.
+        const templateIds = Array.from(new Set(runs.map(r => r.template).filter(Boolean)));
+        const templateStats = {};
+        for (const tpl of templateIds) {
+          const sentSnap = await db.collection('outreachSent')
+            .where('template', '==', tpl)
+            .get();
+          let delivered = 0, opened = 0, clicked = 0, bounced = 0, complained = 0;
+          let opens = 0, clicks = 0;
+          for (const d of sentSnap.docs) {
+            const data = d.data();
+            if (data.deliveredAt) delivered++;
+            if (data.firstOpenedAt) opened++;
+            if (data.firstClickedAt) clicked++;
+            if (data.bouncedAt) bounced++;
+            if (data.complainedAt) complained++;
+            opens += data.openCount || 0;
+            clicks += data.clickCount || 0;
+          }
+          templateStats[tpl] = {
+            totalSendRows: sentSnap.size,
+            delivered, opened, clicked, bounced, complained,
+            opens, clicks,
+          };
+        }
+
+        return res.status(200).json({ runs, templateStats });
       }
       return res.status(400).json({ error: 'Invalid type' });
     } catch (e) {
@@ -782,10 +836,11 @@ export default async function handler(req, res) {
       }
 
       // 3) Only fetch simple-prediction docs when the template's filter
-      //    actually needs them (i.e. noPicksReminder cares about
-      //    groupsDone; the other two don't).
+      //    actually needs them — noPicksReminder + midTournamentNudge
+      //    both gate on groupsDone (no picks vs has picks); welcome +
+      //    kickoffTomorrow don't care.
       const preds = {};
-      if (template === 'noPicksReminder') {
+      if (template === 'noPicksReminder' || template === 'midTournamentNudge') {
         const compositeIds = userIds.map(uid => `${uid}__global-simple`);
         for (let i = 0; i < compositeIds.length; i += 30) {
           const slice = compositeIds.slice(i, i + 30);
@@ -840,6 +895,18 @@ export default async function handler(req, res) {
         if (template === 'kickoffTomorrow') {
           // No additional filter beyond email + opt-out.
           return { eligible: true };
+        }
+        if (template === 'midTournamentNudge') {
+          // Reverse of noPicksReminder — only nudge users who already
+          // have at least one group done. Sending this to someone with
+          // zero picks would read as a tone-deaf "you're scoring!"
+          // when they haven't started yet.
+          const groups = preds[user.id]?.groupPredictions || {};
+          const groupsDone = Object.values(groups).filter(g =>
+            Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)
+          ).length;
+          if (groupsDone === 0) return { eligible: false };
+          return { eligible: true, extra: { groupsDone } };
         }
         return { eligible: false };
       }
@@ -968,6 +1035,87 @@ export default async function handler(req, res) {
         sent: results.sent,
         skipped: results.skipped,
         failed: results.failed,
+      });
+
+      return res.status(200).json(results);
+    }
+
+    // ─── OUTREACH: CANARY SEND ─────────────────────────────────
+    // Pick N userIds from the supplied list at random (default 3),
+    // send the template only to them, and return both the standard
+    // send results AND the userIds we sent to. Client uses the
+    // returned IDs to mark them as "already sent this session" so a
+    // subsequent full-batch click excludes them automatically.
+    //
+    // Identical to outreachSendBatch under the hood — same Resend tags,
+    // same audit log, same throttling — just a different entry-point
+    // semantically so the recent-runs panel can mark canary runs with
+    // a canary: true flag for visual distinction.
+    if (action === 'outreachSendCanary') {
+      const { template = 'noPicksReminder', userIds: pool, count = 3 } = req.body;
+      if (!Array.isArray(pool) || pool.length === 0) {
+        return res.status(400).json({ error: 'userIds required (non-empty array)' });
+      }
+      const n = Math.max(1, Math.min(50, Number(count) || 3));
+      // Fisher-Yates sample n distinct userIds from the pool.
+      const shuffled = [...pool];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const picked = shuffled.slice(0, Math.min(n, shuffled.length));
+
+      const { buildEmail, sendOutreachEmail, TEMPLATES, sleep, BATCH_DELAY_MS } = await import('./_lib/outreachEmail.js');
+      if (!TEMPLATES[template]) return res.status(400).json({ error: `Unknown template: ${template}` });
+
+      const results = { sent: 0, skipped: 0, failed: 0, errors: [], canaryIds: picked };
+      for (const uid of picked) {
+        try {
+          const userSnap = await db.collection('users').doc(uid).get();
+          if (!userSnap.exists) { results.skipped++; continue; }
+          const user = { id: userSnap.id, ...userSnap.data() };
+          if (!user.email || user.emailOptOut === true) { results.skipped++; continue; }
+
+          const { subject, html, text } = buildEmail(template, { user, ctx: {} });
+          const r = await sendOutreachEmail({
+            to: user.email,
+            subject, html, text,
+            tags: [
+              { name: 'userId', value: uid },
+              { name: 'template', value: template },
+              { name: 'canary', value: '1' },
+            ],
+          });
+
+          await db.collection('outreachSent').doc(`${uid}__${template}`).set({
+            userId: uid,
+            template,
+            sentAt: FieldValue.serverTimestamp(),
+            sent: r.sent,
+            error: r.error || null,
+            sentBy: userId,
+            lastSendWasCanary: true,
+          }, { merge: true });
+
+          if (r.sent) results.sent++;
+          else { results.failed++; results.errors.push({ uid, error: r.error || 'unknown' }); }
+
+          await sleep(BATCH_DELAY_MS);
+        } catch (e) {
+          results.failed++;
+          results.errors.push({ uid, error: e?.message || 'crash' });
+        }
+      }
+
+      await db.collection('outreachRuns').add({
+        template,
+        triggeredBy: userId,
+        triggeredAt: FieldValue.serverTimestamp(),
+        attempted: picked.length,
+        sent: results.sent,
+        skipped: results.skipped,
+        failed: results.failed,
+        canary: true,
       });
 
       return res.status(200).json(results);

@@ -606,6 +606,30 @@ export async function adminRenderOutreachPreview(template = 'noPicksReminder') {
   });
 }
 
+// Admin outreach — send the template to N randomly-picked users from
+// the supplied pool. Used as a safety canary before the full batch.
+// Server returns the userIds actually picked so the client can mark
+// them excluded from the next "Send to N users" click.
+export async function adminSendOutreachCanary(template = 'noPicksReminder', userIds = [], count = 3) {
+  return await apiCall('admin', 'POST', {
+    action: 'outreachSendCanary',
+    template,
+    userIds,
+    count,
+  });
+}
+
+// Admin outreach — last N outreach runs + per-template aggregate
+// delivery/open/click stats from the Resend webhook data. Powers the
+// Recent runs panel under the Outreach tab.
+export async function fetchAdminOutreachRecentRuns(limit = 20) {
+  const data = await apiCall(`admin?type=outreachRecentRuns&limit=${limit}`);
+  return {
+    runs: data?.runs || [],
+    templateStats: data?.templateStats || {},
+  };
+}
+
 // Admin outreach — send the chosen template to the supplied user list.
 // Server re-validates eligibility per-user, throttles to respect Resend
 // rate limits, and logs both per-user audit rows and a per-run summary.
