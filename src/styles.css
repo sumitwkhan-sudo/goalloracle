@@ -3814,6 +3814,49 @@ button.invite-option:hover,
 }
 [data-theme="dark"] .admin-outreach-runs-canary { color: #ffd66b; }
 
+/* Schedule-for-later row inside the batch-send card. Sits below the
+   primary "Send now" button as the alternative path. */
+.admin-outreach-schedule-row {
+  display: flex; align-items: flex-end; gap: 0.65rem; flex-wrap: wrap;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--border);
+}
+.admin-outreach-schedule-label {
+  display: flex; flex-direction: column; gap: 0.3rem;
+  flex: 1; min-width: 200px;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-sec);
+}
+.admin-outreach-schedule-input {
+  font-weight: 500;
+}
+
+/* Scheduled-sends panel — sits between the send grid and the recent-
+   runs panel. Same .admin-outreach-runs-table inheritance. */
+.admin-outreach-scheduled {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.admin-outreach-status {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.65rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  border-radius: 999px;
+}
+.admin-outreach-status-pending   { background: rgba(0, 212, 255, 0.15); color: #00638a; }
+.admin-outreach-status-sending   { background: rgba(255, 165, 0, 0.18); color: #875200; }
+.admin-outreach-status-done      { background: rgba(0, 200, 83, 0.18); color: #00752f; }
+.admin-outreach-status-failed    { background: rgba(255, 59, 92, 0.18); color: #a3001f; }
+.admin-outreach-status-cancelled { background: rgba(0, 0, 0, 0.08); color: var(--text-sec); }
+[data-theme="dark"] .admin-outreach-status-pending   { color: #5dd6ff; }
+[data-theme="dark"] .admin-outreach-status-sending   { color: #ffc266; }
+[data-theme="dark"] .admin-outreach-status-done      { color: #6cdb95; }
+[data-theme="dark"] .admin-outreach-status-failed    { color: #ff8a9e; }
+
 /* Search */
 .admin-search-wrap {
   display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem;

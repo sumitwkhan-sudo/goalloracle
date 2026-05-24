@@ -111,6 +111,41 @@ export default async function handler(req, res) {
         // requests. ~30 bytes per (userId, displayName) pair × thousands
         // of users = well under 200 KB, fine for an admin-only payload.
         return res.status(200).json({ leagues: enriched, userNames });
+      } else if (type === 'outreachScheduled') {
+        // All scheduled outreach sends — pending up top, then recent
+        // finished/cancelled for a short audit window. The drain cron
+        // updates the status field, so this is just a read.
+        const snap = await db.collection('outreachScheduled')
+          .orderBy('scheduledFor', 'desc')
+          .limit(50)
+          .get();
+        const items = snap.docs.map(d => {
+          const data = d.data();
+          const sf = data.scheduledFor;
+          return {
+            id: d.id,
+            template: data.template,
+            recipientCount: data.recipientCount || (data.userIds?.length || 0),
+            scheduledForMs: sf?._seconds ? sf._seconds * 1000 : (sf?.toMillis?.() || data.scheduledForMs || null),
+            status: data.status,
+            scheduledBy: data.scheduledBy,
+            attempted: data.attempted || 0,
+            sent: data.sent || 0,
+            skipped: data.skipped || 0,
+            failed: data.failed || 0,
+            cancelReason: data.cancelReason || null,
+          };
+        });
+        // Pending first (soonest first), then everything else by
+        // scheduledFor desc.
+        items.sort((a, b) => {
+          const aPend = a.status === 'pending' ? 0 : 1;
+          const bPend = b.status === 'pending' ? 0 : 1;
+          if (aPend !== bPend) return aPend - bPend;
+          if (aPend === 0) return (a.scheduledForMs || 0) - (b.scheduledForMs || 0);
+          return (b.scheduledForMs || 0) - (a.scheduledForMs || 0);
+        });
+        return res.status(200).json({ items });
       } else if (type === 'outreachRecentRuns') {
         // Last N runs from /outreachRuns plus aggregate per-template
         // delivery/open/click counts joined from /outreachSent. The
@@ -1119,6 +1154,64 @@ export default async function handler(req, res) {
       });
 
       return res.status(200).json(results);
+    }
+
+    // ─── OUTREACH: SCHEDULE A SEND ─────────────────────────────
+    // Stash the (template, userIds, scheduledFor) in /outreachScheduled.
+    // The outreach-drain cron picks pending docs up every 5 minutes,
+    // transitions them through sending -> done, and runs the standard
+    // batch loop. Same per-user audit rows + final /outreachRuns
+    // summary as the immediate send.
+    if (action === 'outreachSchedule') {
+      const { template = 'noPicksReminder', userIds: requested, scheduledFor } = req.body;
+      if (!Array.isArray(requested) || requested.length === 0) {
+        return res.status(400).json({ error: 'userIds required (non-empty array)' });
+      }
+      if (requested.length > 1000) {
+        return res.status(400).json({ error: 'Scheduled batch too large (max 1000 per send)' });
+      }
+      if (!scheduledFor) return res.status(400).json({ error: 'scheduledFor required (ISO timestamp)' });
+      const when = new Date(scheduledFor);
+      if (isNaN(when.getTime())) return res.status(400).json({ error: 'scheduledFor must be a parseable date' });
+      if (when.getTime() < Date.now() - 60 * 1000) {
+        return res.status(400).json({ error: 'scheduledFor must be in the future (max 60s clock skew allowed)' });
+      }
+      const { TEMPLATES } = await import('./_lib/outreachEmail.js');
+      if (!TEMPLATES[template]) return res.status(400).json({ error: `Unknown template: ${template}` });
+
+      const docRef = await db.collection('outreachScheduled').add({
+        template,
+        userIds: requested,
+        recipientCount: requested.length,
+        scheduledFor: when,
+        scheduledForMs: when.getTime(),
+        scheduledAt: FieldValue.serverTimestamp(),
+        scheduledBy: userId,
+        status: 'pending',
+      });
+      return res.status(200).json({ id: docRef.id, status: 'pending', scheduledFor: when.toISOString() });
+    }
+
+    // ─── OUTREACH: CANCEL A SCHEDULED SEND ─────────────────────
+    // Pending only. Once the drain cron flips status to 'sending' the
+    // send is in flight and we don't try to interrupt it.
+    if (action === 'outreachCancelScheduled') {
+      const { id, reason } = req.body;
+      if (!id) return res.status(400).json({ error: 'id required' });
+      const ref = db.collection('outreachScheduled').doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ error: 'not found' });
+      const cur = snap.data();
+      if (cur.status !== 'pending') {
+        return res.status(400).json({ error: `Cannot cancel — status is "${cur.status}"` });
+      }
+      await ref.update({
+        status: 'cancelled',
+        cancelledAt: FieldValue.serverTimestamp(),
+        cancelledBy: userId,
+        cancelReason: reason || null,
+      });
+      return res.status(200).json({ ok: true });
     }
 
     if (action === 'reconcile') {
