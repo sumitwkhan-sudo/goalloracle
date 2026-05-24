@@ -8932,8 +8932,10 @@ body.light .lsd-head,
    ============================================ */
 
 /* Sits directly under the navbar on every view. Pinned label on the
-   left, marquee track on the right. Pure visual scroller — items are
-   spans, never anchors, so users can't click out. */
+   left, marquee track on the right. On desktop items with a source URL
+   are clickable anchors; on mobile (see the max-width: 720px block
+   below) pointer-events are disabled so the marquee is purely visual
+   and a stray tap can't navigate the user off-site. */
 .news-ticker {
   /* Slow enough that headlines are readable as they move. ~5s per item
      on desktop with ~25 items in a doubled track. */
@@ -9076,11 +9078,19 @@ a.news-ticker-item:focus-visible {
 [data-theme="fifa2026"] .news-ticker-sep { color: rgba(255, 219, 0, 0.35); }
 
 @media (max-width: 720px) {
-  /* Hidden on mobile — the marquee competes with the navbar for
-     attention on a small viewport and headlines pass faster than
-     they can comfortably be read. Dashboard NewsFeed remains
-     visible. */
-  .news-ticker { display: none; }
+  /* Mobile: the ticker IS shown, but tuned for a small viewport —
+     1) items are non-interactive (pointer-events: none) so a tap on a
+        scrolling headline can't navigate the user off-site by accident;
+     2) the scroll is slowed so headlines stay readable on a narrow
+        screen where long items scroll partly off-edge. */
+  .news-ticker {
+    --news-ticker-duration: 190s;
+  }
+  .news-ticker-item,
+  a.news-ticker-item {
+    pointer-events: none;
+    cursor: default;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
