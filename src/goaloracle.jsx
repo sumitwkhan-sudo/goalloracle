@@ -36,7 +36,7 @@ import ContestConsentBanner from './components/ContestConsentBanner';
 import HouseRulesSection from './components/HouseRulesSection';
 import CreatorInviteModal from './components/CreatorInviteModal';
 import CreatorNudgeModal from './components/CreatorNudgeModal';
-import { PRIZE_TOP_USD, PRIZE_DEFAULT_CURRENCY } from './config/legal';
+import { PRIZE_DEFAULT_CURRENCY } from './config/legal';
 import BracketShareModal from './components/BracketShareModal';
 import InviteFriendsModal from './components/InviteFriendsModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
@@ -1174,6 +1174,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             }}
             onEdit={() => setSTab('predictions')}
             onInvite={handleInvite}
+            onNudge={isPrivate && isLeagueCreator ? () => setShowNudge(true) : undefined}
             onShareBracket={openShareBracket}
             onJoin={!authenticated ? onSignIn : undefined}
             loading={simLbl}
@@ -2526,8 +2527,8 @@ const GoalOracle = () => {
           <div className="hero-split-inner" ref={el => { if (el && !heroAnimated) heroAnimated = true; }}>
             <div className="hero-left">
               <div className="hero-eyebrow">FREE TO ENTER &middot; WORLD CUP 2026</div>
-              <h1 className="hero-title">Predict the World Cup.<span className="highlight">Win up to ${PRIZE_TOP_USD} in free prizes.</span></h1>
-              <p className="hero-subtitle">Free skill-based prediction contest. Top 3 finishers win cash prizes paid in stablecoin.</p>
+              <h1 className="hero-title">Predict the World Cup.<span className="highlight">Free entry. Prizes for top finishers.</span></h1>
+              <p className="hero-subtitle">Free skill-based prediction contest. Build a bracket, beat your friends, win prizes.</p>
               {anonCtas && (
                 <div className="hero-cta">
                   <button
@@ -3793,6 +3794,20 @@ const GoalOracle = () => {
               <AlertTriangle size={14} />
               <span>You haven't set a username yet.</span>
               <button className="btn btn-primary btn-xs">Set Username</button>
+            </div>
+          )}
+          {/* Creator-only action row mirrors the Quick Picks leaderboard
+              header — Invite + Nudge sit at the top of Rankings so the
+              two most common league-admin actions are visible without
+              scrolling back to the page header. */}
+          {isPrivate && isCreator && (
+            <div className="leaderboard-creator-actions">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowInvite(true)}>
+                <UserPlus size={14} /> Invite
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowNudge(true)}>
+                <MessageSquare size={14} /> Nudge members
+              </button>
             </div>
           )}
           <div className="leaderboard-header">

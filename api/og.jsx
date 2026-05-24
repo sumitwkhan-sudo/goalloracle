@@ -194,7 +194,7 @@ function renderDefault() {
           </div>
           <div style={{ fontSize: 24, color: '#3a2a00', fontWeight: 600 }}>·</div>
           <div style={{ fontSize: 24, color: '#1a1300', fontWeight: 700 }}>
-            Win up to $150 in Stablecoins
+            Prizes for Top Finishers
           </div>
         </div>
       </div>
