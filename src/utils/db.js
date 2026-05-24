@@ -630,6 +630,31 @@ export async function fetchAdminOutreachRecentRuns(limit = 20) {
   };
 }
 
+// Admin outreach — schedule a send for later. Validated server-side
+// (must be in the future, max 1000 recipients per send, template must
+// exist). Drained by the /api/cron/outreach-drain cron every 5 min.
+export async function adminScheduleOutreach({ template, userIds, scheduledFor }) {
+  return await apiCall('admin', 'POST', {
+    action: 'outreachSchedule',
+    template, userIds, scheduledFor,
+  });
+}
+
+// Admin outreach — cancel a pending scheduled send. Once the drain
+// cron flips the doc to 'sending' it can't be cancelled anymore.
+export async function adminCancelScheduledOutreach(id, reason = null) {
+  return await apiCall('admin', 'POST', {
+    action: 'outreachCancelScheduled', id, reason,
+  });
+}
+
+// Admin outreach — list scheduled outreach sends (pending first, then
+// finished/cancelled). Powers the Scheduled panel under the Outreach tab.
+export async function fetchAdminOutreachScheduled() {
+  const data = await apiCall('admin?type=outreachScheduled');
+  return data?.items || [];
+}
+
 // Admin outreach — send the chosen template to the supplied user list.
 // Server re-validates eligibility per-user, throttles to respect Resend
 // rate limits, and logs both per-user audit rows and a per-run summary.

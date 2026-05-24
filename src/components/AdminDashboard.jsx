@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -73,6 +73,13 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // from the Resend webhook data.
   const [outreachRecentRuns, setOutreachRecentRuns] = useState(null);
   const [outreachTemplateStats, setOutreachTemplateStats] = useState({});
+  // Scheduled-sends list (pending first, then finished/cancelled). The
+  // outreach-drain cron runs every 5 min and updates statuses.
+  const [outreachScheduled, setOutreachScheduled] = useState(null);
+  // datetime-local value string for the schedule picker. Empty = use
+  // the "Send now" path; non-empty = schedule for that time.
+  const [outreachScheduleAt, setOutreachScheduleAt] = useState('');
+  const [outreachScheduleBusy, setOutreachScheduleBusy] = useState(false);
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -235,6 +242,61 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     }
   };
 
+  // Fetch all scheduled sends (pending first). Refreshed on tab open
+  // and after any schedule/cancel action.
+  const reloadOutreachScheduled = async () => {
+    try {
+      const items = await fetchAdminOutreachScheduled();
+      setOutreachScheduled(items);
+    } catch (e) {
+      console.warn('[outreach] scheduled fetch failed:', e?.message || e);
+      setOutreachScheduled([]);
+    }
+  };
+
+  // Schedule the current selection for a future send. Same exclusion
+  // rules as the immediate batch (already-sent-this-session users).
+  const handleScheduleOutreach = async () => {
+    const ids = Array.from(outreachSelectedIds).filter(uid => !outreachSentThisSession.has(uid));
+    if (ids.length === 0) { notify('No users to schedule (selection is empty or all already sent).', 'error'); return; }
+    if (!outreachScheduleAt) { notify('Pick a date and time to schedule for.', 'error'); return; }
+    const when = new Date(outreachScheduleAt);
+    if (isNaN(when.getTime())) { notify('Invalid date/time.', 'error'); return; }
+    if (when.getTime() < Date.now()) { notify('Schedule time must be in the future.', 'error'); return; }
+
+    const confirmed = window.confirm(
+      `Schedule the "${OUTREACH_TEMPLATES[outreachTemplate]?.label || outreachTemplate}" email to ${ids.length} user${ids.length === 1 ? '' : 's'} for ${when.toLocaleString()}?`
+    );
+    if (!confirmed) return;
+    setOutreachScheduleBusy(true);
+    try {
+      const r = await adminScheduleOutreach({
+        template: outreachTemplate,
+        userIds: ids,
+        scheduledFor: when.toISOString(),
+      });
+      notify(`Scheduled — drain cron will send within 5 min of ${when.toLocaleString()}.`);
+      setOutreachScheduleAt('');
+      reloadOutreachScheduled();
+    } catch (e) {
+      notify('Schedule failed: ' + (e?.message || e), 'error');
+    } finally {
+      setOutreachScheduleBusy(false);
+    }
+  };
+
+  const handleCancelScheduled = async (id) => {
+    const confirmed = window.confirm('Cancel this scheduled send? It will not be drained.');
+    if (!confirmed) return;
+    try {
+      await adminCancelScheduledOutreach(id);
+      notify('Scheduled send cancelled.');
+      reloadOutreachScheduled();
+    } catch (e) {
+      notify('Cancel failed: ' + (e?.message || e), 'error');
+    }
+  };
+
   // Fetch the recent-runs panel data. Cheap — single query + a small
   // per-template fanout. Refreshed on tab open + after each send.
   const reloadOutreachRecentRuns = async () => {
@@ -254,6 +316,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     reloadOutreachEligible();
     reloadOutreachRenderPreview();
     reloadOutreachRecentRuns();
+    reloadOutreachScheduled();
     // Pre-fill the preview-email field with the admin's own account email.
     setOutreachPreviewEmail(userData?.email || '');
     // Reset session-sent set when template changes — different templates
@@ -1363,8 +1426,40 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 >
                   {outreachBatchBusy
                     ? <><RefreshCw size={14} className="spin" /> Sending…</>
-                    : <>Send to {Math.max(0, selectedCount - outreachSentThisSession.size)} user{Math.max(0, selectedCount - outreachSentThisSession.size) === 1 ? '' : 's'} →</>}
+                    : <>Send to {Math.max(0, selectedCount - outreachSentThisSession.size)} user{Math.max(0, selectedCount - outreachSentThisSession.size) === 1 ? '' : 's'} now →</>}
                 </button>
+
+                {/* Schedule-for-later option. Same selection + same
+                    template; just stamped into /outreachScheduled and
+                    drained by the /api/cron/outreach-drain cron. */}
+                <div className="admin-outreach-schedule-row">
+                  <label className="admin-outreach-schedule-label">
+                    Or schedule for
+                    <input
+                      type="datetime-local"
+                      className="input-field admin-outreach-schedule-input"
+                      value={outreachScheduleAt}
+                      onChange={(e) => setOutreachScheduleAt(e.target.value)}
+                      disabled={outreachScheduleBusy}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleScheduleOutreach}
+                    disabled={outreachScheduleBusy || !outreachPreviewSent || !outreachScheduleAt || (selectedCount - outreachSentThisSession.size) <= 0}
+                    title={!outreachPreviewSent
+                      ? 'Send a preview or canary first'
+                      : !outreachScheduleAt
+                        ? 'Pick a date and time'
+                        : ''}
+                  >
+                    {outreachScheduleBusy
+                      ? <><RefreshCw size={14} className="spin" /> Scheduling…</>
+                      : <>Schedule send</>}
+                  </button>
+                </div>
+
                 {outreachBatchResult && (
                   <div className="admin-outreach-batch-result">
                     <div><strong>Sent:</strong> {outreachBatchResult.sent}</div>
@@ -1391,6 +1486,62 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               from the Resend webhook data (delivered / opened /
               clicked / bounced / complained). Refreshes every time
               the operator switches into the tab and after each send. */}
+
+          {/* ─── Scheduled sends panel ────────────────────────────
+              Pending sends sit at the top with a Cancel button; once
+              drained they fall to the bottom as audit history. */}
+          <div className="admin-outreach-scheduled">
+            <div className="admin-outreach-runs-head">
+              <h3>Scheduled sends</h3>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={reloadOutreachScheduled}>
+                <RefreshCw size={11} /> Refresh
+              </button>
+            </div>
+            {outreachScheduled === null && <div className="admin-empty">Loading…</div>}
+            {outreachScheduled?.length === 0 && <div className="admin-empty">No scheduled sends.</div>}
+            {outreachScheduled && outreachScheduled.length > 0 && (
+              <table className="admin-outreach-runs-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Template</th>
+                    <th>Status</th>
+                    <th className="admin-outreach-runs-num">Recipients</th>
+                    <th className="admin-outreach-runs-num">Sent</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outreachScheduled.map((s) => {
+                    const when = s.scheduledForMs ? new Date(s.scheduledForMs) : null;
+                    return (
+                      <tr key={s.id}>
+                        <td title={when ? when.toString() : ''}>{when ? when.toLocaleString() : '—'}</td>
+                        <td>{OUTREACH_TEMPLATES[s.template]?.label || s.template}</td>
+                        <td>
+                          <span className={`admin-outreach-status admin-outreach-status-${s.status}`}>
+                            {s.status}
+                          </span>
+                        </td>
+                        <td className="admin-outreach-runs-num">{s.recipientCount}</td>
+                        <td className="admin-outreach-runs-num">
+                          {s.status === 'pending' || s.status === 'sending' ? '—' : `${s.sent} / ${s.attempted}`}
+                        </td>
+                        <td>
+                          {s.status === 'pending' && (
+                            <button type="button" className="btn btn-ghost btn-xs" onClick={() => handleCancelScheduled(s.id)}>
+                              Cancel
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
           <div className="admin-outreach-runs">
             <div className="admin-outreach-runs-head">
               <h3>Recent runs</h3>
