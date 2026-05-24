@@ -10263,3 +10263,23 @@ ol.legal-list li { margin-bottom: 0.35rem; }
   color: rgba(255, 193, 7, 0.95);
 }
 .creator-nudge-row label { flex-wrap: wrap; }
+
+/* Share-link box in CreatorInviteModal — the URL is long, so unlike the
+   short-passcode .invite-code (1.8rem, wide letter-spacing) we render it
+   small + wrapping with the copy button stacked underneath. */
+.creator-invite-link-box {
+  display: flex; flex-direction: column; gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-elev);
+  border: 1px dashed var(--border-br);
+  border-radius: 10px;
+}
+.creator-invite-link-url {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  letter-spacing: 0;
+  color: var(--cyan);
+  word-break: break-all;
+}
+.creator-invite-link-copy { align-self: flex-start; }

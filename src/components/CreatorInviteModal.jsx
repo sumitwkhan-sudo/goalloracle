@@ -208,9 +208,9 @@ export default function CreatorInviteModal({ open, onClose, league, passcode, no
             <p className="fund-desc">
               Share this link with people you want to invite to <strong>{league?.name}</strong>. The passcode is built into the link, so recipients join automatically after signing in.
             </p>
-            <div className="invite-code-box">
-              <code className="invite-code" style={{ wordBreak: 'break-all' }}>{inviteUrl}</code>
-              <button className="btn btn-primary btn-sm" onClick={handleCopyLink}>
+            <div className="creator-invite-link-box">
+              <code className="creator-invite-link-url">{inviteUrl}</code>
+              <button className="btn btn-primary btn-sm creator-invite-link-copy" onClick={handleCopyLink}>
                 {linkCopied ? <><CheckCircle size={14} /> Copied!</> : <><Copy size={14} /> Copy link</>}
               </button>
             </div>
