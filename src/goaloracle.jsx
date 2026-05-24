@@ -765,7 +765,7 @@ function JoinSuccessModal({ postJoin, onClose, onGoToLeague, notify, userId }) {
               >
                 {copying ? (<><RefreshCw size={14} className="spin" /> Copying...</>) :
                   copied ? (<><CheckCircle size={14} /> {copied.count > 0 ? `Copied ${copied.count}` : 'Nothing to copy'}</>) :
-                  (<><Copy size={14} /> Copy my existing {sourceLabel} picks</>)}
+                  (<><Copy size={14} /> Copy my {sourceLabel} picks</>)}
               </button>
               <span className="copy-flow-or">or predict fresh in the league</span>
             </div>
