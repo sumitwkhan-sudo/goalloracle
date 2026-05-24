@@ -438,8 +438,302 @@ export default async function handler(req, res) {
       });
       return res.status(200).json({ success: true });
 
+    // ─── CREATOR INVITE BY EMAIL (creator only) ───────────
+    // Lets a private-league creator email a list of addresses asking
+    // them to join. The email is framed as coming from the creator
+    // (subject + body both name them) but is sent from GoalOracle's
+    // domain via Resend — recipients can hit Unsubscribe to opt out of
+    // all GoalOracle email. Hard caps: 25 per call, 50 per league per
+    // day. Recipients who are already league members are silently
+    // skipped (we don't want to spam them).
+    } else if (action === 'creatorInvite') {
+      const { leagueId, emails: rawEmails, personalNote: rawNote } = req.body;
+      if (!leagueId) return res.status(400).json({ error: 'League ID required' });
+      if (!Array.isArray(rawEmails) || rawEmails.length === 0) {
+        return res.status(400).json({ error: 'emails required (non-empty array)' });
+      }
+      if (rawEmails.length > 25) {
+        return res.status(400).json({ error: 'Max 25 invites per send' });
+      }
+
+      const leagueRef = db.collection('leagues').doc(leagueId);
+      const leagueSnap = await leagueRef.get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+      const league = leagueSnap.data();
+      if (league.createdBy !== userId) {
+        return res.status(403).json({ error: 'Only the league creator can send invites' });
+      }
+      if (league.visibility !== 'private') {
+        return res.status(400).json({ error: 'Creator invites are only available on private leagues' });
+      }
+
+      const note = typeof rawNote === 'string' ? rawNote.trim().slice(0, 200) : null;
+
+      // Rate limit: 50 invites per league per 24h. Counts every audit row
+      // (sent + failed) to prevent retry-storms from blowing past the cap.
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+      const since = new Date(Date.now() - ONE_DAY_MS);
+      const recentInvitesSnap = await db.collection('leagueInvitesSent')
+        .where('leagueId', '==', leagueId)
+        .where('sentAt', '>', since)
+        .get();
+      const recentCount = recentInvitesSnap.size;
+      if (recentCount + rawEmails.length > 50) {
+        return res.status(429).json({
+          error: `Daily invite limit reached for this league (${recentCount}/50 already sent in the last 24h).`,
+        });
+      }
+
+      // Fetch creator + the league passcode (subcollection or legacy field)
+      // so the invite CTA can carry it for one-tap join after signup.
+      const [creatorSnap, authSnap] = await Promise.all([
+        db.collection('users').doc(userId).get(),
+        leagueRef.collection('private').doc('auth').get(),
+      ]);
+      const creator = creatorSnap.exists ? { id: creatorSnap.id, ...creatorSnap.data() } : { id: userId };
+      const passcode = authSnap.exists ? (authSnap.data()?.passcode || null) : (league.passcode || null);
+      const leagueForEmail = { ...league, passcode };
+
+      // Sanitize, dedupe, lowercase, validate.
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const cleaned = [...new Set(rawEmails.map(e => String(e || '').trim().toLowerCase()).filter(Boolean))];
+
+      const { creatorInviteTemplate, sendCreatorEmail } = await import('./_lib/creatorEmail.js');
+      const { sleep, BATCH_DELAY_MS } = await import('./_lib/outreachEmail.js');
+
+      const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
+
+      for (const email of cleaned) {
+        try {
+          if (!EMAIL_RE.test(email)) {
+            results.skipped++;
+            results.errors.push({ email, error: 'invalid email' });
+            continue;
+          }
+
+          // If this email already belongs to a GoalOracle user, skip if
+          // they're already in the league (no point inviting) or if
+          // they've opted out of email.
+          const existing = await db.collection('users').where('email', '==', email).limit(1).get();
+          let recipientUid = null;
+          if (!existing.empty) {
+            const matched = existing.docs[0];
+            recipientUid = matched.id;
+            if (league.members?.includes(recipientUid)) { results.skipped++; continue; }
+            if (matched.data()?.emailOptOut === true) { results.skipped++; continue; }
+          }
+
+          const { subject, html, text } = creatorInviteTemplate({
+            creator,
+            league: leagueForEmail,
+            personalNote: note,
+            recipientEmail: email,
+            recipientUnsubUserId: recipientUid,
+          });
+          const r = await sendCreatorEmail({
+            to: email,
+            replyTo: creator.email || null,
+            subject, html, text,
+            tags: [
+              { name: 'kind', value: 'creator-invite' },
+              { name: 'leagueId', value: leagueId },
+              { name: 'creatorId', value: userId },
+            ],
+          });
+
+          await db.collection('leagueInvitesSent').add({
+            leagueId,
+            creatorId: userId,
+            recipientEmail: email,
+            recipientUserId: recipientUid || null,
+            sentAt: FieldValue.serverTimestamp(),
+            sent: !!r.sent,
+            error: r.error || null,
+          });
+
+          if (r.sent) results.sent++;
+          else { results.failed++; results.errors.push({ email, error: r.error || 'unknown' }); }
+
+          await sleep(BATCH_DELAY_MS);
+        } catch (e) {
+          results.failed++;
+          results.errors.push({ email, error: e?.message || 'crash' });
+        }
+      }
+
+      return res.status(200).json(results);
+
+    // ─── CREATOR NUDGE: LIST ELIGIBLE MEMBERS (creator only) ──
+    // Returns the league's members (minus the creator themselves) with
+    // displayName + email + opt-out status, plus the next time the
+    // creator can send a nudge. Used to populate the "Send a Nudge"
+    // modal on the league detail page.
+    } else if (action === 'creatorListNudgeEligible') {
+      const { leagueId } = req.body;
+      if (!leagueId) return res.status(400).json({ error: 'League ID required' });
+
+      const leagueRef = db.collection('leagues').doc(leagueId);
+      const leagueSnap = await leagueRef.get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+      const league = leagueSnap.data();
+      if (league.createdBy !== userId) {
+        return res.status(403).json({ error: 'Only the league creator can list members for nudges' });
+      }
+
+      const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+      const since = new Date(Date.now() - SEVEN_DAYS_MS);
+      const recentNudges = await db.collection('leagueCreatorNudges')
+        .where('leagueId', '==', leagueId)
+        .where('sentAt', '>', since)
+        .orderBy('sentAt', 'desc')
+        .limit(1)
+        .get();
+      let nextNudgeAvailableAt = null;
+      let lastNudgeAt = null;
+      if (!recentNudges.empty) {
+        const lastTs = recentNudges.docs[0].data().sentAt;
+        lastNudgeAt = lastTs?.toMillis ? lastTs.toMillis() : null;
+        if (lastNudgeAt) {
+          nextNudgeAvailableAt = new Date(lastNudgeAt + SEVEN_DAYS_MS).toISOString();
+        }
+      }
+
+      const memberIds = (league.members || []).filter((id) => id !== userId);
+      if (memberIds.length === 0) {
+        return res.status(200).json({ members: [], nextNudgeAvailableAt, lastNudgeAt });
+      }
+
+      const memberRefs = memberIds.map((uid) => db.collection('users').doc(uid));
+      const memberSnaps = await db.getAll(...memberRefs);
+      const members = memberSnaps
+        .filter((snap) => snap.exists)
+        .map((snap) => {
+          const d = snap.data();
+          return {
+            userId: snap.id,
+            displayName: d.displayName || d.username || null,
+            email: d.email || null,
+            emailOptOut: d.emailOptOut === true,
+          };
+        })
+        .filter((m) => m.email && !m.emailOptOut);
+
+      return res.status(200).json({ members, nextNudgeAvailableAt, lastNudgeAt });
+
+    // ─── CREATOR NUDGE: SEND (creator only) ───────────────
+    // Sends the creatorNudge template to the supplied member userIds.
+    // Hard rate-limited to ONCE per league per 7 days regardless of how
+    // many or few members were targeted — keeps creator-to-member email
+    // from drifting into spam territory. The audit row is written even
+    // if zero sends succeeded so a retry storm can't bypass the limit.
+    } else if (action === 'creatorNudge') {
+      const { leagueId, userIds: rawTargets, personalNote: rawNote } = req.body;
+      if (!leagueId) return res.status(400).json({ error: 'League ID required' });
+      if (!Array.isArray(rawTargets) || rawTargets.length === 0) {
+        return res.status(400).json({ error: 'userIds required (non-empty array)' });
+      }
+      if (rawTargets.length > 200) {
+        return res.status(400).json({ error: 'Too many recipients (max 200)' });
+      }
+
+      const leagueRef = db.collection('leagues').doc(leagueId);
+      const leagueSnap = await leagueRef.get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+      const league = leagueSnap.data();
+      if (league.createdBy !== userId) {
+        return res.status(403).json({ error: 'Only the league creator can send nudges' });
+      }
+
+      const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+      const since = new Date(Date.now() - SEVEN_DAYS_MS);
+      const recentNudges = await db.collection('leagueCreatorNudges')
+        .where('leagueId', '==', leagueId)
+        .where('sentAt', '>', since)
+        .orderBy('sentAt', 'desc')
+        .limit(1)
+        .get();
+      if (!recentNudges.empty) {
+        const lastTs = recentNudges.docs[0].data().sentAt;
+        const lastMs = lastTs?.toMillis ? lastTs.toMillis() : Date.now();
+        return res.status(429).json({
+          error: 'Nudges are limited to once per league every 7 days.',
+          nextNudgeAvailableAt: new Date(lastMs + SEVEN_DAYS_MS).toISOString(),
+        });
+      }
+
+      const note = typeof rawNote === 'string' ? rawNote.trim().slice(0, 200) : null;
+
+      const memberSet = new Set(league.members || []);
+      const validTargets = [...new Set(rawTargets)].filter((uid) => memberSet.has(uid) && uid !== userId);
+      if (validTargets.length === 0) {
+        return res.status(400).json({ error: 'No valid league members in the recipient list' });
+      }
+
+      const creatorSnap = await db.collection('users').doc(userId).get();
+      const creator = creatorSnap.exists ? { id: creatorSnap.id, ...creatorSnap.data() } : { id: userId };
+
+      const { creatorNudgeTemplate, sendCreatorEmail } = await import('./_lib/creatorEmail.js');
+      const { sleep, BATCH_DELAY_MS } = await import('./_lib/outreachEmail.js');
+
+      const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
+      const sentToUserIds = [];
+
+      for (const uid of validTargets) {
+        try {
+          const memberSnap = await db.collection('users').doc(uid).get();
+          if (!memberSnap.exists) { results.skipped++; continue; }
+          const member = { id: memberSnap.id, ...memberSnap.data() };
+          if (!member.email || member.emailOptOut === true) { results.skipped++; continue; }
+
+          const { subject, html, text } = creatorNudgeTemplate({
+            creator,
+            league,
+            member,
+            personalNote: note,
+          });
+          const r = await sendCreatorEmail({
+            to: member.email,
+            replyTo: creator.email || null,
+            subject, html, text,
+            tags: [
+              { name: 'kind', value: 'creator-nudge' },
+              { name: 'leagueId', value: leagueId },
+              { name: 'creatorId', value: userId },
+              { name: 'userId', value: uid },
+            ],
+          });
+
+          if (r.sent) { results.sent++; sentToUserIds.push(uid); }
+          else { results.failed++; results.errors.push({ uid, error: r.error || 'unknown' }); }
+
+          await sleep(BATCH_DELAY_MS);
+        } catch (e) {
+          results.failed++;
+          results.errors.push({ uid, error: e?.message || 'crash' });
+        }
+      }
+
+      // Always write the audit row — even on total failure — so the
+      // 7-day rate limit kicks in and a retry loop can't keep emailing.
+      await db.collection('leagueCreatorNudges').add({
+        leagueId,
+        creatorId: userId,
+        targetCount: validTargets.length,
+        sentCount: results.sent,
+        skippedCount: results.skipped,
+        failedCount: results.failed,
+        personalNote: note,
+        sentAt: FieldValue.serverTimestamp(),
+        recipientUserIds: sentToUserIds,
+      });
+
+      return res.status(200).json({
+        ...results,
+        nextNudgeAvailableAt: new Date(Date.now() + SEVEN_DAYS_MS).toISOString(),
+      });
+
     } else {
-      return res.status(400).json({ error: 'Invalid action. Use: create, join, leave, delete, editHouseRules, acknowledgeHouseRules, or reportContent' });
+      return res.status(400).json({ error: 'Invalid action. Use: create, join, lookupByPasscode, leave, getPasscode, delete, editHouseRules, acknowledgeHouseRules, reportContent, creatorInvite, creatorListNudgeEligible, or creatorNudge' });
     }
   } catch (e) {
     console.error('League error:', e);

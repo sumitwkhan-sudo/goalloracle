@@ -34,6 +34,8 @@ import GuideAnnexeC from './pages/GuideAnnexeC';
 import PrizeStructureCard from './components/PrizeStructureCard';
 import ContestConsentBanner from './components/ContestConsentBanner';
 import HouseRulesSection from './components/HouseRulesSection';
+import CreatorInviteModal from './components/CreatorInviteModal';
+import CreatorNudgeModal from './components/CreatorNudgeModal';
 import { PRIZE_TOP_USD, PRIZE_DEFAULT_CURRENCY } from './config/legal';
 import BracketShareModal from './components/BracketShareModal';
 import InviteFriendsModal from './components/InviteFriendsModal';
@@ -781,6 +783,31 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   const [shareConsensus, setShareConsensus] = useState(null);
   const [countriesList, setCountriesList] = useState([]);
 
+  // Creator-only invite + nudge modals (private leagues). State lives at
+  // this level so the modals can be opened from either the leaderboard
+  // header's onInvite hook or the dedicated nudge button below.
+  const [showInvite, setShowInvite] = useState(false);
+  const [showNudge, setShowNudge] = useState(false);
+  const [fetchedPasscode, setFetchedPasscode] = useState(null);
+  const isPrivateLeague = league?.visibility === 'private';
+  const isLeagueCreator = !!league?.createdBy && league.createdBy === userData?.id;
+  const isLeagueMember = !!userData?.id && Array.isArray(league?.members) && league.members.includes(userData.id);
+
+  useEffect(() => {
+    if (!isPrivateLeague || !isLeagueMember || !league?.id) return;
+    if (league?.passcode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getLeaguePasscode } = await import('./utils/db');
+        const p = await getLeaguePasscode(league.id);
+        if (!cancelled) setFetchedPasscode(p);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isPrivateLeague, isLeagueMember, league?.id, league?.passcode]);
+  const leaguePasscodeValue = league?.passcode || fetchedPasscode || '';
+
   // Lazy-load the countries list only when the filter is first used.
   useEffect(() => {
     if (lbScope !== 'country' || countriesList.length > 0) return;
@@ -999,6 +1026,31 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         </div>
       )}
 
+      {/* Creator toolbar — only visible to the creator of a private
+          league. Surfaces the Nudge action explicitly (Invite is wired
+          via the leaderboard header's Invite button when isCreator). */}
+      {isPrivateLeague && isLeagueCreator && (
+        <div className="creator-toolbar">
+          <span className="creator-toolbar-label">Creator actions</span>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowInvite(true)}
+            title="Invite people to this league"
+          >
+            <UserPlus size={14} /> Invite
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowNudge(true)}
+            title="Send a reminder to members"
+          >
+            <MessageSquare size={14} /> Nudge members
+          </button>
+        </div>
+      )}
+
       {/* House Rules — collapsible card + edit/report modals, all owned
           by HouseRulesSection. Renders null when the league doesn't
           qualify (no rules, global, or public league). Lives outside
@@ -1008,6 +1060,22 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         league={league}
         userId={userData?.id}
         isCreator={league?.createdBy === userData?.id}
+        notify={notify}
+      />
+
+      {/* Creator-only modals — rendered always so state survives tab
+          switches; visibility controlled internally by their `open` prop. */}
+      <CreatorInviteModal
+        open={showInvite}
+        onClose={() => setShowInvite(false)}
+        league={league}
+        passcode={leaguePasscodeValue}
+        notify={notify}
+      />
+      <CreatorNudgeModal
+        open={showNudge}
+        onClose={() => setShowNudge(false)}
+        league={league}
         notify={notify}
       />
 
@@ -1035,19 +1103,26 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         // leagues bake the passcode into the URL — that's already the
         // passcode's purpose: gate joining for whoever has it.
         const handleInvite = async () => {
+          // Creators of private leagues get the full modal (share link
+          // + email invite tabs). Everyone else gets the lightweight
+          // copy-link behavior they had before.
+          if (isPrivate && isLeagueCreator) {
+            setShowInvite(true);
+            return;
+          }
           const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
           const params = new URLSearchParams();
           if (userData?.id) params.set('ref', userData.id);
           if (!isGlobal && league?.id) {
             params.set('join', league.id);
-            if (isPrivate && league?.passcode) params.set('p', league.passcode);
+            if (isPrivate && leaguePasscodeValue) params.set('p', leaguePasscodeValue);
           }
           const url = `${origin}/?${params.toString()}`;
           try {
             await navigator.clipboard.writeText(url);
             if (notify) {
               if (isGlobal) notify('Invite link copied');
-              else if (isPrivate && league?.passcode) notify('Invite link copied — joins automatically when opened');
+              else if (isPrivate && leaguePasscodeValue) notify('Invite link copied — joins automatically when opened');
               else notify('Invite link copied — joins automatically when opened');
             }
           } catch {
@@ -3259,6 +3334,7 @@ const GoalOracle = () => {
     const [lbSort, setLbSort] = useState('points'); // 'points' | 'xp' | 'streak'
     const [showDelete, setShowDelete] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
+    const [showNudge, setShowNudge] = useState(false);
     const [inviteCopied, setInviteCopied] = useState(false);
     const [resettingPicks, setResettingPicks] = useState(false);
     const weekCelebratedRef = useRef({});
@@ -3544,7 +3620,10 @@ const GoalOracle = () => {
           </div>
           <div className="phc-right">
             {isPrivate && (isCreator || isAdmin) && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowInvite(true)}><Share2 size={14} /></button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowInvite(true)} title="Invite to league"><UserPlus size={14} /></button>
+            )}
+            {isPrivate && isCreator && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowNudge(true)} title="Nudge members"><MessageSquare size={14} /></button>
             )}
             {isAdmin && selLeague?.id !== 'global' && (
               <button className="btn btn-sm" style={{background: 'rgba(255,59,92,0.1)', color: 'var(--danger)', border: '1px solid rgba(255,59,92,0.2)'}} onClick={() => setShowDelete(true)}><Trash2 size={14} /></button>
@@ -3552,18 +3631,22 @@ const GoalOracle = () => {
           </div>
         </div>
 
-        {/* Invite Modal */}
-        {showInvite && <div className="modal-overlay" onClick={() => setShowInvite(false)}>
-          <div className="invite-modal" onClick={e => e.stopPropagation()}>
-            <div className="fund-modal-header"><h3><Key size={20} /> Invite to League</h3><button className="modal-close" onClick={() => setShowInvite(false)}><X size={18} /></button></div>
-            <p className="fund-desc">Share this passcode with people you want to invite to <strong>{selLeague?.name}</strong>.</p>
-            <div className="invite-code-box">
-              <code className="invite-code">{leaguePasscode || '—'}</code>
-              <button className="btn btn-primary btn-sm" onClick={copyInvite}>{inviteCopied ? <><CheckCircle size={14} /> Copied!</> : <><Copy size={14} /> Copy Invite</>}</button>
-            </div>
-            <p className="form-hint" style={{marginTop:'0.75rem'}}>They'll need this code when joining from the Browse Leagues page.</p>
-          </div>
-        </div>}
+        {/* Invite Modal — share-link tab + email-invite tab (creator only) */}
+        <CreatorInviteModal
+          open={showInvite}
+          onClose={() => setShowInvite(false)}
+          league={selLeague}
+          passcode={leaguePasscode}
+          notify={notify}
+        />
+
+        {/* Nudge Modal — creator-only, 1-per-7-days server-enforced */}
+        <CreatorNudgeModal
+          open={showNudge}
+          onClose={() => setShowNudge(false)}
+          league={selLeague}
+          notify={notify}
+        />
 
         {/* Delete Confirm */}
         {showDelete && <div className="modal-overlay" onClick={() => setShowDelete(false)}>
