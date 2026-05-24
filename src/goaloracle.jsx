@@ -31,6 +31,15 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import HowItWorks from './pages/HowItWorks';
 import Developers from './pages/Developers';
 import GuideAnnexeC from './pages/GuideAnnexeC';
+import WorldCup2026Predictor from './pages/WorldCup2026Predictor';
+import WorldCupBracket from './pages/WorldCupBracket';
+import FreeWorldCupPool from './pages/FreeWorldCupPool';
+import WorldCupPredictionGame from './pages/WorldCupPredictionGame';
+import WorldCup2026Groups from './pages/WorldCup2026Groups';
+import WorldCup2026Schedule from './pages/WorldCup2026Schedule';
+import HowThirdPlaceQualificationWorks from './pages/HowThirdPlaceQualificationWorks';
+import About from './pages/About';
+import Contact from './pages/Contact';
 import PrizeStructureCard from './components/PrizeStructureCard';
 import ContestConsentBanner from './components/ContestConsentBanner';
 import HouseRulesSection from './components/HouseRulesSection';
@@ -85,6 +94,15 @@ const VIEW_META = {
   howItWorks: { title: 'How GoalOracle Works — World Cup 2026 Bracket Predictions', description: 'How the 2026 FIFA World Cup bracket game works on GoalOracle: format, scoring tables, prize contest mechanics, dual-source result verification, and Annexe C third-place routing.', path: '/how-it-works', index: true },
   developers: { title: 'Developers & API — GoalOracle', description: 'Public REST API for GoalOracle. OpenAPI 3.1.0 spec, authentication, rate limits, AI-engine resources, and integration guidance.', path: '/developers', index: true },
   guideAnnexeC: { title: 'Annexe C — 2026 World Cup Third-Place Routing Explained', description: 'How FIFA\'s Annexe C decides which 8 of 12 third-placed teams advance and which Round of 32 slot each one fills. All 495 combinations, the Article 13 tiebreaker order, and why head-to-head isn\'t used cross-group.', path: '/guides/annexe-c-third-place-routing', index: true },
+  worldCup2026Predictor: { title: 'World Cup 2026 Predictor — Free Bracket & Prediction Game', description: 'Free FIFA World Cup 2026 predictor. Build your bracket, predict every match from the group stage through the Final, and compete on a global leaderboard. Free entry, no purchase necessary.', path: '/world-cup-2026-predictor', index: true },
+  worldCupBracket: { title: 'World Cup 2026 Bracket — Free FIFA Bracket Challenge', description: 'Build your free FIFA World Cup 2026 bracket. Predict group finishers, best third-placed teams, and every knockout match. Create private pools with friends. Free entry, prizes for top finishers.', path: '/world-cup-bracket', index: true },
+  freeWorldCupPool: { title: 'Free World Cup Pool — Run a 2026 World Cup Group with Friends', description: 'Create a free World Cup 2026 pool for friends, family, or coworkers. Private leagues with shared leaderboards, optional house rules, and automatic scoring. No entry fee, no purchase necessary.', path: '/free-world-cup-pool', index: true },
+  worldCupPredictionGame: { title: 'World Cup Prediction Game — Free FIFA World Cup 2026 Pick\'em', description: 'The free FIFA World Cup 2026 prediction game. Predict all 104 matches, join private pools, and compete globally. Quick Picks (10 min, 76 pts) or Classic Predictions (exact scores). Free entry.', path: '/world-cup-prediction-game', index: true },
+  worldCup2026Groups: { title: 'World Cup 2026 Groups — All 12 Groups and 48 Teams', description: 'All 12 groups (A–L) and 48 teams for the FIFA World Cup 2026. How group-stage qualification works, the tiebreaker order, and how to predict groups on GoalOracle.', path: '/world-cup-2026-groups', index: true },
+  worldCup2026Schedule: { title: 'World Cup 2026 Schedule — Full Fixture List with Dates and Venues', description: 'Complete FIFA World Cup 2026 schedule: all 104 match dates, kick-off times (ET), venues, and cities across the US, Canada, and Mexico. Group stage through the Final on July 19, 2026.', path: '/world-cup-2026-schedule', index: true },
+  howThirdPlaceQualificationWorks: { title: 'How World Cup Third-Place Qualification Works — 2026 Guide', description: 'How the 8 best third-placed teams qualify for the 2026 World Cup Round of 32. The tiebreaker order, why head-to-head isn\'t used, and how FIFA\'s Annexe C routes them into the bracket.', path: '/how-world-cup-third-place-qualification-works', index: true },
+  about: { title: 'About GoalOracle — Free World Cup 2026 Prediction Game', description: 'About GoalOracle: what it is, who operates it (Suraam, LLC d/b/a GoalOracle), how the prediction game and prize contest work, and how to contact support.', path: '/about', index: true },
+  contact: { title: 'Contact GoalOracle — Support and Feedback', description: 'Contact GoalOracle support at support@goaloracle.io. Questions about the game, account, leagues, or the prize contest — we respond within 2 business days.', path: '/contact', index: true },
   fontPreview: { title: 'GoalOracle', path: '/__typography-preview-xk29r', index: false },
 };
 
@@ -114,6 +132,15 @@ const PATH_TO_VIEW = {
   '/how-it-works': 'howItWorks',
   '/developers': 'developers',
   '/guides/annexe-c-third-place-routing': 'guideAnnexeC',
+  '/world-cup-2026-predictor': 'worldCup2026Predictor',
+  '/world-cup-bracket': 'worldCupBracket',
+  '/free-world-cup-pool': 'freeWorldCupPool',
+  '/world-cup-prediction-game': 'worldCupPredictionGame',
+  '/world-cup-2026-groups': 'worldCup2026Groups',
+  '/world-cup-2026-schedule': 'worldCup2026Schedule',
+  '/how-world-cup-third-place-qualification-works': 'howThirdPlaceQualificationWorks',
+  '/about': 'about',
+  '/contact': 'contact',
   '/dashboard': 'dashboard',
   '/leagues': 'leagues',
   '/browse': 'browse',
@@ -4671,6 +4698,17 @@ const GoalOracle = () => {
               {authenticated ? 'Go to Dashboard' : 'Sign Up or Login'} <ChevronRight size={16} />
             </button>
           </div>
+          <div style={{ borderTop: '1px solid var(--border)', padding: '1.5rem 0 0.5rem', marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--text-sec)' }}>
+            <strong>More resources:</strong>{' '}
+            <a href="/world-cup-2026-predictor" className="faq-link">World Cup 2026 Predictor</a> ·{' '}
+            <a href="/world-cup-bracket" className="faq-link">Bracket</a> ·{' '}
+            <a href="/free-world-cup-pool" className="faq-link">Free Pool</a> ·{' '}
+            <a href="/world-cup-prediction-game" className="faq-link">Prediction Game</a> ·{' '}
+            <a href="/world-cup-2026-schedule" className="faq-link">2026 Schedule</a> ·{' '}
+            <a href="/world-cup-2026-groups" className="faq-link">2026 Groups</a> ·{' '}
+            <a href="/how-world-cup-third-place-qualification-works" className="faq-link">3rd-place routing</a> ·{' '}
+            <a href="/how-it-works" className="faq-link">How It Works</a>
+          </div>
         </div>
       </div>
     );
@@ -5147,6 +5185,15 @@ const GoalOracle = () => {
       {view === 'howItWorks' && <HowItWorks />}
       {view === 'developers' && <Developers />}
       {view === 'guideAnnexeC' && <GuideAnnexeC />}
+      {view === 'worldCup2026Predictor' && <WorldCup2026Predictor />}
+      {view === 'worldCupBracket' && <WorldCupBracket />}
+      {view === 'freeWorldCupPool' && <FreeWorldCupPool />}
+      {view === 'worldCupPredictionGame' && <WorldCupPredictionGame />}
+      {view === 'worldCup2026Groups' && <WorldCup2026Groups />}
+      {view === 'worldCup2026Schedule' && <WorldCup2026Schedule />}
+      {view === 'howThirdPlaceQualificationWorks' && <HowThirdPlaceQualificationWorks />}
+      {view === 'about' && <About />}
+      {view === 'contact' && <Contact />}
       {view === 'publicBracket' && (
         <PublicBracket
           userId={publicBracketUserId}
