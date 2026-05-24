@@ -896,6 +896,31 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                           </div>
                         </details>
                       )}
+                      {l.houseRules?.content && (
+                        <details className="admin-league-hr-details">
+                          <summary className="admin-league-hr-summary">
+                            House Rules
+                          </summary>
+                          <div className="admin-league-hr-body">
+                            <p className="admin-league-hr-content">{l.houseRules.content}</p>
+                            {(() => {
+                              const ts = l.houseRules.lastUpdatedAt;
+                              const updatedAtMs = ts?._seconds ? ts._seconds * 1000
+                                : (typeof ts === 'number' ? ts : null);
+                              const by = l.houseRules.lastUpdatedBy;
+                              const byName = by ? (memberNames[by] || `${by.slice(0, 10)}…`) : null;
+                              if (!updatedAtMs && !byName) return null;
+                              return (
+                                <p className="admin-league-hr-meta">
+                                  {byName && <>Set by <strong>{byName}</strong></>}
+                                  {byName && updatedAtMs && ' · '}
+                                  {updatedAtMs && new Date(updatedAtMs).toLocaleString()}
+                                </p>
+                              );
+                            })()}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   </div>
                   <div className="admin-list-right">

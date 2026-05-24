@@ -3494,6 +3494,46 @@ button.invite-option:hover,
 }
 [data-theme="dark"] .admin-league-members-list { background: rgba(255, 255, 255, 0.04); }
 .admin-league-member-chip { display: inline; }
+/* House Rules expandable block under the league row. Same visual
+   family as .admin-league-members-details, with a soft amber tint to
+   echo the in-app HouseRulesCard so operators can spot UGC at a glance. */
+.admin-league-hr-details {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+}
+.admin-league-hr-summary {
+  cursor: pointer;
+  color: var(--text-sec);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  user-select: none;
+  padding: 0.15rem 0;
+}
+.admin-league-hr-summary:hover { color: var(--text); }
+.admin-league-hr-body {
+  margin-top: 0.4rem;
+  padding: 0.55rem 0.8rem;
+  background: linear-gradient(90deg, rgba(255, 214, 107, 0.10), rgba(255, 214, 107, 0.04));
+  border: 1px solid rgba(255, 214, 107, 0.25);
+  border-radius: 6px;
+}
+.admin-league-hr-content {
+  margin: 0;
+  /* white-space: pre-wrap preserves user-entered line breaks while still
+     wrapping long lines. matches the in-app HouseRulesCard rendering. */
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.admin-league-hr-meta {
+  margin: 0.45rem 0 0;
+  font-size: 0.7rem;
+  color: var(--text-sec);
+}
 
 /* Search */
 .admin-search-wrap {
