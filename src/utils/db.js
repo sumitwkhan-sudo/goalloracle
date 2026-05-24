@@ -562,6 +562,15 @@ export async function updateMatchResult(matchId, result, adminId) {
   await apiCall('admin', 'POST', { action: 'updateResult', matchId, ...result });
 }
 
+// Admin-only: list of leagues with creator displayName + private-league
+// passcode joined server-side. Used by AdminDashboard so the leagues
+// table can show the human-readable creator name and the passcode
+// (the latter isn't on the public league doc since PR #121).
+export async function fetchAdminLeaguesEnriched() {
+  const data = await apiCall('admin?type=leaguesEnriched');
+  return data?.leagues || [];
+}
+
 // ---- PLATFORM STATS ----
 // Routes through /api/public?type=stats so the client never needs read
 // access to the entire /users collection (Firestore rules now restrict

@@ -37,6 +37,64 @@ export default async function handler(req, res) {
       } else if (type === 'users') {
         const snap = await db.collection('users').get();
         return res.status(200).json({ users: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+      } else if (type === 'leaguesEnriched') {
+        // Admin-only list: every league with creator display name + the
+        // private-league passcode joined in server-side. Client can't
+        // read the /leagues/{id}/private/auth subcollection where new-
+        // format passcodes live (PR #121), so the join happens here.
+        const leaguesSnap = await db.collection('leagues').get();
+        const leagues = leaguesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Resolve creator displayName via one batched user-doc fetch.
+        // Each league.createdBy is a userId; some may repeat. Build the
+        // unique set first to keep the read count tight.
+        const creatorIds = Array.from(new Set(
+          leagues.map(l => l.createdBy).filter(Boolean)
+        ));
+        const creatorNames = {};
+        // db.getAll() accepts up to 1000 doc refs in a single round trip.
+        // We're well below that — admin dashboards see at most a few hundred
+        // leagues — so a single getAll keeps this O(1) round trips.
+        if (creatorIds.length > 0) {
+          const userRefs = creatorIds.map(id => db.collection('users').doc(id));
+          const userSnaps = await db.getAll(...userRefs);
+          for (const snap of userSnaps) {
+            if (snap.exists) {
+              const d = snap.data();
+              creatorNames[snap.id] = d.displayName || d.username || null;
+            }
+          }
+        }
+
+        // Batch-fetch the private/auth subcollection doc for every
+        // private league. Same pattern as lookupByPasscode in
+        // api/leagues.js — one round trip via db.getAll on the per-
+        // league auth refs.
+        const privateLeagues = leagues.filter(l => l.visibility === 'private');
+        const passcodes = {};
+        if (privateLeagues.length > 0) {
+          const authRefs = privateLeagues.map(l =>
+            db.collection('leagues').doc(l.id).collection('private').doc('auth')
+          );
+          const authSnaps = await db.getAll(...authRefs);
+          for (let i = 0; i < authSnaps.length; i++) {
+            const snap = authSnaps[i];
+            const leagueId = privateLeagues[i].id;
+            if (snap.exists && snap.data()?.passcode) {
+              passcodes[leagueId] = snap.data().passcode;
+            }
+          }
+        }
+
+        const enriched = leagues.map(l => ({
+          ...l,
+          creatorDisplayName: creatorNames[l.createdBy] || null,
+          // Prefer subcollection (new format); fall back to legacy public
+          // field for any league that pre-dates the subcollection refactor.
+          passcode: passcodes[l.id] || l.passcode || null,
+        }));
+
+        return res.status(200).json({ leagues: enriched });
       }
       return res.status(400).json({ error: 'Invalid type' });
     } catch (e) {
