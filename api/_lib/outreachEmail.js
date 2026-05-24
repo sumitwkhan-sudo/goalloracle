@@ -363,6 +363,88 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
   return { subject, html, text };
 }
 
+// ─── Template: Mid-Tournament Nudge ──────────────────────────────
+
+function midTournamentNudgeTemplate({ user, ctx }) {
+  const name = user.displayName || user.username || null;
+  const subject = name
+    ? `${name}, see where you stand on the World Cup leaderboard`
+    : `See where you stand on the World Cup leaderboard`;
+
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=mid_tournament_nudge`;
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <h1 style="margin:0 0 18px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">
+                The tournament is on. See where you stand.
+              </h1>
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.
+              </p>
+              <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Open your bracket to see your current rank, your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:8px 0 28px;">
+                <tr>
+                  <td style="background:#0a0a0f;border-radius:999px;">
+                    <a href="${ctaUrl}" style="display:inline-block;padding:16px 32px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px;border-radius:999px;background:linear-gradient(135deg,#FF3B30,#FFD66B);">
+                      See my standings →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 18px;">
+                <tr>
+                  <td style="padding:12px 14px;background:#f5f5f7;border-radius:8px;font-size:13px;color:#3c3c43;line-height:1.55;">
+                    <strong>Prize contest reminder.</strong> Top 3 on the Global Quick Picks Leaderboard at the end of the Final win <strong>$150 / $100 / $50 in USDC</strong>. Group-stage points compound into the knockouts — every match counts.
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;font-size:13px;color:#6e6e80;line-height:1.55;">
+                In a private league with friends? They&apos;re watching the same leaderboard. Bragging rights start now.
+              </p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `${greeting(user).replace(/<[^>]+>/g, '')}
+
+The tournament is on. See where you stand.
+
+Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.
+
+Open your bracket to see your current rank, your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
+
+See your standings: ${ctaUrl}
+
+Top 3 on the Global Quick Picks Leaderboard at the end of the Final win $150 / $100 / $50 in USDC. Group-stage points compound into the knockouts — every match counts.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 // ─── Registry ────────────────────────────────────────────────────
 
 export const TEMPLATES = {
@@ -383,6 +465,12 @@ export const TEMPLATES = {
     label: 'Kickoff Tomorrow (last call)',
     description: 'Urgent last-call alert sent the day before the tournament opener. Default eligibility: in the Global Quick Picks League, has email, not opted out — regardless of pick status (intentional — even users with locked picks may want the heads-up).',
     build: kickoffTomorrowTemplate,
+  },
+  midTournamentNudge: {
+    id: 'midTournamentNudge',
+    label: 'Mid-Tournament Nudge',
+    description: "Sent during the group stage to bring users back to check their standings. Default eligibility: in the Global Quick Picks League, has email, not opted out, has at least one completed group ranking (so we don't nag users who haven't started — the No Picks Reminder is the right tool for that).",
+    build: midTournamentNudgeTemplate,
   },
 };
 

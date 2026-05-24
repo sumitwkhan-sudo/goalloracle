@@ -3705,6 +3705,115 @@ button.invite-option:hover,
 }
 [data-theme="dark"] .admin-outreach-preview-loading { background: rgba(255, 255, 255, 0.03); }
 
+/* Canary card controls. Same .admin-outreach-card shell; this row
+   sits inside it next to the existing copy. */
+.admin-outreach-canary-row {
+  display: flex; align-items: flex-end; gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.admin-outreach-canary-count-label {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-sec);
+}
+.admin-outreach-canary-count {
+  width: 84px;
+  text-align: center;
+  font-weight: 600;
+}
+.admin-outreach-canary-meta {
+  margin: 0.65rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-sec);
+  font-style: italic;
+}
+
+/* Recent runs panel — spans full width below the two-column grid. */
+.admin-outreach-runs {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.admin-outreach-runs-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+.admin-outreach-runs-head h3 {
+  margin: 0;
+  font-size: 0.92rem; font-weight: 700; color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* Per-template aggregate stat cards — one card per template that has
+   any history. Flex row, wraps. */
+.admin-outreach-template-stats {
+  display: flex; gap: 0.85rem; flex-wrap: wrap;
+  margin: 0 0 1.25rem;
+}
+.admin-outreach-tstat-card {
+  flex: 1 1 200px; min-width: 200px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+.admin-outreach-tstat-name {
+  font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-sec); margin-bottom: 0.45rem;
+}
+.admin-outreach-tstat-row {
+  display: flex; align-items: baseline; gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.admin-outreach-tstat-row span {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 1.05rem;
+  min-width: 2.5ch;
+}
+.admin-outreach-tstat-row em {
+  font-style: normal;
+  color: var(--text-sec);
+  font-size: 0.78rem;
+}
+.admin-outreach-tstat-warn span { color: var(--danger, #ff3b5c); }
+
+/* Per-run table */
+.admin-outreach-runs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.admin-outreach-runs-table th,
+.admin-outreach-runs-table td {
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+.admin-outreach-runs-table th {
+  font-size: 0.65rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-sec);
+  background: rgba(0, 0, 0, 0.025);
+}
+[data-theme="dark"] .admin-outreach-runs-table th { background: rgba(255, 255, 255, 0.03); }
+.admin-outreach-runs-num { text-align: right !important; font-variant-numeric: tabular-nums; }
+.admin-outreach-runs-canary {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(255, 198, 7, 0.18);
+  color: #8c6e00;
+  border-radius: 999px;
+}
+[data-theme="dark"] .admin-outreach-runs-canary { color: #ffd66b; }
+
 /* Search */
 .admin-search-wrap {
   display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem;
