@@ -29,7 +29,11 @@ function CreateSuccessPanel({ createSuccess, leagues, nav, notify, setCreateSucc
   const [copied, setCopied] = useState(null); // { count, skipped } | null
   const isSimple = createSuccess.mode === 'simple';
   const sourceLeagueId = isSimple ? 'global-simple' : 'global';
-  const sourceLabel = isSimple ? 'Global Simple' : 'Global Classic';
+  // User-facing label for the source of copyable picks. Both global
+  // leagues are branded simply as "Global League" — the mode is implied
+  // by the league the user just created (we copy same-mode picks). We
+  // deliberately don't surface the internal "simple"/"classic" split.
+  const sourceLabel = 'Global League';
 
   const goToDetail = () => {
     const l = leagues.find((x) => x.id === createSuccess.id);
@@ -90,7 +94,7 @@ function CreateSuccessPanel({ createSuccess, leagues, nav, notify, setCreateSucc
           >
             {copying ? (<><RefreshCw size={14} className="spin" /> Copying...</>) :
               copied ? (<><CheckCircle size={14} /> {copied.count > 0 ? `Copied ${copied.count}` : 'Nothing to copy'}</>) :
-              (<><Copy size={14} /> Copy my existing {sourceLabel} picks</>)}
+              (<><Copy size={14} /> Copy my {sourceLabel} picks</>)}
           </button>
           <span className="copy-flow-or">or predict fresh below</span>
         </div>

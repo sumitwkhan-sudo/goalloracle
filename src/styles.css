@@ -2196,6 +2196,17 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   margin-top: 0.85rem;
   display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
 }
+/* The copy button can carry a long label ("Copy my Global League
+   picks"). The base .btn rule sets white-space: nowrap, which made the
+   text spill past the card on narrow phones. Here we let it wrap and
+   pin it to full width so it always stays inside the card padding. */
+.copy-flow-actions .btn {
+  white-space: normal;
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.3;
+}
 .copy-flow-or { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.08em; }
 
 /* Copy-from-Global banner inside the Simple prediction wizard */
