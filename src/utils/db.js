@@ -563,12 +563,15 @@ export async function updateMatchResult(matchId, result, adminId) {
 }
 
 // Admin-only: list of leagues with creator displayName + private-league
-// passcode joined server-side. Used by AdminDashboard so the leagues
-// table can show the human-readable creator name and the passcode
-// (the latter isn't on the public league doc since PR #121).
+// passcode joined server-side, plus a userNames map { userId: displayName }
+// covering every member of every league (so the admin dashboard can
+// render member lists without N extra requests). Used by AdminDashboard.
 export async function fetchAdminLeaguesEnriched() {
   const data = await apiCall('admin?type=leaguesEnriched');
-  return data?.leagues || [];
+  return {
+    leagues: data?.leagues || [],
+    userNames: data?.userNames || {},
+  };
 }
 
 // ---- PLATFORM STATS ----

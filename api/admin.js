@@ -45,23 +45,35 @@ export default async function handler(req, res) {
         const leaguesSnap = await db.collection('leagues').get();
         const leagues = leaguesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // Resolve creator displayName via one batched user-doc fetch.
-        // Each league.createdBy is a userId; some may repeat. Build the
-        // unique set first to keep the read count tight.
-        const creatorIds = Array.from(new Set(
-          leagues.map(l => l.createdBy).filter(Boolean)
-        ));
+        // Resolve creator displayName AND every member's displayName via
+        // one batched user-doc fetch. Each league.createdBy + every entry
+        // of league.members is a userId; many will repeat (a single user
+        // is in multiple leagues, plus is themselves the creator). Build
+        // the unique set first to keep the read count tight.
+        const userIdSet = new Set();
+        for (const l of leagues) {
+          if (l.createdBy) userIdSet.add(l.createdBy);
+          if (Array.isArray(l.members)) for (const m of l.members) if (m) userIdSet.add(m);
+        }
+        const userIds = Array.from(userIdSet);
         const creatorNames = {};
+        const userNames = {};
         // db.getAll() accepts up to 1000 doc refs in a single round trip.
-        // We're well below that — admin dashboards see at most a few hundred
-        // leagues — so a single getAll keeps this O(1) round trips.
-        if (creatorIds.length > 0) {
-          const userRefs = creatorIds.map(id => db.collection('users').doc(id));
+        // For larger admin populations chunk the calls so we don't trip
+        // the limit. Round-trip count stays O(users / 1000).
+        const CHUNK = 1000;
+        for (let i = 0; i < userIds.length; i += CHUNK) {
+          const slice = userIds.slice(i, i + CHUNK);
+          const userRefs = slice.map(id => db.collection('users').doc(id));
           const userSnaps = await db.getAll(...userRefs);
           for (const snap of userSnaps) {
             if (snap.exists) {
               const d = snap.data();
-              creatorNames[snap.id] = d.displayName || d.username || null;
+              const name = d.displayName || d.username || null;
+              if (name) {
+                userNames[snap.id] = name;
+                creatorNames[snap.id] = name;
+              }
             }
           }
         }
@@ -94,7 +106,11 @@ export default async function handler(req, res) {
           passcode: passcodes[l.id] || l.passcode || null,
         }));
 
-        return res.status(200).json({ leagues: enriched });
+        // Return the userNames map alongside the leagues so the admin
+        // dashboard can render member lists without making N more
+        // requests. ~30 bytes per (userId, displayName) pair × thousands
+        // of users = well under 200 KB, fine for an admin-only payload.
+        return res.status(200).json({ leagues: enriched, userNames });
       }
       return res.status(400).json({ error: 'Invalid type' });
     } catch (e) {

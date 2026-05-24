@@ -3465,6 +3465,35 @@ button.invite-option:hover,
 .admin-league-type.free { background: rgba(0,212,255,0.05); color: var(--cyan); border: 1px solid rgba(0,212,255,0.1); }
 .admin-league-type.paid { background: rgba(255,184,0,0.05); color: var(--amber); border: 1px solid rgba(255,184,0,0.1); }
 .admin-league-members { font-family: var(--mono); font-size: 0.65rem; color: var(--text-sec); }
+/* Expandable member list under each league row in the admin Leagues tab.
+   Capped at 100 names inline with "... and N more" overflow message —
+   the Global league has thousands so we don't want to render them all
+   into the DOM at once. */
+.admin-league-members-details {
+  margin-top: 0.45rem;
+  font-size: 0.78rem;
+}
+.admin-league-members-summary {
+  cursor: pointer;
+  color: var(--text-sec);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  user-select: none;
+  padding: 0.15rem 0;
+}
+.admin-league-members-summary:hover { color: var(--text); }
+.admin-league-members-list {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+[data-theme="dark"] .admin-league-members-list { background: rgba(255, 255, 255, 0.04); }
+.admin-league-member-chip { display: inline; }
 
 /* Search */
 .admin-search-wrap {
