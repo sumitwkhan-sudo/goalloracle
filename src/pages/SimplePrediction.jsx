@@ -38,7 +38,7 @@ import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSi
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
 
-export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, displayName, embedded = false }) {
+export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded = false }) {
   const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId, league?.id);
   // Bumping this key remounts the wizard so its frozen-initial hooks
   // rehydrate from the latest subscription data (used after copy / reset).
@@ -73,6 +73,7 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, o
       onExit={onExit}
       onComplete={onComplete}
       onShareBracket={onShareBracket}
+      onCelebrate={onCelebrate}
       displayName={displayName}
       embedded={embedded}
       saving={saving}
@@ -110,7 +111,7 @@ function pickResumeStep(initialData, explicitStep) {
   return 3;
 }
 
-function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, onShareBracket, displayName, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
+function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
   // Resume on the first incomplete step instead of always starting at
   // group rankings. Users with 1 pick left were being sent back to
   // Step 1 — they had to scroll past 12 already-correct group rankings
@@ -249,6 +250,24 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     }
     return result;
   }, [bracketState, bracketHintVisible, dismissBracketHint]);
+
+  // Celebration trigger: detect the false → true edge on the two
+  // milestone rounds (3rd-place + Final) and fire onCelebrate so the
+  // shell's confetti burst plays. Both rounds have a single match, so
+  // "round complete" === "user just made the pick." Refs hold the
+  // previous completion state so the effect doesn't fire on mount
+  // when initialData already has both rounds picked (e.g. user
+  // navigated back into a completed bracket).
+  const prevThirdCompleteRef = useRef(bracketState.isRoundComplete('thirdPlace'));
+  const prevFinalCompleteRef = useRef(bracketState.isRoundComplete('final'));
+  useEffect(() => {
+    const thirdNow = bracketState.isRoundComplete('thirdPlace');
+    const finalNow = bracketState.isRoundComplete('final');
+    if (!prevThirdCompleteRef.current && thirdNow) onCelebrate?.();
+    if (!prevFinalCompleteRef.current && finalNow) onCelebrate?.();
+    prevThirdCompleteRef.current = thirdNow;
+    prevFinalCompleteRef.current = finalNow;
+  }, [bracketState, onCelebrate]);
 
   useEffect(() => {
     if (!savedAt) return;

@@ -6172,6 +6172,10 @@ button.invite-option:hover,
 .bracket-round {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
+  /* Offset for scrollIntoView so the section header lands BELOW the
+     56px navbar + 50px progress strip (both sticky). Without this,
+     auto-advance scrolls the header behind the sticky chrome. */
+  scroll-margin-top: 120px;
 }
 .bracket-round.disabled { opacity: 0.55; }
 .bracket-round-header {
