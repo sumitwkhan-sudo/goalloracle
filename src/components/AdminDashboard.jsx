@@ -20,6 +20,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // as a fallback so the table renders immediately even before the
   // enrichment lands.
   const [enrichedLeagues, setEnrichedLeagues] = useState(null);
+  // userNames map { userId: displayName } returned alongside the enriched
+  // leagues so the per-league members list can render real names.
+  const [memberNames, setMemberNames] = useState({});
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -130,8 +133,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // Re-fetch after a rename or delete so the table reflects the change.
   const reloadEnrichedLeagues = async () => {
     try {
-      const fresh = await fetchAdminLeaguesEnriched();
-      setEnrichedLeagues(fresh);
+      const { leagues, userNames } = await fetchAdminLeaguesEnriched();
+      setEnrichedLeagues(leagues);
+      setMemberNames(userNames);
     } catch (e) {
       // Don't toast — fallback render uses the parent's allLeagues prop.
       console.warn('[admin] enrichedLeagues fetch failed:', e?.message || e);
@@ -856,6 +860,42 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                           </>
                         )}
                       </div>
+                      {Array.isArray(l.members) && l.members.length > 0 && (
+                        <details className="admin-league-members-details">
+                          <summary className="admin-league-members-summary">
+                            Members ({l.members.length})
+                          </summary>
+                          <div className="admin-league-members-list">
+                            {(() => {
+                              const CAP = 100;
+                              const shown = l.members.slice(0, CAP);
+                              const overflow = l.members.length - shown.length;
+                              return (
+                                <>
+                                  {shown.map((uid, i) => {
+                                    const name = memberNames[uid];
+                                    const isCreator = uid === l.createdBy;
+                                    return (
+                                      <span key={uid} className="admin-league-member-chip">
+                                        {name
+                                          ? <strong>{name}</strong>
+                                          : <code style={{ fontSize: '0.85em' }}>{uid.slice(0, 10)}</code>}
+                                        {isCreator && <em style={{ marginLeft: 4, fontSize: '0.7rem', color: 'var(--text-sec)' }}>(creator)</em>}
+                                        {i < shown.length - 1 && ', '}
+                                      </span>
+                                    );
+                                  })}
+                                  {overflow > 0 && (
+                                    <span style={{ color: 'var(--text-sec)', marginLeft: 6 }}>
+                                      … and {overflow} more
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   </div>
                   <div className="admin-list-right">
