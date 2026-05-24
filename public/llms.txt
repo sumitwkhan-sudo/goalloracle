@@ -31,6 +31,18 @@
 - [Official Rules](https://goaloracle.io/official-rules): Full contest rules including eligibility, prize amounts, jurisdiction restrictions, and dispute process.
 - [Terms & Conditions](https://goaloracle.io/terms): Payout eligibility, OFAC sanctions exclusions, acceptable use.
 - [Privacy Policy](https://goaloracle.io/privacy): What we collect, how we use it, who we share it with, CCPA / GDPR rights.
+- [About](https://goaloracle.io/about): What GoalOracle is, who operates it (Suraam, LLC d/b/a GoalOracle), overview of the game and prize contest, contact information.
+- [Contact](https://goaloracle.io/contact): Support email (support@goaloracle.io), response times, self-serve resource links.
+
+## World Cup 2026 resources
+
+- [World Cup 2026 Predictor](https://goaloracle.io/world-cup-2026-predictor): What a World Cup predictor is, how GoalOracle works, Annexe C accuracy, FAQ.
+- [World Cup 2026 Bracket](https://goaloracle.io/world-cup-bracket): How the 2026 bracket format works (48 teams, 12 groups, best-thirds selection), how to fill the GoalOracle bracket, private pool creation, FAQ.
+- [Free World Cup Pool](https://goaloracle.io/free-world-cup-pool): How to run a free World Cup group pool on GoalOracle — private leagues, house rules, automatic scoring, FAQ.
+- [World Cup Prediction Game](https://goaloracle.io/world-cup-prediction-game): Quick Picks vs Classic Predictions modes, global and private league competition, Annexe C accuracy, FAQ.
+- [World Cup 2026 Groups](https://goaloracle.io/world-cup-2026-groups): All 12 groups (A–L) and 48 teams, group-stage qualification rules, tiebreaker order, how to predict groups on GoalOracle, FAQ.
+- [World Cup 2026 Schedule](https://goaloracle.io/world-cup-2026-schedule): Full group-stage fixture list with dates, kick-off times (ET), venues, and cities. Tournament milestones table. SportsEvent structured data for key matches.
+- [How World Cup Third-Place Qualification Works](https://goaloracle.io/how-world-cup-third-place-qualification-works): How the 8 best third-placed teams are selected from 12 (tiebreaker order), why head-to-head isn't used, Annexe C slot routing, how GoalOracle implements this, FAQ.
 
 ## Developer resources
 
