@@ -574,6 +574,39 @@ export async function fetchAdminLeaguesEnriched() {
   };
 }
 
+// Admin outreach — list eligible users for a given email template.
+// Filtered server-side (membership, no-picks, email present, opt-out,
+// cooldown). Returns the list the operator will see before sending.
+export async function adminListOutreachEligible(template = 'noPicksReminder', cooldownDays = 7) {
+  return await apiCall('admin', 'POST', {
+    action: 'outreachListEligibleUsers',
+    template,
+    cooldownDays,
+  });
+}
+
+// Admin outreach — send a preview to the specified email address (or
+// the admin's own account email when toEmail is omitted). Renders the
+// template using the admin's user record as the recipient stand-in.
+export async function adminSendOutreachPreview(template = 'noPicksReminder', toEmail = null) {
+  return await apiCall('admin', 'POST', {
+    action: 'outreachSendPreview',
+    template,
+    toEmail,
+  });
+}
+
+// Admin outreach — send the chosen template to the supplied user list.
+// Server re-validates eligibility per-user, throttles to respect Resend
+// rate limits, and logs both per-user audit rows and a per-run summary.
+export async function adminSendOutreachBatch(template = 'noPicksReminder', userIds = []) {
+  return await apiCall('admin', 'POST', {
+    action: 'outreachSendBatch',
+    template,
+    userIds,
+  });
+}
+
 // ---- PLATFORM STATS ----
 // Routes through /api/public?type=stats so the client never needs read
 // access to the entire /users collection (Firestore rules now restrict

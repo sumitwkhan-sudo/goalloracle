@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -10,6 +10,15 @@ function _countryFlagFromCode(code) {
   const cc = code.toUpperCase();
   return String.fromCodePoint(A + (cc.charCodeAt(0) - base), A + (cc.charCodeAt(1) - base));
 }
+
+// Outreach email templates the operator can pick from in the Outreach
+// tab. Mirrors api/_lib/outreachEmail.js TEMPLATES — keep these in sync.
+const OUTREACH_TEMPLATES = {
+  noPicksReminder: {
+    label: 'No Picks Reminder',
+    description: 'For users who signed up for the Global Quick Picks League but have not started their group-stage picks. Default eligibility filter: signed up, has email, not opted out, no recent outreach (7-day cooldown), zero group rankings completed.',
+  },
+};
 
 const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify, featureFlags = DEFAULT_FEATURE_FLAGS }) => {
   const [tab, setTab] = useState('results');
@@ -23,6 +32,21 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // userNames map { userId: displayName } returned alongside the enriched
   // leagues so the per-league members list can render real names.
   const [memberNames, setMemberNames] = useState({});
+  // ─── Outreach tab state ────────────────────────────────────────
+  // Template id the operator is composing/sending. Single-template
+  // today (noPicksReminder) but the picker is in place so adding new
+  // templates later just means appending to OUTREACH_TEMPLATES.
+  const [outreachTemplate, setOutreachTemplate] = useState('noPicksReminder');
+  const [outreachUsers, setOutreachUsers] = useState(null); // null = not yet fetched
+  const [outreachLoading, setOutreachLoading] = useState(false);
+  const [outreachPreviewSent, setOutreachPreviewSent] = useState(false);
+  const [outreachPreviewBusy, setOutreachPreviewBusy] = useState(false);
+  const [outreachPreviewEmail, setOutreachPreviewEmail] = useState('');
+  const [outreachBatchBusy, setOutreachBatchBusy] = useState(false);
+  const [outreachBatchResult, setOutreachBatchResult] = useState(null);
+  // Track which user IDs the operator wants to include in the batch.
+  // Default = everyone in `outreachUsers`. Operator can uncheck.
+  const [outreachSelectedIds, setOutreachSelectedIds] = useState(new Set());
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -146,6 +170,91 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     reloadEnrichedLeagues();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [tab]);
+
+  // ─── Outreach handlers ────────────────────────────────────────
+  const reloadOutreachEligible = async () => {
+    setOutreachLoading(true);
+    try {
+      const data = await adminListOutreachEligible(outreachTemplate, 7);
+      const users = data?.users || [];
+      setOutreachUsers(users);
+      // Default selection: all eligible users.
+      setOutreachSelectedIds(new Set(users.map((u) => u.userId)));
+      // Reset state that depends on the user list.
+      setOutreachPreviewSent(false);
+      setOutreachBatchResult(null);
+    } catch (e) {
+      notify('Could not load outreach list: ' + (e?.message || e), 'error');
+    } finally {
+      setOutreachLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (tab !== 'outreach') return;
+    reloadOutreachEligible();
+    // Pre-fill the preview-email field with the admin's own account email.
+    setOutreachPreviewEmail(userData?.email || '');
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tab, outreachTemplate]);
+
+  const handleSendPreview = async () => {
+    const to = (outreachPreviewEmail || '').trim();
+    if (!to || !/^[^@]+@[^@]+\.[^@]+$/.test(to)) {
+      notify('Enter a valid email address for the preview.', 'error');
+      return;
+    }
+    setOutreachPreviewBusy(true);
+    try {
+      const r = await adminSendOutreachPreview(outreachTemplate, to);
+      if (r?.sent) {
+        notify(`Preview sent to ${r.to}. Check your inbox before sending the batch.`);
+        setOutreachPreviewSent(true);
+      } else {
+        notify('Preview failed: ' + (r?.error || 'unknown error'), 'error');
+      }
+    } catch (e) {
+      notify('Preview failed: ' + (e?.message || e), 'error');
+    } finally {
+      setOutreachPreviewBusy(false);
+    }
+  };
+
+  const handleSendBatch = async () => {
+    const ids = Array.from(outreachSelectedIds);
+    if (ids.length === 0) { notify('No users selected.', 'error'); return; }
+    const confirmed = window.confirm(
+      `Send the "${OUTREACH_TEMPLATES[outreachTemplate]?.label || outreachTemplate}" email to ${ids.length} user${ids.length === 1 ? '' : 's'}?\n\nThis cannot be undone.`
+    );
+    if (!confirmed) return;
+    setOutreachBatchBusy(true);
+    setOutreachBatchResult(null);
+    try {
+      const r = await adminSendOutreachBatch(outreachTemplate, ids);
+      setOutreachBatchResult(r);
+      notify(`Batch complete: ${r.sent} sent, ${r.skipped} skipped, ${r.failed} failed.`);
+      // Reload so users who were just sent the email drop out of the
+      // eligible list (cooldown excludes them).
+      reloadOutreachEligible();
+    } catch (e) {
+      notify('Batch failed: ' + (e?.message || e), 'error');
+    } finally {
+      setOutreachBatchBusy(false);
+    }
+  };
+
+  const toggleOutreachUser = (uid) => {
+    setOutreachSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  };
+  const selectAllOutreach = () => {
+    if (!outreachUsers) return;
+    setOutreachSelectedIds(new Set(outreachUsers.map((u) => u.userId)));
+  };
+  const selectNoneOutreach = () => setOutreachSelectedIds(new Set());
 
   const runBackfillCountries = async () => {
     if (!window.confirm('Backfill country for every user that does not already have one? Sumit → BD, lebida2352 → PK, everyone else → US.')) return;
@@ -492,6 +601,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     { id: 'results', icon: '⚽', label: 'Match Results', count: `${verifiedCount}/${totalMatches}` },
     { id: 'users', icon: '👥', label: 'Users', count: String(platformStats.totalPlayers || 0) },
     { id: 'leagues', icon: '🏆', label: 'Leagues', count: String(platformStats.activeLeagues || 0) },
+    { id: 'outreach', icon: '✉️', label: 'Outreach' },
     { id: 'oracle', icon: '🔮', label: 'Oracle Status' },
     { id: 'contract', icon: '📜', label: 'Smart Contract' },
     { id: 'settings', icon: '⚙️', label: 'Settings' },
@@ -937,6 +1047,165 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 </div>
               );
             })}
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* ═══════ TAB: OUTREACH ═══════ */}
+      {tab === 'outreach' && (() => {
+        const tpl = OUTREACH_TEMPLATES[outreachTemplate];
+        const users = outreachUsers || [];
+        const selectedCount = outreachSelectedIds.size;
+        const canSendBatch = outreachPreviewSent && selectedCount > 0 && !outreachBatchBusy;
+        return (
+        <div className="admin-panel">
+          <div className="admin-panel-head">
+            <div>
+              <h2>Outreach</h2>
+              <p className="admin-panel-desc">Send a templated email to users who match a defined filter. Preview to your own inbox before sending the batch.</p>
+            </div>
+          </div>
+
+          <div className="admin-outreach-grid">
+            {/* LEFT: template picker + eligible-user list */}
+            <div className="admin-outreach-left">
+              <label className="admin-outreach-label">Template</label>
+              <select
+                className="input-field admin-outreach-template-select"
+                value={outreachTemplate}
+                onChange={(e) => setOutreachTemplate(e.target.value)}
+              >
+                {Object.entries(OUTREACH_TEMPLATES).map(([id, t]) => (
+                  <option key={id} value={id}>{t.label}</option>
+                ))}
+              </select>
+              <p className="admin-outreach-tpl-desc">{tpl?.description}</p>
+
+              <div className="admin-outreach-list-head">
+                <div>
+                  <strong>{outreachLoading ? 'Loading…' : `${users.length} eligible recipient${users.length === 1 ? '' : 's'}`}</strong>
+                  {!outreachLoading && users.length > 0 && (
+                    <span className="admin-outreach-selected"> · {selectedCount} selected</span>
+                  )}
+                </div>
+                <div className="admin-outreach-list-actions">
+                  <button type="button" className="btn btn-ghost btn-xs" onClick={reloadOutreachEligible} disabled={outreachLoading}>
+                    <RefreshCw size={11} className={outreachLoading ? 'spin' : ''} /> Refresh
+                  </button>
+                  {users.length > 0 && (
+                    <>
+                      <button type="button" className="btn btn-ghost btn-xs" onClick={selectAllOutreach}>Select all</button>
+                      <button type="button" className="btn btn-ghost btn-xs" onClick={selectNoneOutreach}>None</button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="admin-outreach-userlist admin-scroll">
+                {outreachLoading && <div className="admin-empty">Loading eligible users…</div>}
+                {!outreachLoading && users.length === 0 && (
+                  <div className="admin-empty">
+                    No users match this filter right now.
+                    {' '}If you sent recently, the 7-day cooldown is excluding people you already nudged.
+                  </div>
+                )}
+                {!outreachLoading && users.map((u) => {
+                  const checked = outreachSelectedIds.has(u.userId);
+                  return (
+                    <label key={u.userId} className={`admin-outreach-user-row ${checked ? 'is-checked' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleOutreachUser(u.userId)}
+                      />
+                      <div className="admin-outreach-user-main">
+                        <div className="admin-outreach-user-name">
+                          {u.displayName ? <strong>{u.displayName}</strong> : <em style={{ color: 'var(--text-sec)' }}>(no name)</em>}
+                          {u.country && <span className="admin-outreach-user-country">{u.country}</span>}
+                        </div>
+                        <div className="admin-outreach-user-email">{u.email}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* RIGHT: preview + send controls */}
+            <div className="admin-outreach-right">
+              <div className="admin-outreach-card">
+                <h3>1. Send a preview to your inbox</h3>
+                <p className="admin-outreach-step-desc">
+                  We&apos;ll render the exact email a user would receive and send it to this address. Required before you can send to the batch — gives you a chance to spot copy issues, broken links, or rendering problems.
+                </p>
+                <div className="admin-outreach-preview-row">
+                  <input
+                    type="email"
+                    className="input-field"
+                    placeholder="you@example.com"
+                    value={outreachPreviewEmail}
+                    onChange={(e) => setOutreachPreviewEmail(e.target.value)}
+                    disabled={outreachPreviewBusy}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleSendPreview}
+                    disabled={outreachPreviewBusy || !outreachPreviewEmail.trim()}
+                  >
+                    {outreachPreviewBusy
+                      ? <><RefreshCw size={14} className="spin" /> Sending…</>
+                      : <>Send preview</>}
+                  </button>
+                </div>
+                {outreachPreviewSent && (
+                  <p className="admin-outreach-preview-ok">
+                    <Check size={14} /> Preview sent. Check your inbox, confirm it looks right, then send to the batch.
+                  </p>
+                )}
+              </div>
+
+              <div className="admin-outreach-card">
+                <h3>2. Send to {selectedCount} selected user{selectedCount === 1 ? '' : 's'}</h3>
+                <p className="admin-outreach-step-desc">
+                  Disabled until you&apos;ve sent a preview to your own inbox above. The batch send writes a per-user audit row to{' '}
+                  <code>/outreachSent</code> and a summary row to <code>/outreachRuns</code>. The 7-day cooldown then excludes these users from the eligible list until next week.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary admin-outreach-batch-btn"
+                  onClick={handleSendBatch}
+                  disabled={!canSendBatch}
+                  title={!outreachPreviewSent
+                    ? 'Send a preview to your inbox first'
+                    : selectedCount === 0
+                      ? 'Select at least one user'
+                      : ''}
+                >
+                  {outreachBatchBusy
+                    ? <><RefreshCw size={14} className="spin" /> Sending…</>
+                    : <>Send to {selectedCount} user{selectedCount === 1 ? '' : 's'} →</>}
+                </button>
+                {outreachBatchResult && (
+                  <div className="admin-outreach-batch-result">
+                    <div><strong>Sent:</strong> {outreachBatchResult.sent}</div>
+                    <div><strong>Skipped:</strong> {outreachBatchResult.skipped}</div>
+                    <div><strong>Failed:</strong> {outreachBatchResult.failed}</div>
+                    {outreachBatchResult.errors?.length > 0 && (
+                      <details className="admin-outreach-errors">
+                        <summary>{outreachBatchResult.errors.length} error{outreachBatchResult.errors.length === 1 ? '' : 's'}</summary>
+                        <ul>
+                          {outreachBatchResult.errors.slice(0, 20).map((e, i) => (
+                            <li key={i}><code>{e.uid?.slice(0, 10)}</code> — {e.error}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
         );
