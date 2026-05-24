@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -14,6 +14,12 @@ function _countryFlagFromCode(code) {
 const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify, featureFlags = DEFAULT_FEATURE_FLAGS }) => {
   const [tab, setTab] = useState('results');
   const [users, setUsers] = useState([]);
+  // Enriched leagues — same data as `allLeagues` plus creatorDisplayName
+  // and passcode joined from the admin endpoint. Fetched when the
+  // Leagues tab first activates; the parent's allLeagues prop is used
+  // as a fallback so the table renders immediately even before the
+  // enrichment lands.
+  const [enrichedLeagues, setEnrichedLeagues] = useState(null);
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -117,6 +123,26 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   };
   useEffect(() => { loadFlagAuditLog(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  // Fetch leagues with creator displayName + private-league passcode
+  // joined when the Leagues tab activates. Cheap (admin SDK batches the
+  // user + subcollection lookups into 3 round trips total) and cached
+  // in component state so tab switches are instant after the first fetch.
+  // Re-fetch after a rename or delete so the table reflects the change.
+  const reloadEnrichedLeagues = async () => {
+    try {
+      const fresh = await fetchAdminLeaguesEnriched();
+      setEnrichedLeagues(fresh);
+    } catch (e) {
+      // Don't toast — fallback render uses the parent's allLeagues prop.
+      console.warn('[admin] enrichedLeagues fetch failed:', e?.message || e);
+    }
+  };
+  useEffect(() => {
+    if (tab !== 'leagues') return;
+    reloadEnrichedLeagues();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tab]);
+
   const runBackfillCountries = async () => {
     if (!window.confirm('Backfill country for every user that does not already have one? Sumit → BD, lebida2352 → PK, everyone else → US.')) return;
     setBackfillingCountries(true);
@@ -173,6 +199,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       // allLeagues is a prop; the parent will refetch on next mount, but for
       // this session we mutate the prop entry for a snappy UX.
       league.name = trimmed;
+      // Also refresh the enriched cache so the creatorDisplayName / passcode
+      // columns stay correct.
+      reloadEnrichedLeagues();
       notify(`Renamed to "${trimmed}"`);
       cancelRename();
     } catch (e) {
@@ -362,6 +391,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     try {
       await adminDeleteLeague(leagueId);
       notify(`Deleted league: ${name}`);
+      reloadEnrichedLeagues();
     } catch (e) { notify('Delete failed: ' + e.message, 'error'); }
     finally { setDeleting(null); }
   };
@@ -754,18 +784,24 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       )}
 
       {/* ═══════ TAB: LEAGUES ═══════ */}
-      {tab === 'leagues' && (
+      {tab === 'leagues' && (() => {
+        // Use enriched leagues (creator displayName + passcode joined
+        // server-side) when available; fall back to the parent-supplied
+        // allLeagues prop so the table renders something even before the
+        // enrichment fetch finishes.
+        const leaguesToRender = enrichedLeagues || allLeagues || [];
+        return (
         <div className="admin-panel">
           <div className="admin-panel-head">
             <div>
-              <h2>Leagues ({(allLeagues || []).length})</h2>
+              <h2>Leagues ({leaguesToRender.length})</h2>
               <p className="admin-panel-desc">View and manage all leagues on the platform</p>
             </div>
           </div>
 
           <div className="admin-card-list admin-scroll">
-            {(allLeagues || []).length === 0 && <div className="admin-empty">No leagues found.</div>}
-            {(allLeagues || []).map(l => {
+            {leaguesToRender.length === 0 && <div className="admin-empty">No leagues found.</div>}
+            {leaguesToRender.map(l => {
               const isEditing = editingLeagueId === l.id;
               const isSaving = savingLeagueId === l.id;
               return (
@@ -809,8 +845,16 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                         </div>
                       )}
                       <div className="admin-user-email">
-                        Created by {l.createdBy?.slice(0, 10) || 'system'} · {l.visibility || 'public'}
-                        {l.passcode ? ` · ${l.passcode}` : ''}
+                        Created by{' '}
+                        {l.creatorDisplayName
+                          ? <strong>{l.creatorDisplayName}</strong>
+                          : (l.createdBy ? <code style={{ fontSize: '0.85em' }}>{l.createdBy.slice(0, 10)}</code> : 'system')}
+                        {' · '}{l.visibility || 'public'}
+                        {l.visibility === 'private' && l.passcode && (
+                          <>
+                            {' · '}Passcode <code style={{ background: 'rgba(255,193,7,0.15)', padding: '0.05rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>{l.passcode}</code>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -830,7 +874,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             })}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ═══════ TAB: ORACLE STATUS ═══════ */}
       {tab === 'oracle' && (
