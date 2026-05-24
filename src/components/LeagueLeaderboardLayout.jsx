@@ -22,7 +22,7 @@ import {
   Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus, LogOut,
   Award,
   CheckCircle, RefreshCw, Clock, Globe, MapPin, Users, Target, Share2,
-  ChevronRight, Copy, Check,
+  ChevronRight, Copy, Check, MessageSquare,
 } from 'lucide-react';
 import { teamFlags, countryFlag } from '../utils/flags';
 
@@ -179,7 +179,7 @@ function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onSha
 }
 
 // ── header (league name + member count + invite primary CTA) ────────────
-function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, passcode, onInvite, onLeave, onBack, onJoin }) {
+function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, passcode, onInvite, onNudge, onLeave, onBack, onJoin }) {
   const inviteLabel = isGlobal ? 'Share leaderboard' : 'Invite friends';
   const lockIcon = isPrivate ? <LockIcon size={11} aria-hidden="true" /> : null;
   const [copied, setCopied] = useState(false);
@@ -249,6 +249,13 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, passcode,
         {onInvite && (
           <button type="button" className="ll-header-invite" onClick={onInvite}>
             <UserPlus size={14} aria-hidden="true" /> {inviteLabel}
+          </button>
+        )}
+        {/* Creator-only — present when the parent passes onNudge
+            (i.e. viewer is the creator of a private league). */}
+        {onNudge && (
+          <button type="button" className="ll-header-nudge" onClick={onNudge} title="Nudge members">
+            <MessageSquare size={14} aria-hidden="true" /> Nudge
           </button>
         )}
       </div>
@@ -327,6 +334,7 @@ export default function LeagueLeaderboardLayout({
   onRowClick,
   onEdit,
   onInvite,
+  onNudge,
   onShareBracket,
   onLeave,
   onJoin,
@@ -377,6 +385,7 @@ export default function LeagueLeaderboardLayout({
         memberCount={memberCount}
         passcode={passcode}
         onInvite={onInvite}
+        onNudge={onNudge}
         onLeave={onLeave}
         onBack={onBack}
         onJoin={onJoin}

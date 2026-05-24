@@ -128,7 +128,7 @@ export function creatorInviteTemplate({ creator, league, personalNote, recipient
                 Or join from the homepage with passcode <strong style="background:rgba(255,193,7,0.15);padding:0.1rem 0.4rem;border-radius:4px;font-family:Menlo,Monaco,Consolas,monospace;">${escape(passcode)}</strong>.
               </p>` : ''}
               <p style="margin:0;font-size:13px;color:#6e6e80;line-height:1.55;">
-                Free to play. Top 3 finishers on the GoalOracle Global Quick Picks Leaderboard at the end of the Final win cash prizes paid in USDC stablecoin.
+                Free entry. Prizes for top finishers on the GoalOracle Global Leaderboard at the end of the Final.
               </p>
             </td>
           </tr>
@@ -148,7 +148,7 @@ It's a private World Cup 2026 bracket pool on GoalOracle — a free skill-based 
 
 ${personalNote ? `${creatorName} says: ${personalNote}\n\n` : ''}Join here: ${ctaUrl}
 ${passcode ? `Or use passcode: ${passcode}\n` : ''}
-Free to play. Top 3 finishers on the GoalOracle Global Quick Picks Leaderboard at the end of the Final win cash prizes paid in USDC stablecoin.
+Free entry. Prizes for top finishers on the GoalOracle Global Leaderboard at the end of the Final.
 
 ${creatorName} sent this invitation through GoalOracle. We never share your email with league creators.
 

@@ -1174,6 +1174,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             }}
             onEdit={() => setSTab('predictions')}
             onInvite={handleInvite}
+            onNudge={isPrivate && isLeagueCreator ? () => setShowNudge(true) : undefined}
             onShareBracket={openShareBracket}
             onJoin={!authenticated ? onSignIn : undefined}
             loading={simLbl}
@@ -3793,6 +3794,20 @@ const GoalOracle = () => {
               <AlertTriangle size={14} />
               <span>You haven't set a username yet.</span>
               <button className="btn btn-primary btn-xs">Set Username</button>
+            </div>
+          )}
+          {/* Creator-only action row mirrors the Quick Picks leaderboard
+              header — Invite + Nudge sit at the top of Rankings so the
+              two most common league-admin actions are visible without
+              scrolling back to the page header. */}
+          {isPrivate && isCreator && (
+            <div className="leaderboard-creator-actions">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowInvite(true)}>
+                <UserPlus size={14} /> Invite
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowNudge(true)}>
+                <MessageSquare size={14} /> Nudge members
+              </button>
             </div>
           )}
           <div className="leaderboard-header">

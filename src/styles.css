@@ -8094,6 +8094,20 @@ body.light .lsd-head,
 }
 .ll-header-invite:hover { filter: brightness(1.05); }
 .ll-header-invite:active { transform: translateY(1px); }
+.ll-header-nudge {
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 1.05rem;
+  font-family: var(--font); font-weight: 600; font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+  transition: background 0.12s, border-color 0.12s, transform 0.12s;
+}
+.ll-header-nudge:hover { border-color: var(--text-sec); background: rgba(255,255,255,0.04); }
+.ll-header-nudge:active { transform: translateY(1px); }
 /* Join CTA — primary affordance for non-signed-up viewers. Solid
    accent fill so it reads as "the action to take here", with the
    Share button alongside as a secondary option. */
@@ -10037,6 +10051,13 @@ ol.legal-list li { margin-bottom: 0.35rem; }
   color: var(--text-sec);
   font-weight: 600;
   margin-right: auto;
+}
+
+/* Classic Detail's leaderboard creator action row — sits above the
+   Rankings header on private leagues when the viewer is the creator. */
+.leaderboard-creator-actions {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+  padding: 0.5rem 1.25rem 0;
 }
 
 /* ─── Creator invite & nudge modals ─────────────────────────────── */
