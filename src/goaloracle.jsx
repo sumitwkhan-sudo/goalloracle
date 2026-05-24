@@ -2900,6 +2900,10 @@ const GoalOracle = () => {
   }, [uData?.id, notify]);
 
   const [refreshingRanks, setRefreshingRanks] = useState(false);
+  // Holds the league object for which the My-Leagues-page Nudge modal
+  // is open, or null when closed. Lifted to the shell level so the
+  // modal portal lives outside the LeaguesList re-render cycle.
+  const [nudgeFromList, setNudgeFromList] = useState(null);
   const refreshLeagueRanks = useCallback(async () => {
     setRefreshingRanks(true);
     try {
@@ -3057,6 +3061,9 @@ const GoalOracle = () => {
               notify(e?.message || 'Could not leave league', 'error');
             }
           } : undefined}
+          onNudge={(league.visibility === 'private' && league.createdBy === uData?.id)
+            ? () => setNudgeFromList(league)
+            : undefined}
         />
       );
     };
@@ -5019,6 +5026,16 @@ const GoalOracle = () => {
         />
       )}
       {view === 'leagues' && <LeaguesList />}
+      {/* Creator nudge modal, opened from a private-league row's
+          MessageSquare action button in the My Leagues list. Rendered
+          at the shell level so its state survives LeaguesList
+          re-renders (e.g. when leagueRanks updates). */}
+      <CreatorNudgeModal
+        open={!!nudgeFromList}
+        onClose={() => setNudgeFromList(null)}
+        league={nudgeFromList}
+        notify={notify}
+      />
       {view === 'browse' && <Browse key="browse" />}
       {view === 'create' && (
         <CreateLeagueForm

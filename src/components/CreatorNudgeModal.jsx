@@ -9,11 +9,60 @@
  * this modal surfaces the next-available time when the limit is hit.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MessageCircle, X, Loader2, Send, AlertTriangle, Check } from 'lucide-react';
 import { creatorListNudgeEligible, creatorSendNudge } from '../utils/db';
 
 const NOTE_MAX = 200;
+
+// Filter presets per league type. Each preset has a `match(member)`
+// fn that returns true when a member belongs in this filter.
+// `default: true` flags the chip that starts selected on open.
+function buildFilterPresets(predictionMode) {
+  if (predictionMode === 'classic') {
+    return [
+      { id: 'all', label: 'All members', match: () => true },
+      { id: 'not-started', label: 'Not started', match: (m) => m.phase === 'not-started' },
+      { id: 'in-progress', label: 'In progress', match: (m) => m.phase === 'in-progress' },
+      { id: 'incomplete', label: 'Anyone incomplete', match: (m) => m.phase !== 'done', default: true },
+    ];
+  }
+  // Quick Picks (simple)
+  return [
+    { id: 'all', label: 'All members', match: () => true },
+    { id: 'not-started', label: 'Not started', match: (m) => m.phase === 'not-started' },
+    { id: 'groups', label: 'Missing groups', match: (m) => m.phase === 'groups' || m.phase === 'not-started' },
+    { id: 'best-thirds', label: 'Missing best thirds', match: (m) => m.phase === 'best-thirds' },
+    { id: 'knockout', label: 'Missing knockout', match: (m) => m.phase === 'knockout' },
+    { id: 'incomplete', label: 'Anyone incomplete', match: (m) => m.phase !== 'done', default: true },
+  ];
+}
+
+function PhaseProgress({ member, predictionMode }) {
+  const p = member.progress || {};
+  if (predictionMode === 'classic') {
+    const done = p.classicDone || 0;
+    const total = p.classicTotal || 104;
+    return <span className="creator-nudge-progress">{done}/{total}</span>;
+  }
+  return (
+    <span className="creator-nudge-progress" title={`Groups ${p.groupsDone || 0}/${p.groupsTotal || 12} · Thirds ${p.bestThirdsDone || 0}/${p.bestThirdsTotal || 8} · Knockout ${p.knockoutDone || 0}/${p.knockoutTotal || 32}`}>
+      G {p.groupsDone || 0}/{p.groupsTotal || 12} · T {p.bestThirdsDone || 0}/{p.bestThirdsTotal || 8} · K {p.knockoutDone || 0}/{p.knockoutTotal || 32}
+    </span>
+  );
+}
+
+function phaseChip(phase) {
+  switch (phase) {
+    case 'not-started': return 'Not started';
+    case 'groups': return 'Missing groups';
+    case 'best-thirds': return 'Missing thirds';
+    case 'knockout': return 'Missing knockout';
+    case 'in-progress': return 'In progress';
+    case 'done': return 'Done';
+    default: return null;
+  }
+}
 
 function formatRelative(ms) {
   if (!ms) return '';
@@ -31,7 +80,9 @@ export default function CreatorNudgeModal({ open, onClose, league, notify }) {
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState([]);
   const [nextAvailable, setNextAvailable] = useState(null);
+  const [predictionMode, setPredictionMode] = useState('simple');
   const [selected, setSelected] = useState(() => new Set());
+  const [activeFilter, setActiveFilter] = useState('incomplete');
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
@@ -44,10 +95,18 @@ export default function CreatorNudgeModal({ open, onClose, league, notify }) {
     creatorListNudgeEligible(league.id)
       .then((r) => {
         if (cancelled) return;
-        setMembers(r.members || []);
+        const list = r.members || [];
+        setMembers(list);
         setNextAvailable(r.nextNudgeAvailableAt || null);
-        // Default: all members selected
-        setSelected(new Set((r.members || []).map((m) => m.userId)));
+        const mode = r.predictionMode || (league?.predictionMode === 'classic' ? 'classic' : 'simple');
+        setPredictionMode(mode);
+        // Default the selection to "anyone incomplete" — the most common
+        // creator intent. If everyone is done (unlikely but possible),
+        // fall through to all members so the form isn't empty.
+        const incomplete = list.filter((m) => m.phase !== 'done');
+        const initial = incomplete.length > 0 ? incomplete : list;
+        setSelected(new Set(initial.map((m) => m.userId)));
+        setActiveFilter(incomplete.length > 0 ? 'incomplete' : 'all');
       })
       .catch((e) => {
         if (cancelled) return;
@@ -55,7 +114,19 @@ export default function CreatorNudgeModal({ open, onClose, league, notify }) {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [open, league?.id, notify]);
+  }, [open, league?.id, notify, league?.predictionMode]);
+
+  const filterPresets = useMemo(() => buildFilterPresets(predictionMode), [predictionMode]);
+
+  // Apply a preset to the selection set. Clicking the active chip just
+  // re-applies it so the operator can "reset" without flipping chips.
+  const applyFilter = (filterId) => {
+    const preset = filterPresets.find((f) => f.id === filterId);
+    if (!preset) return;
+    setActiveFilter(filterId);
+    const matched = members.filter(preset.match).map((m) => m.userId);
+    setSelected(new Set(matched));
+  };
 
   if (!open) return null;
 
@@ -138,6 +209,28 @@ export default function CreatorNudgeModal({ open, onClose, league, notify }) {
             <p className="form-hint">No eligible members yet. Once people join, they'll show up here.</p>
           ) : (
             <>
+              {/* Phase filter chips — picking one auto-selects every
+                  member matching the filter. Operator can still toggle
+                  individual rows afterward. */}
+              <div className="creator-nudge-filters" role="tablist" aria-label="Filter members by phase">
+                {filterPresets.map((preset) => {
+                  const count = members.filter(preset.match).length;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeFilter === preset.id}
+                      className={`creator-nudge-filter-chip ${activeFilter === preset.id ? 'is-active' : ''}`}
+                      onClick={() => applyFilter(preset.id)}
+                      disabled={sending}
+                    >
+                      {preset.label} <span className="creator-nudge-filter-count">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="creator-nudge-toolbar">
                 <span className="creator-nudge-count"><strong>{selected.size}</strong> of {members.length} selected</span>
                 <div className="creator-nudge-toolbar-actions">
@@ -149,6 +242,7 @@ export default function CreatorNudgeModal({ open, onClose, league, notify }) {
               <ul className="creator-nudge-list">
                 {members.map((m) => {
                   const checked = selected.has(m.userId);
+                  const chip = phaseChip(m.phase);
                   return (
                     <li key={m.userId} className={`creator-nudge-row ${checked ? 'is-selected' : ''}`}>
                       <label>
@@ -160,6 +254,12 @@ export default function CreatorNudgeModal({ open, onClose, league, notify }) {
                         />
                         <span className="creator-nudge-name">{m.displayName || m.email}</span>
                         {m.displayName && <span className="creator-nudge-email">{m.email}</span>}
+                        <span className="creator-nudge-meta">
+                          {chip && (
+                            <span className={`creator-nudge-phase creator-nudge-phase-${m.phase}`}>{chip}</span>
+                          )}
+                          <PhaseProgress member={m} predictionMode={predictionMode} />
+                        </span>
                       </label>
                     </li>
                   );

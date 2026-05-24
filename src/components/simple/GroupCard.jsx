@@ -68,7 +68,7 @@ export default function GroupCard({ group, ranking, flags, touched, onReorder, o
   };
 
   return (
-    <div className={`group-card ${touched ? 'touched' : ''}`}>
+    <div className={`group-card ${touched ? 'touched' : ''}`} data-group={group} id={`group-card-${group}`}>
       <div className="group-card-header">
         <span className="group-card-title">Group {group}</span>
         {touched && (

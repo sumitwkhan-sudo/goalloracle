@@ -600,12 +600,12 @@ export default async function handler(req, res) {
 
       const memberIds = (league.members || []).filter((id) => id !== userId);
       if (memberIds.length === 0) {
-        return res.status(200).json({ members: [], nextNudgeAvailableAt, lastNudgeAt });
+        return res.status(200).json({ members: [], nextNudgeAvailableAt, lastNudgeAt, predictionMode: league.predictionMode });
       }
 
       const memberRefs = memberIds.map((uid) => db.collection('users').doc(uid));
       const memberSnaps = await db.getAll(...memberRefs);
-      const members = memberSnaps
+      const baseMembers = memberSnaps
         .filter((snap) => snap.exists)
         .map((snap) => {
           const d = snap.data();
@@ -618,7 +618,94 @@ export default async function handler(req, res) {
         })
         .filter((m) => m.email && !m.emailOptOut);
 
-      return res.status(200).json({ members, nextNudgeAvailableAt, lastNudgeAt });
+      // Phase enrichment — fetch per-member prediction state so the
+      // client can filter by "missing group picks", "missing knockout",
+      // etc. Different shape per league mode.
+      const mode = league.predictionMode === 'classic' ? 'classic' : 'simple';
+      let members = baseMembers;
+
+      if (mode === 'simple') {
+        // /simplePredictions/{userId}__{leagueId} is the canonical
+        // composite-key shape (see simplePredDocId in src/utils/db.js).
+        // Batch-fetch all in one round trip.
+        const predRefs = baseMembers.map((m) =>
+          db.collection('simplePredictions').doc(`${m.userId}__${leagueId}`)
+        );
+        const predSnaps = predRefs.length > 0 ? await db.getAll(...predRefs) : [];
+        members = baseMembers.map((m, i) => {
+          const snap = predSnaps[i];
+          const pred = snap?.exists ? snap.data() : null;
+          const groupPredictions = pred?.groupPredictions || {};
+          // A group counts as "done" when all four positions are filled
+          // — same rule the client uses (touchedCount in useGroupPredictions).
+          const groupsDone = Object.values(groupPredictions)
+            .filter((g) => Array.isArray(g?.ranking) && g.ranking.filter(Boolean).length === 4)
+            .length;
+          const bestThirds = Array.isArray(pred?.bestThirdPicks) ? pred.bestThirdPicks.length : 0;
+          const ko = pred?.knockoutPredictions || {};
+          const koCount = Object.values(ko)
+            .filter(Array.isArray)
+            .reduce((sum, arr) => sum + arr.length, 0);
+          const TOTAL_GROUPS = 12;
+          const TOTAL_THIRDS = 8;
+          // 16 R32 + 8 R16 + 4 QF + 2 SF + 1 3rd + 1 Final = 32 knockout picks
+          const TOTAL_KO = 32;
+          let phase = 'done';
+          if (groupsDone === 0 && bestThirds === 0 && koCount === 0) phase = 'not-started';
+          else if (groupsDone < TOTAL_GROUPS) phase = 'groups';
+          else if (bestThirds < TOTAL_THIRDS) phase = 'best-thirds';
+          else if (koCount < TOTAL_KO) phase = 'knockout';
+          return {
+            ...m,
+            phase,
+            progress: {
+              groupsDone, groupsTotal: TOTAL_GROUPS,
+              bestThirdsDone: bestThirds, bestThirdsTotal: TOTAL_THIRDS,
+              knockoutDone: koCount, knockoutTotal: TOTAL_KO,
+            },
+          };
+        });
+      } else {
+        // Classic mode — count /predictions docs per (user, league).
+        // Firestore allows `in` queries up to 30 values; chunk through
+        // memberIds in case the league is large. Most private leagues
+        // are well under this so a single round trip is typical.
+        const CHUNK = 30;
+        const TOTAL_CLASSIC = 104;
+        const countByUid = new Map(baseMembers.map((m) => [m.userId, 0]));
+        for (let i = 0; i < baseMembers.length; i += CHUNK) {
+          const chunk = baseMembers.slice(i, i + CHUNK).map((m) => m.userId);
+          const snap = await db.collection('predictions')
+            .where('leagueId', '==', leagueId)
+            .where('userId', 'in', chunk)
+            .get();
+          snap.docs.forEach((d) => {
+            const uid = d.data()?.userId;
+            if (uid && countByUid.has(uid)) {
+              countByUid.set(uid, countByUid.get(uid) + 1);
+            }
+          });
+        }
+        members = baseMembers.map((m) => {
+          const done = countByUid.get(m.userId) || 0;
+          let phase;
+          if (done === 0) phase = 'not-started';
+          else if (done < TOTAL_CLASSIC) phase = 'in-progress';
+          else phase = 'done';
+          return {
+            ...m,
+            phase,
+            progress: { classicDone: done, classicTotal: TOTAL_CLASSIC },
+          };
+        });
+      }
+
+      return res.status(200).json({
+        members,
+        nextNudgeAvailableAt,
+        lastNudgeAt,
+        predictionMode: mode,
+      });
 
     // ─── CREATOR NUDGE: SEND (creator only) ───────────────
     // Sends the creatorNudge template to the supplied member userIds.

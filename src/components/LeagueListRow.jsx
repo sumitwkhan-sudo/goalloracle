@@ -10,7 +10,7 @@
  */
 
 import React from 'react';
-import { ChevronRight, Target, CheckCircle, Flag, LayoutGrid, Pencil, TrendingUp, LogOut, Lock } from 'lucide-react';
+import { ChevronRight, Target, CheckCircle, Flag, LayoutGrid, Pencil, TrendingUp, LogOut, Lock, MessageSquare } from 'lucide-react';
 
 // ── State pill — exactly one renders per row ─────────────────────────────
 // Priority cascade: ended → done (100%) → in-progress (% complete) → none.
@@ -78,11 +78,12 @@ export default function LeagueListRow({
   onEditPicks,
   onViewBracket,
   onLeave,
+  onNudge,
 }) {
   const handleKey = (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); }
   };
-  const hasActions = !!(onLeaderboard || onEditPicks || onViewBracket || onLeave);
+  const hasActions = !!(onLeaderboard || onEditPicks || onViewBracket || onLeave || onNudge);
   return (
     <div
       className={`lr-row ${urgent ? 'lr-row-urgent' : ''} ${status?.ended ? 'lr-row-ended' : ''}`}
@@ -109,6 +110,7 @@ export default function LeagueListRow({
         <div className="lr-cell lr-cell-actions" onClick={(e) => e.stopPropagation()}>
           <ActionButton icon={LayoutGrid} label="View my bracket" onClick={onViewBracket} />
           <ActionButton icon={Pencil} label="Edit my picks" onClick={onEditPicks} />
+          <ActionButton icon={MessageSquare} label="Nudge members" onClick={onNudge} />
           <ActionButton icon={TrendingUp} label="View leaderboard" onClick={onLeaderboard} />
           <ActionButton icon={LogOut} label="Leave League" onClick={onLeave} danger />
           {/* note: ActionButton already short-circuits when onClick is missing */}
