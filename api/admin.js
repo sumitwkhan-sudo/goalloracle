@@ -702,6 +702,194 @@ export default async function handler(req, res) {
       });
     }
 
+    // ─── OUTREACH: SEND PREVIEW ─────────────────────────────────
+    // Renders an outreach template using the admin's own user record as
+    // the recipient stand-in and sends to a specified preview address
+    // (defaults to the admin's account email). Used by the outreach tab
+    // so the operator can see exactly what users will receive before
+    // hitting the batch button.
+    if (action === 'outreachSendPreview') {
+      const { template = 'noPicksReminder', toEmail } = req.body;
+      const { buildEmail, sendOutreachEmail, TEMPLATES } = await import('./_lib/outreachEmail.js');
+      if (!TEMPLATES[template]) return res.status(400).json({ error: `Unknown template: ${template}` });
+
+      const adminSnap = await db.collection('users').doc(userId).get();
+      const admin = adminSnap.exists ? { id: adminSnap.id, ...adminSnap.data() } : { id: userId };
+      const recipient = (toEmail || admin.email || '').trim();
+      if (!recipient) return res.status(400).json({ error: 'No preview address — pass toEmail or set an email on your admin account.' });
+
+      const { subject, html, text } = buildEmail(template, { user: admin, ctx: {} });
+      const sendResult = await sendOutreachEmail({
+        to: recipient,
+        subject: `[PREVIEW] ${subject}`,
+        html,
+        text,
+      });
+      return res.status(200).json({
+        sent: sendResult.sent,
+        error: sendResult.error || null,
+        to: recipient,
+        subject,
+      });
+    }
+
+    // ─── OUTREACH: LIST ELIGIBLE USERS ──────────────────────────
+    // (Strictly speaking this is a GET-shaped read, but it's a POST
+    //  because the body carries the template id + filter knobs and we
+    //  want CSRF protection via the existing admin auth.)
+    if (action === 'outreachListEligibleUsers') {
+      const { template = 'noPicksReminder', cooldownDays = 7 } = req.body;
+      if (template !== 'noPicksReminder') {
+        return res.status(400).json({ error: `No filter defined for template: ${template}` });
+      }
+
+      // 1) Pull every member of the global Quick Picks league.
+      const leagueSnap = await db.collection('leagues').doc('global-simple').get();
+      const members = leagueSnap.exists ? (leagueSnap.data().members || []) : [];
+      if (members.length === 0) return res.status(200).json({ users: [], total: 0 });
+
+      // 2) Resolve the user docs (with email).
+      const userIds = Array.from(new Set(members));
+      const userDocs = {};
+      const CHUNK = 1000;
+      for (let i = 0; i < userIds.length; i += CHUNK) {
+        const slice = userIds.slice(i, i + CHUNK);
+        const refs = slice.map(id => db.collection('users').doc(id));
+        const snaps = await db.getAll(...refs);
+        for (const snap of snaps) {
+          if (snap.exists) userDocs[snap.id] = { id: snap.id, ...snap.data() };
+        }
+      }
+
+      // 3) Pull simple-prediction docs for each member (composite id
+      //    `${uid}__global-simple`). 30-doc 'in' query limit.
+      const preds = {};
+      const compositeIds = userIds.map(uid => `${uid}__global-simple`);
+      for (let i = 0; i < compositeIds.length; i += 30) {
+        const slice = compositeIds.slice(i, i + 30);
+        const snap = await db.collection('simplePredictions')
+          .where(admin.firestore.FieldPath.documentId(), 'in', slice)
+          .get();
+        for (const d of snap.docs) {
+          const data = d.data();
+          if (data?.userId) preds[data.userId] = data;
+        }
+      }
+
+      // 4) Pull outreach-sent log so we honor the cooldown.
+      const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+      const cutoff = Date.now() - cooldownMs;
+      const sentSnap = await db.collection('outreachSent')
+        .where('template', '==', template)
+        .where('sentAt', '>=', new Date(cutoff))
+        .get();
+      const recentlySent = new Set(sentSnap.docs.map(d => d.data().userId));
+
+      // 5) Build the eligible list.
+      const eligible = [];
+      for (const uid of userIds) {
+        const user = userDocs[uid];
+        if (!user) continue;
+        if (!user.email) continue;
+        if (user.emailOptOut === true) continue;
+        if (recentlySent.has(uid)) continue;
+
+        // Filter: zero groups picked.
+        const groups = preds[uid]?.groupPredictions || {};
+        const groupsDone = Object.values(groups).filter(g =>
+          Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)
+        ).length;
+        if (groupsDone > 0) continue;
+
+        eligible.push({
+          userId: uid,
+          displayName: user.displayName || user.username || null,
+          email: user.email,
+          createdAt: user.createdAt?._seconds
+            ? user.createdAt._seconds * 1000
+            : (user.createdAt?.toMillis?.() ?? null),
+          country: user.country || null,
+          groupsDone,
+        });
+      }
+
+      // Newest signups first — most likely to remember the brand.
+      eligible.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      return res.status(200).json({
+        template,
+        cooldownDays,
+        users: eligible,
+        total: eligible.length,
+        leagueMembers: members.length,
+      });
+    }
+
+    // ─── OUTREACH: SEND BATCH ───────────────────────────────────
+    // Sends the chosen template to every userId in the request body.
+    // Caller is expected to have pre-filtered via outreachListEligibleUsers
+    // and to have sent a preview to their own inbox at least once.
+    // We re-check eligibility per-user inside the loop as a safety net.
+    if (action === 'outreachSendBatch') {
+      const { template = 'noPicksReminder', userIds: requested } = req.body;
+      if (!Array.isArray(requested) || requested.length === 0) {
+        return res.status(400).json({ error: 'userIds required (non-empty array)' });
+      }
+      if (requested.length > 1000) {
+        return res.status(400).json({ error: 'Batch too large (max 1000 per call)' });
+      }
+      const { buildEmail, sendOutreachEmail, TEMPLATES, sleep, BATCH_DELAY_MS } = await import('./_lib/outreachEmail.js');
+      if (!TEMPLATES[template]) return res.status(400).json({ error: `Unknown template: ${template}` });
+
+      const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
+      for (const uid of requested) {
+        try {
+          const userSnap = await db.collection('users').doc(uid).get();
+          if (!userSnap.exists) { results.skipped++; continue; }
+          const user = { id: userSnap.id, ...userSnap.data() };
+          if (!user.email || user.emailOptOut === true) { results.skipped++; continue; }
+
+          const { subject, html, text } = buildEmail(template, { user, ctx: {} });
+          const r = await sendOutreachEmail({ to: user.email, subject, html, text });
+
+          // Audit log — one doc per (user, template) lifetime, last
+          // sent timestamp updated on every send.
+          await db.collection('outreachSent').doc(`${uid}__${template}`).set({
+            userId: uid,
+            template,
+            sentAt: FieldValue.serverTimestamp(),
+            sent: r.sent,
+            error: r.error || null,
+            sentBy: userId,
+          }, { merge: true });
+
+          if (r.sent) results.sent++;
+          else { results.failed++; results.errors.push({ uid, error: r.error || 'unknown' }); }
+
+          // Throttle so Resend rate-limit doesn't trip.
+          await sleep(BATCH_DELAY_MS);
+        } catch (e) {
+          results.failed++;
+          results.errors.push({ uid, error: e?.message || 'crash' });
+        }
+      }
+
+      // Operator audit-trail entry — separate from per-user log so the
+      // operator can see "I sent the no-picks reminder to 47 users at
+      // 14:23 today" without scanning per-user docs.
+      await db.collection('outreachRuns').add({
+        template,
+        triggeredBy: userId,
+        triggeredAt: FieldValue.serverTimestamp(),
+        attempted: requested.length,
+        sent: results.sent,
+        skipped: results.skipped,
+        failed: results.failed,
+      });
+
+      return res.status(200).json(results);
+    }
+
     if (action === 'reconcile') {
       // Audit a Quick Picks league. Returns:
       //   - prediction submission stats (total users / submitted / complete)
