@@ -758,12 +758,43 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     return true;
   });
 
-  // Filtered users
+  // Filtered users — newest sign-ups first so the most recent joins are
+  // at the top. createdAt comes off the Firestore doc as either a
+  // serialized admin Timestamp ({_seconds}) or a millis number depending
+  // on path, so normalize before comparing.
+  const _joinMillis = (u) => {
+    const c = u?.createdAt;
+    if (!c) return 0;
+    if (typeof c === 'number') return c;
+    if (c._seconds) return c._seconds * 1000;
+    if (typeof c.toMillis === 'function') return c.toMillis();
+    const t = Date.parse(c);
+    return Number.isNaN(t) ? 0 : t;
+  };
+  const _joinLabel = (u) => {
+    const ms = _joinMillis(u);
+    if (!ms) return '—';
+    return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+  // league id → public metadata, for resolving the league names a user
+  // has joined. Globals get friendly labels; everything else falls back
+  // to the league name (or a truncated id if the league isn't loaded).
+  const leaguesById = useMemo(() => {
+    const m = {};
+    for (const l of (allLeagues || [])) m[l.id] = l;
+    return m;
+  }, [allLeagues]);
+  const _leagueLabel = (id) => {
+    if (id === 'global-simple') return 'Global';
+    if (id === 'global') return 'Global (Classic)';
+    return leaguesById[id]?.name || `${String(id).slice(0, 10)}…`;
+  };
+
   const filteredUsers = users.filter(u => {
     if (!userSearch) return true;
     const s = userSearch.toLowerCase();
     return (u.displayName || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || u.id.toLowerCase().includes(s);
-  });
+  }).sort((a, b) => _joinMillis(b) - _joinMillis(a));
 
   const tabs = [
     { id: 'results', icon: '⚽', label: 'Match Results', count: `${verifiedCount}/${totalMatches}` },
@@ -968,94 +999,102 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             )}
           </div>
 
-          <div className="admin-card-list admin-scroll">
+          <div className="admin-user-rows admin-scroll">
             {filteredUsers.length === 0 && <div className="admin-empty">{users.length === 0 ? 'Loading users...' : 'No users match your search.'}</div>}
             {filteredUsers.map(u => {
               const referrals = referralCountById[u.id] || 0;
               const referrer = u.referredBy ? userById[u.referredBy] : null;
+              const joined = Array.isArray(u.leagues) ? u.leagues : [];
+              const leagueNames = joined.map(_leagueLabel);
               return (
-              <div key={u.id} className="admin-list-card">
-                <div className="admin-list-left">
-                  <div>
-                    <div className="admin-user-name">
-                      {u.country && <span className="admin-user-flag" title={u.country}>{_countryFlagFromCode(u.country)}</span>}
-                      {u.displayName || u.id.slice(0, 12)}
-                      {!u.email && <span className="admin-user-noemail" title="No email on file — user can't be reached for reminders">no email</span>}
-                      {!u.country && <span className="admin-user-noemail" title="No country on file">no country</span>}
-                    </div>
-                    {u.email && <div className="admin-user-email">{u.email}</div>}
-                    {!u.email && <div className="admin-user-email">{u.id.slice(0, 20)}...</div>}
-                    {editingWalletUserId === u.id ? (
-                      <div className="admin-wallet-edit-row">
-                        <input
-                          type="text"
-                          className="input-field admin-wallet-input"
-                          value={editingWalletValue}
-                          onChange={(e) => setEditingWalletValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveWalletAssignment(u);
-                            else if (e.key === 'Escape') cancelWalletEdit();
-                          }}
-                          placeholder="0x... (leave blank to clear)"
-                          maxLength={42}
-                          autoFocus
-                          disabled={savingWalletUserId === u.id}
-                          spellCheck={false}
-                        />
-                        <button type="button" className="btn btn-primary btn-sm" onClick={() => saveWalletAssignment(u)} disabled={savingWalletUserId === u.id} title="Save">
-                          {savingWalletUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Check size={14} />}
-                        </button>
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={cancelWalletEdit} disabled={savingWalletUserId === u.id} title="Cancel">
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="admin-wallet-row">
-                        <Wallet size={11} style={{opacity:0.6}} />
-                        {u.walletAddress ? (
-                          <code className="admin-wallet-addr">{u.walletAddress.slice(0, 10)}...{u.walletAddress.slice(-6)}</code>
-                        ) : (
-                          <span className="admin-wallet-empty">No payout wallet</span>
-                        )}
-                        <button type="button" className="admin-wallet-edit-btn" onClick={() => startWalletEdit(u)} title="Assign payout wallet">
-                          <Pencil size={11} />
-                        </button>
-                      </div>
+              <div key={u.id} className="admin-user-row">
+                {/* Head line: identity on the left; join date + role + delete on the right */}
+                <div className="admin-user-row-head">
+                  <span className="admin-user-row-name">
+                    {u.country && <span className="admin-user-flag" title={u.country}>{_countryFlagFromCode(u.country)}</span>}
+                    <span className="admin-user-row-handle">{u.displayName || u.id.slice(0, 12)}</span>
+                    {!u.email && <span className="admin-user-noemail" title="No email on file — user can't be reached for reminders">no email</span>}
+                    {!u.country && <span className="admin-user-noemail" title="No country on file">no country</span>}
+                  </span>
+                  <span className="admin-user-row-controls">
+                    <span className="admin-user-row-joined" title="Join date"><Clock size={10} /> {_joinLabel(u)}</span>
+                    {referrals > 0 && (
+                      <span className="admin-user-ref-pill" title={`${referrals} new sign-up${referrals === 1 ? '' : 's'} attributed to this user`}>
+                        <strong>{referrals}</strong> inv
+                      </span>
                     )}
-                    {u.referredBy && (
-                      <div className="admin-user-via" title={`referredBy: ${u.referredBy}`}>
-                        Joined via {referrer?.displayName || `${u.referredBy.slice(0, 10)}…`}
-                      </div>
+                    <select className="admin-select admin-select-xs" value={u.role || 'user'} onChange={e => handleRoleChange(u.id, e.target.value)}>
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                      <option value="superadmin">superadmin</option>
+                    </select>
+                    {/* Permanent delete — hidden for self + other superadmins. */}
+                    {u.id !== userData.id && (u.role || 'user') !== 'superadmin' && (
+                      <button
+                        type="button"
+                        className="admin-user-del"
+                        title="Permanently delete this user (no undo)"
+                        onClick={() => handleDeleteUser(u)}
+                        disabled={deletingUserId === u.id}
+                      >
+                        {deletingUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />}
+                      </button>
                     )}
-                  </div>
+                  </span>
                 </div>
-                <div className="admin-list-right">
-                  {referrals > 0 && (
-                    <span className="admin-user-ref-pill" title={`${referrals} new sign-up${referrals === 1 ? '' : 's'} attributed to this user`}>
-                      <strong>{referrals}</strong> invited
+
+                {/* Email line */}
+                <div className="admin-user-row-email">{u.email || `${u.id.slice(0, 24)}…`}</div>
+
+                {/* Meta line: wallet · leagues · referrer */}
+                <div className="admin-user-row-meta">
+                  {editingWalletUserId === u.id ? (
+                    <span className="admin-wallet-edit-row">
+                      <input
+                        type="text"
+                        className="input-field admin-wallet-input"
+                        value={editingWalletValue}
+                        onChange={(e) => setEditingWalletValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveWalletAssignment(u);
+                          else if (e.key === 'Escape') cancelWalletEdit();
+                        }}
+                        placeholder="0x... (blank to clear)"
+                        maxLength={42}
+                        autoFocus
+                        disabled={savingWalletUserId === u.id}
+                        spellCheck={false}
+                      />
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => saveWalletAssignment(u)} disabled={savingWalletUserId === u.id} title="Save">
+                        {savingWalletUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Check size={14} />}
+                      </button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={cancelWalletEdit} disabled={savingWalletUserId === u.id} title="Cancel">
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="admin-user-meta-item">
+                      <Wallet size={11} style={{opacity:0.6}} />
+                      {u.walletAddress ? (
+                        <code className="admin-wallet-addr">{u.walletAddress.slice(0, 6)}…{u.walletAddress.slice(-4)}</code>
+                      ) : (
+                        <span className="admin-wallet-empty">no wallet</span>
+                      )}
+                      <button type="button" className="admin-wallet-edit-btn" onClick={() => startWalletEdit(u)} title="Assign payout wallet">
+                        <Pencil size={10} />
+                      </button>
                     </span>
                   )}
-                  <span className={`admin-role-badge ${u.role || 'user'}`}>{(u.role || 'user').toUpperCase()}</span>
-                  <select className="admin-select" value={u.role || 'user'} onChange={e => handleRoleChange(u.id, e.target.value)}>
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                    <option value="superadmin">superadmin</option>
-                  </select>
-                  {/* Permanent delete — superadmin only on the server, but
-                      we hide the button when looking at yourself or another
-                      superadmin so the obvious-bad cases aren't even
-                      clickable. Two-step confirm in handleDeleteUser. */}
-                  {u.id !== userData.id && (u.role || 'user') !== 'superadmin' && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      title="Permanently delete this user (no undo)"
-                      onClick={() => handleDeleteUser(u)}
-                      disabled={deletingUserId === u.id}
-                      style={{ color: 'var(--danger)' }}
-                    >
-                      {deletingUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />}
-                    </button>
+                  <span className="admin-user-meta-item admin-user-leagues" title={leagueNames.length ? leagueNames.join(', ') : 'No leagues joined'}>
+                    <Trophy size={11} style={{opacity:0.6}} />
+                    {joined.length === 0
+                      ? <span className="admin-wallet-empty">no leagues</span>
+                      : <>{joined.length}<span className="admin-user-leagues-names">{leagueNames.slice(0, 2).join(', ')}{joined.length > 2 ? ` +${joined.length - 2}` : ''}</span></>}
+                  </span>
+                  {u.referredBy && (
+                    <span className="admin-user-meta-item admin-user-via" title={`referredBy: ${u.referredBy}`}>
+                      via {referrer?.displayName || `${u.referredBy.slice(0, 8)}…`}
+                    </span>
                   )}
                 </div>
               </div>
