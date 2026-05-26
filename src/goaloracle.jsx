@@ -2577,6 +2577,7 @@ const GoalOracle = () => {
                 </div>
               )}
               <p className="hero-trust-strip">No purchase necessary &middot; Skill-based contest &middot; Powered by {PRIZE_DEFAULT_CURRENCY}</p>
+              <p className="hero-community-line">Made by fans, for the fans &mdash; an independent, community-built World Cup game.</p>
               <p className="hero-rules-link">
                 See <button type="button" className="hero-rules-anchor" onClick={() => nav('officialRules')}>Official Rules</button>
               </p>
