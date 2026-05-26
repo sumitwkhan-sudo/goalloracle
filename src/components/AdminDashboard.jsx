@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet } from 'lucide-react';
+import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -35,6 +35,11 @@ const OUTREACH_TEMPLATES = {
 const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify, featureFlags = DEFAULT_FEATURE_FLAGS }) => {
   const [tab, setTab] = useState('results');
   const [users, setUsers] = useState([]);
+  // User segmentation panel (read-only, lazy-loaded on demand).
+  const [segments, setSegments] = useState(null);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+  const [segmentsOpen, setSegmentsOpen] = useState(false);
+  const [copiedSegmentKey, setCopiedSegmentKey] = useState(null);
   // Enriched leagues — same data as `allLeagues` plus creatorDisplayName
   // and passcode joined from the admin endpoint. Fetched when the
   // Leagues tab first activates; the parent's allLeagues prop is used
@@ -685,6 +690,55 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     } catch (e) { notify('Failed: ' + e.message, 'error'); }
   };
 
+  // ── User segments (read-only) ───────────────────────────────────
+  const reloadSegments = async () => {
+    setSegmentsLoading(true);
+    try {
+      const data = await adminGetUserSegments();
+      setSegments(data.segments || null);
+      setSegmentsOpen(true);
+    } catch (e) {
+      notify('Failed to load segments: ' + e.message, 'error');
+    } finally {
+      setSegmentsLoading(false);
+    }
+  };
+  const copySegmentEmails = async (key, rows) => {
+    const emails = rows.map(r => r.email).filter(Boolean);
+    if (emails.length === 0) { notify('No emails in this segment', 'error'); return; }
+    try {
+      await navigator.clipboard.writeText(emails.join(', '));
+      setCopiedSegmentKey(key);
+      setTimeout(() => setCopiedSegmentKey(null), 1800);
+      notify(`Copied ${emails.length} email${emails.length === 1 ? '' : 's'}`);
+    } catch { notify('Could not copy', 'error'); }
+  };
+  const exportSegmentCsv = (key, rows) => {
+    const fmt = (ms) => (ms ? new Date(ms).toISOString() : '');
+    const esc = (v) => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['email', 'displayName', 'country', 'lastActivity', 'lastLogin', 'privateLeagues', 'userId'];
+    const lines = [header.join(',')];
+    for (const r of rows) {
+      lines.push([
+        esc(r.email), esc(r.displayName), esc(r.country),
+        esc(fmt(r.lastActivityMs)), esc(fmt(r.lastLoginMs)),
+        esc((r.privateLeagues || []).join('; ')), esc(r.userId),
+      ].join(','));
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `goaloracle-segment-${key}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   // Permanent delete. Two-stage confirm because there's no undo.
   const [deletingUserId, setDeletingUserId] = useState(null);
   const handleDeleteUser = async (u) => {
@@ -996,6 +1050,76 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   </li>
                 ))}
               </ol>
+            )}
+          </div>
+
+          {/* ── User Segments (read-only) ────────────────────────────
+              Lazy-loaded: the endpoint scans every simplePredictions
+              doc, so it only runs when the operator asks. */}
+          <div className="admin-segments" role="region" aria-label="User segments">
+            <div className="admin-segments-head">
+              <span className="admin-segments-title">User Segments <span className="admin-segments-sub">Quick Picks funnel</span></span>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={reloadSegments} disabled={segmentsLoading}>
+                {segmentsLoading ? <><RefreshCw size={12} className="spin" /> Computing…</> : segments ? <>Refresh</> : <>Compute segments</>}
+              </button>
+            </div>
+            {segments && segmentsOpen && (
+              <div className="admin-segments-body">
+                {[
+                  { key: 'A', label: 'Logged in, no Quick Picks bracket started', seg: segments.A },
+                  { key: 'B', label: 'Started a bracket, none submitted/complete', seg: segments.B },
+                  { key: 'C', label: 'Completed a private league, not yet in Global', seg: segments.C },
+                ].map(({ key, label, seg }) => {
+                  const rows = seg?.users || [];
+                  const fmtDateMs = (ms) => ms ? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+                  return (
+                    <div key={key} className="admin-segment-card">
+                      <div className="admin-segment-card-head">
+                        <span className="admin-segment-name"><span className="admin-segment-badge">{key}</span> {label}</span>
+                        <span className="admin-segment-count">{seg?.count || 0}</span>
+                      </div>
+                      <div className="admin-segment-actions">
+                        <button type="button" className="btn btn-ghost btn-xs" onClick={() => copySegmentEmails(key, rows)} disabled={rows.length === 0}>
+                          {copiedSegmentKey === key ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy emails</>}
+                        </button>
+                        <button type="button" className="btn btn-ghost btn-xs" onClick={() => exportSegmentCsv(key, rows)} disabled={rows.length === 0}>
+                          <ExternalLink size={11} /> Export CSV
+                        </button>
+                      </div>
+                      {rows.length === 0 ? (
+                        <div className="admin-segment-empty">No users in this segment.</div>
+                      ) : (
+                        <div className="admin-segment-table-wrap admin-scroll">
+                          <table className="admin-segment-table">
+                            <thead>
+                              <tr>
+                                <th>Email</th><th>Name</th><th>Last activity</th><th>Last login</th>
+                                {key === 'C' && <th>Private league(s)</th>}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((r) => (
+                                <tr key={r.userId}>
+                                  <td className="admin-segment-email">{r.email || <span className="admin-wallet-empty">no email</span>}</td>
+                                  <td>{r.displayName || r.userId.slice(0, 8)}</td>
+                                  <td>{fmtDateMs(r.lastActivityMs)}</td>
+                                  <td>{fmtDateMs(r.lastLoginMs)}</td>
+                                  {key === 'C' && (
+                                    <td title={(r.privateLeagues || []).join(', ')}>
+                                      {(r.privateLeagues || []).join(', ')}
+                                      {r.hasGlobalEntry && <span className="admin-segment-flag" title="Already has a Global entry — bulk copy will skip in 'skip' mode">has global</span>}
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 

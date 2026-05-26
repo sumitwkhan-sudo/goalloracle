@@ -200,6 +200,98 @@ export default async function handler(req, res) {
         }
 
         return res.status(200).json({ runs, templateStats });
+      } else if (type === 'segments') {
+        // ── User segmentation (read-only, Quick Picks only) ──────────
+        // Scans users + every simplePredictions doc and buckets users:
+        //   A) no QP bracket started in any league
+        //   B) started somewhere but no bracket is isComplete
+        //   C) completed a PRIVATE QP league but global-simple isn't
+        //      complete (the auto-/manual-submit-to-global candidates)
+        // Full-collection scan — fine at current scale (hundreds of
+        // docs); revisit with pagination if simplePredictions grows large.
+        const [segUsersSnap, predsSnap, segLeaguesSnap] = await Promise.all([
+          db.collection('users').get(),
+          db.collection('simplePredictions').get(),
+          db.collection('leagues').get(),
+        ]);
+        const tsMs = (t) => (t?._seconds ? t._seconds * 1000 : (typeof t?.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null)));
+        const leagueMeta = {};
+        segLeaguesSnap.docs.forEach(d => {
+          const x = d.data();
+          leagueMeta[d.id] = { name: x.name || d.id, visibility: x.visibility || 'public' };
+        });
+        const hasAnyPicks = (d) => {
+          const g = d.groupPredictions || {};
+          if (Object.values(g).some(v => Array.isArray(v?.ranking) && v.ranking.filter(Boolean).length > 0)) return true;
+          if (Array.isArray(d.bestThirdPicks) && d.bestThirdPicks.length > 0) return true;
+          const ko = d.knockoutPredictions || {};
+          if (Object.values(ko).some(a => Array.isArray(a) && a.length > 0)) return true;
+          return false;
+        };
+        // Per-user rollup keyed by userId.
+        const agg = {};
+        const ensure = (uid) => (agg[uid] || (agg[uid] = {
+          startedAny: false, completeAny: false,
+          globalHasPicks: false, globalComplete: false,
+          privateCompleteNames: new Set(), lastActivityMs: null,
+        }));
+        predsSnap.docs.forEach(doc => {
+          const id = doc.id;
+          const data = doc.data();
+          // docId is `${userId}__${leagueId}` (composite) or legacy `${userId}`
+          // (= global-simple). Prefer explicit fields, fall back to the id.
+          let userId, leagueId;
+          const sepIdx = id.indexOf('__');
+          if (sepIdx >= 0) { userId = id.slice(0, sepIdx); leagueId = id.slice(sepIdx + 2); }
+          else { userId = id; leagueId = 'global-simple'; }
+          userId = data.userId || userId;
+          leagueId = data.leagueId || leagueId;
+          const a = ensure(userId);
+          const picks = hasAnyPicks(data);
+          const complete = data.isComplete === true;
+          if (picks) a.startedAny = true;
+          if (complete) a.completeAny = true;
+          const actMs = tsMs(data.updatedAt) || tsMs(data.submittedAt);
+          if (actMs && (!a.lastActivityMs || actMs > a.lastActivityMs)) a.lastActivityMs = actMs;
+          if (leagueId === 'global-simple') {
+            if (picks) a.globalHasPicks = true;
+            if (complete) a.globalComplete = true;
+          } else if (leagueId !== 'global') {
+            const meta = leagueMeta[leagueId];
+            if (complete && meta && meta.visibility === 'private') a.privateCompleteNames.add(meta.name);
+          }
+        });
+        const baseRow = (u) => ({
+          userId: u.id,
+          email: u.email || null,
+          displayName: u.displayName || u.username || null,
+          country: u.country || null,
+          lastLoginMs: tsMs(u.lastLoginAt),
+          lastActivityMs: agg[u.id]?.lastActivityMs ?? null,
+        });
+        const A = [], B = [], C = [];
+        segUsersSnap.docs.forEach(d => {
+          const u = { id: d.id, ...d.data() };
+          const a = agg[u.id];
+          const started = a?.startedAny === true;
+          const complete = a?.completeAny === true;
+          if (!started) { A.push(baseRow(u)); return; }
+          if (!complete) { B.push(baseRow(u)); return; }
+          const privNames = a ? Array.from(a.privateCompleteNames) : [];
+          if (privNames.length > 0 && !a.globalComplete) {
+            C.push({ ...baseRow(u), privateLeagues: privNames, hasGlobalEntry: !!a.globalHasPicks, globalComplete: !!a.globalComplete });
+          }
+        });
+        const byActivity = (x, y) => (y.lastActivityMs || 0) - (x.lastActivityMs || 0);
+        A.sort(byActivity); B.sort(byActivity); C.sort(byActivity);
+        return res.status(200).json({
+          generatedAt: Date.now(),
+          segments: {
+            A: { count: A.length, users: A },
+            B: { count: B.length, users: B },
+            C: { count: C.length, users: C },
+          },
+        });
       }
       return res.status(400).json({ error: 'Invalid type' });
     } catch (e) {
