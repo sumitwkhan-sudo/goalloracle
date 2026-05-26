@@ -1663,6 +1663,76 @@ export default async function handler(req, res) {
         duplicateCount: allDocs.length,
         wouldResolveTo,
       });
+    } else if (action === 'copyUsersToGlobal') {
+      // Superadmin-only: copy each user's completed private Quick Picks
+      // bracket into the Global League. The client sends only userIds;
+      // we resolve each user's source league server-side (their most
+      // recently updated COMPLETE private QP bracket) and run it through
+      // the shared copyUserPicksToGlobalLeague utility so audit logging
+      // + eligibility are identical to the auto-submit path.
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can copy picks to the Global League' });
+      }
+      const { userIds, mode = 'skip' } = req.body;
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ error: 'userIds required (non-empty array)' });
+      }
+      if (userIds.length > 200) {
+        return res.status(400).json({ error: 'Too many users (max 200 per call)' });
+      }
+      if (mode !== 'skip' && mode !== 'overwrite') {
+        return res.status(400).json({ error: 'mode must be skip or overwrite' });
+      }
+
+      const { copyUserPicksToGlobalLeague, GLOBAL_SIMPLE_LEAGUE_ID } = await import('./_lib/copyToGlobal.js');
+      const { sourceHasPicks } = await import('./_lib/copyToGlobalLogic.js');
+
+      // Resolve a user's best source league: the most-recently-updated
+      // COMPLETE bracket in a private QP league (never a global league).
+      const tsMs = (t) => (t?._seconds ? t._seconds * 1000 : (typeof t?.toMillis === 'function' ? t.toMillis() : 0));
+      const leaguesSnap = await db.collection('leagues').get();
+      const leagueVis = {};
+      leaguesSnap.docs.forEach(d => { leagueVis[d.id] = d.data().visibility || 'public'; });
+      const resolveSource = async (uid) => {
+        const snap = await db.collection('simplePredictions').where('userId', '==', uid).get();
+        let best = null;
+        snap.docs.forEach(doc => {
+          const data = doc.data();
+          const lid = data.leagueId || (doc.id.includes('__') ? doc.id.slice(doc.id.indexOf('__') + 2) : 'global-simple');
+          if (lid === GLOBAL_SIMPLE_LEAGUE_ID || lid === 'global') return;
+          if (data.isComplete !== true || !sourceHasPicks(data)) return;
+          if (leagueVis[lid] !== 'private') return;
+          const upd = tsMs(data.updatedAt) || tsMs(data.submittedAt);
+          if (!best || upd > best.upd) best = { lid, upd };
+        });
+        return best?.lid || null;
+      };
+
+      const results = [];
+      let copied = 0, skipped = 0, ineligible = 0, failed = 0;
+      for (const uid of userIds) {
+        try {
+          const sourceLeagueId = await resolveSource(uid);
+          if (!sourceLeagueId) {
+            ineligible++;
+            results.push({ userId: uid, ok: false, outcome: 'ineligible', reason: 'no_complete_private_bracket' });
+            continue;
+          }
+          const r = await copyUserPicksToGlobalLeague(uid, sourceLeagueId, { actor: userId, mode });
+          if (r.outcome === 'created' || r.outcome === 'overwritten') copied++;
+          else if (r.outcome === 'skipped_existing') skipped++;
+          else if (r.outcome === 'ineligible') ineligible++;
+          else failed++;
+          results.push({ userId: uid, sourceLeagueId, ...r });
+        } catch (e) {
+          failed++;
+          results.push({ userId: uid, ok: false, outcome: 'error', reason: e?.message || 'crash' });
+        }
+      }
+
+      return res.status(200).json({ summary: { attempted: userIds.length, copied, skipped, ineligible, failed }, results });
+
     }
 
     return res.status(400).json({ error: 'Invalid action' });

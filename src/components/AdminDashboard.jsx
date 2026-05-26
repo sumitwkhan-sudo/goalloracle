@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -40,6 +40,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [segmentsLoading, setSegmentsLoading] = useState(false);
   const [segmentsOpen, setSegmentsOpen] = useState(false);
   const [copiedSegmentKey, setCopiedSegmentKey] = useState(null);
+  // Segment C "copy to Global" flow (superadmin only).
+  const [segCSelected, setSegCSelected] = useState(() => new Set());
+  const [copyModal, setCopyModal] = useState(null); // { userIds, mode } | null
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [copyResult, setCopyResult] = useState(null); // { summary, results } | null
   // Enriched leagues — same data as `allLeagues` plus creatorDisplayName
   // and passcode joined from the admin endpoint. Fetched when the
   // Leagues tab first activates; the parent's allLeagues prop is used
@@ -739,6 +744,36 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  // ── Segment C: copy selected/one user's private bracket → Global ──
+  const toggleSegC = (uid) => setSegCSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(uid)) next.delete(uid); else next.add(uid);
+    return next;
+  });
+  const isSuperadmin = userData?.role === 'superadmin';
+  const openCopyModal = (userIds) => {
+    if (!userIds || userIds.length === 0) { notify('No users selected', 'error'); return; }
+    setCopyResult(null);
+    setCopyModal({ userIds, mode: 'skip' });
+  };
+  const runCopyToGlobal = async () => {
+    if (!copyModal || copyBusy) return;
+    setCopyBusy(true);
+    try {
+      const r = await adminCopyUsersToGlobal(copyModal.userIds, copyModal.mode);
+      setCopyResult(r);
+      const s = r.summary || {};
+      notify(`Done — ${s.copied || 0} copied, ${s.skipped || 0} skipped, ${s.ineligible || 0} ineligible`);
+      // Refresh segments so the panel reflects the new global entries.
+      reloadSegments();
+      setSegCSelected(new Set());
+    } catch (e) {
+      notify('Copy failed: ' + e.message, 'error');
+    } finally {
+      setCopyBusy(false);
+    }
+  };
+
   // Permanent delete. Two-stage confirm because there's no undo.
   const [deletingUserId, setDeletingUserId] = useState(null);
   const handleDeleteUser = async (u) => {
@@ -1085,6 +1120,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                         <button type="button" className="btn btn-ghost btn-xs" onClick={() => exportSegmentCsv(key, rows)} disabled={rows.length === 0}>
                           <ExternalLink size={11} /> Export CSV
                         </button>
+                        {key === 'C' && isSuperadmin && (
+                          <button type="button" className="btn btn-primary btn-xs" disabled={segCSelected.size === 0} onClick={() => openCopyModal([...segCSelected])}>
+                            <Trophy size={11} /> Copy selected to Global ({segCSelected.size})
+                          </button>
+                        )}
                       </div>
                       {rows.length === 0 ? (
                         <div className="admin-segment-empty">No users in this segment.</div>
@@ -1093,13 +1133,29 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                           <table className="admin-segment-table">
                             <thead>
                               <tr>
+                                {key === 'C' && isSuperadmin && (
+                                  <th className="admin-segment-check">
+                                    <input
+                                      type="checkbox"
+                                      aria-label="Select all"
+                                      checked={rows.length > 0 && rows.every(r => segCSelected.has(r.userId))}
+                                      onChange={(e) => setSegCSelected(e.target.checked ? new Set(rows.map(r => r.userId)) : new Set())}
+                                    />
+                                  </th>
+                                )}
                                 <th>Email</th><th>Name</th><th>Last activity</th><th>Last login</th>
                                 {key === 'C' && <th>Private league(s)</th>}
+                                {key === 'C' && isSuperadmin && <th></th>}
                               </tr>
                             </thead>
                             <tbody>
                               {rows.map((r) => (
                                 <tr key={r.userId}>
+                                  {key === 'C' && isSuperadmin && (
+                                    <td className="admin-segment-check">
+                                      <input type="checkbox" aria-label={`Select ${r.email || r.userId}`} checked={segCSelected.has(r.userId)} onChange={() => toggleSegC(r.userId)} />
+                                    </td>
+                                  )}
                                   <td className="admin-segment-email">{r.email || <span className="admin-wallet-empty">no email</span>}</td>
                                   <td>{r.displayName || r.userId.slice(0, 8)}</td>
                                   <td>{fmtDateMs(r.lastActivityMs)}</td>
@@ -1107,7 +1163,14 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                                   {key === 'C' && (
                                     <td title={(r.privateLeagues || []).join(', ')}>
                                       {(r.privateLeagues || []).join(', ')}
-                                      {r.hasGlobalEntry && <span className="admin-segment-flag" title="Already has a Global entry — bulk copy will skip in 'skip' mode">has global</span>}
+                                      {r.hasGlobalEntry && <span className="admin-segment-flag" title="Already has a Global entry — copy will skip in 'skip' mode">has global</span>}
+                                    </td>
+                                  )}
+                                  {key === 'C' && isSuperadmin && (
+                                    <td>
+                                      <button type="button" className="btn btn-ghost btn-xs" title="Copy this user's private bracket to the Global League" onClick={() => openCopyModal([r.userId])}>
+                                        <Trophy size={11} /> Global
+                                      </button>
                                     </td>
                                   )}
                                 </tr>
@@ -1122,6 +1185,61 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               </div>
             )}
           </div>
+
+          {/* Copy-to-Global confirmation + result modal (superadmin) */}
+          {copyModal && (
+            <div className="modal-overlay" onClick={() => !copyBusy && setCopyModal(null)}>
+              <div className="fund-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="fund-modal-header">
+                  <h3><Trophy size={20} /> Copy to Global League</h3>
+                  <button className="modal-close" onClick={() => !copyBusy && setCopyModal(null)} aria-label="Close"><X size={18} /></button>
+                </div>
+                {!copyResult ? (
+                  <>
+                    <p className="fund-desc">
+                      Copy <strong>{copyModal.userIds.length}</strong> user{copyModal.userIds.length === 1 ? '' : 's'}&apos; completed private Quick Picks bracket into the Global League. The most recently updated completed private bracket is used as the source.
+                    </p>
+                    <div className="admin-copy-mode">
+                      <label className={copyModal.mode === 'skip' ? 'is-active' : ''}>
+                        <input type="radio" name="copymode" checked={copyModal.mode === 'skip'} onChange={() => setCopyModal(m => ({ ...m, mode: 'skip' }))} />
+                        <span><strong>Skip</strong> if they already have a Global entry <em>(recommended)</em></span>
+                      </label>
+                      <label className={copyModal.mode === 'overwrite' ? 'is-active' : ''}>
+                        <input type="radio" name="copymode" checked={copyModal.mode === 'overwrite'} onChange={() => setCopyModal(m => ({ ...m, mode: 'overwrite' }))} />
+                        <span><strong>Overwrite</strong> their existing Global picks</span>
+                      </label>
+                    </div>
+                    <p className="form-hint">Stage-locked brackets (after a stage kicks off) are skipped as ineligible. Every action is logged to <code>globalSubmitLog</code>.</p>
+                    <div className="form-actions">
+                      <button type="button" className="btn btn-secondary" onClick={() => setCopyModal(null)} disabled={copyBusy}>Cancel</button>
+                      <button type="button" className="btn btn-primary" onClick={runCopyToGlobal} disabled={copyBusy}>
+                        {copyBusy ? <><RefreshCw size={14} className="spin" /> Copying…</> : <><Trophy size={14} /> Copy {copyModal.userIds.length}</>}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="admin-copy-summary">
+                      <span className="admin-copy-stat ok"><strong>{copyResult.summary?.copied || 0}</strong> copied</span>
+                      <span className="admin-copy-stat"><strong>{copyResult.summary?.skipped || 0}</strong> skipped</span>
+                      <span className="admin-copy-stat warn"><strong>{copyResult.summary?.ineligible || 0}</strong> ineligible</span>
+                      {(copyResult.summary?.failed || 0) > 0 && <span className="admin-copy-stat err"><strong>{copyResult.summary.failed}</strong> failed</span>}
+                    </div>
+                    {Array.isArray(copyResult.results) && copyResult.results.some(r => r.outcome === 'ineligible' || r.outcome === 'error') && (
+                      <ul className="admin-copy-reasons">
+                        {copyResult.results.filter(r => r.outcome === 'ineligible' || r.outcome === 'error').slice(0, 12).map((r, i) => (
+                          <li key={i}><code>{(r.userId || '').slice(0, 8)}</code> — {r.reason || r.outcome}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="form-actions">
+                      <button type="button" className="btn btn-primary" onClick={() => { setCopyModal(null); setCopyResult(null); }}>Done</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="admin-user-rows admin-scroll">
             {filteredUsers.length === 0 && <div className="admin-empty">{users.length === 0 ? 'Loading users...' : 'No users match your search.'}</div>}

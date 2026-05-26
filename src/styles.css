@@ -3518,6 +3518,25 @@ button.invite-option:hover,
   padding: 0.05rem 0.3rem; border-radius: 4px;
   background: rgba(255,193,7,0.14); color: var(--amber, #ffb800);
 }
+.admin-segment-check { width: 26px; text-align: center; }
+
+/* Copy-to-Global modal (Segment C) */
+.admin-copy-mode { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.5rem 0 0.25rem; }
+.admin-copy-mode label {
+  display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  font-size: 0.8rem; color: var(--text-sec);
+}
+.admin-copy-mode label.is-active { border-color: var(--primary); background: var(--primary-soft); color: var(--text); }
+.admin-copy-mode input { margin-top: 0.15rem; }
+.admin-copy-summary { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.25rem 0 0.5rem; }
+.admin-copy-stat { font-size: 0.85rem; color: var(--text-sec); }
+.admin-copy-stat.ok strong { color: var(--success, #00c853); }
+.admin-copy-stat.warn strong { color: var(--amber, #ffb800); }
+.admin-copy-stat.err strong { color: var(--danger); }
+.admin-copy-reasons { margin: 0 0 0.5rem; padding-left: 1.1rem; font-size: 0.72rem; color: var(--text-sec); max-height: 180px; overflow-y: auto; }
+.admin-copy-reasons li { margin-bottom: 0.15rem; }
+.admin-copy-reasons code { font-size: 0.68rem; }
 
 /* Top-referrers strip — quick at-a-glance growth view above user list. */
 .admin-referrals-strip {
