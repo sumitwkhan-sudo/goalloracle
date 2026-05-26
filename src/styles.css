@@ -9876,6 +9876,13 @@ a.news-ticker-item:focus-visible {
   margin: 0.85rem 0 0.25rem;
   letter-spacing: 0.2px;
 }
+.hero-community-line {
+  font-size: 0.8rem;
+  color: var(--text-sec);
+  font-style: italic;
+  margin: 0 0 0.4rem;
+  opacity: 0.85;
+}
 .hero-rules-link {
   font-size: 0.78rem;
   color: var(--text-sec);
