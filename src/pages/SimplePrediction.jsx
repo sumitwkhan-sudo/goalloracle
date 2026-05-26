@@ -32,7 +32,7 @@ import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { isMatchStageLocked } from '../utils/stageLock';
+import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
 import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
@@ -162,6 +162,23 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   const [copyBanner, setCopyBanner] = useState(
     !isGlobalSimple && !hasLocalPicks ? 'prompt' : null,
   );
+
+  // Auto-submit-to-Global note. On a non-global league we tell the user
+  // that finishing here also enters them in the Global League (server
+  // does this on completion via the copy util). Suppressed once they're
+  // already complete in Global, or once the group stage has locked
+  // (a fresh completion can no longer be copied → would be misleading).
+  // null = unknown (don't flash the note before we know).
+  const [globalComplete, setGlobalComplete] = useState(null);
+  useEffect(() => {
+    if (isGlobalSimple || !userId) return;
+    let cancelled = false;
+    getSimplePrediction(userId, GLOBAL_SIMPLE_ID)
+      .then((doc) => { if (!cancelled) setGlobalComplete(doc?.isComplete === true); })
+      .catch(() => { if (!cancelled) setGlobalComplete(false); });
+    return () => { cancelled = true; };
+  }, [isGlobalSimple, userId]);
+  const showAutoSubmitNote = !isGlobalSimple && globalComplete === false && !isStageLocked('groupStage');
 
   // Freeze the initial snapshot for hydration. Further snapshots don't
   // re-hydrate — local state is the source of truth after mount.
@@ -744,6 +761,13 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             </div>
             <p>Pick the winner of each match. The bracket fills forward as you go.</p>
           </div>
+
+          {showAutoSubmitNote && (
+            <div className="simple-autosubmit-note" role="note">
+              <Sparkles size={14} aria-hidden="true" />
+              <span>We&rsquo;ll also submit these predictions to the <strong>Global League</strong>. You can edit or reset your global picks anytime from your dashboard.</span>
+            </div>
+          )}
 
           {/* Top nav mirror — the bracket is tall on desktop, so the user
               shouldn't have to scroll all the way down to find the
