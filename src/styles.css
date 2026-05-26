@@ -3420,7 +3420,12 @@ button.invite-option:hover,
 .admin-user-rows {
   display: flex; flex-direction: column;
   border: 1px solid var(--border); border-radius: 10px;
-  overflow: hidden;
+  /* overflow-x only — this element also carries .admin-scroll
+     (max-height + overflow-y: auto). A shorthand `overflow: hidden`
+     here would override that and freeze the list (it can't scroll),
+     so scope the clip to the horizontal axis and leave overflow-y to
+     .admin-scroll. */
+  overflow-x: hidden;
 }
 .admin-user-row {
   display: flex; flex-direction: column; gap: 0.15rem;
