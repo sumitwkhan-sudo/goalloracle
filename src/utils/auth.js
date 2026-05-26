@@ -95,6 +95,37 @@ function clientLog(tag, data) {
   } catch {}
 }
 
+// signInWithCustomToken occasionally fails with auth/network-request-failed
+// on flaky mobile networks and on Safari configs where the first attempt
+// races storage init. We hold the freshly-minted custom token (a failed
+// sign-in does NOT consume it, unlike the one-time email code), so retrying
+// is safe and never re-hits /api/auth/*. Retries ONLY on the network error
+// code; any other failure throws immediately. Logs each failure so we can
+// see real device/browser data for mobile users without DevTools.
+async function signInWithCustomTokenRetry(token, step) {
+  const MAX_ATTEMPTS = 3;
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await signInWithCustomToken(auth, token);
+    } catch (err) {
+      lastErr = err;
+      const retriable = err?.code === 'auth/network-request-failed';
+      clientLog('auth.customtoken.error', {
+        step,
+        attempt,
+        code: err?.code || null,
+        message: err?.message || null,
+        ua: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        retriable,
+      });
+      if (!retriable || attempt === MAX_ATTEMPTS) throw err;
+      await new Promise((r) => setTimeout(r, attempt * 600));
+    }
+  }
+  throw lastErr;
+}
+
 export async function requestEmailCode(email) {
   return postJSON('/api/auth/request-code', { email });
 }
@@ -104,7 +135,7 @@ export async function verifyEmailCode(email, code) {
   const { firebaseToken } = await postJSON('/api/auth/verify-code', { email, code, deviceFingerprint });
   // Stash before the swap so onAuthStateChanged can backfill the user doc.
   setPendingEmail(email);
-  await signInWithCustomToken(auth, firebaseToken);
+  await signInWithCustomTokenRetry(firebaseToken, 'email');
   return auth.currentUser;
 }
 
@@ -126,7 +157,7 @@ export async function exchangeGoogleCredential(googleIdToken) {
   });
   console.log('[auth] exchangeGoogleCredential: server returned firebaseToken; signing in');
   setPendingEmail(serverEmail);
-  await signInWithCustomToken(auth, firebaseToken);
+  await signInWithCustomTokenRetry(firebaseToken, 'google');
   clientLog('auth.gis.exchange-complete', { uid: auth.currentUser?.uid || null });
   console.log('[auth] exchangeGoogleCredential: done. uid=', auth.currentUser?.uid);
   return auth.currentUser;

@@ -29,7 +29,15 @@ export default function LoginScreen({ onClose, onSignedIn, recoveryNotice }) {
       setStep('blocked');
       return;
     }
-    setErr(e?.message || 'Sign-in failed');
+    const msg = e?.message || '';
+    if (
+      e?.code === 'auth/network-request-failed' ||
+      /failed to fetch|load failed|networkerror|network connection was lost/i.test(msg)
+    ) {
+      setErr('Network hiccup reaching sign-in. Check your connection and try again.');
+      return;
+    }
+    setErr(msg || 'Sign-in failed');
   };
 
   useEffect(() => {

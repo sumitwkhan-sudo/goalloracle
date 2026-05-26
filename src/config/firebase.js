@@ -1,6 +1,13 @@
 import { initializeApp } from 'firebase/app';
 import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import {
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  inMemoryPersistence,
+  browserPopupRedirectResolver,
+  GoogleAuthProvider,
+} from 'firebase/auth';
 
 // authDomain MUST be auth.goaloracle.io — our Firebase-Hosting custom
 // subdomain. It shares the registrable domain (goaloracle.io) with the
@@ -50,5 +57,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 // Use memory cache instead of IndexedDB — avoids Safari ITP blocking
 export const db = initializeFirestore(app, { localCache: memoryLocalCache() });
-export const auth = getAuth(app);
+// Auth persistence falls back IndexedDB -> localStorage -> in-memory.
+// Safari Private Browsing / ITP / Lockdown Mode can make IndexedDB (and
+// sometimes localStorage) throw on access, and getAuth()'s default
+// resolution can then fail custom-token sign-in. The explicit chain
+// degrades gracefully instead — same reasoning as memoryLocalCache() for
+// Firestore above. Chrome/desktop keep IndexedDB (first entry) unchanged.
+export const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence],
+  popupRedirectResolver: browserPopupRedirectResolver,
+});
 export const googleProvider = new GoogleAuthProvider();
