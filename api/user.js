@@ -184,6 +184,7 @@ export default async function handler(req, res) {
       const initPayload = {
         id: userId,
         updatedAt: FieldValue.serverTimestamp(),
+        lastLoginAt: FieldValue.serverTimestamp(),
         role: existingData?.role || 'user',
         leagues: existingData?.leagues?.length ? existingData.leagues : ['global', 'global-simple'],
         email: preservedEmail,
@@ -240,7 +241,7 @@ export default async function handler(req, res) {
     } else {
       // Existing user — sync updates
       console.log(`[user] EXISTING: ${userId}, role=${existingData.role}, name=${existingData.displayName}`);
-      const updates = { updatedAt: FieldValue.serverTimestamp() };
+      const updates = { updatedAt: FieldValue.serverTimestamp(), lastLoginAt: FieldValue.serverTimestamp() };
       if (email) {
         updates.email = email;
         updates.emailDedupeKey = normalizeEmail(email);

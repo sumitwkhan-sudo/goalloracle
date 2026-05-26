@@ -711,6 +711,14 @@ export async function getAllUsers() {
   return data.users;
 }
 
+// Read-only user segmentation for the superadmin panel. Returns
+// { generatedAt, segments: { A, B, C } } where each segment is
+// { count, users: [...] }. Heavier full-collection scan server-side,
+// so the admin UI calls this lazily on demand.
+export async function adminGetUserSegments() {
+  return await apiCall('admin?type=segments');
+}
+
 export async function adminDeleteLeague(leagueId) {
   await apiCall('admin', 'POST', { action: 'deleteLeague', leagueId });
 }
