@@ -719,6 +719,13 @@ export async function adminGetUserSegments() {
   return await apiCall('admin?type=segments');
 }
 
+// Superadmin: copy each user's completed private Quick Picks bracket
+// into the Global League. Server resolves each user's source league.
+// mode: 'skip' (default) | 'overwrite'. Returns { summary, results }.
+export async function adminCopyUsersToGlobal(userIds, mode = 'skip') {
+  return await apiCall('admin', 'POST', { action: 'copyUsersToGlobal', userIds, mode });
+}
+
 export async function adminDeleteLeague(leagueId) {
   await apiCall('admin', 'POST', { action: 'deleteLeague', leagueId });
 }
