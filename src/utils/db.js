@@ -656,6 +656,13 @@ export async function fetchAdminOutreachRecentRuns(limit = 20) {
   };
 }
 
+// Admin copy-to-Global audit trail. Rows carry resolved actor/user/league
+// names alongside the raw IDs (see api/admin.js type=globalSubmitLog).
+export async function fetchAdminGlobalSubmitLog(limit = 50) {
+  const data = await apiCall(`admin?type=globalSubmitLog&limit=${limit}`);
+  return { rows: data?.rows || [] };
+}
+
 // Admin outreach — schedule a send for later. Validated server-side
 // (must be in the future, max 1000 recipients per send, template must
 // exist). Drained by the /api/cron/outreach-drain cron every 5 min.

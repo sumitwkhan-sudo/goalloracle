@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -90,6 +90,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // the "Send now" path; non-empty = schedule for that time.
   const [outreachScheduleAt, setOutreachScheduleAt] = useState('');
   const [outreachScheduleBusy, setOutreachScheduleBusy] = useState(false);
+  // Copy-to-Global audit log (superadmin tab). null = not yet fetched.
+  const [globalLog, setGlobalLog] = useState(null);
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -334,6 +336,22 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     setOutreachSentThisSession(new Set());
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [tab, outreachTemplate]);
+
+  // Copy-to-Global audit log — loaded on tab open + manual refresh.
+  const reloadGlobalSubmitLog = async () => {
+    try {
+      const { rows } = await fetchAdminGlobalSubmitLog(50);
+      setGlobalLog(rows);
+    } catch (e) {
+      console.warn('[admin] globalSubmitLog fetch failed:', e?.message || e);
+      setGlobalLog([]);
+    }
+  };
+  useEffect(() => {
+    if (tab !== 'globalLog') return;
+    reloadGlobalSubmitLog();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tab]);
 
   const handleSendPreview = async () => {
     const to = (outreachPreviewEmail || '').trim();
@@ -892,6 +910,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     { id: 'outreach', icon: '✉️', label: 'Outreach' },
     { id: 'oracle', icon: '🔮', label: 'Oracle Status' },
     { id: 'contract', icon: '📜', label: 'Smart Contract' },
+    ...(isSuperadmin ? [{ id: 'globalLog', icon: '🔁', label: 'Global Submits' }] : []),
     { id: 'settings', icon: '⚙️', label: 'Settings' },
   ];
 
@@ -2249,6 +2268,73 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           </div>
         </div>
       )}
+
+      {/* ═══════ TAB: GLOBAL SUBMITS (copy-to-Global audit) ═══════ */}
+      {tab === 'globalLog' && (() => {
+        const outcomeColor = {
+          created: 'var(--lime)',
+          overwritten: 'var(--cyan)',
+          skipped_existing: 'var(--text-sec)',
+          ineligible: 'var(--amber)',
+          error: '#ef4444',
+        };
+        return (
+        <div className="admin-panel">
+          <div className="admin-outreach-runs">
+            <div className="admin-outreach-runs-head">
+              <h3>Copy-to-Global audit</h3>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={reloadGlobalSubmitLog}>
+                <RefreshCw size={11} /> Refresh
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Every copy of a private bracket into the Global Quick Picks league — superadmin actions and the <code>system:auto-submit</code> on private-league completion. Newest 50.
+            </p>
+
+            {globalLog === null && <div className="admin-empty">Loading audit log…</div>}
+            {globalLog?.length === 0 && <div className="admin-empty">No copy-to-Global activity yet.</div>}
+            {globalLog && globalLog.length > 0 && (
+              <table className="admin-outreach-runs-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Actor</th>
+                    <th>User</th>
+                    <th>Source league</th>
+                    <th>Mode</th>
+                    <th>Outcome</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {globalLog.map((r) => (
+                    <tr key={r.id}>
+                      <td title={r.timestampMs ? new Date(r.timestampMs).toString() : ''}>
+                        {r.timestampMs ? new Date(r.timestampMs).toLocaleString() : '—'}
+                      </td>
+                      <td>
+                        {r.actor === 'system:auto-submit'
+                          ? <em>auto-submit</em>
+                          : (r.actorName || r.actor || '—')}
+                      </td>
+                      <td title={r.userId || ''}>{r.userName || r.userId || '—'}</td>
+                      <td title={r.sourceLeagueId || ''}>{r.sourceLeagueName || r.sourceLeagueId || '—'}</td>
+                      <td>{r.mode || '—'}</td>
+                      <td>
+                        <span style={{ color: outcomeColor[r.outcome] || 'var(--text-sec)', fontWeight: 600 }}>
+                          {r.outcome || '—'}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--text-sec)' }}>{r.reason || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+        );
+      })()}
 
       {/* ═══════ TAB: SETTINGS ═══════ */}
       {tab === 'settings' && (

@@ -200,6 +200,77 @@ export default async function handler(req, res) {
         }
 
         return res.status(200).json({ runs, templateStats });
+      } else if (type === 'globalSubmitLog') {
+        // Copy-to-Global audit trail (rows written by writeAudit in
+        // api/_lib/copyToGlobal.js). Resolves actor + target user IDs to
+        // display names and league IDs to names server-side so the admin
+        // table is human-readable. Newest first.
+        const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 200);
+        const snap = await db.collection('globalSubmitLog')
+          .orderBy('timestamp', 'desc')
+          .limit(limit)
+          .get();
+        const rows = snap.docs.map(d => {
+          const data = d.data();
+          const ts = data.timestamp;
+          return {
+            id: d.id,
+            actor: data.actor || null,
+            userId: data.userId || null,
+            sourceLeagueId: data.sourceLeagueId || null,
+            targetLeagueId: data.targetLeagueId || null,
+            mode: data.mode || null,
+            outcome: data.outcome || null,
+            reason: data.reason || null,
+            lockedSections: data.lockedSections || null,
+            timestampMs: ts?._seconds ? ts._seconds * 1000 : (ts?.toMillis?.() || null),
+          };
+        });
+
+        // Resolve user display names for actor + target user. Skip the
+        // literal system actor and unknowns. Capped at 200 rows -> <=400
+        // refs, well under the getAll 1000 limit, so a single round trip.
+        const userIdSet = new Set();
+        for (const r of rows) {
+          if (r.userId) userIdSet.add(r.userId);
+          if (r.actor && r.actor !== 'system:auto-submit' && r.actor !== 'unknown') userIdSet.add(r.actor);
+        }
+        const userNames = {};
+        const userIds = Array.from(userIdSet);
+        if (userIds.length > 0) {
+          const userSnaps = await db.getAll(...userIds.map(id => db.collection('users').doc(id)));
+          for (const s of userSnaps) {
+            if (s.exists) {
+              const u = s.data();
+              userNames[s.id] = u.displayName || u.username || u.email || null;
+            }
+          }
+        }
+
+        // Resolve league names (source + target).
+        const leagueIdSet = new Set();
+        for (const r of rows) {
+          if (r.sourceLeagueId) leagueIdSet.add(r.sourceLeagueId);
+          if (r.targetLeagueId) leagueIdSet.add(r.targetLeagueId);
+        }
+        const leagueNames = {};
+        const leagueIds = Array.from(leagueIdSet);
+        if (leagueIds.length > 0) {
+          const leagueSnaps = await db.getAll(...leagueIds.map(id => db.collection('leagues').doc(id)));
+          for (const s of leagueSnaps) {
+            if (s.exists) leagueNames[s.id] = s.data().name || null;
+          }
+        }
+
+        const enriched = rows.map(r => ({
+          ...r,
+          actorName: r.actor === 'system:auto-submit' ? null : (userNames[r.actor] || null),
+          userName: userNames[r.userId] || null,
+          sourceLeagueName: leagueNames[r.sourceLeagueId] || null,
+          targetLeagueName: leagueNames[r.targetLeagueId] || null,
+        }));
+
+        return res.status(200).json({ rows: enriched });
       } else if (type === 'segments') {
         // ── User segmentation (read-only, Quick Picks only) ──────────
         // Scans users + every simplePredictions doc and buckets users:
