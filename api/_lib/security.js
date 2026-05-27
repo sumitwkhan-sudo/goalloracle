@@ -238,9 +238,10 @@ export function normalizeBypassEmail(email) {
 // whose phone happens to hash to an ID already in use by a stranger, with
 // no way forward (the block fires on first signup). Tolerate a small
 // cluster — fingerprint collisions plus genuinely shared family devices —
-// while still stopping one device from farming many accounts. Tune via
-// the admin anti-sybil tools if abuse appears.
-const MAX_ACCOUNTS_PER_FINGERPRINT = 3;
+// while still stopping one device from farming many accounts. Allow up to
+// two — enough to absorb a single fingerprint collision (or one genuinely
+// shared device) — and tune via the admin anti-sybil tools if abuse appears.
+const MAX_ACCOUNTS_PER_FINGERPRINT = 2;
 
 export function isValidVisitorId(v) {
   return typeof v === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(v);
@@ -276,9 +277,9 @@ export async function recordFingerprintForUser(db, visitorId, userId, ip) {
 // networks (family, dorm, office) put many unrelated, legitimate users
 // behind a single public IP, so a permanent limit of 1 wrongly blocks them
 // — especially on mobile, where one carrier IP fronts thousands of phones.
-// Tolerate a small cluster here; bursty farming is still caught by the 24-h
+// Allow up to two here; bursty farming is still caught by the 24-h
 // sliding-window rate limit in checkAndRecordSignupForIp above.
-const MAX_ACCOUNTS_PER_IP = 3;
+const MAX_ACCOUNTS_PER_IP = 2;
 
 export async function checkIpAllowsNewAccount(db, ip) {
   if (!ip) return { allowed: true, count: 0, reason: 'no-ip' };
