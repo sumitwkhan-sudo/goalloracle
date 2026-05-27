@@ -230,10 +230,17 @@ export function normalizeBypassEmail(email) {
 
 // ────────────────────────── DEVICE FINGERPRINT ──────────────────────────
 
-// One account per device fingerprint. Bumped from 2 → 1 to stop the same
-// browser from creating multiple accounts. Users hitting the wall are shown
-// the masked email of the existing account and pointed at SUPPORT_EMAIL.
-const MAX_ACCOUNTS_PER_FINGERPRINT = 1;
+// Max accounts that may share one device fingerprint. The client uses
+// open-source FingerprintJS, which COLLIDES across same-model devices
+// (many identical iPhones hash to the same visitor ID) and drifts under
+// Safari ITP — its own loader comment only claims ~70-80% stability. A
+// hard limit of 1 therefore falsely blocks legitimate brand-new users
+// whose phone happens to hash to an ID already in use by a stranger, with
+// no way forward (the block fires on first signup). Tolerate a small
+// cluster — fingerprint collisions plus genuinely shared family devices —
+// while still stopping one device from farming many accounts. Tune via
+// the admin anti-sybil tools if abuse appears.
+const MAX_ACCOUNTS_PER_FINGERPRINT = 3;
 
 export function isValidVisitorId(v) {
   return typeof v === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(v);
@@ -264,10 +271,14 @@ export async function recordFingerprintForUser(db, visitorId, userId, ip) {
 
 // ────────────────────────── PER-IP UNIQUE ACCOUNT ──────────────────────────
 
-// One account per IP. This is stricter than the 24-h sliding window above —
-// it persists forever. Shared-NAT users (family, dorm, office) hitting this
-// wall must email SUPPORT_EMAIL for an override.
-const MAX_ACCOUNTS_PER_IP = 1;
+// Max accounts that may ever sign up from one IP — persists forever, so it
+// is the strictest of the IP controls. Mobile carriers (CGNAT) and shared
+// networks (family, dorm, office) put many unrelated, legitimate users
+// behind a single public IP, so a permanent limit of 1 wrongly blocks them
+// — especially on mobile, where one carrier IP fronts thousands of phones.
+// Tolerate a small cluster here; bursty farming is still caught by the 24-h
+// sliding-window rate limit in checkAndRecordSignupForIp above.
+const MAX_ACCOUNTS_PER_IP = 3;
 
 export async function checkIpAllowsNewAccount(db, ip) {
   if (!ip) return { allowed: true, count: 0, reason: 'no-ip' };
