@@ -5030,7 +5030,6 @@ const GoalOracle = () => {
         {authenticated && <>
           <a className="nav-link" onClick={() => nav('dashboard')}><Trophy size={14} /><span>Dashboard</span></a>
           <a className="nav-link" onClick={() => nav('leagues')}><Users size={14} /><span>My Leagues</span></a>
-          <a className="nav-link" onClick={() => nav('browse')}><Search size={14} /><span>Browse leagues</span></a>
           <a className="nav-link" onClick={() => { setBrowseFocusJoin(true); nav('browse'); }}><Key size={14} /><span>Join a league</span></a>
           {(role === 'superadmin' || role === 'admin') && <a className="nav-link" onClick={() => nav('admin')}><Shield size={14} /><span>Admin</span></a>}
         </>}
