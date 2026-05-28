@@ -663,6 +663,14 @@ export async function fetchAdminGlobalSubmitLog(limit = 50) {
   return { rows: data?.rows || [] };
 }
 
+// Per-user Quick Picks prediction-status map { userId -> {globalComplete,
+// completeAny, startedAny, privateCompleteCount, ...} } for the admin Users
+// table. See api/admin.js type=usersQpStatus.
+export async function fetchAdminUsersQpStatus() {
+  const data = await apiCall('admin?type=usersQpStatus');
+  return data?.status || {};
+}
+
 // Admin outreach — schedule a send for later. Validated server-side
 // (must be in the future, max 1000 recipients per send, template must
 // exist). Drained by the /api/cron/outreach-drain cron every 5 min.

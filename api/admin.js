@@ -271,6 +271,56 @@ export default async function handler(req, res) {
         }));
 
         return res.status(200).json({ rows: enriched });
+      } else if (type === 'usersQpStatus') {
+        // Per-user Quick Picks prediction-status rollup for the admin Users
+        // table. Same simplePredictions scan as type=segments; returned as a
+        // { userId -> status } map so the client overlays it on the existing
+        // user list (leagues + geo already ride on the raw user doc). Lazy-
+        // loaded on tab open. Full-collection scan — fine at current scale.
+        const [qpPredsSnap, qpLeaguesSnap] = await Promise.all([
+          db.collection('simplePredictions').get(),
+          db.collection('leagues').get(),
+        ]);
+        const qpTsMs = (t) => (t?._seconds ? t._seconds * 1000 : (typeof t?.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null)));
+        const qpLeagueVis = {};
+        qpLeaguesSnap.docs.forEach(d => { qpLeagueVis[d.id] = d.data()?.visibility || 'public'; });
+        const qpHasAnyPicks = (d) => {
+          const g = d.groupPredictions || {};
+          if (Object.values(g).some(v => Array.isArray(v?.ranking) && v.ranking.filter(Boolean).length > 0)) return true;
+          if (Array.isArray(d.bestThirdPicks) && d.bestThirdPicks.length > 0) return true;
+          const ko = d.knockoutPredictions || {};
+          if (Object.values(ko).some(a => Array.isArray(a) && a.length > 0)) return true;
+          return false;
+        };
+        const status = {};
+        const ensureQp = (uid) => (status[uid] || (status[uid] = {
+          startedAny: false, completeAny: false, globalHasPicks: false,
+          globalComplete: false, privateCompleteCount: 0, lastActivityMs: null,
+        }));
+        qpPredsSnap.docs.forEach(doc => {
+          const id = doc.id;
+          const data = doc.data();
+          let userId, leagueId;
+          const sepIdx = id.indexOf('__');
+          if (sepIdx >= 0) { userId = id.slice(0, sepIdx); leagueId = id.slice(sepIdx + 2); }
+          else { userId = id; leagueId = 'global-simple'; }
+          userId = data.userId || userId;
+          leagueId = data.leagueId || leagueId;
+          const a = ensureQp(userId);
+          const picks = qpHasAnyPicks(data);
+          const complete = data.isComplete === true;
+          if (picks) a.startedAny = true;
+          if (complete) a.completeAny = true;
+          const actMs = qpTsMs(data.updatedAt) || qpTsMs(data.submittedAt);
+          if (actMs && (!a.lastActivityMs || actMs > a.lastActivityMs)) a.lastActivityMs = actMs;
+          if (leagueId === 'global-simple') {
+            if (picks) a.globalHasPicks = true;
+            if (complete) a.globalComplete = true;
+          } else if (leagueId !== 'global') {
+            if (complete && qpLeagueVis[leagueId] === 'private') a.privateCompleteCount += 1;
+          }
+        });
+        return res.status(200).json({ status });
       } else if (type === 'segments') {
         // ── User segmentation (read-only, Quick Picks only) ──────────
         // Scans users + every simplePredictions doc and buckets users:

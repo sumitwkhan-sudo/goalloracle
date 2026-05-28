@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -96,6 +96,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  // Quick Picks status map (userId -> rollup) + column sort for the Users table.
+  const [qpStatusById, setQpStatusById] = useState({});
+  const [userSort, setUserSort] = useState({ key: 'joined', dir: 'desc' });
   const [matchFilter, setMatchFilter] = useState('pending'); // pending | verified | all
   const [deleting, setDeleting] = useState(null);
   const [editingLeagueId, setEditingLeagueId] = useState(null);
@@ -673,7 +676,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   };
 
   useEffect(() => {
-    if (tab === 'users') getAllUsers().then(setUsers).catch(e => { console.error(e); notify('Failed to load users', 'error'); });
+    if (tab === 'users') {
+      getAllUsers().then(setUsers).catch(e => { console.error(e); notify('Failed to load users', 'error'); });
+      fetchAdminUsersQpStatus().then(setQpStatusById).catch(e => { console.warn('[admin] QP status load failed:', e?.message || e); });
+    }
     if (tab === 'oracle' && !health && !healthLoading) runHealthCheck();
   }, [tab]);
 
@@ -901,7 +907,42 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     if (!userSearch) return true;
     const s = userSearch.toLowerCase();
     return (u.displayName || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || u.id.toLowerCase().includes(s);
-  }).sort((a, b) => _joinMillis(b) - _joinMillis(a));
+  });
+
+  // Quick Picks status rollup → label/tone/rank for a user (from qpStatusById).
+  const _qpInfo = (uid) => {
+    const q = qpStatusById[uid];
+    if (!q) return { label: 'None', tone: 'none', rank: 0 };
+    if (q.globalComplete) return { label: q.privateCompleteCount > 0 ? `Global ✓ · ${q.privateCompleteCount} priv` : 'Global ✓', tone: 'ok', rank: 4 };
+    if (q.completeAny) return { label: q.privateCompleteCount > 0 ? `${q.privateCompleteCount} priv ✓` : 'Complete', tone: 'ok', rank: 3 };
+    if (q.startedAny || q.globalHasPicks) return { label: 'In progress', tone: 'warn', rank: 2 };
+    return { label: 'None', tone: 'none', rank: 0 };
+  };
+  // Coarse, IP-derived location captured at login (geo* fields); falls back to
+  // the legacy manually-backfilled country. Blank until the user next logs in.
+  const _locText = (u) => [u.geoCity, u.geoRegion, u.geoCountry || u.country].filter(Boolean).join(', ');
+
+  // Column sort over the filtered users.
+  const _userSortVal = (u, key) => {
+    switch (key) {
+      case 'name': return (u.displayName || u.id || '').toLowerCase();
+      case 'email': return (u.email || '').toLowerCase();
+      case 'location': return (u.geoCountry || u.country || '').toLowerCase();
+      case 'leagues': return Array.isArray(u.leagues) ? u.leagues.length : 0;
+      case 'status': return _qpInfo(u.id).rank;
+      case 'role': return u.role || 'user';
+      case 'joined':
+      default: return _joinMillis(u);
+    }
+  };
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    const va = _userSortVal(a, userSort.key), vb = _userSortVal(b, userSort.key);
+    const cmp = (typeof va === 'number' && typeof vb === 'number') ? va - vb : String(va).localeCompare(String(vb));
+    return userSort.dir === 'asc' ? cmp : -cmp;
+  });
+  const toggleUserSort = (key) => setUserSort(s => s.key === key
+    ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+    : { key, dir: key === 'joined' ? 'desc' : 'asc' });
 
   const tabs = [
     { id: 'results', icon: '⚽', label: 'Match Results', count: `${verifiedCount}/${totalMatches}` },
@@ -1260,107 +1301,109 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             </div>
           )}
 
-          <div className="admin-user-rows admin-scroll">
-            {filteredUsers.length === 0 && <div className="admin-empty">{users.length === 0 ? 'Loading users...' : 'No users match your search.'}</div>}
-            {filteredUsers.map(u => {
-              const referrals = referralCountById[u.id] || 0;
-              const referrer = u.referredBy ? userById[u.referredBy] : null;
-              const joined = Array.isArray(u.leagues) ? u.leagues : [];
-              const leagueNames = joined.map(_leagueLabel);
-              return (
-              <div key={u.id} className="admin-user-row">
-                {/* Head line: identity on the left; join date + role + delete on the right */}
-                <div className="admin-user-row-head">
-                  <span className="admin-user-row-name">
-                    {u.country && <span className="admin-user-flag" title={u.country}>{_countryFlagFromCode(u.country)}</span>}
-                    <span className="admin-user-row-handle">{u.displayName || u.id.slice(0, 12)}</span>
-                    {!u.email && <span className="admin-user-noemail" title="No email on file — user can't be reached for reminders">no email</span>}
-                    {!u.country && <span className="admin-user-noemail" title="No country on file">no country</span>}
-                  </span>
-                  <span className="admin-user-row-controls">
-                    <span className="admin-user-row-joined" title="Join date"><Clock size={10} /> {_joinLabel(u)}</span>
-                    {referrals > 0 && (
-                      <span className="admin-user-ref-pill" title={`${referrals} new sign-up${referrals === 1 ? '' : 's'} attributed to this user`}>
-                        <strong>{referrals}</strong> inv
-                      </span>
-                    )}
-                    <select className="admin-select admin-select-xs" value={u.role || 'user'} onChange={e => handleRoleChange(u.id, e.target.value)}>
-                      <option value="user">user</option>
-                      <option value="admin">admin</option>
-                      <option value="superadmin">superadmin</option>
-                    </select>
-                    {/* Permanent delete — hidden for self + other superadmins. */}
-                    {u.id !== userData.id && (u.role || 'user') !== 'superadmin' && (
-                      <button
-                        type="button"
-                        className="admin-user-del"
-                        title="Permanently delete this user (no undo)"
-                        onClick={() => handleDeleteUser(u)}
-                        disabled={deletingUserId === u.id}
-                      >
-                        {deletingUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />}
-                      </button>
-                    )}
-                  </span>
-                </div>
-
-                {/* Email line */}
-                <div className="admin-user-row-email">{u.email || `${u.id.slice(0, 24)}…`}</div>
-
-                {/* Meta line: wallet · leagues · referrer */}
-                <div className="admin-user-row-meta">
-                  {editingWalletUserId === u.id ? (
-                    <span className="admin-wallet-edit-row">
-                      <input
-                        type="text"
-                        className="input-field admin-wallet-input"
-                        value={editingWalletValue}
-                        onChange={(e) => setEditingWalletValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveWalletAssignment(u);
-                          else if (e.key === 'Escape') cancelWalletEdit();
-                        }}
-                        placeholder="0x... (blank to clear)"
-                        maxLength={42}
-                        autoFocus
-                        disabled={savingWalletUserId === u.id}
-                        spellCheck={false}
-                      />
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => saveWalletAssignment(u)} disabled={savingWalletUserId === u.id} title="Save">
-                        {savingWalletUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Check size={14} />}
-                      </button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={cancelWalletEdit} disabled={savingWalletUserId === u.id} title="Cancel">
-                        <X size={14} />
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="admin-user-meta-item">
-                      <Wallet size={11} style={{opacity:0.6}} />
-                      {u.walletAddress ? (
-                        <code className="admin-wallet-addr">{u.walletAddress.slice(0, 6)}…{u.walletAddress.slice(-4)}</code>
-                      ) : (
-                        <span className="admin-wallet-empty">no wallet</span>
-                      )}
-                      <button type="button" className="admin-wallet-edit-btn" onClick={() => startWalletEdit(u)} title="Assign payout wallet">
-                        <Pencil size={10} />
-                      </button>
-                    </span>
-                  )}
-                  <span className="admin-user-meta-item admin-user-leagues" title={leagueNames.length ? leagueNames.join(', ') : 'No leagues joined'}>
-                    <Trophy size={11} style={{opacity:0.6}} />
-                    {joined.length === 0
-                      ? <span className="admin-wallet-empty">no leagues</span>
-                      : <>{joined.length}<span className="admin-user-leagues-names">{leagueNames.slice(0, 2).join(', ')}{joined.length > 2 ? ` +${joined.length - 2}` : ''}</span></>}
-                  </span>
-                  {u.referredBy && (
-                    <span className="admin-user-meta-item admin-user-via" title={`referredBy: ${u.referredBy}`}>
-                      via {referrer?.displayName || `${u.referredBy.slice(0, 8)}…`}
-                    </span>
-                  )}
-                </div>
-              </div>
-              );
-            })}
+          <div className="admin-user-table-wrap admin-scroll">
+            {sortedUsers.length === 0 ? (
+              <div className="admin-empty">{users.length === 0 ? 'Loading users...' : 'No users match your search.'}</div>
+            ) : (
+            <table className="admin-segment-table admin-user-table">
+              <thead>
+                <tr>
+                  {[['name', 'User'], ['email', 'Email'], ['location', 'Location'], ['leagues', 'Leagues'], ['status', 'QP status'], ['joined', 'Joined'], ['role', 'Role']].map(([key, label]) => (
+                    <th
+                      key={key}
+                      className="admin-sortable"
+                      aria-sort={userSort.key === key ? (userSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      onClick={() => toggleUserSort(key)}
+                    >
+                      {label}{userSort.key === key ? (userSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                  ))}
+                  <th>Wallet</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedUsers.map(u => {
+                  const referrals = referralCountById[u.id] || 0;
+                  const referrer = u.referredBy ? userById[u.referredBy] : null;
+                  const joined = Array.isArray(u.leagues) ? u.leagues : [];
+                  const leagueNames = joined.map(_leagueLabel);
+                  const qp = _qpInfo(u.id);
+                  const loc = _locText(u);
+                  const flagCode = u.geoCountry || u.country;
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        <span className="admin-user-cell-name">
+                          {flagCode && <span className="admin-user-flag" title={flagCode}>{_countryFlagFromCode(flagCode)}</span>}
+                          <span className="admin-user-row-handle">{u.displayName || u.id.slice(0, 12)}</span>
+                          {referrals > 0 && <span className="admin-user-ref-pill" title={`${referrals} sign-up${referrals === 1 ? '' : 's'} attributed`}><strong>{referrals}</strong> inv</span>}
+                        </span>
+                        {u.referredBy && <span className="admin-user-via" title={`referredBy: ${u.referredBy}`}>via {referrer?.displayName || `${u.referredBy.slice(0, 8)}…`}</span>}
+                      </td>
+                      <td className="admin-segment-email">{u.email || <span className="admin-wallet-empty">no email</span>}</td>
+                      <td title={loc || 'No location yet (fills in on next login)'}>{loc || <span className="admin-wallet-empty">—</span>}</td>
+                      <td title={leagueNames.length ? leagueNames.join(', ') : 'No leagues joined'}>
+                        {joined.length === 0
+                          ? <span className="admin-wallet-empty">none</span>
+                          : <><strong>{joined.length}</strong> <span className="admin-user-leagues-names">{leagueNames.slice(0, 2).join(', ')}{joined.length > 2 ? ` +${joined.length - 2}` : ''}</span></>}
+                      </td>
+                      <td><span className={`admin-qp-pill admin-qp-${qp.tone}`}>{qp.label}</span></td>
+                      <td className="admin-user-joined-cell" title="Join date">{_joinLabel(u)}</td>
+                      <td>
+                        <select className="admin-select admin-select-xs" value={u.role || 'user'} onChange={e => handleRoleChange(u.id, e.target.value)}>
+                          <option value="user">user</option>
+                          <option value="admin">admin</option>
+                          <option value="superadmin">superadmin</option>
+                        </select>
+                      </td>
+                      <td>
+                        {editingWalletUserId === u.id ? (
+                          <span className="admin-wallet-edit-row">
+                            <input
+                              type="text"
+                              className="input-field admin-wallet-input"
+                              value={editingWalletValue}
+                              onChange={(e) => setEditingWalletValue(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') saveWalletAssignment(u); else if (e.key === 'Escape') cancelWalletEdit(); }}
+                              placeholder="0x... (blank to clear)"
+                              maxLength={42}
+                              autoFocus
+                              disabled={savingWalletUserId === u.id}
+                              spellCheck={false}
+                            />
+                            <button type="button" className="btn btn-primary btn-sm" onClick={() => saveWalletAssignment(u)} disabled={savingWalletUserId === u.id} title="Save">
+                              {savingWalletUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Check size={14} />}
+                            </button>
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={cancelWalletEdit} disabled={savingWalletUserId === u.id} title="Cancel">
+                              <X size={14} />
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="admin-user-meta-item">
+                            <Wallet size={11} style={{ opacity: 0.6 }} />
+                            {u.walletAddress
+                              ? <code className="admin-wallet-addr">{u.walletAddress.slice(0, 6)}…{u.walletAddress.slice(-4)}</code>
+                              : <span className="admin-wallet-empty">none</span>}
+                            <button type="button" className="admin-wallet-edit-btn" onClick={() => startWalletEdit(u)} title="Assign payout wallet">
+                              <Pencil size={10} />
+                            </button>
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {u.id !== userData.id && (u.role || 'user') !== 'superadmin' && (
+                          <button type="button" className="admin-user-del" title="Permanently delete this user (no undo)" onClick={() => handleDeleteUser(u)} disabled={deletingUserId === u.id}>
+                            {deletingUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            )}
           </div>
         </div>
       )}

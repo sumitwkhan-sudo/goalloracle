@@ -17,7 +17,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, lookupLeagueByPasscode, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, lookupLeagueByPasscode, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, fetchAdminLeaguesEnriched, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -1324,6 +1324,9 @@ const GoalOracle = () => {
   // anything by accident.
   const [featureFlags, setFeatureFlags] = useState(DEFAULT_FEATURE_FLAGS);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Set by the "Join a league" nav link so Browse scrolls to + focuses the
+  // passcode input on arrival; Browse clears it after consuming.
+  const [browseFocusJoin, setBrowseFocusJoin] = useState(false);
   const [theme, setTheme] = useState('light');
   const [confetti, setConfetti] = useState(false);
   // Reusable celebration trigger. Re-firing while a burst is mid-flight
@@ -3062,6 +3065,24 @@ const GoalOracle = () => {
     const personalCount = personalLeagues.length;
     const isHeroState = personalCount === 0 && globalLeagues.length > 0;
 
+    // Superadmin oversight: every private league in the system the user is
+    // NOT already a member of. Uses the admin-gated enriched-leagues endpoint
+    // (returns all leagues + creator names); lazy-loaded once for superadmins.
+    const [allPrivate, setAllPrivate] = useState(null);
+    useEffect(() => {
+      if (role !== 'superadmin') return;
+      let cancelled = false;
+      fetchAdminLeaguesEnriched()
+        .then(({ leagues: all }) => {
+          if (cancelled) return;
+          const mineIds = new Set((leagues || []).map(l => l.id));
+          setAllPrivate((all || []).filter(l => l.visibility === 'private' && !mineIds.has(l.id)));
+        })
+        .catch(e => { if (!cancelled) { console.warn('[leagues] all-private fetch failed:', e?.message || e); setAllPrivate([]); } });
+      return () => { cancelled = true; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [role]);
+
     const renderRow = (league) => {
       const status = predStatus(league);
       const urgent = isUrgent(status);
@@ -3193,6 +3214,27 @@ const GoalOracle = () => {
           </>
         )}
 
+        {/* Superadmin-only: oversight of every private league in the system
+            the user isn't a member of. Read-only — leaderboard view only. */}
+        {role === 'superadmin' && allPrivate && allPrivate.length > 0 && (
+          <>
+            <div className="leagues-section-label">ALL PRIVATE LEAGUES · {allPrivate.length} <span className="leagues-sa-tag">superadmin</span></div>
+            <div className="leagues-list">
+              {allPrivate.map(l => (
+                <div key={l.id} className="leagues-sa-row">
+                  <span className="leagues-sa-name"><Lock size={12} aria-hidden="true" /> {l.name || l.id}</span>
+                  <span className="leagues-sa-meta">
+                    {l.creatorDisplayName ? `by ${l.creatorDisplayName}` : 'unknown creator'} · {(l.memberCount ?? (Array.isArray(l.members) ? l.members.length : 0))} member{(l.memberCount ?? (Array.isArray(l.members) ? l.members.length : 0)) === 1 ? '' : 's'}
+                  </span>
+                  <button type="button" className="leagues-browse" onClick={() => nav('detail', l, { tab: 'leaderboard' })}>
+                    <TrendingUp size={13} aria-hidden="true" /> Leaderboard
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* Empty state for users who somehow have neither global nor personal
             (shouldn't happen given backfill, but render gracefully). */}
         {personalCount === 0 && globalLeagues.length === 0 && (
@@ -3213,6 +3255,17 @@ const GoalOracle = () => {
     const [passInput, setPassInput] = useState('');
     const [joinErr, setJoinErr] = useState('');
     const [postJoin, setPostJoin] = useState(null); // { id, name, mode } after successful join
+    const passInputRef = useRef(null);
+    // Arrived via the "Join a league" nav link → scroll to + focus the
+    // passcode input, then clear the flag so a plain "Browse" visit doesn't.
+    useEffect(() => {
+      if (browseFocusJoin && passInputRef.current) {
+        passInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        passInputRef.current.focus();
+        setBrowseFocusJoin(false);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const publicLeagues = allLeagues.filter(l => {
       if (l.visibility === 'private') return false;
       if (l.predictionMode === 'classic' && featureFlags.classicEnabled === false) return false;
@@ -3257,7 +3310,7 @@ const GoalOracle = () => {
         <div className="passcode-join-section">
           <div className="passcode-join-row">
             <Key size={16} style={{color:'var(--cyan)', flexShrink:0}} />
-            <input type="text" placeholder="Enter invite passcode (e.g., GOAL2026)" value={passInput} onChange={e => setPassInput(e.target.value.toUpperCase())} className="input-field" style={{flex:1}} maxLength={8} />
+            <input ref={passInputRef} type="text" placeholder="Enter invite passcode (e.g., GOAL2026)" value={passInput} onChange={e => setPassInput(e.target.value.toUpperCase())} className="input-field" style={{flex:1}} maxLength={8} />
             <button className="btn btn-primary btn-sm" disabled={!passInput.trim()} onClick={async () => {
               if (!passInput.trim() || !uData?.id) return;
               try {
@@ -4977,6 +5030,8 @@ const GoalOracle = () => {
         {authenticated && <>
           <a className="nav-link" onClick={() => nav('dashboard')}><Trophy size={14} /><span>Dashboard</span></a>
           <a className="nav-link" onClick={() => nav('leagues')}><Users size={14} /><span>My Leagues</span></a>
+          <a className="nav-link" onClick={() => nav('browse')}><Search size={14} /><span>Browse leagues</span></a>
+          <a className="nav-link" onClick={() => { setBrowseFocusJoin(true); nav('browse'); }}><Key size={14} /><span>Join a league</span></a>
           {(role === 'superadmin' || role === 'admin') && <a className="nav-link" onClick={() => nav('admin')}><Shield size={14} /><span>Admin</span></a>}
         </>}
         <a className="nav-link" onClick={() => nav('faq')}><HelpCircle size={14} /><span>FAQ</span></a>

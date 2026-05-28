@@ -100,6 +100,31 @@ export function getClientIp(req) {
   return req.headers['x-real-ip'] || req.socket?.remoteAddress || '';
 }
 
+// Best-effort coarse geolocation from Vercel's edge-injected request headers
+// (the platform derives these from the client IP — we never read or store the
+// raw IP here). Absent on localhost / non-Vercel infra, so every field is
+// nullable. Used only to stamp approximate location on the user doc at login
+// for the admin console — never for an access decision.
+export function getGeoFromRequest(req) {
+  const h = req?.headers || {};
+  const pick = (v) => {
+    if (typeof v !== 'string') return null;
+    const s = v.trim();
+    return s.length > 0 && s.length <= 100 ? s : null;
+  };
+  const decode = (v) => {
+    const s = pick(v);
+    if (!s) return null;
+    try { return decodeURIComponent(s); } catch { return s; }
+  };
+  const country = pick(h['x-vercel-ip-country']);
+  return {
+    country: country ? country.toUpperCase() : null,
+    region: decode(h['x-vercel-ip-country-region']),
+    city: decode(h['x-vercel-ip-city']),
+  };
+}
+
 export function ipHash(ip) {
   return crypto.createHash('sha256').update(String(ip || '')).digest('hex');
 }

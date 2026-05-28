@@ -3,6 +3,7 @@ import {
   validateDisplayNameServer,
   normalizeEmail,
   getClientIp,
+  getGeoFromRequest,
   ipHash,
   isValidVisitorId,
   recordFingerprintForUser,
@@ -171,6 +172,15 @@ export default async function handler(req, res) {
       || !existingData.createdAt
     );
 
+    // Coarse, IP-derived location from Vercel edge headers (no raw IP stored).
+    // Refreshed on every login so existing users backfill on their next visit.
+    const geo = getGeoFromRequest(req);
+    const geoFields = {};
+    if (geo.country) geoFields.geoCountry = geo.country;
+    if (geo.region) geoFields.geoRegion = geo.region;
+    if (geo.city) geoFields.geoCity = geo.city;
+    if (Object.keys(geoFields).length > 0) geoFields.geoUpdatedAt = FieldValue.serverTimestamp();
+
     if (!userSnap.exists || isSparseDoc) {
       // New user OR sparse-doc completion
       console.log(`[user] ${userSnap.exists ? 'SPARSE-COMPLETE' : 'NEW'}: ${userId}, email=${email || existingData?.email || null}`);
@@ -195,6 +205,7 @@ export default async function handler(req, res) {
         usernameSet: existingData?.usernameSet === true ? true : false,
         signupIpHash: existingData?.signupIpHash || ipHash(ip),
         deviceFingerprint: existingData?.deviceFingerprint || (isValidVisitorId(deviceFingerprint) ? deviceFingerprint : null),
+        ...geoFields,
       };
       if (!existingData?.createdAt) initPayload.createdAt = FieldValue.serverTimestamp();
       if (consentUpdate) initPayload.contestConsent = consentUpdate;
@@ -241,7 +252,7 @@ export default async function handler(req, res) {
     } else {
       // Existing user — sync updates
       console.log(`[user] EXISTING: ${userId}, role=${existingData.role}, name=${existingData.displayName}`);
-      const updates = { updatedAt: FieldValue.serverTimestamp(), lastLoginAt: FieldValue.serverTimestamp() };
+      const updates = { updatedAt: FieldValue.serverTimestamp(), lastLoginAt: FieldValue.serverTimestamp(), ...geoFields };
       if (email) {
         updates.email = email;
         updates.emailDedupeKey = normalizeEmail(email);

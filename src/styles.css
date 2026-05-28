@@ -3520,6 +3520,23 @@ button.invite-option:hover,
 }
 .admin-segment-check { width: 26px; text-align: center; }
 
+/* Users tab — sortable table */
+.admin-user-table-wrap { margin-top: 0.4rem; }
+.admin-user-table td { vertical-align: middle; }
+.admin-user-table th.admin-sortable { cursor: pointer; user-select: none; }
+.admin-user-table th.admin-sortable:hover { color: var(--text); }
+.admin-user-cell-name { display: inline-flex; align-items: center; gap: 0.35rem; }
+.admin-user-cell-name .admin-user-row-handle { max-width: 180px; }
+.admin-user-via { display: block; margin-top: 0.15rem; font-size: 0.6rem; color: var(--text-dim); }
+.admin-user-joined-cell { white-space: nowrap; color: var(--text-sec); }
+.admin-qp-pill {
+  display: inline-block; padding: 0.1rem 0.4rem; border-radius: 5px;
+  font-size: 0.6rem; font-weight: 600; white-space: nowrap;
+}
+.admin-qp-ok { background: rgba(34,197,94,0.15); color: var(--lime, #22c55e); }
+.admin-qp-warn { background: rgba(255,193,7,0.14); color: var(--amber, #ffb800); }
+.admin-qp-none { background: var(--bg-elev); color: var(--text-dim); }
+
 /* Copy-to-Global modal (Segment C) */
 .admin-copy-mode { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.5rem 0 0.25rem; }
 .admin-copy-mode label {
@@ -8782,6 +8799,24 @@ body.light .lsd-head,
   padding: 0 0.85rem;
 }
 .leagues-section-label:first-child { margin-top: 0.5rem; }
+
+/* Superadmin "all private leagues" oversight rows */
+.leagues-sa-tag {
+  font-size: 0.55rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 0.05rem 0.3rem; border-radius: 4px; margin-left: 0.35rem;
+  background: rgba(124,92,255,0.16); color: var(--violet, #7c5cff);
+}
+.leagues-sa-row {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--border);
+}
+.leagues-sa-row:last-child { border-bottom: none; }
+.leagues-sa-name {
+  display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%;
+}
+.leagues-sa-meta { color: var(--text-sec); font-size: 0.78rem; flex: 1; min-width: 0; }
+.leagues-sa-row .leagues-browse { flex-shrink: 0; }
 
 /* ── Row anatomy — hairline dividers, no card chrome ───────────────── */
 .leagues-list {
