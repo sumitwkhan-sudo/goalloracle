@@ -55,6 +55,7 @@ import MyPicksCard from './components/MyPicksCard';
 import HomeHeroCard from './components/HomeHeroCard';
 import QuickActionsTiles from './components/QuickActionsTiles';
 import FontPreview from './pages/FontPreview';
+import FirstPickPreview from './pages/FirstPickPreview';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -104,6 +105,7 @@ const VIEW_META = {
   about: { title: 'About GoalOracle — Free World Cup 2026 Prediction Game', description: 'About GoalOracle: what it is, who operates it (Suraam, LLC d/b/a GoalOracle), how the prediction game and prize contest work, and how to contact support.', path: '/about', index: true },
   contact: { title: 'Contact GoalOracle — Support and Feedback', description: 'Contact GoalOracle support at support@goaloracle.io. Questions about the game, account, leagues, or the prize contest — we respond within 2 business days.', path: '/contact', index: true },
   fontPreview: { title: 'GoalOracle', path: '/__typography-preview-xk29r', index: false },
+  firstPickPreview: { title: 'GoalOracle', path: '/__first-pick-preview-q7m2x', index: false },
 };
 
 function ViewMeta({ view }) {
@@ -148,6 +150,7 @@ const PATH_TO_VIEW = {
   '/admin': 'admin',
   '/feedback': 'feedback',
   '/__typography-preview-xk29r': 'fontPreview',
+  '/__first-pick-preview-q7m2x': 'firstPickPreview',
 };
 const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
 
@@ -5039,6 +5042,7 @@ const GoalOracle = () => {
       )}
 
       {view === 'fontPreview' && <FontPreview />}
+      {view === 'firstPickPreview' && <FirstPickPreview />}
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && (
         // Render Dashboard directly. Child components already handle
