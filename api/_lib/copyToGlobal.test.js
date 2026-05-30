@@ -81,3 +81,25 @@ describe('evaluateCopy', () => {
     expect(r.action).toBe('skip');
   });
 });
+
+// Reverse direction (admin "apply global picks to a league"): source =
+// global bracket, target = the chosen league, mode always 'skip'. These
+// pin the exact decisions the admin action maps to applied/skipped+reason.
+describe('apply-global-picks-to-league decisions', () => {
+  test('member has NO league picks + has global picks → create (applied)', () => {
+    const r = evaluateCopy({ sourceDoc: fullSource(), sourceLeague: { predictionMode: 'simple' }, targetDoc: null, mode: 'skip', now: NOW_UNLOCKED });
+    expect(r.action).toBe('create');
+  });
+
+  test('member ALREADY has league picks → skip (never overwrite)', () => {
+    const r = evaluateCopy({ sourceDoc: fullSource(), sourceLeague: { predictionMode: 'simple' }, targetDoc: { bestThirdPicks: ['q'] }, mode: 'skip', now: NOW_UNLOCKED });
+    expect(r.action).toBe('skip');
+    expect(r.reason).toBe('existing_global_entry'); // → 'already_has_picks'
+  });
+
+  test('member has NO global picks to copy → ineligible (skip + flag)', () => {
+    const r = evaluateCopy({ sourceDoc: null, sourceLeague: { predictionMode: 'simple' }, targetDoc: null, mode: 'skip', now: NOW_UNLOCKED });
+    expect(r.action).toBe('ineligible');
+    expect(r.reason).toBe('no_source_picks'); // → 'no_global_picks'
+  });
+});

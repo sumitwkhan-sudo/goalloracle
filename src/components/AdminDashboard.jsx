@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 // Outreach automation segments (mirror of api/_lib/outreachSegments.js
 // SEGMENTS — kept here as display labels for the rule editor).
@@ -951,6 +951,43 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     }
   };
 
+  // Apply-global-picks-to-league — modal target user + selected league.
+  const [applyPicksUser, setApplyPicksUser] = useState(null);
+  const [applyPicksLeagueId, setApplyPicksLeagueId] = useState('');
+  const [applyPicksBusy, setApplyPicksBusy] = useState(false);
+  // Leagues this user is in that can receive global picks: QP (not classic),
+  // not the global league itself.
+  const applyPicksLeagues = (applyPicksUser?.leagues || [])
+    .map((lid) => (allLeagues || []).find((l) => l.id === lid))
+    .filter((l) => l && l.id !== 'global-simple' && l.id !== 'global' && l.predictionMode !== 'classic');
+  const openApplyPicks = (u) => { setApplyPicksUser(u); setApplyPicksLeagueId(''); };
+  const closeApplyPicks = () => { if (!applyPicksBusy) setApplyPicksUser(null); };
+  const submitApplyPicks = async () => {
+    if (!applyPicksUser || !applyPicksLeagueId) return;
+    setApplyPicksBusy(true);
+    try {
+      const res = await adminApplyGlobalPicksToLeague(applyPicksUser.id, applyPicksLeagueId);
+      const lname = applyPicksLeagues.find((l) => l.id === applyPicksLeagueId)?.name || applyPicksLeagueId;
+      if (res?.applied) {
+        notify(`Applied global picks to ${lname}`);
+        setApplyPicksUser(null);
+      } else {
+        // Skip + flag — explain why nothing was copied.
+        const reasonText = {
+          no_global_picks: 'this user has no global picks to copy',
+          already_has_picks: 'this user already has picks in that league',
+          stage_locked: 'those stages are already locked',
+          incompatible_format: 'the league format is incompatible',
+        }[res?.reason] || res?.reason || 'skipped';
+        notify(`Skipped — ${reasonText}`, 'error');
+      }
+    } catch (e) {
+      notify('Apply failed: ' + (e?.message || e), 'error');
+    } finally {
+      setApplyPicksBusy(false);
+    }
+  };
+
   const handleDeleteUser = async (u) => {
     const label = u.displayName || u.email || u.id.slice(0, 8);
     const confirm1 = window.confirm(`Permanently delete user "${label}"?\n\nThis wipes:\n  • their account\n  • all predictions (classic + Quick Picks)\n  • league memberships\n  • device-fingerprint + IP records\n\nThere is no undo.`);
@@ -1587,6 +1624,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                               <UserPlus size={12} />
                             </button>
                           )}
+                          {isSuperadmin && (
+                            <button type="button" className="admin-user-email-btn" title="Apply this user's global picks to a league they're in (only if they have no picks there)" onClick={() => openApplyPicks(u)}>
+                              <Copy size={12} />
+                            </button>
+                          )}
                           {u.email && u.emailOptOut !== true && (
                             <button type="button" className="admin-user-email-btn" title="Send a custom email to this user" onClick={() => openCustomEmail(u)}>
                               <Mail size={12} />
@@ -1669,6 +1711,37 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   <button type="button" className="btn btn-secondary btn-sm" onClick={closeAddLeague} disabled={addLeagueBusy}>Cancel</button>
                   <button type="button" className="btn btn-primary btn-sm" onClick={submitAddLeague} disabled={addLeagueBusy || !addLeagueId}>
                     {addLeagueBusy ? <><RefreshCw size={14} className="spin" /> Adding…</> : <><UserPlus size={14} /> Add to league</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Apply-global-picks-to-league modal */}
+          {applyPicksUser && (
+            <div className="admin-modal-overlay" onClick={closeApplyPicks}>
+              <div className="admin-modal admin-add-league" onClick={e => e.stopPropagation()}>
+                <div className="admin-modal-head">
+                  <h3><Copy size={16} /> Apply {applyPicksUser.displayName || applyPicksUser.email || applyPicksUser.id.slice(0, 8)}'s global picks</h3>
+                  <button type="button" className="admin-modal-close" onClick={closeApplyPicks} disabled={applyPicksBusy}><X size={16} /></button>
+                </div>
+                <label className="admin-custom-email-label">Target league</label>
+                <select className="input-field" value={applyPicksLeagueId} onChange={e => setApplyPicksLeagueId(e.target.value)} disabled={applyPicksBusy}>
+                  <option value="">Select a league…</option>
+                  {applyPicksLeagues.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.name || l.id}{l.visibility === 'private' ? ' (private)' : ''}
+                    </option>
+                  ))}
+                </select>
+                {applyPicksLeagues.length === 0 && (
+                  <p className="admin-custom-email-note">This user isn't in any Quick Picks league that can receive global picks.</p>
+                )}
+                <p className="admin-custom-email-note">Copies the user's Global bracket into the league <strong>only if they have no picks there yet</strong> — never overwrites. If they have no global picks, it's skipped. Logged.</p>
+                <div className="admin-modal-actions">
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={closeApplyPicks} disabled={applyPicksBusy}>Cancel</button>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={submitApplyPicks} disabled={applyPicksBusy || !applyPicksLeagueId}>
+                    {applyPicksBusy ? <><RefreshCw size={14} className="spin" /> Applying…</> : <><Copy size={14} /> Apply picks</>}
                   </button>
                 </div>
               </div>
