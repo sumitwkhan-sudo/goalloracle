@@ -201,6 +201,33 @@ The 7 prize-contest funnel events: `prize_section_viewed`, `enter_free_cta_click
 - **FIFA compliance caption** under hero social-proof row: "GoalOracle's prediction engine is compliant with the official FIFA World Cup 26™ rulebook".
 - **Leaderboard tabs** moved left, enlarged, renamed "Quick Picks Leaderboard" / "Classic Predictions Leaderboard".
 
+## Recent work (as of May 2026 — auth, anti-sybil, admin, perf)
+
+Context for new/parallel sessions so this isn't re-discovered. Active dev branch: **`claude/security-review-whyQq`** (ahead of `main`). Merge style: fast-forward to prod via `git push origin <branch>:main` after a `git merge-base --is-ancestor origin/main HEAD` guard — never force-push; Vercel auto-deploys `main` (project `goalloracle`, team `sumitwkhan`). Confirm deploys with the Vercel MCP `list_deployments`. The user authorizes prod merges explicitly per request.
+
+### Mobile sign-in (Safari) — `src/config/firebase.js`, `src/utils/auth.js`
+- Auth uses `initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence], popupRedirectResolver })` — **not** `getAuth()`. Safari Private/ITP/Lockdown blocks IndexedDB, which broke `signInWithCustomToken`; the fallback chain degrades gracefully. Firestore already uses `memoryLocalCache()` for the same reason.
+- `signInWithCustomTokenRetry()` in `auth.js` retries the token swap up to 3× **only** on `auth/network-request-failed` (a failed swap doesn't consume the token). Both email + Google paths use it. Failures post `/api/client-log` breadcrumbs (tag `auth.customtoken.error`, with UA).
+- **Load-bearing — do NOT touch:** Google sign-in is GIS/FedCM (`src/utils/googleIdentity.js`, `use_fedcm_for_prompt`, `ux_mode:'popup'`); `authDomain` is hardcoded `auth.goaloracle.io` (PR #91/#93 history). These work on Chrome; changing them regresses mobile.
+
+### Anti-sybil — `api/_lib/security.js`
+- `MAX_ACCOUNTS_PER_FINGERPRINT` and `MAX_ACCOUNTS_PER_IP` are both **2** (block fires at `>=`). They were 1; raised to stop false positives.
+- **Why false positives happen:** the client device id is open-source FingerprintJS, which **collides across same-model iPhones** (Safari normalizes signals) and drifts under ITP. A collision with any existing account previously hard-blocked a legit new user. So a "different device AND IP" block is almost always a fingerprint hash collision, not the IP check.
+- Anti-sybil gates **only new-account creation** (`verify-code.js` / `google.js`); existing users are never blocked. Instant operator unblock: add the email to the **anti-sybil bypass list** (Admin Users tab UI, `/config/antiSybilBypass`, effective ≤60s) or use **Clear anti-sybil for user**.
+
+### GeoIP location (no raw IP) — `getGeoFromRequest(req)` in `security.js`
+- Reads Vercel edge headers `x-vercel-ip-country` / `-country-region` / `-city`. **Raw IP is never stored** (only the salted `signupIpHash`). Written to user docs as `geoCountry/geoRegion/geoCity/geoUpdatedAt` in **both** `api/user.js` login write paths. Forward-only (fills in on next login); **blank on localhost** (headers only exist on Vercel).
+
+### Admin console — `src/components/AdminDashboard.jsx` + `api/admin.js`
+- **Users tab is a sortable `<table>`** (was a card list): Name(+flag) / Email / Location / Leagues / QP-status pill / Joined / Role / Wallet / delete. Sort state `userSort={key,dir}`; helpers `_qpInfo`/`_locText`/`_userSortVal`/`toggleUserSort`. Prediction status (Quick Picks only) comes from `admin?type=usersQpStatus` (a `{userId→rollup}` map reusing the segments scan) → `fetchAdminUsersQpStatus()` in `db.js`.
+- **"Global Submits" tab** (superadmin) views the `globalSubmitLog` audit (copy-to-Global) via `admin?type=globalSubmitLog` (resolves actor/user/league ids to names server-side).
+- **My Leagues** (`LeaguesList` in `goaloracle.jsx`): superadmins get an **"All private leagues"** oversight section (every private league they're not in) via `fetchAdminLeaguesEnriched()`, read-only leaderboard link.
+- **Nav** (`goaloracle.jsx`): single **"Join a league"** flat link → focuses the Browse passcode input (`browseFocusJoin` + `passInputRef`). (Supersedes the April note: "Browse leagues removed from nav.")
+
+### Performance / edge-caching reads
+- `api/simple-leaderboard.js` (backs the Global League hero ticker): reads run **concurrently** (`Promise.all` over the 30-id `in`-query batches) instead of sequential `for…await` — global-simple holds every user, so the old loop serialized into dozens of round-trips. Response is **edge-cached** `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`.
+- **Pattern to reuse:** non-user-specific read endpoints edge-cache via `s-maxage` (`simple-consensus.js`, `spicy-stats.js`, `public.js`, `news.js`). Logged-in callers send an `Authorization` header and bypass the shared CDN cache, so freshness-sensitive users still get live data.
+
 ## Conventions
 
 - **Commit style:** short imperative subject, 1–3 short paragraphs explaining why. Always include `https://claude.ai/code/session_...` trailer.
