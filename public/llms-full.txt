@@ -29,38 +29,25 @@ The 2026 tournament is the first World Cup to use a 48-team format. The key fact
 
 ## How GoalOracle scoring works
 
-### Quick Picks (76 max points)
+### The guided bracket (209 max points)
 
-Quick Picks is the guided prediction mode. The user works through three steps:
+GoalOracle is a guided prediction bracket. The user works through three steps:
 
-1. **Rank groups** (36 points max): For each of the 12 groups, the user orders the four teams 1st through 4th. Each correct position scores 0.75 points. A perfectly ranked group scores 3 points; 12 groups × 3 = 36.
-2. **Best Thirds** (8 points max): The user selects which 8 of the 12 third-placed teams advance to the Round of 32 (per Annexe C). Each correct pick scores 1 point.
-3. **Knockout bracket** (32 points max): The user predicts the winner of every knockout match.
-   - Round of 32: 16 matches × 1 pt = 16
-   - Round of 16: 8 matches × 1 pt = 8
-   - Quarterfinals: 4 matches × 1 pt = 4
-   - Semifinals: 2 matches × 1 pt = 2
-   - Third-place match: 1 pt
-   - Final: 1 pt
+1. **Rank groups** (84 points max): For each of the 12 groups, the user orders the four teams 1st through 4th. Correct placements score by finishing position — 3 for the winner, 2 for the runner-up, 1 for third, 1 for fourth. A perfectly ranked group scores 7 points; 12 groups × 7 = 84.
+2. **Best Thirds** (16 points max): The user selects which 8 of the 12 third-placed teams advance to the Round of 32 (per Annexe C). Each correct pick scores 2 points.
+3. **Knockout bracket** (109 points max): The user predicts the winner of every knockout tie. Later rounds are worth more.
+   - Round of 32: 16 matches × 2 pts = 32
+   - Round of 16: 8 matches × 3 pts = 24
+   - Quarterfinals: 4 matches × 5 pts = 20
+   - Semifinals: 2 matches × 8 pts = 16
+   - Third-place match: 1 × 5 pts = 5
+   - Final: 1 × 12 pts = 12
 
-Quick Picks takes about 10 minutes to fill out completely. Predictions lock 5 minutes before each match kicks off.
+The full bracket takes about 10 minutes to fill out. The user can submit partial progress and return. Predictions lock 5 minutes before each match kicks off, and auto-save until then.
 
-### Classic Predictions (variable max, ~510 points default)
+### How players are ranked
 
-Classic Predictions is the per-match mode. The user predicts both the **result** (home win / draw / away win) and the **exact score** of every one of the 104 matches.
-
-Default scoring (league creators can customize):
-
-- Correct result (e.g., "home wins" when home wins): **3 points**
-- Exact score (e.g., predicted 2-1, actual 2-1): **5 points** (replaces the 3-point result bonus, not additive)
-- Correct extra-time call (knockouts only): **+1 point**
-- Correct penalty-shootout call (knockouts only): **+2 points**
-
-A user who predicts exact score on every match plus calls every shootout would earn approximately 5 × 104 + extra-time bonuses + shootout bonuses ≈ 510-540 points.
-
-### Per-league custom scoring
-
-When a user creates a private league, they can override the default Classic Predictions point values. The Quick Picks point values are fixed at 76 total.
+The leaderboard ranks by **total points** — most points wins. Accuracy (the share of available points a user has earned so far) is shown as a secondary stat, not the ranking key.
 
 ## The Prize Contest
 
@@ -130,8 +117,7 @@ This dual-source approach prevents a single data provider's error from affecting
 Players can compete in:
 
 - **Global Quick Picks League** (auto-join at signup): Every GoalOracle user is automatically a member of the global league where the cash prize contest runs.
-- **Global Classic Predictions League** (auto-join at signup): Same population, but ranked by Classic Predictions accuracy.
-- **Private leagues**: Any user can create a private league with a passcode. Members can be friends, coworkers, family. Private leagues support custom scoring rules (Classic only) and an optional House Rules note from the league creator.
+- **Private leagues**: Any user can create a private league with a passcode. Members can be friends, coworkers, family. Private leagues support an optional House Rules note from the league creator.
 - **Public leagues**: User-created leagues listed in the Browse Leagues page. Open to anyone.
 
 The prize contest only runs on the Global Quick Picks League. Private and public user-created leagues are free competition only.

@@ -1,6 +1,6 @@
 # GoalOracle
 
-> Free FIFA World Cup 2026 prediction game. Users build brackets in two modes — Quick Picks (rank the four teams in each group, select the eight best third-placed teams, then fill the knockout bracket) and Classic Predictions (score + result for every fixture). Players join public or private leagues and compete on a global leaderboard. Free to enter (no purchase necessary, no gambling, no wagering). Top 3 finishers on the Global Quick Picks Leaderboard at the end of the World Cup Final receive cash prizes of $150 / $100 / $50 paid in USDC stablecoin. Prediction engine is compliant with the official FIFA World Cup 26 rulebook (including Annexe C third-place routing across all 495 combinations).
+> Free FIFA World Cup 2026 prediction game. Users build a guided bracket — rank the four teams in each group, select the eight best third-placed teams, then fill the knockout bracket — in about ten minutes. Players join public or private leagues and compete on a global leaderboard ranked by total points. Free to enter (no purchase necessary, no gambling, no wagering). Top 3 finishers on the Global Quick Picks Leaderboard at the end of the World Cup Final receive cash prizes of $150 / $100 / $50 paid in USDC stablecoin. Prediction engine is compliant with the official FIFA World Cup 26 rulebook (including Annexe C third-place routing across all 495 combinations).
 
 ## Key facts
 
@@ -14,9 +14,7 @@
 - **Format:** Top 2 from each group + 8 best third-placed teams advance to Round of 32; single-elimination from there
 - **Cost:** Free to enter. No entry fee. No purchase necessary. Not gambling.
 - **Prizes:** $150 / $100 / $50 in USDC stablecoin paid to the top 3 finishers on the Global Quick Picks Leaderboard at the end of the FIFA World Cup 2026 Final. Skill-based contest sponsored by Suraam, LLC d/b/a GoalOracle.
-- **Modes:**
-  - **Quick Picks** — guided three-step wizard (rank groups, pick best thirds, fill bracket). ~10 minutes. 76 total points (36 group stage + 8 best thirds + 32 knockouts).
-  - **Classic Predictions** — predict score and result for every one of the 104 matches. 3 pts for correct result, 5 pts for exact score, +1 extra time bonus, +2 penalty bonus. League creators can customize point values.
+- **How to play:** Guided three-step bracket (rank groups, pick best thirds, fill knockouts). ~10 minutes. 209 total points: group rankings score 3 / 2 / 1 / 1 by finishing position (84), each of the 8 best-third picks is worth 2 (16), and knockout winners escalate by round — 2 in the Round of 32, 3 in the Round of 16, 5 in the quarterfinals, 8 in the semifinals, 5 in the third-place match, 12 in the final (109). The leaderboard ranks by total points (most points wins); accuracy — the share of available points earned — is shown as a secondary stat, not the ranking key.
 - **Result verification:** Dual-source oracle. Results are pulled from football-data.org and api-football.com, and both sources must agree before points are awarded. Disputes trigger admin review.
 - **Authentication:** Email, Google, Twitter/X, or wallet (via Privy). An embedded wallet is created at signup for future features; no funds are collected from players.
 - **Leagues:** Public (listed, open to all), private (invite-only with passcode), or scoped (specific groups or rounds only).
@@ -25,7 +23,7 @@
 ## Key pages
 
 - [Home](https://goaloracle.io/): Hero, next-match countdown, how it works, scoring breakdown, social proof.
-- [How It Works](https://goaloracle.io/how-it-works): Full overview of the 2026 World Cup format, both prediction modes (Quick Picks + Classic), the scoring table, the prize contest, and the dual-source result verification.
+- [How It Works](https://goaloracle.io/how-it-works): Full overview of the 2026 World Cup format, the guided bracket, the scoring table, the prize contest, and the dual-source result verification.
 - [FAQ](https://goaloracle.io/faq): How the game works, leagues and privacy, score verification methodology, contest policy, account support.
 - [Annexe C Guide](https://goaloracle.io/guides/annexe-c-third-place-routing): Deep explainer of FIFA's third-place routing for the 2026 World Cup — all 495 combinations, the Article 13 tiebreaker order, why head-to-head isn't used cross-group.
 - [Official Rules](https://goaloracle.io/official-rules): Full contest rules including eligibility, prize amounts, jurisdiction restrictions, and dispute process.
@@ -39,7 +37,7 @@
 - [World Cup 2026 Predictor](https://goaloracle.io/world-cup-2026-predictor): What a World Cup predictor is, how GoalOracle works, Annexe C accuracy, FAQ.
 - [World Cup 2026 Bracket](https://goaloracle.io/world-cup-bracket): How the 2026 bracket format works (48 teams, 12 groups, best-thirds selection), how to fill the GoalOracle bracket, private pool creation, FAQ.
 - [Free World Cup Pool](https://goaloracle.io/free-world-cup-pool): How to run a free World Cup group pool on GoalOracle — private leagues, house rules, automatic scoring, FAQ.
-- [World Cup Prediction Game](https://goaloracle.io/world-cup-prediction-game): Quick Picks vs Classic Predictions modes, global and private league competition, Annexe C accuracy, FAQ.
+- [World Cup Prediction Game](https://goaloracle.io/world-cup-prediction-game): How the guided bracket works, global and private league competition, Annexe C accuracy, FAQ.
 - [World Cup 2026 Groups](https://goaloracle.io/world-cup-2026-groups): All 12 groups (A–L) and 48 teams, group-stage qualification rules, tiebreaker order, how to predict groups on GoalOracle, FAQ.
 - [World Cup 2026 Schedule](https://goaloracle.io/world-cup-2026-schedule): Full group-stage fixture list with dates, kick-off times (ET), venues, and cities. Tournament milestones table. SportsEvent structured data for key matches.
 - [How World Cup Third-Place Qualification Works](https://goaloracle.io/how-world-cup-third-place-qualification-works): How the 8 best third-placed teams are selected from 12 (tiebreaker order), why head-to-head isn't used, Annexe C slot routing, how GoalOracle implements this, FAQ.

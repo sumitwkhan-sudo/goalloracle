@@ -24,7 +24,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Can I set custom rules for my World Cup pool?',
-    a: "Private leagues on GoalOracle support optional House Rules — a note from the creator describing how your group plays. Classic Predictions leagues also let creators customize the point values.",
+    a: "Private leagues on GoalOracle support optional House Rules — a note from the creator describing how your group plays, from tiebreakers to informal prizes.",
   },
   {
     q: 'How many people can join my World Cup pool?',
@@ -32,7 +32,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'What prediction modes are available in a GoalOracle pool?',
-    a: 'GoalOracle supports two modes. Quick Picks guides you through a 3-step bracket in about 10 minutes (76 points max). Classic Predictions lets you predict the exact score and result for all 104 matches for higher potential points.',
+    a: 'GoalOracle is a guided 3-step bracket — rank each group, pick the 8 best third-placed teams, and fill the knockout bracket — in about 10 minutes, 209 points max. Everyone in your pool plays the same way and is ranked on a shared leaderboard.',
   },
 ];
 
@@ -98,8 +98,8 @@ export default function FreeWorldCupPool() {
               email, or a group chat.
             </li>
             <li>
-              <strong>Everyone fills out their bracket</strong> — Quick Picks takes about
-              10 minutes; Classic Predictions is the full-score version.
+              <strong>Everyone fills out their bracket</strong> — the guided three-step
+              bracket takes about 10 minutes.
             </li>
             <li>
               <strong>Watch the leaderboard</strong> — points award automatically after
@@ -119,17 +119,12 @@ export default function FreeWorldCupPool() {
               automatically after each match.
             </li>
             <li>
-              <strong>Two prediction modes:</strong> Your group can mix and match — some
-              members on Quick Picks, others on Classic Predictions (if your league
-              supports both).
+              <strong>Same bracket for everyone:</strong> All members fill the guided
+              three-step bracket, so the leaderboard is a fair head-to-head.
             </li>
             <li>
               <strong>House rules:</strong> Add a note describing any informal rules for
               your group — tiebreakers, prizes, rules of engagement.
-            </li>
-            <li>
-              <strong>Custom scoring:</strong> Classic Predictions leagues let you adjust
-              point values for correct results, exact scores, and knockout bonuses.
             </li>
             <li>
               <strong>No limits:</strong> No cap on league members and no limit on the

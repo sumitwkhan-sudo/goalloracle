@@ -25,6 +25,44 @@ import {
   ChevronRight, Copy, Check, MessageSquare,
 } from 'lucide-react';
 import { teamFlags, countryFlag } from '../utils/flags';
+import { getScoringBullets } from '../utils/scoringExplainer';
+
+// ── scoring explainer (item E) ──────────────────────────────────────────
+// Subtle, collapsed-by-default "How scoring works" disclosure. Content
+// comes from the shared scoringExplainer.js source of truth, so it can
+// never drift from the FAQ (item D) or the engine. Collapsed it's a single
+// low-contrast row that doesn't push the rankings down.
+function ScoringExplainer() {
+  const [open, setOpen] = useState(false);
+  const { intro, bullets } = getScoringBullets();
+  return (
+    <div className={`ll-scoring ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="ll-scoring-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+      >
+        <Target size={12} aria-hidden="true" />
+        <span>How scoring works</span>
+        <ChevronRight size={13} className="ll-scoring-chev" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="ll-scoring-body">
+          <p className="ll-scoring-intro">{intro}</p>
+          <ul className="ll-scoring-list">
+            {bullets.map((b) => (
+              <li key={b.label} className="ll-scoring-item">
+                <span className="ll-scoring-h">{b.label}</span>
+                <span className="ll-scoring-d">{b.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── small atoms ─────────────────────────────────────────────────────────
 function RankCell({ rank }) {
@@ -146,7 +184,15 @@ function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onSha
         <PredictionCell winner={row.winner} runnerUp={row.runnerUp} uniqueness={row.uniqueness} upsetCount={row.upsetCount || 0} />
       </div>
       <div className="ll-cell ll-cell-pts">
-        {row.totalAccuracy > 0 ? <span className="ll-pts-num">{Math.round(row.totalAccuracy * 100)}%</span> : <span className="ll-pts-empty">—</span>}
+        {/* Ranking is by points; accuracy shown as a secondary stat. */}
+        {(row.totalScore > 0 || row.totalAccuracy > 0) ? (
+          <span className="ll-pts-wrap">
+            <span className="ll-pts-num">{Math.round(row.totalScore || 0)} pts</span>
+            {row.totalAccuracy > 0 && (
+              <span className="ll-pts-acc">{Math.round(row.totalAccuracy * 100)}%</span>
+            )}
+          </span>
+        ) : <span className="ll-pts-empty">—</span>}
       </div>
       {!isYou && (
         <div className="ll-cell ll-cell-chev" aria-hidden="true">
@@ -402,6 +448,10 @@ export default function LeagueLeaderboardLayout({
         />
       )}
 
+      {/* Subtle scoring explainer (item E) — global leaderboard only,
+          collapsed by default so it never pushes the rankings down. */}
+      {isGlobal && <ScoringExplainer />}
+
       {/* Optional column header — small caps, low contrast. Helps scan
           when the rows have lots of fields. Hidden on mobile (the row
           hierarchy is unambiguous at this density). */}
@@ -410,7 +460,7 @@ export default function LeagueLeaderboardLayout({
         <div className="ll-cell ll-cell-id">PLAYER</div>
         <div className="ll-cell ll-cell-status" />
         <div className="ll-cell ll-cell-pred">PREDICTION</div>
-        <div className="ll-cell ll-cell-pts" title="Score — % of available points scored so far">SCORE</div>
+        <div className="ll-cell ll-cell-pts" title="Total points (ranking) · accuracy">SCORE</div>
         <div className="ll-cell ll-cell-chev" />
       </div>
 

@@ -69,6 +69,39 @@ export default async function handler(req, res) {
       }
     }
 
+    // Stored scores (R2/R3). The poll-results cron writes each member's
+    // score to /simplePredictions/{uid}__{leagueId}/scores/{leagueId}.
+    // Batch-read them so the leaderboard can rank by total points. Pre-
+    // tournament these docs don't exist yet → scores default to 0 and the
+    // sort falls back to completion + submission time (no regression).
+    const scoresByUser = {};
+    const scoreRefs = members.map(uid =>
+      db.collection('simplePredictions').doc(`${uid}__${leagueId}`)
+        .collection('scores').doc(leagueId),
+    );
+    // Legacy global docs store scores under the single-id doc path.
+    if (leagueId === 'global-simple') {
+      members.forEach(uid => scoreRefs.push(
+        db.collection('simplePredictions').doc(uid).collection('scores').doc(leagueId),
+      ));
+    }
+    for (let i = 0; i < scoreRefs.length; i += 100) {
+      const snaps = await db.getAll(...scoreRefs.slice(i, i + 100));
+      snaps.forEach(s => {
+        if (!s.exists) return;
+        const d = s.data();
+        const uid = d.userId;
+        if (!uid) return;
+        // First write wins per user (composite path is read before legacy).
+        if (scoresByUser[uid] === undefined) {
+          scoresByUser[uid] = {
+            totalScore: typeof d.totalScore === 'number' ? d.totalScore : 0,
+            totalAccuracy: typeof d.totalAccuracy === 'number' ? d.totalAccuracy : 0,
+          };
+        }
+      });
+    }
+
     // Quick Picks completion budget: 12 group rankings + 8 best-thirds +
     // 32 bracket winners (R32:16, R16:8, QF:4, SF:2, 3rd:1, Final:1).
     const QP_TOTAL_PICKS = 12 + 8 + 32;
@@ -103,6 +136,7 @@ export default async function handler(req, res) {
       // explicit isComplete flag — as "done" so the leaderboard label
       // doesn't keep saying "In progress" for users who finished.
       const isComplete = !!(pred?.isComplete || winner);
+      const score = scoresByUser[userId] || { totalScore: 0, totalAccuracy: 0 };
 
       return {
         userId,
@@ -113,19 +147,30 @@ export default async function handler(req, res) {
         isComplete,
         picksLeft,
         submittedAt: ts?._seconds ? ts._seconds * 1000 : ts?.toMillis ? ts.toMillis() : ts || null,
-        totalAccuracy: 0,
+        totalScore: score.totalScore,
+        totalAccuracy: score.totalAccuracy,
         winner,
         runnerUp,
       };
     });
 
-    // Complete first, then submitted, then submission time, then alphabetical
+    // Rank by TOTAL POINTS (highest wins), then time of submission, then
+    // alphabetical — per the published "how scoring works" rules. Before any
+    // results exist every totalScore is 0, so the first comparison is a no-op
+    // and ordering falls through to: anyone who's submitted before those who
+    // haven't, then earliest submission, then name. (Accuracy is displayed as
+    // a secondary stat but is NOT a ranking key.)
     leaderboard.sort((a, b) => {
-      if (a.isComplete !== b.isComplete) return b.isComplete ? 1 : -1;
+      if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
       if (a.hasSubmitted !== b.hasSubmitted) return b.hasSubmitted ? 1 : -1;
-      if (a.submittedAt && b.submittedAt) return a.submittedAt - b.submittedAt;
-      if (a.submittedAt) return -1;
-      if (b.submittedAt) return 1;
+      // Earlier submission wins — but only when the times actually differ,
+      // otherwise fall through to the alphabetical tiebreak (a bare
+      // a-b===0 would short-circuit and leave equal-time users unsorted).
+      if (a.submittedAt && b.submittedAt && a.submittedAt !== b.submittedAt) {
+        return a.submittedAt - b.submittedAt;
+      }
+      if (a.submittedAt && !b.submittedAt) return -1;
+      if (b.submittedAt && !a.submittedAt) return 1;
       return a.displayName.localeCompare(b.displayName);
     });
 

@@ -98,7 +98,7 @@ const VIEW_META = {
   worldCup2026Predictor: { title: 'World Cup 2026 Predictor — Free Bracket & Prediction Game', description: 'Free FIFA World Cup 2026 predictor. Build your bracket, predict every match from the group stage through the Final, and compete on a global leaderboard. Free entry, no purchase necessary.', path: '/world-cup-2026-predictor', index: true },
   worldCupBracket: { title: 'World Cup 2026 Bracket — Free FIFA Bracket Challenge', description: 'Build your free FIFA World Cup 2026 bracket. Predict group finishers, best third-placed teams, and every knockout match. Create private pools with friends. Free entry, prizes for top finishers.', path: '/world-cup-bracket', index: true },
   freeWorldCupPool: { title: 'Free World Cup Pool — Run a 2026 World Cup Group with Friends', description: 'Create a free World Cup 2026 pool for friends, family, or coworkers. Private leagues with shared leaderboards, optional house rules, and automatic scoring. No entry fee, no purchase necessary.', path: '/free-world-cup-pool', index: true },
-  worldCupPredictionGame: { title: 'World Cup Prediction Game — Free FIFA World Cup 2026 Pick\'em', description: 'The free FIFA World Cup 2026 prediction game. Predict all 104 matches, join private pools, and compete globally. Quick Picks (10 min, 76 pts) or Classic Predictions (exact scores). Free entry.', path: '/world-cup-prediction-game', index: true },
+  worldCupPredictionGame: { title: 'World Cup Prediction Game — Free FIFA World Cup 2026 Pick\'em', description: 'The free FIFA World Cup 2026 prediction game. A guided bracket — rank the groups, pick the best thirds, and call every knockout winner — in about 10 minutes. Join private pools and compete globally. Free entry.', path: '/world-cup-prediction-game', index: true },
   worldCup2026Groups: { title: 'World Cup 2026 Groups — All 12 Groups and 48 Teams', description: 'All 12 groups (A–L) and 48 teams for the FIFA World Cup 2026. How group-stage qualification works, the tiebreaker order, and how to predict groups on GoalOracle.', path: '/world-cup-2026-groups', index: true },
   worldCup2026Schedule: { title: 'World Cup 2026 Schedule — Full Fixture List with Dates and Venues', description: 'Complete FIFA World Cup 2026 schedule: all 104 match dates, kick-off times (ET), venues, and cities across the US, Canada, and Mexico. Group stage through the Final on July 19, 2026.', path: '/world-cup-2026-schedule', index: true },
   howThirdPlaceQualificationWorks: { title: 'How World Cup Third-Place Qualification Works — 2026 Guide', description: 'How the 8 best third-placed teams qualify for the 2026 World Cup Round of 32. The tiebreaker order, why head-to-head isn\'t used, and how FIFA\'s Annexe C routes them into the bracket.', path: '/how-world-cup-third-place-qualification-works', index: true },
@@ -1634,6 +1634,9 @@ const GoalOracle = () => {
     // CTAs do this).
     if (l) { setSelLeague(l); setDetailTab(opts.tab || 'leaderboard'); setDetailWeek('week1'); setDetailStage('all'); }
     if (v === 'browse') loadAllLeagues();
+    // Admin Users table resolves each user's league IDs to names from
+    // allLeagues; load it so names render instead of truncated IDs.
+    if (v === 'admin') loadAllLeagues();
     setView(prev => prev === v && !l ? prev : v);
     setMenuOpen(false);
     window.scrollTo(0, 0);
@@ -4474,23 +4477,23 @@ const GoalOracle = () => {
         questions: [
           {
             q: 'What is GoalOracle?',
-            a: 'GoalOracle is a free prediction game for the FIFA World Cup 2026. You predict the outcomes of all 104 matches — from the group stage through to the final — and compete against friends and the global community on leaderboards. It\'s free to play — no money involved, just bragging rights.'
+            a: 'GoalOracle is a free prediction game for the FIFA World Cup 2026. You fill out a bracket — ranking the teams in each group, picking the 8 best third-placed teams, and choosing the winner of every knockout tie through to the final — and compete against friends and the global community on leaderboards. It\'s free to play — no money involved, just bragging rights.'
           },
           {
             q: 'How do I make predictions?',
-            a: 'After signing up and joining a league, go to the Predictions tab. For each match you can predict the winner (home/draw/away) for 3 points, and optionally predict the exact score for 5 bonus points. For knockout matches you can also predict extra time (+1 pt) and penalty shootout outcomes (+2 pts). As you predict group matches, the knockout bracket auto-fills based on your predicted group standings — including the 8 best third-placed teams per FIFA rules.'
+            a: 'It\'s a guided three-step bracket and takes about ten minutes. Step 1: rank the four teams in each of the 12 groups in your predicted finishing order. Step 2: pick which 8 of the 12 third-placed teams advance to the Round of 32. Step 3: pick the winner of every knockout tie through to the final. You can save partial progress and come back, and update any pick until it locks.'
           },
           {
             q: 'How does the knockout bracket work?',
-            a: 'Once you predict all group stage matches, GoalOracle calculates your predicted group standings (points → head-to-head → goal difference → goals scored). The top 2 from each group plus the 8 best third-placed teams fill the Round of 32. As you predict each knockout round, the next round auto-populates with the winners. The third-place bracket assignment follows the official FIFA Annex C mapping with all 495 possible combinations.'
+            a: 'Your group rankings plus your 8 best-third picks fill the Round of 32: the top 2 from each group and the 8 best third-placed teams. As you pick each knockout round, the next round populates with your chosen winners. The third-place bracket assignment follows the official FIFA Annexe C mapping with all 495 possible combinations.'
           },
           {
             q: 'When do predictions lock?',
-            a: 'Predictions lock 5 minutes before each match kicks off. You can update your predictions as many times as you want before the lock — they auto-save as you go. Once a match locks, your prediction for that match is final.'
+            a: 'Predictions lock 5 minutes before each match kicks off. You can update your picks as many times as you want before the lock — they auto-save as you go. Each stage (group rankings, best thirds, and each knockout round) freezes as its first match approaches.'
           },
           {
             q: 'How is the leaderboard calculated?',
-            a: 'Points are awarded per match: Correct result (home/draw/away) = 3 pts, Exact score = 5 pts, Extra time prediction = 1 pt, Penalty prediction = 2 pts. League creators can customize these values. Tiebreakers are: total points → exact scores → knockout bonuses → earliest submission time.'
+            a: 'You earn points for correct picks: group rankings score 3 / 2 / 1 / 1 by finishing position (84 max), each correct best-third pick is worth 2 (16 max), and knockout winners are worth more in later rounds — 2 in the Round of 32 up to 12 for the final (109 max), for 209 points in total. The leaderboard ranks by total points — most points wins. Your accuracy (the share of available points you\'ve earned) is shown alongside as a secondary stat.'
           },
           {
             q: 'Can I join multiple leagues?',

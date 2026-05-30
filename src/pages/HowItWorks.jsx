@@ -23,6 +23,11 @@ import {
   MIN_AGE,
   SPONSOR_DBA,
 } from '../config/legal';
+import {
+  SCORING_FACTS,
+  GROUP_POSITION_POINTS,
+  KNOCKOUT_ROUND_ROWS,
+} from '../utils/scoringExplainer';
 
 export default function HowItWorks() {
   return (
@@ -62,119 +67,106 @@ export default function HowItWorks() {
           </ul>
         </section>
 
-        {/* 2. Quick Picks */}
+        {/* 2. How the bracket is scored */}
         <section className="legal-section">
-          <h2 className="legal-section-title">2. Quick Picks mode (~10 minutes)</h2>
+          <h2 className="legal-section-title">2. Building and scoring your bracket (~10 minutes)</h2>
           <p>
-            Quick Picks is the guided three-step bracket. Most users finish it in under
-            ten minutes. Total scoring potential: <strong>76 points</strong>.
+            GoalOracle is a guided three-step bracket. Most players finish in under ten
+            minutes. The maximum score is <strong>{SCORING_FACTS.totalMax} points</strong>,
+            and you can save partial progress and come back — you don&apos;t have to fill it
+            all at once.
           </p>
-          <h3 className="legal-subhead">Step 1 — Rank each group (36 points)</h3>
+          <h3 className="legal-subhead">
+            Step 1 — Rank each group ({SCORING_FACTS.groupStageMax} points)
+          </h3>
           <p>
-            For each of the 12 groups, drag the four teams into your predicted finishing order.
-            Each correctly placed team scores <strong>0.75 points</strong>. A perfectly ranked
-            group scores 3 points; 12 groups × 3 = 36 max.
+            For each of the {SCORING_FACTS.groupCount} groups, put the four teams in your
+            predicted finishing order. You earn points for every team you place correctly:{' '}
+            <strong>{GROUP_POSITION_POINTS[0]}</strong> for the group winner,{' '}
+            <strong>{GROUP_POSITION_POINTS[1]}</strong> for the runner-up,{' '}
+            <strong>{GROUP_POSITION_POINTS[2]}</strong> for third, and{' '}
+            <strong>{GROUP_POSITION_POINTS[3]}</strong> for fourth. A perfectly ranked group
+            is {SCORING_FACTS.groupMaxPerGroup} points; {SCORING_FACTS.groupCount} groups ×{' '}
+            {SCORING_FACTS.groupMaxPerGroup} = {SCORING_FACTS.groupStageMax} max.
           </p>
-          <h3 className="legal-subhead">Step 2 — Pick the 8 best third-placed teams (8 points)</h3>
+          <h3 className="legal-subhead">
+            Step 2 — Pick the 8 best third-placed teams ({SCORING_FACTS.bestThirdMax} points)
+          </h3>
           <p>
-            Of the 12 third-placed teams, only 8 advance to the Round of 32. Pick which 8 you
-            think will make it. Each correct pick scores 1 point; 8 max.
+            {SCORING_FACTS.groupCount} teams finish third but only {SCORING_FACTS.bestThirdCount}{' '}
+            advance to the Round of 32. Pick which {SCORING_FACTS.bestThirdCount} you think will
+            make it. Each correct pick scores{' '}
+            <strong>{SCORING_FACTS.bestThirdPerPick} points</strong>; {SCORING_FACTS.bestThirdMax} max.
           </p>
-          <h3 className="legal-subhead">Step 3 — Fill the knockout bracket (32 points)</h3>
+          <h3 className="legal-subhead">
+            Step 3 — Fill the knockout bracket ({SCORING_FACTS.knockoutMax} points)
+          </h3>
           <p>
-            Pick the winner of every knockout match through to the Final and the Third-Place
-            match. Each correct pick scores 1 point:
+            Pick the winner of every knockout tie through to the Final. Later rounds are worth
+            more, so the bracket stays in play to the end:
           </p>
           <ul className="legal-list">
-            <li>Round of 32 — 16 matches × 1 pt = 16</li>
-            <li>Round of 16 — 8 matches × 1 pt = 8</li>
-            <li>Quarterfinals — 4 matches × 1 pt = 4</li>
-            <li>Semifinals — 2 matches × 1 pt = 2</li>
-            <li>Third-Place Match — 1 pt</li>
-            <li>Final — 1 pt</li>
+            {KNOCKOUT_ROUND_ROWS.map((r) => (
+              <li key={r.key}>
+                {r.label} — {r.matches} {r.matches === 1 ? 'match' : 'matches'} ×{' '}
+                {r.perPick} pt{r.perPick === 1 ? '' : 's'} = {r.max}
+              </li>
+            ))}
           </ul>
         </section>
 
-        {/* 3. Classic */}
+        {/* 3. Scoring table */}
         <section className="legal-section">
-          <h2 className="legal-section-title">3. Classic Predictions mode</h2>
-          <p>
-            Classic Predictions is the per-match mode. You predict both the <strong>result</strong>
-            (home win / draw / away win) and the <strong>exact score</strong> of every one of the
-            104 matches. Default scoring (league creators can customize for private leagues):
-          </p>
-          <ul className="legal-list">
-            <li>Correct result (e.g. predicted &ldquo;home wins,&rdquo; home wins): <strong>3 points</strong></li>
-            <li>Exact score (e.g. predicted 2-1, actual 2-1): <strong>5 points</strong> — replaces the 3-point result bonus, not additive</li>
-            <li>Correct extra-time call (knockouts only): <strong>+1 point</strong></li>
-            <li>Correct penalty-shootout call (knockouts only): <strong>+2 points</strong></li>
-          </ul>
-          <p>
-            A user who predicted every score exactly plus called every shootout would earn
-            roughly 510-540 points across the tournament.
-          </p>
-        </section>
-
-        {/* 4. Scoring table */}
-        <section className="legal-section">
-          <h2 className="legal-section-title">4. Scoring at a glance</h2>
+          <h2 className="legal-section-title">3. Scoring at a glance</h2>
           <table className="legal-table" aria-label="GoalOracle scoring summary">
             <thead>
               <tr>
-                <th>Mode</th>
+                <th>Step</th>
                 <th>What you predict</th>
-                <th>Points per correct pick</th>
+                <th>Points</th>
                 <th>Total possible</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Quick Picks — Group ranking</td>
-                <td>4 teams in order</td>
-                <td>0.75 per position</td>
-                <td>36</td>
+                <td>Group ranking</td>
+                <td>4 teams in order, each group</td>
+                <td>{GROUP_POSITION_POINTS.join(' / ')} by position</td>
+                <td>{SCORING_FACTS.groupStageMax}</td>
               </tr>
               <tr>
-                <td>Quick Picks — Best thirds</td>
-                <td>8 of 12 third-placed teams</td>
-                <td>1 per correct pick</td>
-                <td>8</td>
+                <td>Best thirds</td>
+                <td>{SCORING_FACTS.bestThirdCount} of {SCORING_FACTS.groupCount} third-placed teams</td>
+                <td>{SCORING_FACTS.bestThirdPerPick} per correct pick</td>
+                <td>{SCORING_FACTS.bestThirdMax}</td>
               </tr>
               <tr>
-                <td>Quick Picks — Knockouts</td>
-                <td>Winner of every knockout match</td>
-                <td>1 per correct winner</td>
-                <td>32</td>
+                <td>Knockouts</td>
+                <td>Winner of every knockout tie</td>
+                <td>
+                  {KNOCKOUT_ROUND_ROWS.map((r) => `${r.perPick}`).join(' / ')} by round
+                </td>
+                <td>{SCORING_FACTS.knockoutMax}</td>
               </tr>
               <tr>
-                <td>Classic — Match result</td>
-                <td>Home win / Draw / Away win</td>
-                <td>3</td>
-                <td>312 (104 × 3)</td>
-              </tr>
-              <tr>
-                <td>Classic — Exact score</td>
-                <td>Exact final score</td>
-                <td>5 (replaces the 3)</td>
-                <td>520 (104 × 5)</td>
-              </tr>
-              <tr>
-                <td>Classic — Extra time / penalty bonuses</td>
-                <td>Correct ET / shootout call</td>
-                <td>+1 ET, +2 PK</td>
-                <td>Variable</td>
+                <td><strong>Total</strong></td>
+                <td>Full bracket</td>
+                <td>—</td>
+                <td><strong>{SCORING_FACTS.totalMax}</strong></td>
               </tr>
             </tbody>
           </table>
           <p style={{ marginTop: '0.75rem', fontSize: '0.88rem', color: 'var(--text-sec)' }}>
-            Predictions lock 5 minutes before each match kicks off. Up to that moment you can
-            update your picks as many times as you want — they auto-save.
+            The leaderboard ranks by <strong>total points</strong> — most points wins. Your
+            accuracy (the share of available points you&apos;ve earned) is shown alongside as a
+            secondary stat. Predictions lock 5 minutes before each match kicks off, and
+            auto-save until then.
           </p>
         </section>
 
-        {/* 5. Prize contest */}
+        {/* 4. Prize contest */}
         <section className="legal-section">
-          <h2 className="legal-section-title">5. The prize contest</h2>
+          <h2 className="legal-section-title">4. The prize contest</h2>
           <p>
             GoalOracle runs a free skill-based contest tied to the Global Quick Picks
             Leaderboard. At the end of the World Cup Final ({FINAL_DATE}), the top 3
@@ -203,9 +195,9 @@ export default function HowItWorks() {
           </p>
         </section>
 
-        {/* 6. Verification */}
+        {/* 5. Verification */}
         <section className="legal-section">
-          <h2 className="legal-section-title">6. How match results are verified</h2>
+          <h2 className="legal-section-title">5. How match results are verified</h2>
           <p>
             GoalOracle uses a <strong>dual-source oracle</strong>. When a match concludes:
           </p>
@@ -222,9 +214,9 @@ export default function HowItWorks() {
           </p>
         </section>
 
-        {/* 7. Annexe C */}
+        {/* 6. Annexe C */}
         <section className="legal-section">
-          <h2 className="legal-section-title">7. Annexe C — third-place routing</h2>
+          <h2 className="legal-section-title">6. Annexe C — third-place routing</h2>
           <p>
             With 12 groups in the 2026 World Cup, 12 teams finish third. Only the top 8 of them
             advance to the Round of 32. FIFA&apos;s <strong>Annexe C</strong> is the official
@@ -245,14 +237,14 @@ export default function HowItWorks() {
           </p>
         </section>
 
-        {/* 8. Where to play */}
+        {/* 7. Where to play */}
         <section className="legal-section">
-          <h2 className="legal-section-title">8. Get started</h2>
+          <h2 className="legal-section-title">7. Get started</h2>
           <p>
-            Pick a mode and start your bracket — it&apos;s free, takes about ten minutes for
-            Quick Picks, and your account is created automatically with any sign-in method
-            (email, Google, Twitter/X). You&apos;re entered into the Global Quick Picks League
-            (where the prize contest runs) the moment you finish your bracket.
+            Start your bracket — it&apos;s free, takes about ten minutes, and your account is
+            created automatically with any sign-in method (email, Google, Twitter/X).
+            You&apos;re entered into the Global Quick Picks League (where the prize contest
+            runs) the moment you finish your bracket.
           </p>
           <p>
             Want to play with friends? Create a <a href="/create">private league</a> and share

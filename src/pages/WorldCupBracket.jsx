@@ -108,29 +108,28 @@ export default function WorldCupBracket() {
         <section className="legal-section">
           <h2 className="legal-section-title">How to fill your GoalOracle bracket</h2>
           <p>
-            GoalOracle&apos;s <strong>Quick Picks</strong> mode guides you through the
-            bracket in three steps:
+            GoalOracle guides you through the bracket in three steps:
           </p>
           <ol className="legal-list">
             <li>
               <strong>Rank each group:</strong> For each of the 12 groups, drag the four
-              teams into your predicted finishing order. Earn 0.75 points per correctly
-              placed team — up to 36 points total.
+              teams into your predicted finishing order. You score 3 / 2 / 1 / 1 by finishing
+              position — up to 84 points across every group.
             </li>
             <li>
               <strong>Pick the 8 best thirds:</strong> Select which 8 of the 12
-              third-placed teams you think will advance. Each correct pick is worth 1
-              point — 8 points available.
+              third-placed teams you think will advance. Each correct pick is worth 2
+              points — 16 points available.
             </li>
             <li>
               <strong>Fill the knockout bracket:</strong> Pick the winner of every match
-              from Round of 32 through the Final. 32 points available. Your bracket
-              auto-populates based on your group and thirds picks.
+              from Round of 32 through the Final. Later rounds are worth more, up to 109
+              points. Your bracket auto-populates based on your group and thirds picks.
             </li>
           </ol>
           <p>
-            Prefer match-by-match predictions? <strong>Classic Predictions</strong> mode
-            lets you predict the exact score of all 104 matches for higher potential points.
+            That&apos;s 209 points in total, and it takes about ten minutes. The leaderboard
+            ranks by total points — most points wins.
           </p>
         </section>
 

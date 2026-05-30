@@ -288,3 +288,71 @@ export function resolveActualBracket(matchResults) {
 
   return { resolved, allGroupsComplete, errors };
 }
+
+// ─── Quick Picks scoring inputs ───
+//
+// Adapter (R1) that turns /matchResults into the `actuals` shape
+// calculateSimpleScore() expects:
+//   { groupStandings, advancingThirds, knockoutResults }
+//
+//   groupStandings:  { A: ['1st','2nd','3rd','4th'], ... } — ordered team
+//                    names per group. Only groups whose 3 matches are all
+//                    played are included; partial groups are omitted so a
+//                    half-finished group can't be mis-scored.
+//   advancingThirds: array of GROUP LETTERS whose 3rd-placed team advanced
+//                    to the R32 (the best 8 of 12 per Annexe C). Empty until
+//                    every group is complete (Annexe C needs all 12 thirds).
+//   knockoutResults: { matchId: { winnerId: <teamName> } } for every knockout
+//                    fixture that has a decided result, keyed by the same
+//                    matches.js ids the predictions use (r32-01 … final).
+//
+// Reuses buildGroupStandings + the Annexe C thirds logic + resolveActualBracket
+// so this never diverges from how the live bracket itself is resolved.
+// Pure: same matchResults in → same actuals out. Safe to call with partial
+// results (returns whatever is known so far for partial-bracket scoring).
+export function buildSimpleActuals(matchResults) {
+  const results = matchResults || {};
+  const standings = buildGroupStandings(results);
+
+  // Group standings — ordered team names, only for fully-played groups.
+  const groupStandings = {};
+  for (const letter of GROUP_LETTERS) {
+    const teams = standings[letter];
+    if (teams && teams.length === 4 && teams.every((t) => t.played === 3)) {
+      groupStandings[letter] = teams.map((t) => t.name);
+    }
+  }
+
+  // Advancing thirds (group letters) — only once all 12 groups are done,
+  // because Annexe C ranks all 12 third-placed teams against each other.
+  let advancingThirds = [];
+  const allGroupsComplete = GROUP_LETTERS.every((l) => groupStandings[l]);
+  if (allGroupsComplete) {
+    const allGroups = buildAllGroupsForAnnexeC(standings);
+    const thirds = GROUP_LETTERS
+      .map((l) => allGroups[l]?.[2])
+      .filter(Boolean);
+    // Same cross-group tiebreak order resolveActualBracket uses.
+    thirds.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+      if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+      return a.group.localeCompare(b.group);
+    });
+    advancingThirds = thirds.slice(0, 8).map((t) => t.group);
+  }
+
+  // Knockout winners — derive the winning TEAM NAME for every knockout
+  // fixture that has both its teams resolved and a decided result.
+  const { resolved } = resolveActualBracket(results);
+  const knockoutResults = {};
+  for (const [matchId, teams] of Object.entries(resolved)) {
+    const result = results[matchId];
+    if (!result) continue;
+    const side = determineWinnerFromResult(result);
+    if (side === 'home') knockoutResults[matchId] = { winnerId: teams.home };
+    else if (side === 'away') knockoutResults[matchId] = { winnerId: teams.away };
+  }
+
+  return { groupStandings, advancingThirds, knockoutResults };
+}

@@ -470,7 +470,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             <ArrowLeft size={14} /> <span>Leagues</span>
           </button>
           <div className="simple-page-title">
-            <h1>{league?.name || 'Simple Mode'}</h1>
+            <h1>{league?.name || 'Quick Picks'}</h1>
             <span className="simple-page-subtitle">Predict rankings, not scores</span>
           </div>
           {/* House Rules — only renders on private user-created

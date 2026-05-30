@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -98,6 +98,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [userSearch, setUserSearch] = useState('');
   // Quick Picks status map (userId -> rollup) + column sort for the Users table.
   const [qpStatusById, setQpStatusById] = useState({});
+  // Per-user email history (item B1) — { userId -> { lastTemplate,
+  // lastSentAtMs, totalSent, lastOpenedAtMs } }. Drives the "Last emailed"
+  // column + the outreach recent-contact guardrail.
+  const [emailHistById, setEmailHistById] = useState({});
   const [userSort, setUserSort] = useState({ key: 'joined', dir: 'desc' });
   const [matchFilter, setMatchFilter] = useState('pending'); // pending | verified | all
   const [deleting, setDeleting] = useState(null);
@@ -332,6 +336,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     reloadOutreachRenderPreview();
     reloadOutreachRecentRuns();
     reloadOutreachScheduled();
+    // Email history powers the recent-contact guardrail in the send flow.
+    fetchAdminUsersEmailHistory().then(setEmailHistById).catch(e => { console.warn('[admin] email history load failed:', e?.message || e); });
     // Pre-fill the preview-email field with the admin's own account email.
     setOutreachPreviewEmail(userData?.email || '');
     // Reset session-sent set when template changes — different templates
@@ -385,6 +391,19 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     // accidentally double-emailing.
     const ids = Array.from(outreachSelectedIds).filter(uid => !outreachSentThisSession.has(uid));
     if (ids.length === 0) { notify('No users to send to (all selected users were already sent this session).', 'error'); return; }
+    // Recent-contact guardrail (item B1): warn — don't silently drop — if any
+    // recipients were emailed within RECENT_CONTACT_DAYS. The operator can
+    // proceed anyway or cancel and narrow the selection; nobody is removed
+    // from the send without an explicit choice.
+    const recent = ids.filter(uid => _emailedWithinDays(uid));
+    if (recent.length > 0) {
+      const proceed = window.confirm(
+        `Heads up: ${recent.length} of ${ids.length} selected user${recent.length === 1 ? ' was' : 's were'} already emailed in the last ${RECENT_CONTACT_DAYS} days.\n\n` +
+        `Sending again risks over-messaging them. Send to all ${ids.length} anyway?\n\n` +
+        `(Cancel to go back and narrow your selection — sort the Users table by "Last emailed" to see who.)`
+      );
+      if (!proceed) return;
+    }
     const confirmed = window.confirm(
       `Send the "${OUTREACH_TEMPLATES[outreachTemplate]?.label || outreachTemplate}" email to ${ids.length} user${ids.length === 1 ? '' : 's'}?\n\nThis cannot be undone.`
     );
@@ -679,6 +698,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     if (tab === 'users') {
       getAllUsers().then(setUsers).catch(e => { console.error(e); notify('Failed to load users', 'error'); });
       fetchAdminUsersQpStatus().then(setQpStatusById).catch(e => { console.warn('[admin] QP status load failed:', e?.message || e); });
+      fetchAdminUsersEmailHistory().then(setEmailHistById).catch(e => { console.warn('[admin] email history load failed:', e?.message || e); });
     }
     if (tab === 'oracle' && !health && !healthLoading) runHealthCheck();
   }, [tab]);
@@ -922,6 +942,26 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // the legacy manually-backfilled country. Blank until the user next logs in.
   const _locText = (u) => [u.geoCity, u.geoRegion, u.geoCountry || u.country].filter(Boolean).join(', ');
 
+  // Email history (item B1) — days since last contact + a short label for the
+  // "Last emailed" column. Returns { days, label, totalSent } or null when
+  // the user has never been emailed.
+  const _emailInfo = (uid) => {
+    const h = emailHistById[uid];
+    if (!h || !h.lastSentAtMs) return null;
+    const days = Math.floor((Date.now() - h.lastSentAtMs) / 86400000);
+    const tmplLabel = OUTREACH_TEMPLATES[h.lastTemplate]?.label || h.lastTemplate || 'email';
+    const ago = days <= 0 ? 'today' : days === 1 ? '1d ago' : `${days}d ago`;
+    return { days, totalSent: h.totalSent || 0, label: `${tmplLabel} · ${ago}` };
+  };
+  // Recent-contact guardrail window (item B1). Recipients emailed within this
+  // many days are flagged before a send. 3 days per founder direction.
+  const RECENT_CONTACT_DAYS = 3;
+  const _emailedWithinDays = (uid, days = RECENT_CONTACT_DAYS) => {
+    const h = emailHistById[uid];
+    if (!h || !h.lastSentAtMs) return false;
+    return (Date.now() - h.lastSentAtMs) < days * 86400000;
+  };
+
   // Column sort over the filtered users.
   const _userSortVal = (u, key) => {
     switch (key) {
@@ -930,7 +970,13 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       case 'location': return (u.geoCountry || u.country || '').toLowerCase();
       case 'leagues': return Array.isArray(u.leagues) ? u.leagues.length : 0;
       case 'status': return _qpInfo(u.id).rank;
+      // Last-emailed sorts by recency (most-recent first under desc). Never
+      // emailed sorts as -Infinity so those users cluster at the bottom.
+      case 'emailed': return emailHistById[u.id]?.lastSentAtMs || -Infinity;
       case 'role': return u.role || 'user';
+      // Wallet sorts has-wallet-first (by address), then the rest. Empty
+      // string sorts after any real 0x… address under localeCompare desc/asc.
+      case 'wallet': return (u.walletAddress || '').toLowerCase();
       case 'joined':
       default: return _joinMillis(u);
     }
@@ -1308,7 +1354,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             <table className="admin-segment-table admin-user-table">
               <thead>
                 <tr>
-                  {[['name', 'User'], ['email', 'Email'], ['location', 'Location'], ['leagues', 'Leagues'], ['status', 'QP status'], ['joined', 'Joined'], ['role', 'Role']].map(([key, label]) => (
+                  {[['name', 'User'], ['email', 'Email'], ['location', 'Location'], ['leagues', 'Leagues'], ['status', 'QP status'], ['emailed', 'Last emailed'], ['joined', 'Joined'], ['role', 'Role']].map(([key, label]) => (
                     <th
                       key={key}
                       className="admin-sortable"
@@ -1318,7 +1364,13 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       {label}{userSort.key === key ? (userSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
                     </th>
                   ))}
-                  <th>Wallet</th>
+                  <th
+                    className="admin-sortable"
+                    aria-sort={userSort.key === 'wallet' ? (userSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    onClick={() => toggleUserSort('wallet')}
+                  >
+                    Wallet{userSort.key === 'wallet' ? (userSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </th>
                   <th aria-label="Actions"></th>
                 </tr>
               </thead>
@@ -1329,6 +1381,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   const joined = Array.isArray(u.leagues) ? u.leagues : [];
                   const leagueNames = joined.map(_leagueLabel);
                   const qp = _qpInfo(u.id);
+                  const email = _emailInfo(u.id);
                   const loc = _locText(u);
                   const flagCode = u.geoCountry || u.country;
                   return (
@@ -1346,9 +1399,14 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       <td title={leagueNames.length ? leagueNames.join(', ') : 'No leagues joined'}>
                         {joined.length === 0
                           ? <span className="admin-wallet-empty">none</span>
-                          : <><strong>{joined.length}</strong> <span className="admin-user-leagues-names">{leagueNames.slice(0, 2).join(', ')}{joined.length > 2 ? ` +${joined.length - 2}` : ''}</span></>}
+                          : <span className="admin-user-leagues-cell"><strong>{joined.length}</strong> <span className="admin-user-leagues-names">{leagueNames.join(', ')}</span></span>}
                       </td>
                       <td><span className={`admin-qp-pill admin-qp-${qp.tone}`}>{qp.label}</span></td>
+                      <td className="admin-user-emailed-cell" title={email ? `${email.totalSent} email${email.totalSent === 1 ? '' : 's'} sent total${email.days <= RECENT_CONTACT_DAYS ? ` — contacted within ${RECENT_CONTACT_DAYS}d` : ''}` : 'Never emailed'}>
+                        {email
+                          ? <span className={email.days <= RECENT_CONTACT_DAYS ? 'admin-user-emailed-recent' : undefined}>{email.label}</span>
+                          : <span className="admin-wallet-empty">never</span>}
+                      </td>
                       <td className="admin-user-joined-cell" title="Join date">{_joinLabel(u)}</td>
                       <td>
                         <select className="admin-select admin-select-xs" value={u.role || 'user'} onChange={e => handleRoleChange(u.id, e.target.value)}>

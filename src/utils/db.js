@@ -671,6 +671,14 @@ export async function fetchAdminUsersQpStatus() {
   return data?.status || {};
 }
 
+// Per-user email-history map { userId -> { lastTemplate, lastSentAtMs,
+// totalSent, lastOpenedAtMs } } for the admin Users table + the outreach
+// recent-contact guardrail (item B1). See api/admin.js type=emailHistory.
+export async function fetchAdminUsersEmailHistory() {
+  const data = await apiCall('admin?type=emailHistory');
+  return data?.history || {};
+}
+
 // Admin outreach — schedule a send for later. Validated server-side
 // (must be in the future, max 1000 recipients per send, template must
 // exist). Drained by the /api/cron/outreach-drain cron every 5 min.

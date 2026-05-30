@@ -7,10 +7,13 @@
  * + dispute logic as /api/oracle, just driven by the schedule rather
  * than an admin click.
  *
- * Triggered by Vercel Cron (see vercel.json). Runs every 30 minutes
- * during the tournament — short enough that a user sees their score
- * within ~half an hour of full-time, long enough to keep oracle
- * quotas healthy (football-data.org free tier = 10 req/min).
+ * Triggered by Vercel Cron (see vercel.json). Runs every 2 minutes
+ * during the tournament so a user sees their score within ~2 minutes of
+ * full-time. Each run only fetches matches that finished since the last
+ * ingest (completed ones are marked and skipped), so in steady state a
+ * run makes very few requests — well within football-data.org's free-tier
+ * 10 req/min. Score recompute only fires on runs that actually ingest a
+ * result (see below), so quiet polls are cheap.
  *
  * Auth: Vercel sets `Authorization: Bearer ${CRON_SECRET}` automatically.
  * Manual triggers (during dev) accept a superadmin Bearer token.
@@ -19,7 +22,8 @@
 import { db, applyCors, verifyAuth } from '../_lib/firebase.js';
 import { parseFootballDataResponse } from '../_lib/oracleParsers.js';
 import { sendOperatorAlert } from '../_lib/alerts.js';
-import { resolveActualBracket } from '../_lib/bracketResolver.js';
+import { resolveActualBracket, buildSimpleActuals } from '../_lib/bracketResolver.js';
+import { recomputeSimpleScores } from '../_lib/computeSimpleScores.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -155,6 +159,31 @@ export default async function handler(req, res) {
       }
     }
 
+    // Recompute every Quick Picks player's score from the latest results
+    // (R2). A player's score only changes when a match result changes, so
+    // we ONLY recompute when this run actually ingested something — at the
+    // 2-minute poll cadence that keeps the common "nothing finished" run
+    // cheap (one fetch, zero writes) while still updating scores within ~2
+    // min of a result landing. Manual admin result edits trigger their own
+    // recompute (see api/admin.js updateResult), so corrections don't wait
+    // for the next poll. Wrapped in try/catch: a scoring bug must NEVER
+    // abort result ingestion — results are the source of truth, scores are
+    // derived and self-heal on the next ingest.
+    if (summary.ingested > 0) {
+      try {
+        const freshSnap = await db.collection('matchResults').get();
+        const fresh = {};
+        freshSnap.docs.forEach((d) => { fresh[d.id] = d.data(); });
+        const actuals = buildSimpleActuals(fresh);
+        const scoreSummary = await recomputeSimpleScores(db, actuals);
+        summary.scoring = scoreSummary;
+      } catch (e) {
+        summary.errors.push({ source: 'score-recompute', error: e.message });
+      }
+    } else {
+      summary.scoring = { skipped: 'no new results this run' };
+    }
+
     await db.collection('adminLogs').add({
       action: 'cron_poll_results',
       timestamp: FieldValue.serverTimestamp(),
@@ -173,7 +202,7 @@ export default async function handler(req, res) {
             resolution: [
               'Open Vercel → your project → Settings → Environment Variables.',
               'Add FOOTBALL_DATA_API_KEY (get one free at https://www.football-data.org/client/register — emailed instantly).',
-              'Redeploy is NOT needed — Vercel picks up env changes for the next cron run (within 30 minutes).',
+              'Redeploy is NOT needed — Vercel picks up env changes for the next cron run (within ~2 minutes).',
             ],
             context: {
               candidates: summary.candidates,
@@ -196,7 +225,7 @@ export default async function handler(req, res) {
             ],
             resolution: [
               'Check https://status.football-data.org for incidents.',
-              'Wait until the next cron run (30 min) — most outages self-recover.',
+              'Wait until the next cron run (~2 min) — most outages self-recover.',
               'If it persists past tomorrow morning, the daily report will show the same red flags. Reply to that email and I can investigate the parser errors.',
             ],
             context: {
@@ -213,7 +242,7 @@ export default async function handler(req, res) {
     await sendOperatorAlert(
       'Auto-poll cron crashed unexpectedly',
       {
-        what: 'The /api/cron/poll-results endpoint threw an uncaught error. No match results were ingested on this run. The cron will retry on its normal 30-minute schedule.',
+        what: 'The /api/cron/poll-results endpoint threw an uncaught error. No match results were ingested on this run. The cron will retry on its normal 2-minute schedule.',
         why: [
           'Database connectivity issue (Firestore admin SDK)',
           'Code bug in the cron itself',
