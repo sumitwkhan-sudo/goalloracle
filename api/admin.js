@@ -809,6 +809,97 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
+    // ─── APPLY GLOBAL PICKS TO A LEAGUE ────────────────────────
+    // Superadmin: copy a user's Global (global-simple) Quick Picks bracket
+    // into another QP league — but ONLY when the user has no picks in that
+    // league yet (we never overwrite their own work). If the user has no
+    // global picks to copy, it's skipped + flagged. Reuses the same
+    // evaluateCopy decision logic as the copy-to-global path (stage locks
+    // respected), just with source = global, target = the chosen league.
+    if (action === 'applyGlobalPicksToLeague') {
+      if ((await getRole(userId)) !== 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin only' });
+      }
+      const { targetUserId, leagueId } = req.body;
+      if (!targetUserId || !leagueId) return res.status(400).json({ error: 'targetUserId and leagueId required' });
+      if (leagueId === 'global-simple' || leagueId === 'global') {
+        return res.status(400).json({ error: 'Target cannot be the global league' });
+      }
+
+      const { evaluateCopy } = await import('./_lib/copyToGlobalLogic.js');
+      const SEP = '__';
+
+      const leagueSnap = await db.collection('leagues').doc(leagueId).get();
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+      const league = leagueSnap.data();
+      if (league.predictionMode === 'classic') {
+        return res.status(400).json({ error: 'Target is a Classic league — global Quick Picks can\'t be applied' });
+      }
+      if (!Array.isArray(league.members) || !league.members.includes(targetUserId)) {
+        return res.status(400).json({ error: 'User is not a member of this league' });
+      }
+
+      // Source = the user's global-simple bracket (composite key, with the
+      // legacy single-doc path as a fallback). Target = this league's doc.
+      const srcRef = db.collection('simplePredictions').doc(`${targetUserId}${SEP}global-simple`);
+      const tgtRef = db.collection('simplePredictions').doc(`${targetUserId}${SEP}${leagueId}`);
+      const [srcSnap, tgtSnap] = await Promise.all([srcRef.get(), tgtRef.get()]);
+      let sourceDoc = srcSnap.exists ? srcSnap.data() : null;
+      if (!sourceDoc) {
+        const legacy = await db.collection('simplePredictions').doc(targetUserId).get();
+        if (legacy.exists) sourceDoc = legacy.data();
+      }
+      const targetDoc = tgtSnap.exists ? tgtSnap.data() : null;
+
+      // mode 'skip' => never overwrite an existing entry (the "only users
+      // with no prediction" rule).
+      const decision = evaluateCopy({
+        sourceDoc,
+        sourceLeague: { predictionMode: 'simple' }, // global-simple is always QP
+        targetDoc,
+        mode: 'skip',
+      });
+
+      if (decision.action !== 'create') {
+        // Map the decision to a user-facing skip reason (skip + flag).
+        const reasonMap = {
+          no_source_picks: 'no_global_picks',
+          existing_global_entry: 'already_has_picks',
+          stage_locked: 'stage_locked',
+          incompatible_format: 'incompatible_format',
+        };
+        return res.status(200).json({
+          applied: false,
+          skipped: true,
+          reason: reasonMap[decision.reason] || decision.reason || 'skipped',
+          lockedSections: decision.lockedSections || null,
+        });
+      }
+
+      const writePayload = {
+        userId: targetUserId,
+        leagueId,
+        groupPredictions: sourceDoc.groupPredictions || {},
+        bestThirdPicks: sourceDoc.bestThirdPicks || [],
+        knockoutPredictions: sourceDoc.knockoutPredictions || {},
+        isComplete: !!sourceDoc.isComplete,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (!targetDoc?.submittedAt) writePayload.submittedAt = FieldValue.serverTimestamp();
+      await tgtRef.set(writePayload, { merge: true });
+
+      await db.collection('adminLogs').add({
+        action: 'apply_global_picks_to_league',
+        targetUserId,
+        leagueId,
+        leagueName: league.name || null,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      }).catch(() => {});
+
+      return res.status(200).json({ applied: true });
+    }
+
     if (action === 'backfillCountries') {
       // One-shot: walk every user and assign a country if they don't have
       // one. Product-directed override map wins; everyone else defaults to

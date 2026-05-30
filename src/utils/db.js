@@ -731,6 +731,13 @@ export async function adminAddUserToLeague(leagueId, targetUserId) {
   return await apiCall('admin', 'POST', { action: 'addUserToLeague', leagueId, targetUserId });
 }
 
+// Admin (superadmin): copy a user's Global Quick Picks bracket into another
+// QP league they're in — only if they have no picks there yet (never
+// overwrites). Returns { applied } or { skipped, reason }.
+export async function adminApplyGlobalPicksToLeague(targetUserId, leagueId) {
+  return await apiCall('admin', 'POST', { action: 'applyGlobalPicksToLeague', targetUserId, leagueId });
+}
+
 // ── Outreach automation rules (B2d) ──
 export async function fetchAdminAutomationRules() {
   const data = await apiCall('admin?type=automationRules');
