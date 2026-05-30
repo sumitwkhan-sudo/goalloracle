@@ -178,73 +178,44 @@ function VariantMinimal() {
   );
 }
 
-/* ───────────────── Variant E — Blend (prize hero + steps to enter + optional champion) ───────────────── */
-// Structure tuned from user feedback:
-//   • Prize is the actual headline (was compressed into a strip before).
-//   • "Free Prizes" + "Steps to Enter" are the section labels — clearer that
-//     the prizes are real cash with no entry cost, and the path to win them
-//     is a short numbered checklist, not a chore.
-//   • Champion picker is OPTIONAL and honestly framed: it just saves the
-//     Final winner; the user still walks the wizard to pick the path. The
-//     old "Build my bracket around X" copy implied an auto-fill the engine
-//     doesn't do.
+/* ───────────────── Variant E — Blend (compact: prize hero + steps to enter) ───────────────── */
+// Tuned to fit comfortably on an iPhone 16 viewport (393×~650 visible)
+// without scrolling. Per operator feedback:
+//   • Champion-picker was dropped — the emotional hook wasn't worth the
+//     screen real-estate AND risked misleading copy ("build around X").
+//   • Steps to enter is a compact 3-row list (number · title · time), not
+//     the 3-column card grid (which forced extra height on mobile).
+//   • Single primary CTA. Whole card targets ~400px tall on mobile.
 function VariantBlend() {
-  const [picked, setPicked] = useState(null);
   const { days, hours, minutes } = useCountdown(KICKOFF_UTC);
   return (
     <div className="fpp-hero fpp-hero-blend">
-      {/* PRIZE HERO — the actual headline */}
       <div className="fpp-prize-hero">
-        <div className="fpp-prize-eyebrow">🎁 FREE PRIZES · NO ENTRY FEE</div>
-        <h2 className="fpp-prize-title">Predict the World Cup.<br />Win up to <span className="fpp-prize-amount">$150</span>.</h2>
+        <div className="fpp-prize-eyebrow">🎁 FREE PRIZES</div>
+        <h2 className="fpp-prize-title">Win up to <span className="fpp-prize-amount">$150</span> in USDC</h2>
         <div className="fpp-prize-podium" aria-label="Prize tiers">
-          <div className="fpp-prize-tier fpp-prize-tier-2"><span className="fpp-prize-medal">🥈</span><span className="fpp-prize-money">${PRIZES[1].amount}</span><span className="fpp-prize-label">2nd</span></div>
-          <div className="fpp-prize-tier fpp-prize-tier-1"><span className="fpp-prize-medal">🥇</span><span className="fpp-prize-money">${PRIZES[0].amount}</span><span className="fpp-prize-label">1st</span></div>
-          <div className="fpp-prize-tier fpp-prize-tier-3"><span className="fpp-prize-medal">🥉</span><span className="fpp-prize-money">${PRIZES[2].amount}</span><span className="fpp-prize-label">3rd</span></div>
+          <div className="fpp-prize-tier fpp-prize-tier-2"><span className="fpp-prize-medal">🥈</span><span className="fpp-prize-money">${PRIZES[1].amount}</span></div>
+          <div className="fpp-prize-tier fpp-prize-tier-1"><span className="fpp-prize-medal">🥇</span><span className="fpp-prize-money">${PRIZES[0].amount}</span></div>
+          <div className="fpp-prize-tier fpp-prize-tier-3"><span className="fpp-prize-medal">🥉</span><span className="fpp-prize-money">${PRIZES[2].amount}</span></div>
         </div>
-        <div className="fpp-prize-currency">Paid in USDC · Top 3 on the Global leaderboard win</div>
         <div className="fpp-prize-countdown" aria-live="polite">
-          <span className="fpp-prize-countdown-icon" aria-hidden="true">⏱</span>
-          <span>Group stage locks in <b>{days}d {String(hours).padStart(2, '0')}h {String(minutes).padStart(2, '0')}m</b></span>
+          <span aria-hidden="true">⏱</span>
+          <span>Locks in <b>{days}d {String(hours).padStart(2, '0')}h {String(minutes).padStart(2, '0')}m</b></span>
         </div>
       </div>
 
-      {/* STEPS TO ENTER */}
       <div className="fpp-entry-section">
         <div className="fpp-entry-section-title">Steps to enter</div>
-        <div className="fpp-entry-steps">
-          <div className="fpp-entry-step"><span className="fpp-entry-num">1</span><div className="fpp-entry-body"><div className="fpp-entry-title">Rank the 12 groups</div><div className="fpp-entry-time">~1 min</div></div></div>
-          <div className="fpp-entry-step"><span className="fpp-entry-num">2</span><div className="fpp-entry-body"><div className="fpp-entry-title">Pick the 8 best 3rd-places</div><div className="fpp-entry-time">~30 sec</div></div></div>
-          <div className="fpp-entry-step"><span className="fpp-entry-num">3</span><div className="fpp-entry-body"><div className="fpp-entry-title">Fill the bracket to the Final</div><div className="fpp-entry-time">~90 sec</div></div></div>
-        </div>
-        <div className="fpp-entry-foot">Auto-saves as you go · Edit anything until the group stage locks</div>
+        <ol className="fpp-entry-list">
+          <li><span className="fpp-entry-num">1</span><span className="fpp-entry-title">Rank the 12 groups</span><span className="fpp-entry-time">~1 min</span></li>
+          <li><span className="fpp-entry-num">2</span><span className="fpp-entry-title">Pick the 8 best 3rd-places</span><span className="fpp-entry-time">~30 sec</span></li>
+          <li><span className="fpp-entry-num">3</span><span className="fpp-entry-title">Fill the bracket to the Final</span><span className="fpp-entry-time">~90 sec</span></li>
+        </ol>
       </div>
 
-      {/* ACTION */}
       <div className="fpp-action-section">
-        <div className="fpp-champion-prompt">
-          <strong>Want a head start?</strong> Tap your champion — we'll save it as your Final pick. (Optional)
-        </div>
-        <div className="fpp-flag-grid">
-          {FAVOURITES.map((t) => (
-            <button
-              key={t.name}
-              type="button"
-              className={`fpp-flag-btn ${picked === t.name ? 'is-picked' : ''}`}
-              onClick={() => setPicked(picked === t.name ? null : t.name)}
-              aria-pressed={picked === t.name}
-            >
-              <span className="fpp-flag">{t.flag}</span>
-              <span className="fpp-flag-name">{t.name}</span>
-            </button>
-          ))}
-        </div>
-        {picked && (
-          <div className="fpp-champion-saved" role="status">
-            <span aria-hidden="true">✓</span> {picked} saved as your champion — you'll predict the path to get them there.
-          </div>
-        )}
-        <Cta big>{picked ? `Start with ${picked} as my champion` : 'Start predicting · ~3 min'}</Cta>
+        <Cta big>Start predicting · ~3 min</Cta>
+        <div className="fpp-action-foot">Auto-saves as you go</div>
       </div>
     </div>
   );
@@ -254,7 +225,7 @@ const VARIANTS = [
   {
     id: 'blend',
     name: 'E · A + B + C blended (Recommended)',
-    blurb: 'Prize is the actual headline (was too compressed before): "Win up to $150" with the podium tiers visible, framed as Free Prizes / No Entry Fee + a live countdown. Then a numbered Steps to Enter checklist (the 3 actions, each with a time estimate). Champion picker is OPTIONAL and honestly framed — tapping a flag just saves your Final pick; you still walk the wizard to predict the path. CTA stays clear: "Start predicting · ~3 min" → changes to "Start with {team} as my champion" when picked.',
+    blurb: 'Compact version tuned to fit an iPhone 16 viewport. Prize is the headline ("Win up to $150 in USDC" + 3-tier podium with 1st elevated and gold-bordered), then "Steps to enter" as a tight 3-row numbered list (number · title · time), then one CTA. No champion picker — dropped per feedback that the emotional hook cost screen real-estate AND the "build around X" copy was misleading. Targets ~400px tall on mobile.',
     Component: VariantBlend,
   },
   {
@@ -291,16 +262,15 @@ export default function FirstPickPreview() {
       <div className="fpp-intro">
         <h1>First-prediction page — alternative directions</h1>
         <p>
-          Five engaging entry points for a brand-new user, replacing the
-          current generic CTA + zero-state stats strip (Global Rank #179 of
-          188, 0 points, 0% accuracy, 0 streak). <strong>All five drop those
-          vanity metrics</strong> — they're meaningless and discouraging before
-          you've predicted anything. <strong>E is the recommended one</strong> —
-          it leads with the real prize as the hero ("Win up to $150" + podium),
-          frames the path as a numbered <em>Steps to Enter</em> checklist, and
-          keeps a champion picker as an honest <em>optional</em> head-start
-          (taps just save your Final pick; you still walk the wizard).
-          A–D follow as pure-form references. Buttons are inert.
+          Five entry points for a brand-new user, replacing the current
+          generic CTA + zero-state stats strip (Global Rank #179 of 188, 0
+          points, 0% accuracy, 0 streak). <strong>All five drop those vanity
+          metrics</strong> — they're meaningless and discouraging before you've
+          predicted anything. <strong>E is the recommended one</strong> — a
+          compact card that leads with the real prize ("Win up to $150 in
+          USDC" + podium) and the numbered <em>Steps to Enter</em>, tuned to
+          fit an iPhone 16 viewport without scrolling. A–D follow as pure-form
+          references. Buttons are inert.
         </p>
       </div>
 
@@ -424,129 +394,108 @@ const FPP_CSS = `
 .fpp-foot-note { max-width: 760px; margin: 1rem auto 0; font-size: 0.78rem; color: var(--fpp-dim); text-align: center; }
 .fpp-foot-note code { background: var(--fpp-card); padding: 0.1rem 0.35rem; border-radius: 5px; border: 1px solid var(--fpp-border); }
 
-/* E — blend (prize hero + steps to enter + optional champion) */
+/* E — blend (compact: prize hero + steps to enter, fits iPhone 16) */
 .fpp-hero-blend { padding: 0; overflow: hidden; }
 
-/* PRIZE HERO */
 .fpp-prize-hero {
-  padding: 1.8rem 1.9rem 1.5rem;
+  padding: 1.2rem 1.4rem 1rem;
   background: linear-gradient(160deg,
-    color-mix(in srgb, var(--fpp-gold) 16%, var(--fpp-card)),
+    color-mix(in srgb, var(--fpp-gold) 14%, var(--fpp-card)),
     var(--fpp-card) 75%);
   border-bottom: 1px solid var(--fpp-border);
   text-align: center;
 }
 .fpp-prize-eyebrow {
-  display: inline-flex; align-items: center; gap: 0.35rem;
-  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.64rem; font-weight: 800; letter-spacing: 0.1em;
   color: var(--fpp-gold);
   background: color-mix(in srgb, var(--fpp-gold) 16%, transparent);
-  padding: 0.3rem 0.75rem; border-radius: 99px;
-  margin-bottom: 0.9rem;
+  padding: 0.22rem 0.55rem; border-radius: 99px;
+  margin-bottom: 0.5rem;
 }
 .fpp-prize-title {
-  font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em;
-  margin: 0 0 1.2rem; line-height: 1.18;
+  font-size: 1.4rem; font-weight: 800; letter-spacing: -0.015em;
+  margin: 0 0 0.7rem; line-height: 1.2;
 }
 .fpp-prize-amount {
   color: var(--fpp-gold);
-  font-size: 2.4rem;
+  font-size: 1.75rem;
   display: inline-block; line-height: 1;
 }
 .fpp-prize-podium {
   display: flex; justify-content: center; align-items: flex-end;
-  gap: 0.55rem; margin-bottom: 0.9rem;
+  gap: 0.4rem; margin-bottom: 0.6rem;
 }
 .fpp-prize-tier {
   display: flex; flex-direction: column; align-items: center;
   background: var(--fpp-card); border: 1.5px solid var(--fpp-border);
-  border-radius: 13px; padding: 0.7rem 1rem; min-width: 86px;
+  border-radius: 10px; padding: 0.4rem 0.7rem; min-width: 60px;
 }
 .fpp-prize-tier-1 {
   border-color: var(--fpp-gold);
-  padding: 0.95rem 1rem 0.8rem; min-width: 100px;
-  box-shadow: 0 8px 20px rgba(245,166,35,0.22);
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 4px 10px rgba(245,166,35,0.18);
 }
-.fpp-prize-tier-2, .fpp-prize-tier-3 { padding-bottom: 0.65rem; }
-.fpp-prize-medal { font-size: 1.5rem; line-height: 1; margin-bottom: 0.3rem; }
-.fpp-prize-tier-1 .fpp-prize-medal { font-size: 1.8rem; }
-.fpp-prize-money { font-weight: 800; font-size: 1.15rem; color: var(--fpp-text); }
-.fpp-prize-tier-1 .fpp-prize-money { color: var(--fpp-gold); font-size: 1.45rem; }
-.fpp-prize-label {
-  font-size: 0.66rem; color: var(--fpp-dim);
-  font-weight: 700; margin-top: 0.2rem;
-  text-transform: uppercase; letter-spacing: 0.06em;
-}
-.fpp-prize-currency { font-size: 0.78rem; color: var(--fpp-sec); margin-bottom: 0.9rem; }
+.fpp-prize-medal { font-size: 1.05rem; line-height: 1; margin-bottom: 0.15rem; }
+.fpp-prize-tier-1 .fpp-prize-medal { font-size: 1.25rem; }
+.fpp-prize-money { font-weight: 800; font-size: 0.92rem; color: var(--fpp-text); line-height: 1.1; }
+.fpp-prize-tier-1 .fpp-prize-money { color: var(--fpp-gold); font-size: 1.05rem; }
 .fpp-prize-countdown {
-  display: inline-flex; align-items: center; gap: 0.45rem;
+  display: inline-flex; align-items: center; gap: 0.35rem;
   background: var(--fpp-card); border: 1px solid var(--fpp-border);
-  border-radius: 99px; padding: 0.4rem 0.95rem;
-  font-size: 0.82rem; color: var(--fpp-text);
+  border-radius: 99px; padding: 0.26rem 0.7rem;
+  font-size: 0.72rem; color: var(--fpp-text);
   font-variant-numeric: tabular-nums;
 }
 .fpp-prize-countdown b { font-weight: 800; }
-.fpp-prize-countdown-icon { font-size: 0.95rem; }
 
-/* STEPS TO ENTER */
 .fpp-entry-section {
-  padding: 1.5rem 1.9rem;
+  padding: 0.9rem 1.4rem;
   border-bottom: 1px solid var(--fpp-border);
 }
 .fpp-entry-section-title {
-  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em;
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--fpp-sec);
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.55rem;
 }
-.fpp-entry-steps {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;
-  margin-bottom: 0.85rem;
+.fpp-entry-list { list-style: none; padding: 0; margin: 0; }
+.fpp-entry-list li {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.45rem 0;
+  font-size: 0.85rem;
 }
-.fpp-entry-step {
-  display: flex; align-items: flex-start; gap: 0.65rem;
-  padding: 0.85rem; background: var(--fpp-elev);
-  border: 1px solid var(--fpp-border); border-radius: 12px;
-}
+.fpp-entry-list li + li { border-top: 1px solid var(--fpp-border); }
 .fpp-entry-num {
   flex-shrink: 0;
   display: grid; place-items: center;
-  width: 1.65rem; height: 1.65rem;
+  width: 1.3rem; height: 1.3rem;
   background: var(--fpp-accent); color: #fff;
-  border-radius: 50%; font-weight: 800; font-size: 0.82rem;
+  border-radius: 50%; font-weight: 800; font-size: 0.7rem;
 }
-.fpp-entry-body { min-width: 0; }
-.fpp-entry-title { font-weight: 700; font-size: 0.86rem; line-height: 1.3; }
-.fpp-entry-time { color: var(--fpp-accent); font-weight: 700; font-size: 0.74rem; margin-top: 0.15rem; }
-.fpp-entry-foot { font-size: 0.76rem; color: var(--fpp-dim); text-align: center; }
+.fpp-entry-title { flex: 1; font-weight: 600; color: var(--fpp-text); min-width: 0; }
+.fpp-entry-time { color: var(--fpp-sec); font-weight: 700; font-size: 0.76rem; flex-shrink: 0; }
 
-/* ACTION (champion picker + CTA) */
-.fpp-action-section { padding: 1.4rem 1.9rem 1.8rem; }
-.fpp-champion-prompt {
-  font-size: 0.86rem; color: var(--fpp-sec);
-  text-align: center; margin-bottom: 0.85rem;
-}
-.fpp-champion-prompt strong { color: var(--fpp-text); font-weight: 700; }
-.fpp-action-section .fpp-flag-grid { margin-bottom: 1rem; }
-.fpp-champion-saved {
-  text-align: center; font-size: 0.85rem; font-weight: 600;
-  color: color-mix(in srgb, var(--fpp-accent) 80%, var(--fpp-text));
-  background: color-mix(in srgb, var(--fpp-accent) 10%, transparent);
-  padding: 0.55rem 0.9rem; border-radius: 9px;
-  margin-bottom: 1rem;
-}
+.fpp-action-section { padding: 0.95rem 1.4rem 1.15rem; }
 .fpp-action-section .fpp-cta { display: flex; width: 100%; justify-content: center; }
+.fpp-action-foot { text-align: center; font-size: 0.72rem; color: var(--fpp-dim); margin-top: 0.55rem; }
 
 @media (max-width: 560px) {
   .fpp-flag-grid { grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
   .fpp-title { font-size: 1.4rem; }
   .fpp-title-xl { font-size: 1.7rem; }
   .fpp-steps-foot { flex-direction: column; align-items: stretch; gap: 0.7rem; }
-  .fpp-prize-title { font-size: 1.5rem; }
-  .fpp-prize-amount { font-size: 1.85rem; }
-  .fpp-entry-steps { grid-template-columns: 1fr; }
-  .fpp-prize-podium { gap: 0.4rem; }
-  .fpp-prize-tier { min-width: 0; flex: 1; padding: 0.6rem 0.4rem; }
-  .fpp-prize-tier-1 { min-width: 0; padding: 0.8rem 0.4rem 0.65rem; }
-  .fpp-prize-hero, .fpp-entry-section, .fpp-action-section { padding-left: 1.2rem; padding-right: 1.2rem; }
+  .fpp-prize-hero { padding: 1rem 1.1rem 0.85rem; }
+  .fpp-prize-title { font-size: 1.2rem; margin-bottom: 0.6rem; }
+  .fpp-prize-amount { font-size: 1.55rem; }
+  .fpp-prize-podium { gap: 0.35rem; }
+  .fpp-prize-tier { min-width: 0; flex: 1; padding: 0.38rem 0.45rem; }
+  .fpp-prize-tier-1 { padding: 0.48rem 0.5rem; }
+  .fpp-prize-medal { font-size: 1rem; }
+  .fpp-prize-tier-1 .fpp-prize-medal { font-size: 1.15rem; }
+  .fpp-prize-money { font-size: 0.86rem; }
+  .fpp-prize-tier-1 .fpp-prize-money { font-size: 1rem; }
+  .fpp-entry-section { padding: 0.8rem 1.1rem; }
+  .fpp-entry-list li { font-size: 0.82rem; padding: 0.42rem 0; }
+  .fpp-action-section { padding: 0.85rem 1.1rem 1.05rem; }
 }
 `;
