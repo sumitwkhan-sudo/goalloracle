@@ -5,13 +5,14 @@ import { auth as fbAuth } from './config/firebase';
 import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil, FileText } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil, FileText, Bell } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
 import { teamFlags } from './utils/flags';
 import { getRank as getFifaRank } from './data/fifaRankings';
 import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX } from './utils/scoringSimple';
+import { stageLockTimeUtc } from './utils/stageLock';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
@@ -1343,6 +1344,9 @@ const GoalOracle = () => {
   const [homeTeam, setHomeTeam] = useState(() => localStorage.getItem('goaloracle_home_team') || '');
   const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const teamPickerRef = useRef(null);
+  // Nav notification center (item G) — open state + outside-click ref.
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef(null);
   useEffect(() => { document.documentElement.setAttribute('data-theme', 'light'); }, []);
 
   // Apply team colors as CSS variables
@@ -1372,6 +1376,16 @@ const GoalOracle = () => {
     if (teamPickerOpen) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [teamPickerOpen]);
+
+  // Close the notification dropdown on an outside click (mirrors the
+  // team-picker pattern above).
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    if (notifOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [notifOpen]);
 
   const cycleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -4946,6 +4960,58 @@ const GoalOracle = () => {
     );
   };
 
+  // ── Nav notification center (item G) ──────────────────────────────────
+  // Derives open-action notifications from the SAME sources the rest of the
+  // app uses: the live `quickPicks` summary (totalRemaining/isComplete) and
+  // the shared stage-lock deadline source (stageLockTimeUtc). No new fetches.
+  // Each notification deep-links to the exact action. Quiet (empty) when the
+  // user has nothing open. Gated on quickPicks !== null so it doesn't flash
+  // a count before the prediction doc has loaded (per the flicker rule).
+  const goToQuickPicks = useCallback((tab = 'predictions') => {
+    const simpleLeague = leagues.find(l => l.id === 'global-simple')
+      || allLeagues.find(l => l.id === 'global-simple')
+      || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
+    nav('detail', simpleLeague, { tab });
+  }, [leagues, allLeagues]);
+
+  const navNotifications = useMemo(() => {
+    if (!authenticated || quickPicks === null) return [];
+    const out = [];
+    const remaining = quickPicks.totalRemaining || 0;
+
+    // 1) Unfinished picks.
+    if (!quickPicks.isComplete && remaining > 0) {
+      out.push({
+        id: 'picks-remaining',
+        urgency: 'action',
+        text: `You have ${remaining} pick${remaining === 1 ? '' : 's'} remaining`,
+        sub: 'Finish your bracket',
+        onClick: () => goToQuickPicks('predictions'),
+      });
+    }
+
+    // 2) Deadline-aware lock warning — only while the group stage hasn't
+    // locked yet and the bracket is still incomplete. 24h / 48h thresholds
+    // come from the shared stageLockTimeUtc, the same source B's urgency
+    // emails consume, so in-app and email messaging never contradict.
+    try {
+      const lockMs = stageLockTimeUtc('groupStage');
+      const hoursLeft = (lockMs - Date.now()) / 3_600_000;
+      if (!quickPicks.isComplete && hoursLeft > 0 && hoursLeft <= 48) {
+        const window = hoursLeft <= 24 ? '24 hours' : '48 hours';
+        out.push({
+          id: 'group-lock-soon',
+          urgency: 'urgent',
+          text: `Picks lock in under ${window}`,
+          sub: 'Lock in your group-stage bracket before kickoff',
+          onClick: () => goToQuickPicks('predictions'),
+        });
+      }
+    } catch { /* unknown stage — skip the deadline notice */ }
+
+    return out;
+  }, [authenticated, quickPicks, goToQuickPicks]);
+
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
       <div className="nav-brand" onClick={() => nav('landing')}><GoalOracleLogo size={26} /><span className="gt">GoalOracle</span></div>
@@ -4965,6 +5031,40 @@ const GoalOracle = () => {
         </>}
         <a className="nav-link" onClick={() => nav('faq')}><HelpCircle size={14} /><span>FAQ</span></a>
         <div className="nav-actions" onClick={e => e.stopPropagation()}>
+          {/* Notification center (item G) — only renders when the user has
+              open actions; quiet otherwise (no empty-state nagging). */}
+          {authenticated && navNotifications.length > 0 && (
+            <div className="nav-notif-wrap" ref={notifRef} onClick={e => e.stopPropagation()}>
+              <button
+                type="button"
+                className="nav-notif-btn"
+                aria-label={`${navNotifications.length} notification${navNotifications.length === 1 ? '' : 's'}`}
+                aria-expanded={notifOpen}
+                onClick={() => setNotifOpen(o => !o)}
+              >
+                <Bell size={16} />
+                <span className="nav-notif-badge">{navNotifications.length}</span>
+              </button>
+              {notifOpen && (
+                <div className="nav-notif-dropdown" role="menu">
+                  <div className="nav-notif-head">Open actions</div>
+                  {navNotifications.map(n => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      role="menuitem"
+                      className={`nav-notif-item nav-notif-${n.urgency}`}
+                      onClick={() => { setNotifOpen(false); n.onClick(); }}
+                    >
+                      <span className="nav-notif-item-text">{n.text}</span>
+                      {n.sub && <span className="nav-notif-item-sub">{n.sub}</span>}
+                      <ChevronRight size={14} className="nav-notif-item-chev" aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
           <div className="team-picker-wrap" ref={teamPickerRef} onClick={e => e.stopPropagation()}>
             <button type="button" className={`team-picker-btn${homeTeam ? ' has-team' : ''}`} onClick={() => setTeamPickerOpen(!teamPickerOpen)} title={homeTeam || 'Pick your team'}>
