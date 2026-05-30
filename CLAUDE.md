@@ -201,6 +201,65 @@ The 7 prize-contest funnel events: `prize_section_viewed`, `enter_free_cta_click
 - **FIFA compliance caption** under hero social-proof row: "GoalOracle's prediction engine is compliant with the official FIFA World Cup 26™ rulebook".
 - **Leaderboard tabs** moved left, enlarged, renamed "Quick Picks Leaderboard" / "Classic Predictions Leaderboard".
 
+## Roadmap (as of May 2026)
+
+> Read each item's **Problem** and **Goal** and verify current behavior in the
+> codebase before writing code. If the implementation differs from what's
+> described, **stop and ask** rather than assume. Prefer small, reviewable
+> changes. Don't rename modes or user-facing copy unless an item says to.
+
+### A. Admin dashboard — richer user data
+- **Problem:** Admin user table doesn't show which league(s) each user joined, and columns aren't sortable.
+- **Goal:** League membership at a glance + sort by any column.
+- **Requirements:** Add a **League** column (show all leagues if a user is in multiple — chips/comma-separated). Make **every column sortable** (asc/desc toggle on header click), including League. Sorting must work across the **full dataset**, not just the current page.
+- **Acceptance:** Click any header → re-sorts both directions; League column accurate for single + multi-league users; sorting doesn't break pagination/filtering.
+- **Resolve first:** Where does league membership live (user doc / leagues collection / join table)? Is the user list paginated → client- vs server-side sort?
+
+### B. Email engagement, history logging & deliverability
+- **Problem:** No tooling to engage/follow up — can't send custom or pre-canned emails, can't segment granularly, no visibility into who's been emailed and when, and emails must land in Gmail **Primary** (not Junk/Promotions).
+- **Goal:** Segmentation + email system targeting the right users at the right time, with full prior-contact visibility and high inbox placement.
+- **B1 — Per-user email history/logging** *(gates good segmentation — do first):* Log every send (user, template/type, subject, timestamp, + delivered/opened/clicked/bounced if provider supplies). Surface per user **before sending**: last email sent (type + when), days since last contact, total emails sent. Use history in segments (e.g. "incomplete bracket AND not emailed in 5 days"). Guardrail: warn/block if about to email someone contacted within last N days.
+- **B2 — Engagement tooling:** Per-user custom one-off send + pre-canned template send to user/segment. Template library with simple variables (first name, league name, days-to-lock, rank). **Branding (ALL engagement emails):** embed the GoalOracle logo in the header (confirm canonical logo asset path first; keep small — not a marketing banner) and sign off **exactly**: `- Sumit, Founder of GoalOracle.io and Football Lover`. **Granular segments:** signed up but no predictions; started but knockout incomplete; completed all; by league; by signup date; by last-active; **+ B1 email-history fields**. **Automated urgency sends:** segment-entry triggers (e.g. "incomplete bracket + 3 days to lock") with explicit, editable (not hard-coded) conditions; respect B1 guardrail.
+- **B4 — Deliverability (priority order):** (1) Authenticate sending domain — **SPF, DKIM, DMARC**; confirm DKIM signs with the GoalOracle domain, not the provider's shared one. (2) Send from a real replyable address (`team@goaloracle.io`), not `no-reply@`. (3) Make urgency/transactional emails look personal — plain/lightly-styled HTML, minimal images, no newsletter layout, no loud promo buttons. (4) Clean text-to-image/link ratio; no URL shorteners or mismatched link domains. (5) Warm up volume gradually; remove hard bounces/never-openers. (6) Working unsubscribe + `List-Unsubscribe` header. (7) Encourage replies/clicks on early emails. **No gimmicks** (fake "RE:", hidden text, misleading headers) — they worsen placement.
+- **Acceptance:** Before sending I can see last email (type+date) + days since contact; segments can use email-history fields; can send custom to one user + template to a segment; every email has logo + exact sign-off; automated rule fires on segment entry without violating guardrail; SPF/DKIM/DMARC pass on a test send; test send lands in Gmail **Primary**.
+- **Resolve first:** Which provider (is Brevo reused from FiatRisk?) — drives auth/templates/automation/logging. Where does the email log live (Firebase collection keyed by user)? Confirm so item A can read it. Confirm canonical logo asset path.
+
+### C. No-login play → widen the funnel *(CRITICAL — must work reliably)*
+- **Problem:** Users must sign up/login before engaging, throttling top of funnel.
+- **Goal:** Anyone can predict from the **home page without logging in**; prompt sign-up only at high-intent moments.
+- **Requirements:** Anonymous play from home page — persist in-progress picks **locally** (survive prompt/refresh), ready to attach to an account on signup. **Three context-specific prompts:** prizes → "Sign up to be eligible to win"; save → "Sign up to save your picks"; share → "Sign up to share your bracket / challenge a friend". **Gate knockout completion, not viewing:** anonymous users can view + interact with the knockout bracket but can't **complete/submit** it without an account. **Seamless carry-over:** anonymous picks transfer to the new account with nothing lost.
+- **Acceptance:** Logged-out visitor lands on home + starts predicting immediately; each of the 3 prompts shows in correct context with correct copy; logged-out user can view knockout but is blocked at *complete* with sign-up prompt; after signup, anonymous picks are present in the account (verified end to end).
+- **Resolve first:** Current pick storage shape for logged-in users (Firebase doc) — merge must map cleanly. Confirm the exact UI step that counts as "completing" the knockout bracket.
+
+### D. Rules / Scoring FAQ — fix for current mode
+- **Problem:** Classic mode is **turned off**. The Rules/Scoring FAQ may still describe Classic scoring or otherwise not match the live mode.
+- **Goal:** FAQ accurately explains scoring for the mode that is actually live.
+- **Requirements:** Update FAQ to reflect the **currently active** mode's scoring; remove/correct stale Classic-scoring references. **Do NOT use the phrase "Simple Picks"** anywhere in user-facing copy — describe mechanics plainly.
+- **Acceptance:** FAQ scoring matches the active mode's code; no live-irrelevant Classic scoring; the string "Simple Picks" appears nowhere in user-facing copy.
+- **Resolve first:** Confirm the active mode's exact scoring **from code** (not from old copy), then write FAQ to match.
+
+### E. Leaderboard — subtle scoring explainer
+- **Problem:** Global league leaderboard shows rankings but no in-context way to understand scoring.
+- **Goal:** Subtle, non-intrusive scoring explainer on the leaderboard page.
+- **Requirements:** Small tab or expandable "How does scoring work?" panel on the **global league leaderboard**. Keep subtle — collapsed-by-default/compact, doesn't push rankings down. Content aligns with item D — ideally **one shared source of truth** for the scoring explanation.
+- **Acceptance:** Discoverable but unobtrusive explainer; content matches item D's FAQ.
+
+### F. Mobile knockout pick flow — guided & centered *(mobile UX)*
+- **Problem:** On mobile, moving R32 → R16 jumps/scrolls to the *bottom* of the games instead of the next match to pick; hard to know which match is next.
+- **Goal:** Guided flow where the **next required prediction is always brought clearly into view**.
+- **Requirements:** On finishing a pick, **auto-scroll/center the next required match** in the viewport (not jump to bottom). **Account for sticky/overlay UI** — center in the *visible* area, offsetting sticky banners/headers/footers. Add a **subtle glow/pulse** on the next match (tasteful, not flashy). Flow = pick → next match smoothly focuses → repeat; no manual hunting.
+- **Acceptance:** On a phone, R32 → R16 centers the next R16 match in the visible area; next match visibly highlighted; sticky UI never obscures it; works across all knockout rounds, not just R32→R16.
+- **Resolve first:** Current mobile bracket layout (single column / horizontal stages / accordion)? Which elements are sticky/fixed (for offset math)? Confirm state reliably knows "next required prediction".
+
+### G. Nav bar as a notification center *(in-app urgency, complements B)*
+- **Problem:** Once in the app, no persistent in-context nudge for open actions/deadlines.
+- **Goal:** Nav bar becomes a lightweight notification center surfacing open actions + deadlines, deep-linking to the exact task.
+- **Requirements:** Show a nav-bar indicator (badge/bell + count) when there are open picks/upcoming deadlines. Opening shows actionable, deadline-aware messages each **deep-linking to the relevant action** (e.g. "You have picks remaining" → unfinished predictions; "Your group league locks in 24h/48h" → the picks that lock; "Don't miss out on your prize" → the eligibility step). Messages are time-sensitive/dynamic, driven by the **same lock/deadline + segmentation logic as item B** (one source of truth). When nothing's open, nav bar is quiet (no empty-state nagging).
+- **Acceptance:** User with unfinished picks sees a clear count/indicator; each notification deep-links to its exact action; 24h/48h messaging reflects real lock times; a fully-complete user with no upcoming deadlines sees no notifications.
+- **Resolve first:** Where do lock times/deadlines live — is there a shared "time until lock" utility B + G should both consume? Current nav bar component + a place to hang a badge/dropdown.
+
+> **Cross-cutting note:** Item D states **Classic mode is turned off**. The Stack/Architecture sections above still describe Classic as live — verify the current state in code before relying on either, and reconcile when working items D/E.
+
 ## Conventions
 
 - **Commit style:** short imperative subject, 1–3 short paragraphs explaining why. Always include `https://claude.ai/code/session_...` trailer.
