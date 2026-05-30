@@ -19,7 +19,8 @@
 import { db, applyCors, verifyAuth } from '../_lib/firebase.js';
 import { parseFootballDataResponse } from '../_lib/oracleParsers.js';
 import { sendOperatorAlert } from '../_lib/alerts.js';
-import { resolveActualBracket } from '../_lib/bracketResolver.js';
+import { resolveActualBracket, buildSimpleActuals } from '../_lib/bracketResolver.js';
+import { recomputeSimpleScores } from '../_lib/computeSimpleScores.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -153,6 +154,22 @@ export default async function handler(req, res) {
       } catch (e) {
         summary.errors.push({ matchId: m.id, error: e.message });
       }
+    }
+
+    // Recompute every Quick Picks player's score from the latest results
+    // (R2). Wrapped in its own try/catch: a scoring bug must NEVER abort
+    // result ingestion above — results are the source of truth, scores are
+    // derived and self-heal on the next run. We re-read matchResults so the
+    // actuals reflect anything just ingested in this same run.
+    try {
+      const freshSnap = await db.collection('matchResults').get();
+      const fresh = {};
+      freshSnap.docs.forEach((d) => { fresh[d.id] = d.data(); });
+      const actuals = buildSimpleActuals(fresh);
+      const scoreSummary = await recomputeSimpleScores(db, actuals);
+      summary.scoring = scoreSummary;
+    } catch (e) {
+      summary.errors.push({ source: 'score-recompute', error: e.message });
     }
 
     await db.collection('adminLogs').add({
