@@ -8364,6 +8364,45 @@ body.light .lsd-head,
 }
 .ll-scope-hint { font-size: 0.74rem; color: var(--text-sec); }
 
+/* ── Scoring explainer (item E) — subtle collapsible disclosure ───── */
+.ll-scoring {
+  margin: 0.5rem 0 0.25rem;
+  border-top: 1px solid var(--border);
+}
+.ll-scoring-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: none; cursor: pointer;
+  padding: 0.5rem 0.1rem;
+  font-family: var(--font); font-size: 0.74rem; font-weight: 600;
+  color: var(--text-sec);
+  transition: color 0.12s;
+}
+.ll-scoring-toggle:hover { color: var(--text); }
+.ll-scoring-chev {
+  transition: transform 0.15s ease;
+}
+.ll-scoring.is-open .ll-scoring-chev { transform: rotate(90deg); }
+.ll-scoring-body {
+  display: flex; flex-direction: column; gap: 0.6rem;
+  padding: 0.2rem 0.1rem 0.7rem;
+  animation: ll-scoring-in 0.16s ease;
+}
+@keyframes ll-scoring-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ll-scoring-item {
+  display: flex; flex-direction: column; gap: 1px;
+}
+.ll-scoring-h {
+  font-family: var(--font); font-size: 0.76rem; font-weight: 700;
+  color: var(--text);
+}
+.ll-scoring-d {
+  font-family: var(--font); font-size: 0.76rem; line-height: 1.45;
+  color: var(--text-sec);
+}
+
 /* ── Column header — small caps, low contrast, optional ───────────── */
 .ll-colheader {
   display: grid;
