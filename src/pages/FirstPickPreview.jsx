@@ -178,65 +178,73 @@ function VariantMinimal() {
   );
 }
 
-/* ───────────────── Variant E — Blend (A's hook + C's stakes + B's path) ───────────────── */
-// Combines the strongest piece of each direction:
-//   • C's prize + live countdown sit at the top as a slim ribbon (extrinsic
-//     pull + urgency, but compressed — they don't compete with the hook).
-//   • A's champion-first flag picker is the hero (emotional, one-tap entry
-//     that actually seeds the bracket).
-//   • B's 3-step path is a small "what's next" strip under the CTA
-//     (reassurance that the rest is short + guided, without burying the hook).
+/* ───────────────── Variant E — Blend (prize hero + steps to enter + optional champion) ───────────────── */
+// Structure tuned from user feedback:
+//   • Prize is the actual headline (was compressed into a strip before).
+//   • "Free Prizes" + "Steps to Enter" are the section labels — clearer that
+//     the prizes are real cash with no entry cost, and the path to win them
+//     is a short numbered checklist, not a chore.
+//   • Champion picker is OPTIONAL and honestly framed: it just saves the
+//     Final winner; the user still walks the wizard to pick the path. The
+//     old "Build my bracket around X" copy implied an auto-fill the engine
+//     doesn't do.
 function VariantBlend() {
   const [picked, setPicked] = useState(null);
   const { days, hours, minutes } = useCountdown(KICKOFF_UTC);
   return (
     <div className="fpp-hero fpp-hero-blend">
-      {/* Slim stakes ribbon (compressed C) */}
-      <div className="fpp-ribbon">
-        <div className="fpp-ribbon-left">
-          <span className="fpp-ribbon-eyebrow">FREE TO ENTER</span>
-          <span className="fpp-ribbon-prize">🥇 ${PRIZES[0].amount} · 🥈 ${PRIZES[1].amount} · 🥉 ${PRIZES[2].amount} <em>USDC</em></span>
+      {/* PRIZE HERO — the actual headline */}
+      <div className="fpp-prize-hero">
+        <div className="fpp-prize-eyebrow">🎁 FREE PRIZES · NO ENTRY FEE</div>
+        <h2 className="fpp-prize-title">Predict the World Cup.<br />Win up to <span className="fpp-prize-amount">$150</span>.</h2>
+        <div className="fpp-prize-podium" aria-label="Prize tiers">
+          <div className="fpp-prize-tier fpp-prize-tier-2"><span className="fpp-prize-medal">🥈</span><span className="fpp-prize-money">${PRIZES[1].amount}</span><span className="fpp-prize-label">2nd</span></div>
+          <div className="fpp-prize-tier fpp-prize-tier-1"><span className="fpp-prize-medal">🥇</span><span className="fpp-prize-money">${PRIZES[0].amount}</span><span className="fpp-prize-label">1st</span></div>
+          <div className="fpp-prize-tier fpp-prize-tier-3"><span className="fpp-prize-medal">🥉</span><span className="fpp-prize-money">${PRIZES[2].amount}</span><span className="fpp-prize-label">3rd</span></div>
         </div>
-        <div className="fpp-ribbon-right">
-          <span className="fpp-ribbon-clock-label">Group stage locks in</span>
-          <span className="fpp-ribbon-clock">
-            <b>{days}</b>d <b>{String(hours).padStart(2, '0')}</b>h <b>{String(minutes).padStart(2, '0')}</b>m
-          </span>
+        <div className="fpp-prize-currency">Paid in USDC · Top 3 on the Global leaderboard win</div>
+        <div className="fpp-prize-countdown" aria-live="polite">
+          <span className="fpp-prize-countdown-icon" aria-hidden="true">⏱</span>
+          <span>Group stage locks in <b>{days}d {String(hours).padStart(2, '0')}h {String(minutes).padStart(2, '0')}m</b></span>
         </div>
       </div>
 
-      {/* Hero (A) */}
-      <h2 className="fpp-title">Who's lifting the trophy?</h2>
-      <p className="fpp-sub">
-        Tap your champion — we'll start your bracket there, then walk you
-        through the rest. About 3 minutes, auto-saves as you go.
-      </p>
-      <div className="fpp-flag-grid">
-        {FAVOURITES.map((t) => (
-          <button
-            key={t.name}
-            type="button"
-            className={`fpp-flag-btn ${picked === t.name ? 'is-picked' : ''}`}
-            onClick={() => setPicked(t.name)}
-          >
-            <span className="fpp-flag">{t.flag}</span>
-            <span className="fpp-flag-name">{t.name}</span>
-          </button>
-        ))}
+      {/* STEPS TO ENTER */}
+      <div className="fpp-entry-section">
+        <div className="fpp-entry-section-title">Steps to enter</div>
+        <div className="fpp-entry-steps">
+          <div className="fpp-entry-step"><span className="fpp-entry-num">1</span><div className="fpp-entry-body"><div className="fpp-entry-title">Rank the 12 groups</div><div className="fpp-entry-time">~1 min</div></div></div>
+          <div className="fpp-entry-step"><span className="fpp-entry-num">2</span><div className="fpp-entry-body"><div className="fpp-entry-title">Pick the 8 best 3rd-places</div><div className="fpp-entry-time">~30 sec</div></div></div>
+          <div className="fpp-entry-step"><span className="fpp-entry-num">3</span><div className="fpp-entry-body"><div className="fpp-entry-title">Fill the bracket to the Final</div><div className="fpp-entry-time">~90 sec</div></div></div>
+        </div>
+        <div className="fpp-entry-foot">Auto-saves as you go · Edit anything until the group stage locks</div>
       </div>
 
-      {/* CTA + the small "what's next" path (compressed B) */}
-      <div className="fpp-champion-foot">
-        {picked
-          ? <Cta big>Build my bracket around {picked}</Cta>
-          : <button type="button" className="fpp-textlink" onClick={() => {}}>Don't see your pick? Start from the group stage ›</button>}
-      </div>
-      <div className="fpp-path">
-        <span className="fpp-path-step"><b>1.</b> Rank the groups <em>~1 min</em></span>
-        <span className="fpp-path-sep" aria-hidden="true">›</span>
-        <span className="fpp-path-step"><b>2.</b> Best 3rd-places <em>~30 sec</em></span>
-        <span className="fpp-path-sep" aria-hidden="true">›</span>
-        <span className="fpp-path-step"><b>3.</b> Fill the bracket <em>~90 sec</em></span>
+      {/* ACTION */}
+      <div className="fpp-action-section">
+        <div className="fpp-champion-prompt">
+          <strong>Want a head start?</strong> Tap your champion — we'll save it as your Final pick. (Optional)
+        </div>
+        <div className="fpp-flag-grid">
+          {FAVOURITES.map((t) => (
+            <button
+              key={t.name}
+              type="button"
+              className={`fpp-flag-btn ${picked === t.name ? 'is-picked' : ''}`}
+              onClick={() => setPicked(picked === t.name ? null : t.name)}
+              aria-pressed={picked === t.name}
+            >
+              <span className="fpp-flag">{t.flag}</span>
+              <span className="fpp-flag-name">{t.name}</span>
+            </button>
+          ))}
+        </div>
+        {picked && (
+          <div className="fpp-champion-saved" role="status">
+            <span aria-hidden="true">✓</span> {picked} saved as your champion — you'll predict the path to get them there.
+          </div>
+        )}
+        <Cta big>{picked ? `Start with ${picked} as my champion` : 'Start predicting · ~3 min'}</Cta>
       </div>
     </div>
   );
@@ -246,7 +254,7 @@ const VARIANTS = [
   {
     id: 'blend',
     name: 'E · A + B + C blended (Recommended)',
-    blurb: 'C\'s prize + live countdown sit at the top as a slim ribbon (urgency without shouting), A\'s "tap your champion" flag picker is the hero (one-tap emotional entry that seeds the bracket), and B\'s 3-step path is a tiny strip under the CTA (reassures "the rest is short" without burying the hook). All upside, none of the noise — and zero vanity metrics.',
+    blurb: 'Prize is the actual headline (was too compressed before): "Win up to $150" with the podium tiers visible, framed as Free Prizes / No Entry Fee + a live countdown. Then a numbered Steps to Enter checklist (the 3 actions, each with a time estimate). Champion picker is OPTIONAL and honestly framed — tapping a flag just saves your Final pick; you still walk the wizard to predict the path. CTA stays clear: "Start predicting · ~3 min" → changes to "Start with {team} as my champion" when picked.',
     Component: VariantBlend,
   },
   {
@@ -288,9 +296,11 @@ export default function FirstPickPreview() {
           188, 0 points, 0% accuracy, 0 streak). <strong>All five drop those
           vanity metrics</strong> — they're meaningless and discouraging before
           you've predicted anything. <strong>E is the recommended one</strong> —
-          it blends the strongest piece of A (champion-first hook), B (3-step
-          path), and C (prize + live countdown) into a single panel.
-          A–D follow as pure-form references for comparison. Buttons are inert.
+          it leads with the real prize as the hero ("Win up to $150" + podium),
+          frames the path as a numbered <em>Steps to Enter</em> checklist, and
+          keeps a champion picker as an honest <em>optional</em> head-start
+          (taps just save your Final pick; you still walk the wizard).
+          A–D follow as pure-form references. Buttons are inert.
         </p>
       </div>
 
@@ -414,42 +424,129 @@ const FPP_CSS = `
 .fpp-foot-note { max-width: 760px; margin: 1rem auto 0; font-size: 0.78rem; color: var(--fpp-dim); text-align: center; }
 .fpp-foot-note code { background: var(--fpp-card); padding: 0.1rem 0.35rem; border-radius: 5px; border: 1px solid var(--fpp-border); }
 
-/* E — blend */
-.fpp-hero-blend { padding-top: 0; }
-.fpp-ribbon {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  margin: -1.9rem -1.9rem 1.4rem; padding: 0.7rem 1.5rem;
-  background: linear-gradient(90deg,
-    color-mix(in srgb, var(--fpp-gold) 14%, transparent),
-    color-mix(in srgb, var(--fpp-accent) 12%, transparent));
+/* E — blend (prize hero + steps to enter + optional champion) */
+.fpp-hero-blend { padding: 0; overflow: hidden; }
+
+/* PRIZE HERO */
+.fpp-prize-hero {
+  padding: 1.8rem 1.9rem 1.5rem;
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--fpp-gold) 16%, var(--fpp-card)),
+    var(--fpp-card) 75%);
   border-bottom: 1px solid var(--fpp-border);
-  font-size: 0.82rem;
+  text-align: center;
 }
-.fpp-ribbon-left, .fpp-ribbon-right { display: flex; flex-direction: column; gap: 0.05rem; }
-.fpp-ribbon-right { align-items: flex-end; }
-.fpp-ribbon-eyebrow, .fpp-ribbon-clock-label {
-  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--fpp-dim);
+.fpp-prize-eyebrow {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em;
+  color: var(--fpp-gold);
+  background: color-mix(in srgb, var(--fpp-gold) 16%, transparent);
+  padding: 0.3rem 0.75rem; border-radius: 99px;
+  margin-bottom: 0.9rem;
 }
-.fpp-ribbon-prize { font-weight: 700; color: var(--fpp-text); }
-.fpp-ribbon-prize em { font-style: normal; font-size: 0.72rem; color: var(--fpp-dim); font-weight: 600; margin-left: 0.2rem; }
-.fpp-ribbon-clock { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fpp-text); }
-.fpp-ribbon-clock b { font-weight: 800; font-size: 1.02rem; }
-.fpp-path {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem 0.6rem;
-  margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px dashed var(--fpp-border);
-  font-size: 0.78rem; color: var(--fpp-sec);
+.fpp-prize-title {
+  font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em;
+  margin: 0 0 1.2rem; line-height: 1.18;
 }
-.fpp-path-step b { color: var(--fpp-text); font-weight: 700; margin-right: 0.25rem; }
-.fpp-path-step em { font-style: normal; color: var(--fpp-accent); font-weight: 600; margin-left: 0.25rem; }
-.fpp-path-sep { color: var(--fpp-dim); }
+.fpp-prize-amount {
+  color: var(--fpp-gold);
+  font-size: 2.4rem;
+  display: inline-block; line-height: 1;
+}
+.fpp-prize-podium {
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: 0.55rem; margin-bottom: 0.9rem;
+}
+.fpp-prize-tier {
+  display: flex; flex-direction: column; align-items: center;
+  background: var(--fpp-card); border: 1.5px solid var(--fpp-border);
+  border-radius: 13px; padding: 0.7rem 1rem; min-width: 86px;
+}
+.fpp-prize-tier-1 {
+  border-color: var(--fpp-gold);
+  padding: 0.95rem 1rem 0.8rem; min-width: 100px;
+  box-shadow: 0 8px 20px rgba(245,166,35,0.22);
+}
+.fpp-prize-tier-2, .fpp-prize-tier-3 { padding-bottom: 0.65rem; }
+.fpp-prize-medal { font-size: 1.5rem; line-height: 1; margin-bottom: 0.3rem; }
+.fpp-prize-tier-1 .fpp-prize-medal { font-size: 1.8rem; }
+.fpp-prize-money { font-weight: 800; font-size: 1.15rem; color: var(--fpp-text); }
+.fpp-prize-tier-1 .fpp-prize-money { color: var(--fpp-gold); font-size: 1.45rem; }
+.fpp-prize-label {
+  font-size: 0.66rem; color: var(--fpp-dim);
+  font-weight: 700; margin-top: 0.2rem;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.fpp-prize-currency { font-size: 0.78rem; color: var(--fpp-sec); margin-bottom: 0.9rem; }
+.fpp-prize-countdown {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  background: var(--fpp-card); border: 1px solid var(--fpp-border);
+  border-radius: 99px; padding: 0.4rem 0.95rem;
+  font-size: 0.82rem; color: var(--fpp-text);
+  font-variant-numeric: tabular-nums;
+}
+.fpp-prize-countdown b { font-weight: 800; }
+.fpp-prize-countdown-icon { font-size: 0.95rem; }
+
+/* STEPS TO ENTER */
+.fpp-entry-section {
+  padding: 1.5rem 1.9rem;
+  border-bottom: 1px solid var(--fpp-border);
+}
+.fpp-entry-section-title {
+  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--fpp-sec);
+  margin-bottom: 0.85rem;
+}
+.fpp-entry-steps {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+.fpp-entry-step {
+  display: flex; align-items: flex-start; gap: 0.65rem;
+  padding: 0.85rem; background: var(--fpp-elev);
+  border: 1px solid var(--fpp-border); border-radius: 12px;
+}
+.fpp-entry-num {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 1.65rem; height: 1.65rem;
+  background: var(--fpp-accent); color: #fff;
+  border-radius: 50%; font-weight: 800; font-size: 0.82rem;
+}
+.fpp-entry-body { min-width: 0; }
+.fpp-entry-title { font-weight: 700; font-size: 0.86rem; line-height: 1.3; }
+.fpp-entry-time { color: var(--fpp-accent); font-weight: 700; font-size: 0.74rem; margin-top: 0.15rem; }
+.fpp-entry-foot { font-size: 0.76rem; color: var(--fpp-dim); text-align: center; }
+
+/* ACTION (champion picker + CTA) */
+.fpp-action-section { padding: 1.4rem 1.9rem 1.8rem; }
+.fpp-champion-prompt {
+  font-size: 0.86rem; color: var(--fpp-sec);
+  text-align: center; margin-bottom: 0.85rem;
+}
+.fpp-champion-prompt strong { color: var(--fpp-text); font-weight: 700; }
+.fpp-action-section .fpp-flag-grid { margin-bottom: 1rem; }
+.fpp-champion-saved {
+  text-align: center; font-size: 0.85rem; font-weight: 600;
+  color: color-mix(in srgb, var(--fpp-accent) 80%, var(--fpp-text));
+  background: color-mix(in srgb, var(--fpp-accent) 10%, transparent);
+  padding: 0.55rem 0.9rem; border-radius: 9px;
+  margin-bottom: 1rem;
+}
+.fpp-action-section .fpp-cta { display: flex; width: 100%; justify-content: center; }
 
 @media (max-width: 560px) {
   .fpp-flag-grid { grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
   .fpp-title { font-size: 1.4rem; }
   .fpp-title-xl { font-size: 1.7rem; }
   .fpp-steps-foot { flex-direction: column; align-items: stretch; gap: 0.7rem; }
-  .fpp-ribbon { flex-direction: column; align-items: flex-start; gap: 0.4rem; padding: 0.7rem 1.2rem; }
-  .fpp-ribbon-right { align-items: flex-start; }
+  .fpp-prize-title { font-size: 1.5rem; }
+  .fpp-prize-amount { font-size: 1.85rem; }
+  .fpp-entry-steps { grid-template-columns: 1fr; }
+  .fpp-prize-podium { gap: 0.4rem; }
+  .fpp-prize-tier { min-width: 0; flex: 1; padding: 0.6rem 0.4rem; }
+  .fpp-prize-tier-1 { min-width: 0; padding: 0.8rem 0.4rem 0.65rem; }
+  .fpp-prize-hero, .fpp-entry-section, .fpp-action-section { padding-left: 1.2rem; padding-right: 1.2rem; }
 }
 `;
