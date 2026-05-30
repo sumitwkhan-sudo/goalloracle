@@ -624,6 +624,13 @@ export default async function handler(req, res) {
       const mode = league.predictionMode === 'classic' ? 'classic' : 'simple';
       let members = baseMembers;
 
+      // Phase enrichment is best-effort: if a per-mode prediction query
+      // fails (e.g. a missing index on a rarely-used path), we must STILL
+      // return the member list so the creator can nudge — a failed
+      // enrichment should never 500 the whole request. On error we fall
+      // back to members with an 'unknown' phase (the client treats that as
+      // "incomplete", so they remain selectable).
+      try {
       if (mode === 'simple') {
         // /simplePredictions/{userId}__{leagueId} is the canonical
         // composite-key shape (see simplePredDocId in src/utils/db.js).
@@ -667,20 +674,24 @@ export default async function handler(req, res) {
         });
       } else {
         // Classic mode — count /predictions docs per (user, league).
-        // Firestore allows `in` queries up to 30 values; chunk through
-        // memberIds in case the league is large. Most private leagues
-        // are well under this so a single round trip is typical.
+        // Query by `userId in chunk` ONLY (single-field auto-index) and
+        // filter leagueId in memory. Adding `.where('leagueId','==')`
+        // alongside the `in` would require a (leagueId, userId) composite
+        // index that doesn't exist on this rarely-used path — and its
+        // absence was 500-ing the whole nudge list for classic leagues.
+        // Firestore allows `in` queries up to 30 values; chunk accordingly.
         const CHUNK = 30;
         const TOTAL_CLASSIC = 104;
         const countByUid = new Map(baseMembers.map((m) => [m.userId, 0]));
         for (let i = 0; i < baseMembers.length; i += CHUNK) {
           const chunk = baseMembers.slice(i, i + CHUNK).map((m) => m.userId);
           const snap = await db.collection('predictions')
-            .where('leagueId', '==', leagueId)
             .where('userId', 'in', chunk)
             .get();
           snap.docs.forEach((d) => {
-            const uid = d.data()?.userId;
+            const data = d.data();
+            if (!data || data.leagueId !== leagueId) return; // filter league in memory
+            const uid = data.userId;
             if (uid && countByUid.has(uid)) {
               countByUid.set(uid, countByUid.get(uid) + 1);
             }
@@ -698,6 +709,18 @@ export default async function handler(req, res) {
             progress: { classicDone: done, classicTotal: TOTAL_CLASSIC },
           };
         });
+      }
+      } catch (enrichErr) {
+        // Best-effort enrichment failed — log it and return members with a
+        // neutral 'unknown' phase so the creator can still nudge.
+        console.error('[creatorListNudgeEligible] phase enrichment failed:', enrichErr?.message || enrichErr);
+        members = baseMembers.map((m) => ({
+          ...m,
+          phase: 'unknown',
+          progress: mode === 'classic'
+            ? { classicDone: 0, classicTotal: 104 }
+            : { groupsDone: 0, groupsTotal: 12, bestThirdsDone: 0, bestThirdsTotal: 8, knockoutDone: 0, knockoutTotal: 32 },
+        }));
       }
 
       return res.status(200).json({
