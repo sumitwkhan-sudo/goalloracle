@@ -106,6 +106,26 @@ function greeting(user) {
   return name ? `Hey ${escape(name)},` : 'Hey,';
 }
 
+// Template variable helpers (B2c). All optional + additive: a template uses
+// the value only when ctx supplies it, otherwise it keeps its default copy,
+// so enriching ctx can never break a send.
+//
+// First name: first whitespace-delimited token of displayName. Used for a
+// lighter, more personal touch than the full handle.
+export function firstNameOf(user) {
+  const dn = (user?.displayName || user?.username || '').trim();
+  if (!dn) return null;
+  return dn.split(/\s+/)[0];
+}
+// Ordinal: 1 -> "1st", 2 -> "2nd", 11 -> "11th", 23 -> "23rd".
+export function ordinal(n) {
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < 1) return null;
+  const r10 = n % 10, r100 = n % 100;
+  const suffix = (r100 >= 11 && r100 <= 13) ? 'th'
+    : r10 === 1 ? 'st' : r10 === 2 ? 'nd' : r10 === 3 ? 'rd' : 'th';
+  return `${n}${suffix}`;
+}
+
 // ─── Template: No Picks Reminder ─────────────────────────────────
 
 function noPicksReminderTemplate({ user, ctx }) {
@@ -389,6 +409,17 @@ function midTournamentNudgeTemplate({ user, ctx }) {
   const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=mid_tournament_nudge`;
   const unsubUrl = unsubscribeUrl(user.id);
 
+  // Variable-aware rank line (B2c). When ctx supplies the user's live rank
+  // we lead with it; otherwise fall back to the generic line. Additive —
+  // never breaks if rank is absent.
+  const rankOrd = ordinal(ctx?.rank);
+  const rankLinePlain = rankOrd
+    ? `You're currently ${rankOrd} on the global leaderboard — your bracket is scoring on every verified result, and the board is moving fast.`
+    : `Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.`;
+  const rankLineHtml = rankOrd
+    ? `You're currently <strong>${escape(rankOrd)}</strong> on the global leaderboard — your bracket is scoring on every verified result, and the board is moving fast.`
+    : `Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.`;
+
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -409,10 +440,10 @@ function midTournamentNudgeTemplate({ user, ctx }) {
                 The tournament is on. See where you stand.
               </h1>
               <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.
+                ${rankLineHtml}
               </p>
               <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                Open your bracket to see your current rank, your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
+                Open your bracket to see your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
               </p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:8px 0 28px;">
                 <tr>
@@ -446,9 +477,9 @@ function midTournamentNudgeTemplate({ user, ctx }) {
 
 The tournament is on. See where you stand.
 
-Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.
+${rankLinePlain}
 
-Open your bracket to see your current rank, your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
+Open your bracket to see your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
 
 See your standings: ${ctaUrl}
 

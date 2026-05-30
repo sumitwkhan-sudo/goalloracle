@@ -1276,8 +1276,35 @@ export default async function handler(req, res) {
       if (requested.length > 1000) {
         return res.status(400).json({ error: 'Batch too large (max 1000 per call)' });
       }
-      const { buildEmail, sendOutreachEmail, TEMPLATES, sleep, BATCH_DELAY_MS } = await import('./_lib/outreachEmail.js');
+      const { buildEmail, sendOutreachEmail, TEMPLATES, sleep, BATCH_DELAY_MS, firstNameOf } = await import('./_lib/outreachEmail.js');
       if (!TEMPLATES[template]) return res.status(400).json({ error: `Unknown template: ${template}` });
+
+      // ── Per-batch shared template context (B2c) — computed once and
+      // reused for every recipient, so variables don't add a per-user read.
+      //   daysToLock: days until the group stage locks (shared deadline).
+      //   rankByUser: live global-simple rank from stored scores.
+      const batchCtx = {};
+      try {
+        const { stageLockTimeUtc } = await import('../src/utils/stageLock.js');
+        const ms = stageLockTimeUtc('groupStage') - Date.now();
+        if (ms > 0) batchCtx.daysToLock = Math.ceil(ms / 86400000);
+      } catch { /* unknown stage — omit */ }
+
+      const rankByUser = {};
+      try {
+        // Rank = position in the global league ordered by total points desc,
+        // then earliest submission — the same order the leaderboard uses.
+        const scoresSnap = await db.collectionGroup('scores')
+          .where('leagueId', '==', 'global-simple').get();
+        const rows = scoresSnap.docs.map(d => d.data())
+          .filter(r => r && r.userId)
+          .sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
+        rows.forEach((r, i) => { if (rankByUser[r.userId] === undefined) rankByUser[r.userId] = i + 1; });
+      } catch (e) {
+        // collectionGroup needs a composite index; if it's missing, rank is
+        // simply omitted and templates fall back to their generic copy.
+        console.warn('[outreach] rank lookup failed (templates fall back):', e?.message || e);
+      }
 
       const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
       for (const uid of requested) {
@@ -1287,7 +1314,12 @@ export default async function handler(req, res) {
           const user = { id: userSnap.id, ...userSnap.data() };
           if (!user.email || user.emailOptOut === true) { results.skipped++; continue; }
 
-          const { subject, html, text } = buildEmail(template, { user, ctx: {} });
+          const ctx = {
+            ...batchCtx,
+            firstName: firstNameOf(user),
+            rank: rankByUser[uid],
+          };
+          const { subject, html, text } = buildEmail(template, { user, ctx });
           const r = await sendOutreachEmail({
             to: user.email,
             subject, html, text,
