@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy } from 'lucide-react';
+import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -820,6 +820,36 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
 
   // Permanent delete. Two-stage confirm because there's no undo.
   const [deletingUserId, setDeletingUserId] = useState(null);
+
+  // Custom one-off email (B2b) — modal target user + form state.
+  const [customEmailUser, setCustomEmailUser] = useState(null);
+  const [customSubject, setCustomSubject] = useState('');
+  const [customBody, setCustomBody] = useState('');
+  const [customSending, setCustomSending] = useState(false);
+  const openCustomEmail = (u) => { setCustomEmailUser(u); setCustomSubject(''); setCustomBody(''); };
+  const closeCustomEmail = () => { if (!customSending) setCustomEmailUser(null); };
+  const sendCustomEmail = async () => {
+    if (!customEmailUser || !customSubject.trim() || !customBody.trim()) return;
+    // Reuse the B1 recent-contact guardrail: warn if this user was emailed
+    // within the window before sending a one-off.
+    if (_emailedWithinDays(customEmailUser.id)) {
+      const info = _emailInfo(customEmailUser.id);
+      if (!window.confirm(`This user was emailed recently (${info?.label || 'within ' + RECENT_CONTACT_DAYS + ' days'}).\n\nSend anyway?`)) return;
+    }
+    setCustomSending(true);
+    try {
+      await adminSendOutreachCustom(customEmailUser.id, customSubject.trim(), customBody.trim());
+      notify(`Email sent to ${customEmailUser.displayName || customEmailUser.email}`);
+      setCustomEmailUser(null);
+      // Refresh email history so the "Last emailed" column updates.
+      fetchAdminUsersEmailHistory().then(setEmailHistById).catch(() => {});
+    } catch (e) {
+      notify('Send failed: ' + (e?.message || e), 'error');
+    } finally {
+      setCustomSending(false);
+    }
+  };
+
   const handleDeleteUser = async (u) => {
     const label = u.displayName || u.email || u.id.slice(0, 8);
     const confirm1 = window.confirm(`Permanently delete user "${label}"?\n\nThis wipes:\n  • their account\n  • all predictions (classic + Quick Picks)\n  • league memberships\n  • device-fingerprint + IP records\n\nThere is no undo.`);
@@ -1450,11 +1480,18 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                         )}
                       </td>
                       <td>
-                        {u.id !== userData.id && (u.role || 'user') !== 'superadmin' && (
-                          <button type="button" className="admin-user-del" title="Permanently delete this user (no undo)" onClick={() => handleDeleteUser(u)} disabled={deletingUserId === u.id}>
-                            {deletingUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />}
-                          </button>
-                        )}
+                        <span className="admin-user-actions">
+                          {u.email && u.emailOptOut !== true && (
+                            <button type="button" className="admin-user-email-btn" title="Send a custom email to this user" onClick={() => openCustomEmail(u)}>
+                              <Mail size={12} />
+                            </button>
+                          )}
+                          {u.id !== userData.id && (u.role || 'user') !== 'superadmin' && (
+                            <button type="button" className="admin-user-del" title="Permanently delete this user (no undo)" onClick={() => handleDeleteUser(u)} disabled={deletingUserId === u.id}>
+                              {deletingUserId === u.id ? <RefreshCw size={12} className="spin" /> : <Trash2 size={12} />}
+                            </button>
+                          )}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -1463,6 +1500,46 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             </table>
             )}
           </div>
+
+          {/* Custom one-off email modal (B2b) */}
+          {customEmailUser && (
+            <div className="admin-modal-overlay" onClick={closeCustomEmail}>
+              <div className="admin-modal admin-custom-email" onClick={e => e.stopPropagation()}>
+                <div className="admin-modal-head">
+                  <h3><Mail size={16} /> Email {customEmailUser.displayName || customEmailUser.email}</h3>
+                  <button type="button" className="admin-modal-close" onClick={closeCustomEmail} disabled={customSending}><X size={16} /></button>
+                </div>
+                <p className="admin-custom-email-to">To: <strong>{customEmailUser.email}</strong></p>
+                <label className="admin-custom-email-label">Subject</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={customSubject}
+                  onChange={e => setCustomSubject(e.target.value)}
+                  placeholder="Subject line"
+                  maxLength={200}
+                  disabled={customSending}
+                />
+                <label className="admin-custom-email-label">Message</label>
+                <textarea
+                  className="input-field admin-custom-email-body"
+                  value={customBody}
+                  onChange={e => setCustomBody(e.target.value)}
+                  placeholder={"Write your message — plain text.\n\nBlank lines start new paragraphs. The GoalOracle logo header and your sign-off are added automatically."}
+                  rows={8}
+                  maxLength={5000}
+                  disabled={customSending}
+                />
+                <p className="admin-custom-email-note">Sends in the branded GoalOracle shell, signed off as Sumit. Logged to this user's email history.</p>
+                <div className="admin-modal-actions">
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={closeCustomEmail} disabled={customSending}>Cancel</button>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={sendCustomEmail} disabled={customSending || !customSubject.trim() || !customBody.trim()}>
+                    {customSending ? <><RefreshCw size={14} className="spin" /> Sending…</> : <><Send size={14} /> Send email</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

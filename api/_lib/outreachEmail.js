@@ -512,6 +512,58 @@ export function buildEmail(templateId, args) {
   return withSignOff(t.build(args));
 }
 
+// ─── Custom one-off email (B2b) ──────────────────────────────────
+// Wraps an operator-authored subject + PLAIN-TEXT body into the same
+// branded shell as the templates (logo header, greeting, footer) and the
+// shared sign-off. The body is treated as untrusted plain text: HTML is
+// escaped and line breaks become paragraphs, so an operator can't (even
+// accidentally) inject markup, and the message stays light + personal for
+// inbox placement. Blank lines separate paragraphs.
+export function buildCustomEmail({ user, subject, body }) {
+  const safeSubject = String(subject || '').slice(0, 200);
+  const rawBody = String(body || '');
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  // Plain text → escaped paragraphs (split on blank lines; single newlines
+  // become <br>).
+  const paragraphs = rawBody.replace(/\r\n/g, '\n').split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">${escape(p).replace(/\n/g, '<br />')}</p>`)
+    .join('\n              ');
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<title>${escape(safeSubject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              ${paragraphs}
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+        <p style="margin:14px 0 0;font-size:11px;color:#9999aa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">You're receiving this because you signed up for GoalOracle.</p>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const greetingText = (user.displayName || user.username) ? `Hey ${user.displayName || user.username},` : 'Hey,';
+  const text = `${greetingText}\n\n${rawBody.trim()}`;
+
+  return withSignOff({ subject: safeSubject, html, text });
+}
+
 // ─── Send ────────────────────────────────────────────────────────
 
 export async function sendOutreachEmail({ to, subject, html, text, tags = [] }) {

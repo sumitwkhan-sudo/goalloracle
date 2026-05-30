@@ -1338,6 +1338,63 @@ export default async function handler(req, res) {
       return res.status(200).json(results);
     }
 
+    // ─── OUTREACH: CUSTOM ONE-OFF SEND (B2b) ───────────────────
+    // Send an operator-authored custom email (subject + plain-text body)
+    // to a SINGLE user, wrapped in the branded shell + sign-off. Logged to
+    // /outreachSent like template sends so it shows in the user's email
+    // history (B1) and the recent-contact guardrail. Respects opt-out.
+    if (action === 'outreachSendCustom') {
+      const { targetUserId, subject, body } = req.body;
+      if (!targetUserId) return res.status(400).json({ error: 'targetUserId required' });
+      if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'subject required' });
+      if (!body || !String(body).trim()) return res.status(400).json({ error: 'body required' });
+      if (String(body).length > 5000) return res.status(400).json({ error: 'body too long (max 5000 chars)' });
+
+      const userSnap = await db.collection('users').doc(targetUserId).get();
+      if (!userSnap.exists) return res.status(404).json({ error: 'User not found' });
+      const user = { id: userSnap.id, ...userSnap.data() };
+      if (!user.email) return res.status(400).json({ error: 'User has no email on file' });
+      if (user.emailOptOut === true) return res.status(400).json({ error: 'User has opted out of email' });
+
+      const { buildCustomEmail, sendOutreachEmail } = await import('./_lib/outreachEmail.js');
+      const { subject: subj, html, text } = buildCustomEmail({ user, subject, body });
+      const r = await sendOutreachEmail({
+        to: user.email,
+        subject: subj, html, text,
+        tags: [
+          { name: 'userId', value: targetUserId },
+          { name: 'template', value: 'custom' },
+        ],
+      });
+
+      // Per-user history row. Custom sends are keyed by timestamp so each is
+      // a distinct entry (unlike templates, which are one row per type).
+      const sentId = `${targetUserId}__custom__${Date.now()}`;
+      await db.collection('outreachSent').doc(sentId).set({
+        userId: targetUserId,
+        template: 'custom',
+        subject: subj,
+        sentAt: FieldValue.serverTimestamp(),
+        sent: r.sent,
+        error: r.error || null,
+        sentBy: userId,
+      }, { merge: true });
+
+      await db.collection('outreachRuns').add({
+        template: 'custom',
+        subject: subj,
+        triggeredBy: userId,
+        triggeredAt: FieldValue.serverTimestamp(),
+        attempted: 1,
+        sent: r.sent ? 1 : 0,
+        skipped: 0,
+        failed: r.sent ? 0 : 1,
+      });
+
+      if (!r.sent) return res.status(502).json({ error: r.error || 'Send failed', sent: false });
+      return res.status(200).json({ sent: true });
+    }
+
     // ─── OUTREACH: CANARY SEND ─────────────────────────────────
     // Pick N userIds from the supplied list at random (default 3),
     // send the template only to them, and return both the standard
