@@ -201,7 +201,7 @@ The 7 prize-contest funnel events: `prize_section_viewed`, `enter_free_cta_click
 - **FIFA compliance caption** under hero social-proof row: "GoalOracle's prediction engine is compliant with the official FIFA World Cup 26™ rulebook".
 - **Leaderboard tabs** moved left, enlarged, renamed "Quick Picks Leaderboard" / "Classic Predictions Leaderboard".
 
-## Recent work (as of May 2026 — auth, anti-sybil, admin, perf)
+## Recent work (as of May 2026 — auth, anti-sybil, admin, perf, onboarding)
 
 Context for new/parallel sessions so this isn't re-discovered. Work happens on a short-lived feature branch (check `git branch` / recent `git log` for the current one), then fast-forwards to prod via `git push origin <branch>:main` after a `git merge-base --is-ancestor origin/main HEAD` guard — never force-push; `main` auto-deploys on Vercel (project `goalloracle`, team `sumitwkhan`). Confirm deploys with the Vercel MCP `list_deployments`. The user authorizes prod merges explicitly per request.
 
@@ -227,6 +227,13 @@ Context for new/parallel sessions so this isn't re-discovered. Work happens on a
 ### Performance / edge-caching reads
 - `api/simple-leaderboard.js` (backs the Global League hero ticker): reads run **concurrently** (`Promise.all` over the 30-id `in`-query batches) instead of sequential `for…await` — global-simple holds every user, so the old loop serialized into dozens of round-trips. Response is **edge-cached** `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`.
 - **Pattern to reuse:** non-user-specific read endpoints edge-cache via `s-maxage` (`simple-consensus.js`, `spicy-stats.js`, `public.js`, `news.js`). Logged-in callers send an `Authorization` header and bypass the shared CDN cache, so freshness-sensitive users still get live data.
+
+### Homepage + first-prediction landing (variant E)
+- **First-time users** see the variant-E onboarding card in `FirstTimeBanner` (`src/components/Dashboard.jsx`): a single card with **Free Prizes** eyebrow, **"Win up to $150 in USDC"** headline, 3-tier podium ($150/$100/$50), live "Locks in Xd Xh Xm" countdown, **Steps to Enter** numbered list (3 actions, time estimates), single primary CTA. Uses real data: `PRIZES` from `src/config/legal.js` + `stageLockTimeUtc('groupStage')` from `src/utils/stageLock`. CTA reuses the existing `nav('detail', simpleL, { tab: 'predictions' })` wiring.
+- **Zero-state `DashboardStrip` is intentionally hidden** for first-time users (`if (isFirstTime) return <FirstTimeBanner only/>`) — every metric was a discouraging zero/negative before the user had predicted anything. The strip returns automatically once `isFirstTime` is false.
+- CSS lives under `.td-fp-*` in `src/styles.css` (right after `.td-onboard-cta`). Mobile @media tunes the whole card to ~400px on iPhone 16. Old `.td-onboard*` classes are still defined but no longer rendered.
+- **Historical preview** at `/__first-pick-preview-q7m2x` (file `src/pages/FirstPickPreview.jsx`, route registered in `src/goaloracle.jsx`): 5 variants (A champion-first / B 3-step / C stakes / D minimal / E blend). E was the chosen design and is now live. Preview page kept for iteration; delete it + its route entries once the design is fully locked.
+- **Homepage cleanup** (`src/goaloracle.jsx`): the old `lb-streaks-section` (Global Leaderboard preview + Streaks & Badges card, both rendered hardcoded mock data) was removed. Real in-league leaderboard (`SimpleDetail`) and `points.js` streak/badge logic untouched.
 
 ## Conventions
 
