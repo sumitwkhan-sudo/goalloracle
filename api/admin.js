@@ -493,7 +493,7 @@ export default async function handler(req, res) {
         await sendOperatorAlert(
           `Match result corrected: ${matchId}`,
           {
-            what: `An admin (${userId}) just changed a previously-verified match result. Quick Picks scoring is computed on every leaderboard render, so user leaderboards will reflect the new numbers automatically on the next page load. No manual rescore needed — but you should know this happened in case it was unintended.`,
+            what: `An admin (${userId}) just changed a previously-verified match result. Quick Picks scores are recomputed automatically right after this change (and again on every poll), so the leaderboard will reflect the new numbers within moments. No manual rescore needed — but you should know this happened in case it was unintended.`,
             why: [
               'Operator typo on the original result entry',
               'VAR overturn / retroactive disciplinary action that the oracle hadn\'t picked up',
@@ -522,6 +522,25 @@ export default async function handler(req, res) {
         adminId: userId,
         timestamp: FieldValue.serverTimestamp(),
       });
+
+      // Recompute Quick Picks scores immediately so a manual result entry
+      // or correction reflects on the leaderboard right away, rather than
+      // waiting for the next poll-results cron tick. Best-effort: a scoring
+      // failure must not fail the result save (the result is already
+      // persisted; the next poll/edit will recompute). Same engine the cron
+      // uses, so the numbers match.
+      try {
+        const [{ buildSimpleActuals }, { recomputeSimpleScores }] = await Promise.all([
+          import('./_lib/bracketResolver.js'),
+          import('./_lib/computeSimpleScores.js'),
+        ]);
+        const freshSnap = await db.collection('matchResults').get();
+        const fresh = {};
+        freshSnap.docs.forEach((d) => { fresh[d.id] = d.data(); });
+        await recomputeSimpleScores(db, buildSimpleActuals(fresh));
+      } catch (e) {
+        console.error('[admin updateResult] score recompute failed (non-fatal):', e?.message || e);
+      }
 
       return res.status(200).json({ success: true });
 
