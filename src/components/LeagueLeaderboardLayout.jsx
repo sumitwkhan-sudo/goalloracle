@@ -184,7 +184,15 @@ function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onSha
         <PredictionCell winner={row.winner} runnerUp={row.runnerUp} uniqueness={row.uniqueness} upsetCount={row.upsetCount || 0} />
       </div>
       <div className="ll-cell ll-cell-pts">
-        {row.totalAccuracy > 0 ? <span className="ll-pts-num">{Math.round(row.totalAccuracy * 100)}%</span> : <span className="ll-pts-empty">—</span>}
+        {/* Ranking is by points; accuracy shown as a secondary stat. */}
+        {(row.totalScore > 0 || row.totalAccuracy > 0) ? (
+          <span className="ll-pts-wrap">
+            <span className="ll-pts-num">{Math.round(row.totalScore || 0)} pts</span>
+            {row.totalAccuracy > 0 && (
+              <span className="ll-pts-acc">{Math.round(row.totalAccuracy * 100)}%</span>
+            )}
+          </span>
+        ) : <span className="ll-pts-empty">—</span>}
       </div>
       {!isYou && (
         <div className="ll-cell ll-cell-chev" aria-hidden="true">
@@ -452,7 +460,7 @@ export default function LeagueLeaderboardLayout({
         <div className="ll-cell ll-cell-id">PLAYER</div>
         <div className="ll-cell ll-cell-status" />
         <div className="ll-cell ll-cell-pred">PREDICTION</div>
-        <div className="ll-cell ll-cell-pts" title="Score — % of available points scored so far">SCORE</div>
+        <div className="ll-cell ll-cell-pts" title="Total points (ranking) · accuracy">SCORE</div>
         <div className="ll-cell ll-cell-chev" />
       </div>
 

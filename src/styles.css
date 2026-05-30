@@ -8635,9 +8635,16 @@ body.light .lsd-head,
 
 /* Points */
 .ll-cell-pts { justify-content: flex-end; }
+/* Points (primary, the ranking key) stacked over accuracy (secondary). */
+.ll-pts-wrap {
+  display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15;
+}
 .ll-pts-num {
   font-family: var(--mono); font-weight: 700; font-size: 0.85rem;
   color: var(--primary);
+}
+.ll-pts-acc {
+  font-family: var(--mono); font-size: 0.66rem; color: var(--text-sec);
 }
 .ll-row-you .ll-pts-num { color: var(--primary); }
 .ll-pts-empty { color: var(--text-dim); font-family: var(--mono); }
