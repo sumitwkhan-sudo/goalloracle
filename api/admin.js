@@ -752,6 +752,63 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, name: trimmed });
     }
 
+    // ─── ADD A USER TO A LEAGUE (item H) ───────────────────────
+    // Superadmin can put any user into any league — incl. PRIVATE,
+    // bypassing the passcode gate. Mirrors the membership writes the
+    // normal join (api/leagues.js) performs: league.members array +
+    // user.leagues array. Idempotent (already-a-member is a no-op).
+    if (action === 'addUserToLeague') {
+      if ((await getRole(userId)) !== 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin only' });
+      }
+      const { leagueId, targetUserId } = req.body;
+      if (!leagueId || !targetUserId) return res.status(400).json({ error: 'leagueId and targetUserId required' });
+
+      const [leagueSnap, userSnap] = await Promise.all([
+        db.collection('leagues').doc(leagueId).get(),
+        db.collection('users').doc(targetUserId).get(),
+      ]);
+      if (!leagueSnap.exists) return res.status(404).json({ error: 'League not found' });
+      if (!userSnap.exists) return res.status(404).json({ error: 'User not found' });
+
+      const league = leagueSnap.data();
+      if (Array.isArray(league.members) && league.members.includes(targetUserId)) {
+        return res.status(200).json({ success: true, alreadyMember: true });
+      }
+
+      // Same two writes the join path makes, kept in sync.
+      const writes = [
+        db.collection('leagues').doc(leagueId).update({
+          members: FieldValue.arrayUnion(targetUserId),
+          memberCount: FieldValue.increment(1),
+        }),
+        db.collection('users').doc(targetUserId).update({
+          leagues: FieldValue.arrayUnion(leagueId),
+        }),
+      ];
+      // global-simple ranking also reads a members subcollection — keep it
+      // consistent if we're adding to that league specifically.
+      if (leagueId === 'global-simple') {
+        writes.push(
+          db.collection('leagues').doc('global-simple').collection('members').doc(targetUserId)
+            .set({ userId: targetUserId, addedBy: userId, addedAt: FieldValue.serverTimestamp() }, { merge: true })
+        );
+      }
+      await Promise.all(writes);
+
+      await db.collection('adminLogs').add({
+        action: 'add_user_to_league',
+        leagueId,
+        leagueName: league.name || null,
+        targetUserId,
+        visibility: league.visibility || 'public',
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      }).catch(() => {});
+
+      return res.status(200).json({ success: true });
+    }
+
     if (action === 'backfillCountries') {
       // One-shot: walk every user and assign a country if they don't have
       // one. Product-directed override map wins; everyone else defaults to
