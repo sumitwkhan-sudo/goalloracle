@@ -3470,10 +3470,13 @@ button.invite-option:hover,
   font-size: 0.65rem; color: var(--text-sec);
 }
 .admin-user-meta-item { display: inline-flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.admin-user-leagues-cell { display: inline-flex; align-items: baseline; gap: 0.3rem; }
 .admin-user-leagues-names {
-  color: var(--text-dim);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 48vw;
-  margin-left: 0.15rem;
+  color: var(--text-sec);
+  /* Show the actual league names — wrap instead of clipping with an
+     ellipsis so the operator can read every league a user joined. */
+  white-space: normal; word-break: break-word; line-height: 1.3;
+  max-width: 22rem;
 }
 .admin-user-row .admin-wallet-edit-row { display: flex; align-items: center; gap: 0.3rem; flex: 1; min-width: 0; }
 .admin-user-row .admin-wallet-input { font-size: 0.7rem; padding: 0.2rem 0.4rem; }
@@ -3534,12 +3537,26 @@ button.invite-option:hover,
    the operator can see at a glance who not to re-email. */
 .admin-user-emailed-recent { color: var(--amber, #d97706); font-weight: 600; }
 .admin-qp-pill {
-  display: inline-block; padding: 0.1rem 0.4rem; border-radius: 5px;
-  font-size: 0.6rem; font-weight: 600; white-space: nowrap;
+  display: inline-block; padding: 0.12rem 0.45rem; border-radius: 5px;
+  font-size: 0.62rem; font-weight: 700; white-space: nowrap;
+  border: 1px solid transparent;
 }
-.admin-qp-ok { background: rgba(34,197,94,0.15); color: var(--lime, #22c55e); }
-.admin-qp-warn { background: rgba(255,193,7,0.14); color: var(--amber, #ffb800); }
-.admin-qp-none { background: var(--bg-elev); color: var(--text-dim); }
+/* Readable in both themes: stronger tint + a solid, high-contrast text
+   colour (not the neon accent tokens, which wash out on a faint fill).
+   Default palette here is the DARK theme (the app's base :root), so use
+   light text on the tints; the [data-theme="light"] block below darkens
+   it for the light theme. */
+.admin-qp-ok {
+  background: rgba(34,197,94,0.18); color: #4ade80; border-color: rgba(34,197,94,0.45);
+}
+.admin-qp-warn {
+  background: rgba(245,158,11,0.18); color: #fbbf24; border-color: rgba(245,158,11,0.45);
+}
+.admin-qp-none {
+  background: var(--bg-elev); color: var(--text-sec); border-color: var(--border);
+}
+[data-theme="light"] .admin-qp-ok { color: #15803d; }
+[data-theme="light"] .admin-qp-warn { color: #b45309; }
 
 /* Copy-to-Global modal (Segment C) */
 .admin-copy-mode { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.5rem 0 0.25rem; }

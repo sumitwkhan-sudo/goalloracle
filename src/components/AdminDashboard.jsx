@@ -1399,7 +1399,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       <td title={leagueNames.length ? leagueNames.join(', ') : 'No leagues joined'}>
                         {joined.length === 0
                           ? <span className="admin-wallet-empty">none</span>
-                          : <><strong>{joined.length}</strong> <span className="admin-user-leagues-names">{leagueNames.slice(0, 2).join(', ')}{joined.length > 2 ? ` +${joined.length - 2}` : ''}</span></>}
+                          : <span className="admin-user-leagues-cell"><strong>{joined.length}</strong> <span className="admin-user-leagues-names">{leagueNames.join(', ')}</span></span>}
                       </td>
                       <td><span className={`admin-qp-pill admin-qp-${qp.tone}`}>{qp.label}</span></td>
                       <td className="admin-user-emailed-cell" title={email ? `${email.totalSent} email${email.totalSent === 1 ? '' : 's'} sent total${email.days <= RECENT_CONTACT_DAYS ? ` — contacted within ${RECENT_CONTACT_DAYS}d` : ''}` : 'Never emailed'}>
