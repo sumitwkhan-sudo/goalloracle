@@ -54,13 +54,28 @@ function daysUntilKickoff() {
 }
 
 function brandHeader() {
+  // Small header logo (B2 branding requirement). One lightweight image with
+  // alt text + the wordmark kept as live text underneath, so the brand still
+  // reads if the image is blocked — and we stay light on images for inbox
+  // placement (B4). Absolute URL: email clients can't resolve relative paths.
   return `<tr>
-    <td style="background:#06070d;padding:32px 28px 24px;text-align:left;border-radius:16px 16px 0 0;">
-      <div style="height:6px;width:64px;background:linear-gradient(90deg,#00D4FF,#FF2D87,#FFB800);border-radius:3px;margin-bottom:18px;"></div>
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">GoalOracle</div>
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;font-size:13px;color:#a8acb5;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">World Cup 2026 Predictions</div>
+    <td style="background:#06070d;padding:28px 28px 22px;text-align:left;border-radius:16px 16px 0 0;">
+      <img src="${PROD_ORIGIN}/logo-lockup-trophy.png" width="148" alt="GoalOracle" style="display:block;width:148px;max-width:60%;height:auto;margin-bottom:14px;border:0;" />
+      <div style="height:6px;width:64px;background:linear-gradient(90deg,#00D4FF,#FF2D87,#FFB800);border-radius:3px;margin-bottom:14px;"></div>
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;font-size:13px;color:#a8acb5;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">World Cup 2026 Predictions</div>
     </td>
   </tr>`;
+}
+
+// Founder sign-off — appended to EVERY engagement email (B2 requirement),
+// worded EXACTLY as below. signOffHtml renders inside the card body;
+// signOffText is the plain-text twin for the multipart text/* alternative.
+const SIGN_OFF_LINE = '- Sumit, Founder of GoalOracle.io and Football Lover';
+function signOffHtml() {
+  return `<p style="margin:26px 0 0;font-size:15px;line-height:1.5;color:#3c3c43;">${escape(SIGN_OFF_LINE)}</p>`;
+}
+function signOffText() {
+  return `\n\n${SIGN_OFF_LINE}`;
 }
 
 function brandFooter(unsubUrl) {
@@ -474,10 +489,27 @@ export const TEMPLATES = {
   },
 };
 
+// The footer table-row is the same across every template; we splice the
+// founder sign-off in just before it so it lands at the end of the message
+// body (above the legal footer) on EVERY engagement email, centrally —
+// rather than editing each template. Returns html unchanged if the anchor
+// isn't found (defensive), so a template that ever diverges still sends.
+const FOOTER_ANCHOR = '<tr>\n    <td style="padding:24px 28px;background:#f5f5f7;';
+function withSignOff({ subject, html, text }) {
+  let outHtml = html;
+  const idx = html.indexOf(FOOTER_ANCHOR);
+  if (idx !== -1) {
+    // Wrap the sign-off in the same body cell padding the templates use.
+    const block = `          <tr><td style="padding:0 28px 28px;">${signOffHtml()}</td></tr>\n          `;
+    outHtml = html.slice(0, idx) + block + html.slice(idx);
+  }
+  return { subject, html: outHtml, text: `${text}${signOffText()}` };
+}
+
 export function buildEmail(templateId, args) {
   const t = TEMPLATES[templateId];
   if (!t) throw new Error(`Unknown email template: ${templateId}`);
-  return t.build(args);
+  return withSignOff(t.build(args));
 }
 
 // ─── Send ────────────────────────────────────────────────────────
