@@ -66,33 +66,36 @@ export const SCORING_FACTS = {
 
 /**
  * Scoring explainer content used by the leaderboard panel (item E) and the
- * FAQ pages (item D). Returns an array of bullets — { label, detail } — that
- * each consumer renders as a list. Kept short and scannable on purpose: what
- * you do, and what it's worth. Numbers are engine-derived (see SCORING_FACTS).
+ * FAQ pages (item D). Returns { intro, bullets } where bullets are noun
+ * phrases ({ label, detail }) — no verbs — kept short and scannable. Numbers
+ * are engine-derived (see SCORING_FACTS).
  *
- * NOTE on ranking: the leaderboard ranks by TOTAL POINTS (most points wins);
- * accuracy is shown as a secondary stat, it is not the ranking key. Do not
- * reintroduce "ranked by accuracy" copy.
+ * NOTE on ranking: the leaderboard ranks by TOTAL POINTS (highest points win),
+ * tie-breaks by time of submission. Accuracy is a secondary stat, NOT the
+ * ranking key. Do not reintroduce "ranked by accuracy" copy.
  */
 export function getScoringBullets() {
   const f = SCORING_FACTS;
   const [p1, p2, p3, p4] = f.groupPositionPoints;
-  return [
-    {
-      label: `Rank each group — up to ${f.groupStageMax} pts`,
-      detail: `${p1}/${p2}/${p3}/${p4} pts per team placed in the right spot, across all ${f.groupCount} groups.`,
-    },
-    {
-      label: `Pick the 8 best third-placed teams — up to ${f.bestThirdMax} pts`,
-      detail: `${f.bestThirdPerPick} pts for each of the ${f.bestThirdCount} you get right.`,
-    },
-    {
-      label: `Fill the knockout bracket — up to ${f.knockoutMax} pts`,
-      detail: `Later rounds pay more: ${f.knockoutRounds.map((r) => `${r.label} ${r.perPick}`).join(', ')} pts per correct winner.`,
-    },
-    {
-      label: `Most points wins (max ${f.totalMax})`,
-      detail: `Accuracy — your share of available points — is shown too, but ranking is by total points. Picks lock 5 min before kickoff and auto-save until then.`,
-    },
-  ];
+  return {
+    intro: 'Highest points win, tie-breakers are by time of submission.',
+    bullets: [
+      {
+        label: `Group stage points available: ${f.groupStageMax}`,
+        detail: `${p1}/${p2}/${p3}/${p4} pts per team in the right spot, across all ${f.groupCount} groups.`,
+      },
+      {
+        label: `Best third-placed teams points available: ${f.bestThirdMax}`,
+        detail: `${f.bestThirdPerPick} pts for each of the ${f.bestThirdCount} correct.`,
+      },
+      {
+        label: `Knockout bracket points available: ${f.knockoutMax}`,
+        detail: `Per correct winner: ${f.knockoutRounds.map((r) => `${r.label} ${r.perPick}`).join(', ')} pts.`,
+      },
+      {
+        label: `Total points available: ${f.totalMax}`,
+        detail: 'Accuracy (your share of available points) is shown too, but ranking is by total points.',
+      },
+    ],
+  };
 }

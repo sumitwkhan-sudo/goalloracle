@@ -8405,14 +8405,21 @@ body.light .lsd-head,
 }
 .ll-scoring.is-open .ll-scoring-chev { transform: rotate(90deg); }
 .ll-scoring-body {
-  list-style: none; margin: 0;
-  display: flex; flex-direction: column; gap: 0.55rem;
   padding: 0.2rem 0.1rem 0.7rem;
   animation: ll-scoring-in 0.16s ease;
 }
 @keyframes ll-scoring-in {
   from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: translateY(0); }
+}
+.ll-scoring-intro {
+  margin: 0 0 0.55rem;
+  font-family: var(--font); font-size: 0.78rem; font-weight: 700;
+  color: var(--text); line-height: 1.4;
+}
+.ll-scoring-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 0.55rem;
 }
 .ll-scoring-item {
   display: flex; flex-direction: column; gap: 1px;
