@@ -65,47 +65,34 @@ export const SCORING_FACTS = {
 };
 
 /**
- * Plain-language scoring blurb used by the leaderboard explainer (item E).
- * Returns an array of { heading, body } sections so each consumer can render
- * with its own markup (legal page vs. compact leaderboard panel).
+ * Scoring explainer content used by the leaderboard panel (item E) and the
+ * FAQ pages (item D). Returns an array of bullets — { label, detail } — that
+ * each consumer renders as a list. Kept short and scannable on purpose: what
+ * you do, and what it's worth. Numbers are engine-derived (see SCORING_FACTS).
+ *
+ * NOTE on ranking: the leaderboard ranks by TOTAL POINTS (most points wins);
+ * accuracy is shown as a secondary stat, it is not the ranking key. Do not
+ * reintroduce "ranked by accuracy" copy.
  */
-export function getScoringSections() {
+export function getScoringBullets() {
   const f = SCORING_FACTS;
   const [p1, p2, p3, p4] = f.groupPositionPoints;
   return [
     {
-      heading: 'Rank each group',
-      body:
-        `For all ${f.groupCount} groups, put the four teams in your predicted ` +
-        `finishing order. You earn points for each team you place correctly: ` +
-        `${p1} for the winner, ${p2} for the runner-up, ${p3} for third, and ${p4} ` +
-        `for fourth — ${f.groupMaxPerGroup} points per perfectly ranked group, ` +
-        `${f.groupStageMax} across every group.`,
+      label: `Rank each group — up to ${f.groupStageMax} pts`,
+      detail: `${p1}/${p2}/${p3}/${p4} pts per team placed in the right spot, across all ${f.groupCount} groups.`,
     },
     {
-      heading: 'Pick the 8 best third-placed teams',
-      body:
-        `${f.groupCount} teams finish third but only ${f.bestThirdCount} advance to ` +
-        `the Round of 32. Each team you pick correctly is worth ${f.bestThirdPerPick} ` +
-        `points — ${f.bestThirdMax} in total.`,
+      label: `Pick the 8 best third-placed teams — up to ${f.bestThirdMax} pts`,
+      detail: `${f.bestThirdPerPick} pts for each of the ${f.bestThirdCount} you get right.`,
     },
     {
-      heading: 'Fill the knockout bracket',
-      body:
-        `Pick the winner of every knockout tie. Later rounds are worth more: ` +
-        f.knockoutRounds
-          .map((r) => `${r.label} ${r.perPick}`)
-          .join(', ') +
-        ` points per correct winner — up to ${f.knockoutMax} across the bracket.`,
+      label: `Fill the knockout bracket — up to ${f.knockoutMax} pts`,
+      detail: `Later rounds pay more: ${f.knockoutRounds.map((r) => `${r.label} ${r.perPick}`).join(', ')} pts per correct winner.`,
     },
     {
-      heading: 'How you’re ranked',
-      body:
-        `The maximum is ${f.totalMax} points. The leaderboard ranks by accuracy — ` +
-        `the share of available points you’ve earned so far — so people who only ` +
-        `filled part of the bracket are compared fairly. Ties are broken by who ` +
-        `submitted first. Predictions lock 5 minutes before each match kicks off, ` +
-        `and auto-save until then.`,
+      label: `Most points wins (max ${f.totalMax})`,
+      detail: `Accuracy — your share of available points — is shown too, but ranking is by total points. Picks lock 5 min before kickoff and auto-save until then.`,
     },
   ];
 }

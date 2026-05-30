@@ -89,7 +89,7 @@ export default function WorldCupPredictionGame() {
             advance (2 points each, 16), then fill the knockout bracket, where later rounds
             are worth more (up to 109). That&apos;s <strong>209 points</strong> in total, and
             most players finish in under ten minutes. Predictions lock 5 minutes before each
-            match kicks off, and the leaderboard ranks by accuracy.
+            match kicks off, and the leaderboard ranks by total points — most points wins.
           </p>
         </section>
 

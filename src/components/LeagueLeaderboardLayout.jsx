@@ -25,7 +25,7 @@ import {
   ChevronRight, Copy, Check, MessageSquare,
 } from 'lucide-react';
 import { teamFlags, countryFlag } from '../utils/flags';
-import { getScoringSections } from '../utils/scoringExplainer';
+import { getScoringBullets } from '../utils/scoringExplainer';
 
 // ── scoring explainer (item E) ──────────────────────────────────────────
 // Subtle, collapsed-by-default "How scoring works" disclosure. Content
@@ -34,7 +34,7 @@ import { getScoringSections } from '../utils/scoringExplainer';
 // low-contrast row that doesn't push the rankings down.
 function ScoringExplainer() {
   const [open, setOpen] = useState(false);
-  const sections = getScoringSections();
+  const bullets = getScoringBullets();
   return (
     <div className={`ll-scoring ${open ? 'is-open' : ''}`}>
       <button
@@ -48,14 +48,14 @@ function ScoringExplainer() {
         <ChevronRight size={13} className="ll-scoring-chev" aria-hidden="true" />
       </button>
       {open && (
-        <div className="ll-scoring-body">
-          {sections.map((s) => (
-            <div key={s.heading} className="ll-scoring-item">
-              <span className="ll-scoring-h">{s.heading}</span>
-              <span className="ll-scoring-d">{s.body}</span>
-            </div>
+        <ul className="ll-scoring-body">
+          {bullets.map((b) => (
+            <li key={b.label} className="ll-scoring-item">
+              <span className="ll-scoring-h">{b.label}</span>
+              <span className="ll-scoring-d">{b.detail}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

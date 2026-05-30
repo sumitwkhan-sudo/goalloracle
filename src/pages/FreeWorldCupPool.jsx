@@ -115,7 +115,7 @@ export default function FreeWorldCupPool() {
           </p>
           <ul className="legal-list">
             <li>
-              <strong>Shared leaderboard:</strong> Ranked by accuracy, updated
+              <strong>Shared leaderboard:</strong> Ranked by total points, updated
               automatically after each match.
             </li>
             <li>
