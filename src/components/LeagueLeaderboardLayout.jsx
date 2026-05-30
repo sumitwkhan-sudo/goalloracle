@@ -34,7 +34,7 @@ import { getScoringBullets } from '../utils/scoringExplainer';
 // low-contrast row that doesn't push the rankings down.
 function ScoringExplainer() {
   const [open, setOpen] = useState(false);
-  const bullets = getScoringBullets();
+  const { intro, bullets } = getScoringBullets();
   return (
     <div className={`ll-scoring ${open ? 'is-open' : ''}`}>
       <button
@@ -48,14 +48,17 @@ function ScoringExplainer() {
         <ChevronRight size={13} className="ll-scoring-chev" aria-hidden="true" />
       </button>
       {open && (
-        <ul className="ll-scoring-body">
-          {bullets.map((b) => (
-            <li key={b.label} className="ll-scoring-item">
-              <span className="ll-scoring-h">{b.label}</span>
-              <span className="ll-scoring-d">{b.detail}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="ll-scoring-body">
+          <p className="ll-scoring-intro">{intro}</p>
+          <ul className="ll-scoring-list">
+            {bullets.map((b) => (
+              <li key={b.label} className="ll-scoring-item">
+                <span className="ll-scoring-h">{b.label}</span>
+                <span className="ll-scoring-d">{b.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
