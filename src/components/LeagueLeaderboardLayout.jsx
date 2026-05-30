@@ -25,6 +25,41 @@ import {
   ChevronRight, Copy, Check, MessageSquare,
 } from 'lucide-react';
 import { teamFlags, countryFlag } from '../utils/flags';
+import { getScoringSections } from '../utils/scoringExplainer';
+
+// ── scoring explainer (item E) ──────────────────────────────────────────
+// Subtle, collapsed-by-default "How scoring works" disclosure. Content
+// comes from the shared scoringExplainer.js source of truth, so it can
+// never drift from the FAQ (item D) or the engine. Collapsed it's a single
+// low-contrast row that doesn't push the rankings down.
+function ScoringExplainer() {
+  const [open, setOpen] = useState(false);
+  const sections = getScoringSections();
+  return (
+    <div className={`ll-scoring ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="ll-scoring-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+      >
+        <Target size={12} aria-hidden="true" />
+        <span>How scoring works</span>
+        <ChevronRight size={13} className="ll-scoring-chev" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="ll-scoring-body">
+          {sections.map((s) => (
+            <div key={s.heading} className="ll-scoring-item">
+              <span className="ll-scoring-h">{s.heading}</span>
+              <span className="ll-scoring-d">{s.body}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── small atoms ─────────────────────────────────────────────────────────
 function RankCell({ rank }) {
@@ -401,6 +436,10 @@ export default function LeagueLeaderboardLayout({
           friendsCount={friendIds.size}
         />
       )}
+
+      {/* Subtle scoring explainer (item E) — global leaderboard only,
+          collapsed by default so it never pushes the rankings down. */}
+      {isGlobal && <ScoringExplainer />}
 
       {/* Optional column header — small caps, low contrast. Helps scan
           when the rows have lots of fields. Hidden on mobile (the row
