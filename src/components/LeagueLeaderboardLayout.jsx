@@ -448,9 +448,11 @@ export default function LeagueLeaderboardLayout({
         />
       )}
 
-      {/* Subtle scoring explainer (item E) — global leaderboard only,
-          collapsed by default so it never pushes the rankings down. */}
-      {isGlobal && <ScoringExplainer />}
+      {/* Subtle scoring explainer (items E + I) — on EVERY Quick Picks
+          league leaderboard (global, public, private), collapsed by default
+          so it never pushes the rankings down. Quick Picks scoring is
+          identical across leagues, so the shared copy is correct everywhere. */}
+      <ScoringExplainer />
 
       {/* Optional column header — small caps, low contrast. Helps scan
           when the rows have lots of fields. Hidden on mobile (the row
