@@ -1631,6 +1631,9 @@ const GoalOracle = () => {
     // CTAs do this).
     if (l) { setSelLeague(l); setDetailTab(opts.tab || 'leaderboard'); setDetailWeek('week1'); setDetailStage('all'); }
     if (v === 'browse') loadAllLeagues();
+    // Admin Users table resolves each user's league IDs to names from
+    // allLeagues; load it so names render instead of truncated IDs.
+    if (v === 'admin') loadAllLeagues();
     setView(prev => prev === v && !l ? prev : v);
     setMenuOpen(false);
     window.scrollTo(0, 0);
