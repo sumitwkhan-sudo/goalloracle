@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { TEMPLATES, buildEmail, buildCustomEmail } from './outreachEmail.js';
+import { TEMPLATES, buildEmail, buildCustomEmail, firstNameOf, ordinal } from './outreachEmail.js';
 
 const SIGN_OFF = '- Sumit, Founder of GoalOracle.io and Football Lover';
 const USER = { id: 'u1', displayName: 'Sam', email: 'sam@example.com' };
@@ -64,5 +64,40 @@ describe('custom one-off email (B2b)', () => {
     const { html } = buildCustomEmail({ user: USER, subject: 's', body: 'a\n\nb\n\nc' });
     // 3 body paragraphs rendered as separate <p> blocks.
     expect((html.match(/<p style="margin:0 0 16px/g) || []).length).toBe(3);
+  });
+});
+
+describe('template variables (B2c)', () => {
+  test('firstNameOf takes the first token; null when blank', () => {
+    expect(firstNameOf({ displayName: 'Sam Khan' })).toBe('Sam');
+    expect(firstNameOf({ username: 'solo' })).toBe('solo');
+    expect(firstNameOf({})).toBe(null);
+  });
+
+  test('ordinal handles common + teen edge cases', () => {
+    expect(ordinal(1)).toBe('1st');
+    expect(ordinal(2)).toBe('2nd');
+    expect(ordinal(3)).toBe('3rd');
+    expect(ordinal(11)).toBe('11th');
+    expect(ordinal(12)).toBe('12th');
+    expect(ordinal(13)).toBe('13th');
+    expect(ordinal(21)).toBe('21st');
+    expect(ordinal(23)).toBe('23rd');
+    expect(ordinal(0)).toBe(null);
+    expect(ordinal(undefined)).toBe(null);
+  });
+
+  test('mid-tournament template renders rank when ctx supplies it', () => {
+    const out = buildEmail('midTournamentNudge', { user: USER, ctx: { rank: 3 } });
+    expect(out.html).toContain('3rd');
+    expect(out.text).toContain('3rd');
+  });
+
+  test('mid-tournament falls back to generic copy without rank, no undefined leak', () => {
+    const out = buildEmail('midTournamentNudge', { user: USER, ctx: {} });
+    expect(out.html).toContain('Group stage is in full swing');
+    expect(out.html).not.toContain('undefined');
+    // Branding still intact (variables didn't break B2a).
+    expect(out.html).toContain(SIGN_OFF);
   });
 });
