@@ -9,12 +9,12 @@
  * winners. For Classic Mode's score-driven logic see src/utils/bracket.js.
  */
 
-import WORLD_CUP_MATCHES from '../data/matches';
+import WORLD_CUP_MATCHES from '../data/matches.js';
 import {
   GROUPS,
   THIRD_PLACE_SLOT_IDS,
   resolveThirdPlaceSlots,
-} from './fifaThirdPlaceRules';
+} from './fifaThirdPlaceRules.js';
 
 // ─── R32 matchup template (16 matches) ────────────────────────────────
 // - "home" and "away" are either slot references like 'A1' (Group A winner),
