@@ -725,6 +725,12 @@ export async function adminSendOutreachCustom(targetUserId, subject, body) {
   });
 }
 
+// Admin (superadmin): add a user to any league, incl. private — bypasses
+// the passcode gate (item H). Mirrors the join membership writes server-side.
+export async function adminAddUserToLeague(leagueId, targetUserId) {
+  return await apiCall('admin', 'POST', { action: 'addUserToLeague', leagueId, targetUserId });
+}
+
 // ── Outreach automation rules (B2d) ──
 export async function fetchAdminAutomationRules() {
   const data = await apiCall('admin?type=automationRules');
