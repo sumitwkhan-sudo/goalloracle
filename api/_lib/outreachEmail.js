@@ -54,13 +54,28 @@ function daysUntilKickoff() {
 }
 
 function brandHeader() {
+  // Small header logo (B2 branding requirement). One lightweight image with
+  // alt text + the wordmark kept as live text underneath, so the brand still
+  // reads if the image is blocked — and we stay light on images for inbox
+  // placement (B4). Absolute URL: email clients can't resolve relative paths.
   return `<tr>
-    <td style="background:#06070d;padding:32px 28px 24px;text-align:left;border-radius:16px 16px 0 0;">
-      <div style="height:6px;width:64px;background:linear-gradient(90deg,#00D4FF,#FF2D87,#FFB800);border-radius:3px;margin-bottom:18px;"></div>
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">GoalOracle</div>
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;font-size:13px;color:#a8acb5;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">World Cup 2026 Predictions</div>
+    <td style="background:#06070d;padding:28px 28px 22px;text-align:left;border-radius:16px 16px 0 0;">
+      <img src="${PROD_ORIGIN}/logo-lockup-trophy.png" width="148" alt="GoalOracle" style="display:block;width:148px;max-width:60%;height:auto;margin-bottom:14px;border:0;" />
+      <div style="height:6px;width:64px;background:linear-gradient(90deg,#00D4FF,#FF2D87,#FFB800);border-radius:3px;margin-bottom:14px;"></div>
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;font-size:13px;color:#a8acb5;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">World Cup 2026 Predictions</div>
     </td>
   </tr>`;
+}
+
+// Founder sign-off — appended to EVERY engagement email (B2 requirement),
+// worded EXACTLY as below. signOffHtml renders inside the card body;
+// signOffText is the plain-text twin for the multipart text/* alternative.
+const SIGN_OFF_LINE = '- Sumit, Founder of GoalOracle.io and Football Lover';
+function signOffHtml() {
+  return `<p style="margin:26px 0 0;font-size:15px;line-height:1.5;color:#3c3c43;">${escape(SIGN_OFF_LINE)}</p>`;
+}
+function signOffText() {
+  return `\n\n${SIGN_OFF_LINE}`;
 }
 
 function brandFooter(unsubUrl) {
@@ -89,6 +104,26 @@ function escape(s) {
 function greeting(user) {
   const name = user.displayName || user.username || null;
   return name ? `Hey ${escape(name)},` : 'Hey,';
+}
+
+// Template variable helpers (B2c). All optional + additive: a template uses
+// the value only when ctx supplies it, otherwise it keeps its default copy,
+// so enriching ctx can never break a send.
+//
+// First name: first whitespace-delimited token of displayName. Used for a
+// lighter, more personal touch than the full handle.
+export function firstNameOf(user) {
+  const dn = (user?.displayName || user?.username || '').trim();
+  if (!dn) return null;
+  return dn.split(/\s+/)[0];
+}
+// Ordinal: 1 -> "1st", 2 -> "2nd", 11 -> "11th", 23 -> "23rd".
+export function ordinal(n) {
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < 1) return null;
+  const r10 = n % 10, r100 = n % 100;
+  const suffix = (r100 >= 11 && r100 <= 13) ? 'th'
+    : r10 === 1 ? 'st' : r10 === 2 ? 'nd' : r10 === 3 ? 'rd' : 'th';
+  return `${n}${suffix}`;
 }
 
 // ─── Template: No Picks Reminder ─────────────────────────────────
@@ -374,6 +409,17 @@ function midTournamentNudgeTemplate({ user, ctx }) {
   const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=mid_tournament_nudge`;
   const unsubUrl = unsubscribeUrl(user.id);
 
+  // Variable-aware rank line (B2c). When ctx supplies the user's live rank
+  // we lead with it; otherwise fall back to the generic line. Additive —
+  // never breaks if rank is absent.
+  const rankOrd = ordinal(ctx?.rank);
+  const rankLinePlain = rankOrd
+    ? `You're currently ${rankOrd} on the global leaderboard — your bracket is scoring on every verified result, and the board is moving fast.`
+    : `Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.`;
+  const rankLineHtml = rankOrd
+    ? `You're currently <strong>${escape(rankOrd)}</strong> on the global leaderboard — your bracket is scoring on every verified result, and the board is moving fast.`
+    : `Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.`;
+
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -394,10 +440,10 @@ function midTournamentNudgeTemplate({ user, ctx }) {
                 The tournament is on. See where you stand.
               </h1>
               <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.
+                ${rankLineHtml}
               </p>
               <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                Open your bracket to see your current rank, your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
+                Open your bracket to see your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
               </p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:8px 0 28px;">
                 <tr>
@@ -431,9 +477,9 @@ function midTournamentNudgeTemplate({ user, ctx }) {
 
 The tournament is on. See where you stand.
 
-Group stage is in full swing. Your bracket is scoring on every verified result — and the global leaderboard is moving fast.
+${rankLinePlain}
 
-Open your bracket to see your current rank, your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
+Open your bracket to see your hits and misses so far, and which group still has rounds left to play. Knockout picks open as soon as the group stage closes.
 
 See your standings: ${ctaUrl}
 
@@ -474,10 +520,79 @@ export const TEMPLATES = {
   },
 };
 
+// The footer table-row is the same across every template; we splice the
+// founder sign-off in just before it so it lands at the end of the message
+// body (above the legal footer) on EVERY engagement email, centrally —
+// rather than editing each template. Returns html unchanged if the anchor
+// isn't found (defensive), so a template that ever diverges still sends.
+const FOOTER_ANCHOR = '<tr>\n    <td style="padding:24px 28px;background:#f5f5f7;';
+function withSignOff({ subject, html, text }) {
+  let outHtml = html;
+  const idx = html.indexOf(FOOTER_ANCHOR);
+  if (idx !== -1) {
+    // Wrap the sign-off in the same body cell padding the templates use.
+    const block = `          <tr><td style="padding:0 28px 28px;">${signOffHtml()}</td></tr>\n          `;
+    outHtml = html.slice(0, idx) + block + html.slice(idx);
+  }
+  return { subject, html: outHtml, text: `${text}${signOffText()}` };
+}
+
 export function buildEmail(templateId, args) {
   const t = TEMPLATES[templateId];
   if (!t) throw new Error(`Unknown email template: ${templateId}`);
-  return t.build(args);
+  return withSignOff(t.build(args));
+}
+
+// ─── Custom one-off email (B2b) ──────────────────────────────────
+// Wraps an operator-authored subject + PLAIN-TEXT body into the same
+// branded shell as the templates (logo header, greeting, footer) and the
+// shared sign-off. The body is treated as untrusted plain text: HTML is
+// escaped and line breaks become paragraphs, so an operator can't (even
+// accidentally) inject markup, and the message stays light + personal for
+// inbox placement. Blank lines separate paragraphs.
+export function buildCustomEmail({ user, subject, body }) {
+  const safeSubject = String(subject || '').slice(0, 200);
+  const rawBody = String(body || '');
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  // Plain text → escaped paragraphs (split on blank lines; single newlines
+  // become <br>).
+  const paragraphs = rawBody.replace(/\r\n/g, '\n').split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">${escape(p).replace(/\n/g, '<br />')}</p>`)
+    .join('\n              ');
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<title>${escape(safeSubject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              ${paragraphs}
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+        <p style="margin:14px 0 0;font-size:11px;color:#9999aa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">You're receiving this because you signed up for GoalOracle.</p>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const greetingText = (user.displayName || user.username) ? `Hey ${user.displayName || user.username},` : 'Hey,';
+  const text = `${greetingText}\n\n${rawBody.trim()}`;
+
+  return withSignOff({ subject: safeSubject, html, text });
 }
 
 // ─── Send ────────────────────────────────────────────────────────
