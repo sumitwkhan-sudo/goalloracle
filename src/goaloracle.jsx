@@ -2389,7 +2389,6 @@ const GoalOracle = () => {
 
   const Landing = () => {
     useScrollReveal();
-    const [lbTab, setLbTab] = useState('global');
 
     // Hero CTAs are state-aware so a logged-in user sees their next
     // useful action (finish bracket / leaderboard / invite friends)
@@ -2461,14 +2460,6 @@ const GoalOracle = () => {
       }
       return { label: 'Edit your bracket', onClick: startSimplePredicting };
     }, [authenticated, quickPicks]);
-
-    // Mock leaderboard data
-    const mockLb = [
-      { rank: 1, name: 'LeoM', pts: 78, level: 12 },
-      { rank: 2, name: 'SamNYC', pts: 74, level: 9 },
-      { rank: 3, name: 'MariaFutbol', pts: 71, level: 10 },
-      { rank: 4, name: 'You', pts: 68, level: 7, isYou: true },
-    ];
 
     // Community predictions mock
     const communityMatch = WORLD_CUP_MATCHES.find(m => m.id === 'gs17');
@@ -2721,73 +2712,6 @@ const GoalOracle = () => {
                 </ul>
               </article>
             ))}
-          </div>
-        </div></section>
-
-        {/* ─── 3. LEADERBOARD + STREAKS ─── */}
-        <section className="lb-streaks-section"><div className="container">
-          <div className="lb-streaks-grid">
-            {/* Leaderboard */}
-            <div className="lb-panel reveal">
-              <div className="lb-panel-head">
-                <h3>Global Leaderboard</h3>
-                <a className="lb-view-all" onClick={() => {
-                  const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
-                  nav('detail', gs);
-                  setDetailTab('leaderboard');
-                }}>View Full Leaderboard <ChevronRight size={14} /></a>
-              </div>
-              <div className="lb-tabs">
-                {['global','country','friends'].map(t => (
-                  <button
-                    key={t}
-                    className={`lb-tab ${lbTab === t ? 'active' : ''}`}
-                    onClick={() => {
-                      setLbTab(t);
-                      // Preset the real leaderboard scope + country so the full
-                      // view opens already filtered the way the user asked for.
-                      const scope = t === 'global' ? 'all' : t;
-                      setLbScope(scope);
-                      if (scope === 'country') setLbScopeCountry(uData?.country || '');
-                      const gs = leagues.find(l => l.id === 'global-simple') || allLeagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true };
-                      // nav() resets detailTab to 'predictions' by default
-                      // — pass tab:'leaderboard' so SimpleDetail opens on the
-                      // leaderboard, not the Quick Picks wizard.
-                      nav('detail', gs, { tab: 'leaderboard' });
-                    }}
-                  >{t.charAt(0).toUpperCase() + t.slice(1)}</button>
-                ))}
-              </div>
-              <div className="lb-rows">
-                {mockLb.map(p => (
-                  <div key={p.rank} className={`lb-row ${p.isYou ? 'lb-row-you' : ''}`}>
-                    <span className={`lb-rank lb-rank-${p.rank}`}>{p.rank <= 3 ? ['','🥇','🥈','🥉'][p.rank] : p.rank}</span>
-                    <span className="lb-name">{p.name}</span>
-                    <span className="lb-pts">{p.pts} pts</span>
-                    <span className="lb-level"><Star size={12} /> Level {p.level}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Streaks & Badges */}
-            <div className="streaks-panel reveal">
-              <div className="lb-panel-head">
-                <h3>Streaks &amp; Badges</h3>
-                <a className="lb-view-all" onClick={() => authenticated ? nav('dashboard') : login()}>View All <ChevronRight size={14} /></a>
-              </div>
-              <div className="streak-current">
-                <div className="streak-label">Current Streak</div>
-                <div className="streak-num">6</div>
-                <div className="streak-sub">correct predictions</div>
-                <div className="streak-flames">{[1,2,3,4,5,6].map(i => <Flame key={i} size={20} className="streak-flame" />)}</div>
-              </div>
-              <div className="badges-grid">
-                <div className="badge-item"><div className="badge-icon badge-bronze"><Award size={20} /></div><div className="badge-count">3</div><div className="badge-label">Bronze</div></div>
-                <div className="badge-item"><div className="badge-icon badge-silver"><Award size={20} /></div><div className="badge-count">5</div><div className="badge-label">Silver</div></div>
-                <div className="badge-item"><div className="badge-icon badge-gold"><Award size={20} /></div><div className="badge-count">10</div><div className="badge-label">Golden Oracle</div></div>
-              </div>
-            </div>
           </div>
         </div></section>
 
