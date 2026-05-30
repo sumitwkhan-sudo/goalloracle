@@ -78,6 +78,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // Track which user IDs the operator wants to include in the batch.
   // Default = everyone in `outreachUsers`. Operator can uncheck.
   const [outreachSelectedIds, setOutreachSelectedIds] = useState(new Set());
+  // Follow-up guardrail: operator-set window for the "recently emailed"
+  // filter in the recipient list. Deselect/select recipients contacted
+  // within this many days. Template-agnostic — reads B1 email history.
+  const [outreachRecentDays, setOutreachRecentDays] = useState(7);
   // Rendered email preview from the server. Stashed once per template
   // change so the iframe doesn't re-fetch on every render.
   const [outreachPreviewHtml, setOutreachPreviewHtml] = useState(null);
@@ -551,6 +555,36 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     setOutreachSelectedIds(new Set(outreachUsers.map((u) => u.userId)));
   };
   const selectNoneOutreach = () => setOutreachSelectedIds(new Set());
+
+  // Follow-up guardrails (item B1). Operate on the CURRENT eligible list +
+  // selection using the user's chosen N-day window, so they work for every
+  // template. "Deselect recent" is the safety lever — drop anyone already
+  // contacted within N days so a follow-up doesn't over-message them.
+  // "Select recent" is the inverse, for deliberately targeting that group.
+  const _recentDaysWindow = () => Math.max(0, Number(outreachRecentDays) || 0);
+  const outreachRecentCount = () => {
+    if (!outreachUsers) return 0;
+    const n = _recentDaysWindow();
+    return outreachUsers.reduce((acc, u) => acc + (_emailedWithinDays(u.userId, n) ? 1 : 0), 0);
+  };
+  const deselectRecentlyEmailed = () => {
+    if (!outreachUsers) return;
+    const n = _recentDaysWindow();
+    setOutreachSelectedIds((prev) => {
+      const next = new Set(prev);
+      outreachUsers.forEach((u) => { if (_emailedWithinDays(u.userId, n)) next.delete(u.userId); });
+      return next;
+    });
+  };
+  const selectRecentlyEmailed = () => {
+    if (!outreachUsers) return;
+    const n = _recentDaysWindow();
+    setOutreachSelectedIds((prev) => {
+      const next = new Set(prev);
+      outreachUsers.forEach((u) => { if (_emailedWithinDays(u.userId, n)) next.add(u.userId); });
+      return next;
+    });
+  };
 
   const runBackfillCountries = async () => {
     if (!window.confirm('Backfill country for every user that does not already have one? Sumit → BD, lebida2352 → PK, everyone else → US.')) return;
@@ -1955,6 +1989,32 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 </div>
               </div>
 
+              {/* Follow-up guardrail — template-agnostic, reads B1 email
+                  history. Lets the operator set their own N-day window and
+                  bulk de/select anyone contacted within it. */}
+              <div className="admin-outreach-recent-filter">
+                <span className="admin-outreach-recent-text">
+                  Emailed in last
+                  <input
+                    type="number"
+                    min="1"
+                    max="120"
+                    className="input-field admin-outreach-recent-input"
+                    value={outreachRecentDays}
+                    onChange={(e) => setOutreachRecentDays(e.target.value)}
+                    aria-label="Recent-email window in days"
+                  />
+                  day{_recentDaysWindow() === 1 ? '' : 's'}
+                  {users.length > 0 && (
+                    <span className="admin-outreach-recent-count"> · {outreachRecentCount()} of {users.length} match</span>
+                  )}
+                </span>
+                <span className="admin-outreach-recent-actions">
+                  <button type="button" className="btn btn-ghost btn-xs" onClick={deselectRecentlyEmailed} disabled={!users.length} title="Uncheck everyone emailed within this window (avoid over-messaging on follow-ups)">Deselect these</button>
+                  <button type="button" className="btn btn-ghost btn-xs" onClick={selectRecentlyEmailed} disabled={!users.length} title="Check only those emailed within this window">Select these</button>
+                </span>
+              </div>
+
               <div className="admin-outreach-userlist admin-scroll">
                 {outreachLoading && <div className="admin-empty">Loading eligible users…</div>}
                 {!outreachLoading && users.length === 0 && (
@@ -1978,6 +2038,16 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                           {u.country && <span className="admin-outreach-user-country">{u.country}</span>}
                         </div>
                         <div className="admin-outreach-user-email">{u.email}</div>
+                        {(() => {
+                          const ei = _emailInfo(u.userId);
+                          if (!ei) return <div className="admin-outreach-user-emailed is-never">Never emailed</div>;
+                          const recent = _emailedWithinDays(u.userId, _recentDaysWindow());
+                          return (
+                            <div className={`admin-outreach-user-emailed ${recent ? 'is-recent' : ''}`}>
+                              Last emailed: {ei.label}{ei.totalSent > 1 ? ` · ${ei.totalSent} total` : ''}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </label>
                   );

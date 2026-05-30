@@ -3836,6 +3836,29 @@ button.invite-option:hover,
   font-family: var(--mono); font-size: 0.78rem; color: var(--text-sec);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.admin-outreach-user-emailed {
+  font-size: 0.68rem; color: var(--text-sec); margin-top: 0.05rem;
+}
+.admin-outreach-user-emailed.is-never { opacity: 0.55; font-style: italic; }
+.admin-outreach-user-emailed.is-recent { color: #b45309; font-weight: 600; }
+[data-theme="dark"] .admin-outreach-user-emailed.is-recent { color: #fbbf24; }
+
+/* Follow-up guardrail filter row */
+.admin-outreach-recent-filter {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 0.5rem;
+  padding: 0.45rem 0.6rem; margin-bottom: 0.5rem;
+  background: rgba(0, 0, 0, 0.025); border: 1px solid var(--border);
+  border-radius: 8px; font-size: 0.78rem; color: var(--text-sec);
+}
+[data-theme="dark"] .admin-outreach-recent-filter { background: rgba(255, 255, 255, 0.03); }
+.admin-outreach-recent-text { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.admin-outreach-recent-input {
+  width: 3.5rem; padding: 0.15rem 0.4rem; text-align: center;
+  font-size: 0.78rem; margin: 0;
+}
+.admin-outreach-recent-count { color: var(--text); font-weight: 600; }
+.admin-outreach-recent-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 
 .admin-outreach-card {
   background: var(--bg-card);
