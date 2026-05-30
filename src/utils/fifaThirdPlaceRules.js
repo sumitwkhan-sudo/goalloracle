@@ -89,7 +89,10 @@ export const THIRD_PLACE_ANNEX_C = {
   CDEFGHIJ: { r32_07: 'C', r32_14: 'G', r32_09: 'J', r32_03: 'D', r32_10: 'H', r32_06: 'F', r32_16: 'E', r32_08: 'I' },
 };
 
-import annexeC from '../data/annexe-c.json';
+// `with { type: 'json' }` is required for this to load under Node's ESM
+// runtime on Vercel (serverless functions import this via the Quick Picks
+// score-recompute chain). Vite handles the attribute on the frontend too.
+import annexeC from '../data/annexe-c.json' with { type: 'json' };
 
 // Map from Annexe C match IDs (FIFA source format, e.g. "M74") to our
 // internal slot IDs (e.g. "r32_03"). Used to translate the authoritative

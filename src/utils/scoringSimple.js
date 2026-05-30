@@ -12,7 +12,7 @@
  * submissions so users who only filled the group stage can still rank.
  */
 
-import { GROUPS, ROUND_ORDER } from './bracketUtils';
+import { GROUPS, ROUND_ORDER } from './bracketUtils.js';
 
 export const GROUP_STAGE_POINTS_PER_POSITION = { 1: 3, 2: 2, 3: 1, 4: 1 };
 export const GROUP_STAGE_MAX_PER_GROUP = 7; // 3 + 2 + 1 + 1
