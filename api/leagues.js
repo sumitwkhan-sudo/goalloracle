@@ -471,13 +471,19 @@ export default async function handler(req, res) {
 
       // Rate limit: 50 invites per league per 24h. Counts every audit row
       // (sent + failed) to prevent retry-storms from blowing past the cap.
+      // Query by leagueId only (single-field auto-index) and filter the
+      // 24h window in memory — combining `leagueId ==` with a `sentAt >`
+      // range would need a composite index that isn't provisioned.
       const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-      const since = new Date(Date.now() - ONE_DAY_MS);
+      const inviteCutoff = Date.now() - ONE_DAY_MS;
       const recentInvitesSnap = await db.collection('leagueInvitesSent')
         .where('leagueId', '==', leagueId)
-        .where('sentAt', '>', since)
         .get();
-      const recentCount = recentInvitesSnap.size;
+      const recentCount = recentInvitesSnap.docs.filter((d) => {
+        const ts = d.data().sentAt;
+        const ms = ts?.toMillis ? ts.toMillis() : (ts?._seconds ? ts._seconds * 1000 : 0);
+        return ms > inviteCutoff;
+      }).length;
       if (recentCount + rawEmails.length > 50) {
         return res.status(429).json({
           error: `Daily invite limit reached for this league (${recentCount}/50 already sent in the last 24h).`,
@@ -580,22 +586,23 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Only the league creator can list members for nudges' });
       }
 
+      // Most-recent nudge for this league. Query by leagueId only
+      // (single-field auto-index) and reduce to the max sentAt in memory —
+      // `leagueId ==` + `sentAt >` + orderBy would need a composite index
+      // that isn't provisioned (its absence was 500-ing this endpoint).
       const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-      const since = new Date(Date.now() - SEVEN_DAYS_MS);
-      const recentNudges = await db.collection('leagueCreatorNudges')
+      const nudgeHistSnap = await db.collection('leagueCreatorNudges')
         .where('leagueId', '==', leagueId)
-        .where('sentAt', '>', since)
-        .orderBy('sentAt', 'desc')
-        .limit(1)
         .get();
-      let nextNudgeAvailableAt = null;
       let lastNudgeAt = null;
-      if (!recentNudges.empty) {
-        const lastTs = recentNudges.docs[0].data().sentAt;
-        lastNudgeAt = lastTs?.toMillis ? lastTs.toMillis() : null;
-        if (lastNudgeAt) {
-          nextNudgeAvailableAt = new Date(lastNudgeAt + SEVEN_DAYS_MS).toISOString();
-        }
+      nudgeHistSnap.docs.forEach((d) => {
+        const ts = d.data().sentAt;
+        const ms = ts?.toMillis ? ts.toMillis() : (ts?._seconds ? ts._seconds * 1000 : null);
+        if (ms && (lastNudgeAt === null || ms > lastNudgeAt)) lastNudgeAt = ms;
+      });
+      let nextNudgeAvailableAt = null;
+      if (lastNudgeAt && lastNudgeAt > Date.now() - SEVEN_DAYS_MS) {
+        nextNudgeAvailableAt = new Date(lastNudgeAt + SEVEN_DAYS_MS).toISOString();
       }
 
       const memberIds = (league.members || []).filter((id) => id !== userId);
@@ -754,20 +761,23 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Only the league creator can send nudges' });
       }
 
+      // Rate-limit check, index-free (see the list path above for why):
+      // fetch this league's nudge history by leagueId only and find the
+      // most-recent sentAt in memory.
       const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-      const since = new Date(Date.now() - SEVEN_DAYS_MS);
-      const recentNudges = await db.collection('leagueCreatorNudges')
+      const nudgeHistSnap = await db.collection('leagueCreatorNudges')
         .where('leagueId', '==', leagueId)
-        .where('sentAt', '>', since)
-        .orderBy('sentAt', 'desc')
-        .limit(1)
         .get();
-      if (!recentNudges.empty) {
-        const lastTs = recentNudges.docs[0].data().sentAt;
-        const lastMs = lastTs?.toMillis ? lastTs.toMillis() : Date.now();
+      let lastNudgeMs = null;
+      nudgeHistSnap.docs.forEach((d) => {
+        const ts = d.data().sentAt;
+        const ms = ts?.toMillis ? ts.toMillis() : (ts?._seconds ? ts._seconds * 1000 : null);
+        if (ms && (lastNudgeMs === null || ms > lastNudgeMs)) lastNudgeMs = ms;
+      });
+      if (lastNudgeMs && lastNudgeMs > Date.now() - SEVEN_DAYS_MS) {
         return res.status(429).json({
           error: 'Nudges are limited to once per league every 7 days.',
-          nextNudgeAvailableAt: new Date(lastMs + SEVEN_DAYS_MS).toISOString(),
+          nextNudgeAvailableAt: new Date(lastNudgeMs + SEVEN_DAYS_MS).toISOString(),
         });
       }
 

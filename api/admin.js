@@ -922,20 +922,23 @@ export default async function handler(req, res) {
       }
       const { flag, limit } = req.body || {};
       const cap = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
-      // Fetch the most recent set_feature_flag entries with a single
-      // composite-free query, then filter by flag in-memory if needed.
-      // Avoids requiring a manual Firestore index for (action ==, flag ==,
-      // timestamp desc) and keeps the audit log discovery cheap.
+      // Fetch set_feature_flag entries by action only (single-field
+      // auto-index) and sort by timestamp DESC in memory. Combining
+      // `action ==` with `orderBy('timestamp')` would need an (action,
+      // timestamp) composite index that isn't provisioned — its absence
+      // 500'd this endpoint. set_feature_flag rows are few, so this is cheap.
       const overFetch = flag ? cap * 5 : cap;
+      const tsMs = (t) => (t?.toMillis ? t.toMillis() : (t?._seconds ? t._seconds * 1000 : 0));
       const snap = await db.collection('adminLogs')
         .where('action', '==', 'set_feature_flag')
-        .orderBy('timestamp', 'desc')
-        .limit(overFetch)
         .get();
+      const sortedDocs = snap.docs
+        .sort((a, b) => tsMs(b.data().timestamp) - tsMs(a.data().timestamp))
+        .slice(0, overFetch);
       // Resolve adminId → displayName so the UI doesn't show raw UIDs.
       const filtered = (flag && typeof flag === 'string')
-        ? snap.docs.filter((d) => d.data().flag === flag)
-        : snap.docs;
+        ? sortedDocs.filter((d) => d.data().flag === flag)
+        : sortedDocs;
       const limited = filtered.slice(0, cap);
       const entries = await Promise.all(limited.map(async (d) => {
         const data = d.data();
@@ -1224,11 +1227,22 @@ export default async function handler(req, res) {
       if (cooldownDays > 0) {
         const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
         const cutoff = Date.now() - cooldownMs;
+        // Query by template only (single-field auto-index) and apply the
+        // sentAt window in memory — `template ==` + `sentAt >=` range would
+        // need a composite index that isn't provisioned (its absence 500'd
+        // the outreach-eligible listing in the admin Outreach tab).
         const sentSnap = await db.collection('outreachSent')
           .where('template', '==', template)
-          .where('sentAt', '>=', new Date(cutoff))
           .get();
-        recentlySent = new Set(sentSnap.docs.map(d => d.data().userId));
+        recentlySent = new Set(
+          sentSnap.docs
+            .filter((d) => {
+              const ts = d.data().sentAt;
+              const ms = ts?.toMillis ? ts.toMillis() : (ts?._seconds ? ts._seconds * 1000 : 0);
+              return ms >= cutoff;
+            })
+            .map((d) => d.data().userId)
+        );
       }
 
       // 5) Per-template eligibility predicate. Returns

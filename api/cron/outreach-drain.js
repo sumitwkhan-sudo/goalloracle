@@ -49,17 +49,26 @@ async function isAuthorized(req) {
 
 async function claimNextPending() {
   // Atomically grab one pending doc whose scheduledFor is in the past.
-  // Read-then-transaction-update: if another worker raced us, the txn
-  // throws + we move on to the next candidate.
-  const snap = await db.collection('outreachScheduled')
+  // Query by status only (single-field auto-index) and pick the earliest
+  // due doc in memory — combining `status ==` with a `scheduledFor <=`
+  // range + orderBy would need a composite index that isn't provisioned
+  // (its absence was 500-ing this cron every run). outreachScheduled is
+  // small (a handful of pending sends), so the in-memory scan is cheap.
+  const nowMs = Date.now();
+  const pendingSnap = await db.collection('outreachScheduled')
     .where('status', '==', 'pending')
-    .where('scheduledFor', '<=', new Date())
-    .orderBy('scheduledFor', 'asc')
-    .limit(1)
     .get();
-  if (snap.empty) return null;
+  const due = pendingSnap.docs
+    .map((d) => {
+      const ts = d.data().scheduledFor;
+      const ms = ts?.toMillis ? ts.toMillis() : (ts?._seconds ? ts._seconds * 1000 : (ts instanceof Date ? ts.getTime() : null));
+      return { ref: d.ref, ms };
+    })
+    .filter((x) => x.ms != null && x.ms <= nowMs)
+    .sort((a, b) => a.ms - b.ms);
+  if (due.length === 0) return null;
 
-  const docRef = snap.docs[0].ref;
+  const docRef = due[0].ref;
   try {
     return await db.runTransaction(async (txn) => {
       const cur = await txn.get(docRef);
