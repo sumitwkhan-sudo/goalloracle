@@ -9,6 +9,7 @@ import WORLD_CUP_MATCHES from '../data/matches';
 // future use elsewhere.
 import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints, getMatchStatus } from '../utils/points';
 import { STAGES, STAGE_FIRST_KICKOFF_UTC, stageLockTimeUtc } from '../utils/stageLock';
+import { PRIZES } from '../config/legal';
 import { TOTAL_MAX } from '../utils/scoringSimple';
 import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
 import FriendsWidget from './dashboard/FriendsWidget';
@@ -182,22 +183,15 @@ export default function Dashboard({
   // App level so they're populated regardless of which view the user lands on.
   // We just consume `leagueRanks` here.
 
-  // Onboarding banner is a separate row above the strip — doesn't replace
-  // the dashboard; first-time users still see their (zeroed) state too.
+  // First-time users get the variant-E onboarding card alone — the
+  // zero-state DashboardStrip (Rank #179 of 188 / 0 pts / 0% / 0 streak /
+  // 52 left) is deliberately omitted because every metric is a discouraging
+  // signal before the user has predicted anything. The strip returns on
+  // their next visit (once they've made any pick).
   if (isFirstTime) {
     return (
       <div className="td-shell">
         <FirstTimeBanner ml={ml} nav={nav} />
-        <DashboardStrip
-          qpRank={qpRank}
-          points={totalStats.totalPoints}
-          accuracy={accuracy}
-          totalCompleted={totalCompleted}
-          streak={streak}
-          streakBadge={streakBadge}
-          quickPicks={quickPicks}
-          quickPicksIncomplete={quickPicksIncomplete}
-        />
       </div>
     );
   }
@@ -416,19 +410,55 @@ function DashboardStrip({ qpRank, points, accuracy, totalCompleted, streak, stre
   );
 }
 
+// Variant-E onboarding card (shipped from /__first-pick-preview-q7m2x).
+// Prize is the headline (Free Prizes / $150 podium / live countdown), then
+// "Steps to enter" as a tight 3-row list, then one CTA. Targets ~400px tall
+// on mobile so it fits an iPhone 16 viewport without scrolling. No vanity
+// metrics, no champion picker — see the preview page for the design history.
 function FirstTimeBanner({ ml, nav }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = Math.max(0, stageLockTimeUtc('groupStage') - now);
+  const days = Math.floor(diff / 86_400_000);
+  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((diff % 3_600_000) / 60_000);
+  const startWizard = () => {
+    const simpleL = ml.find((l) => l.predictionMode === 'simple') || ml[0];
+    if (simpleL) nav('detail', simpleL, { tab: 'predictions' });
+  };
+  const topPrize = PRIZES[0];
   return (
-    <div className="td-onboard">
-      <div>
-        <div className="td-onboard-title">Make your first pick</div>
-        <div className="td-onboard-sub">Rank groups, pick best thirds, fill the bracket. ~3 minutes, auto-saves.</div>
+    <div className="td-fp-card">
+      <div className="td-fp-prize">
+        <div className="td-fp-eyebrow">🎁 FREE PRIZES</div>
+        <h2 className="td-fp-title">Win up to <span className="td-fp-amount">${topPrize.amount}</span> in {topPrize.currency}</h2>
+        <div className="td-fp-podium" aria-label="Prize tiers">
+          <div className="td-fp-tier td-fp-tier-2"><span className="td-fp-medal">{PRIZES[1].medal}</span><span className="td-fp-money">${PRIZES[1].amount}</span></div>
+          <div className="td-fp-tier td-fp-tier-1"><span className="td-fp-medal">{PRIZES[0].medal}</span><span className="td-fp-money">${PRIZES[0].amount}</span></div>
+          <div className="td-fp-tier td-fp-tier-3"><span className="td-fp-medal">{PRIZES[2].medal}</span><span className="td-fp-money">${PRIZES[2].amount}</span></div>
+        </div>
+        <div className="td-fp-countdown" aria-live="polite">
+          <span aria-hidden="true">⏱</span>
+          <span>Locks in <b>{days}d {String(hours).padStart(2, '0')}h {String(minutes).padStart(2, '0')}m</b></span>
+        </div>
       </div>
-      <button className="td-onboard-cta" onClick={() => {
-        const simpleL = ml.find(l => l.predictionMode === 'simple') || ml[0];
-        nav('detail', simpleL, { tab: 'predictions' });
-      }}>
-        Start predicting <ChevronRight size={14} />
-      </button>
+      <div className="td-fp-steps">
+        <div className="td-fp-steps-title">Steps to enter</div>
+        <ol className="td-fp-list">
+          <li><span className="td-fp-num">1</span><span className="td-fp-step-title">Rank the 12 groups</span><span className="td-fp-step-time">~1 min</span></li>
+          <li><span className="td-fp-num">2</span><span className="td-fp-step-title">Pick the 8 best 3rd-places</span><span className="td-fp-step-time">~30 sec</span></li>
+          <li><span className="td-fp-num">3</span><span className="td-fp-step-title">Fill the bracket to the Final</span><span className="td-fp-step-time">~90 sec</span></li>
+        </ol>
+      </div>
+      <div className="td-fp-action">
+        <button type="button" className="td-fp-cta" onClick={startWizard}>
+          Start predicting · ~3 min <ChevronRight size={14} />
+        </button>
+        <div className="td-fp-foot">Auto-saves as you go</div>
+      </div>
     </div>
   );
 }

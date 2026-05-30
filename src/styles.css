@@ -7801,6 +7801,121 @@ body.light .lsd-head,
   flex-shrink: 0;
 }
 
+/* ── First-pick onboarding card (variant E) ───────────────────────────
+   Replaces the old "Make your first pick" banner + zero-state strip for
+   brand-new users. Self-contained card with prize hero / steps to enter /
+   single CTA. Targets ~400px tall on mobile so it fits an iPhone 16
+   viewport. See FirstTimeBanner in Dashboard.jsx + the historical preview
+   page at /__first-pick-preview-q7m2x. */
+.td-fp-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10,20,40,0.04), 0 12px 32px rgba(10,20,40,0.06);
+  margin-bottom: 1rem;
+}
+.td-fp-prize {
+  padding: 1.2rem 1.4rem 1rem;
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--amber, #f5a623) 14%, var(--bg-card)),
+    var(--bg-card) 75%);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+.td-fp-eyebrow {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.64rem; font-weight: 800; letter-spacing: 0.1em;
+  color: var(--amber, #f5a623);
+  background: color-mix(in srgb, var(--amber, #f5a623) 16%, transparent);
+  padding: 0.22rem 0.55rem; border-radius: 99px;
+  margin-bottom: 0.5rem;
+}
+.td-fp-title {
+  font-size: 1.4rem; font-weight: 800; letter-spacing: -0.015em;
+  margin: 0 0 0.7rem; line-height: 1.2; color: var(--text);
+}
+.td-fp-amount { color: var(--amber, #f5a623); font-size: 1.75rem; display: inline-block; line-height: 1; }
+.td-fp-podium {
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: 0.4rem; margin-bottom: 0.6rem;
+}
+.td-fp-tier {
+  display: flex; flex-direction: column; align-items: center;
+  background: var(--bg-card); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 0.4rem 0.7rem; min-width: 60px;
+}
+.td-fp-tier-1 {
+  border-color: var(--amber, #f5a623);
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 4px 10px rgba(245,166,35,0.18);
+}
+.td-fp-medal { font-size: 1.05rem; line-height: 1; margin-bottom: 0.15rem; }
+.td-fp-tier-1 .td-fp-medal { font-size: 1.25rem; }
+.td-fp-money { font-weight: 800; font-size: 0.92rem; color: var(--text); line-height: 1.1; }
+.td-fp-tier-1 .td-fp-money { color: var(--amber, #f5a623); font-size: 1.05rem; }
+.td-fp-countdown {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 99px; padding: 0.26rem 0.7rem;
+  font-size: 0.72rem; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.td-fp-countdown b { font-weight: 800; }
+.td-fp-steps {
+  padding: 0.9rem 1.4rem;
+  border-bottom: 1px solid var(--border);
+}
+.td-fp-steps-title {
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-sec);
+  margin-bottom: 0.55rem;
+}
+.td-fp-list { list-style: none; padding: 0; margin: 0; }
+.td-fp-list li {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.45rem 0;
+  font-size: 0.85rem;
+}
+.td-fp-list li + li { border-top: 1px solid var(--border); }
+.td-fp-num {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 1.3rem; height: 1.3rem;
+  background: var(--cyan, #14b8e6); color: #fff;
+  border-radius: 50%; font-weight: 800; font-size: 0.7rem;
+}
+.td-fp-step-title { flex: 1; font-weight: 600; color: var(--text); min-width: 0; }
+.td-fp-step-time { color: var(--text-sec); font-weight: 700; font-size: 0.76rem; flex-shrink: 0; }
+.td-fp-action { padding: 0.95rem 1.4rem 1.15rem; }
+.td-fp-cta {
+  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+  width: 100%;
+  background: var(--cyan, #14b8e6); color: #fff; border: none;
+  font-weight: 700; font-size: 1.05rem; cursor: pointer;
+  padding: 0.85rem 1.6rem; border-radius: 13px;
+  box-shadow: 0 6px 16px rgba(20,184,230,0.32);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.td-fp-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(20,184,230,0.42); }
+.td-fp-foot { text-align: center; font-size: 0.72rem; color: var(--text-dim); margin-top: 0.55rem; }
+
+@media (max-width: 560px) {
+  .td-fp-prize { padding: 1rem 1.1rem 0.85rem; }
+  .td-fp-title { font-size: 1.2rem; margin-bottom: 0.6rem; }
+  .td-fp-amount { font-size: 1.55rem; }
+  .td-fp-podium { gap: 0.35rem; }
+  .td-fp-tier { min-width: 0; flex: 1; padding: 0.38rem 0.45rem; }
+  .td-fp-tier-1 { padding: 0.48rem 0.5rem; }
+  .td-fp-medal { font-size: 1rem; }
+  .td-fp-tier-1 .td-fp-medal { font-size: 1.15rem; }
+  .td-fp-money { font-size: 0.86rem; }
+  .td-fp-tier-1 .td-fp-money { font-size: 1rem; }
+  .td-fp-steps { padding: 0.8rem 1.1rem; }
+  .td-fp-list li { font-size: 0.82rem; padding: 0.42rem 0; }
+  .td-fp-action { padding: 0.85rem 1.1rem 1.05rem; }
+}
+
 /* ── Two-pane grid ─────────────────────────────────────────────────── */
 .td-grid {
   display: grid;
