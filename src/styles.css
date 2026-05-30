@@ -8405,7 +8405,8 @@ body.light .lsd-head,
 }
 .ll-scoring.is-open .ll-scoring-chev { transform: rotate(90deg); }
 .ll-scoring-body {
-  display: flex; flex-direction: column; gap: 0.6rem;
+  list-style: none; margin: 0;
+  display: flex; flex-direction: column; gap: 0.55rem;
   padding: 0.2rem 0.1rem 0.7rem;
   animation: ll-scoring-in 0.16s ease;
 }
@@ -8415,6 +8416,12 @@ body.light .lsd-head,
 }
 .ll-scoring-item {
   display: flex; flex-direction: column; gap: 1px;
+  padding-left: 0.85rem; position: relative;
+}
+/* simple bullet marker */
+.ll-scoring-item::before {
+  content: '•'; position: absolute; left: 0; top: 0;
+  color: var(--text-dim); font-weight: 700;
 }
 .ll-scoring-h {
   font-family: var(--font); font-size: 0.76rem; font-weight: 700;

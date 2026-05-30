@@ -129,7 +129,7 @@ export default function WorldCupBracket() {
           </ol>
           <p>
             That&apos;s 209 points in total, and it takes about ten minutes. The leaderboard
-            ranks by accuracy, so even a partial bracket counts.
+            ranks by total points — most points wins.
           </p>
         </section>
 

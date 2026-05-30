@@ -47,7 +47,7 @@ The full bracket takes about 10 minutes to fill out. The user can submit partial
 
 ### How players are ranked
 
-The leaderboard ranks by **accuracy** — the share of available points a user has earned so far — not raw point total. This compares partial and complete brackets fairly. Ties are broken by who submitted first.
+The leaderboard ranks by **total points** — most points wins. Accuracy (the share of available points a user has earned so far) is shown as a secondary stat, not the ranking key.
 
 ## The Prize Contest
 

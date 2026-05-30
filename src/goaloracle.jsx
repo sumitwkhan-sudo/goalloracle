@@ -4487,7 +4487,7 @@ const GoalOracle = () => {
           },
           {
             q: 'How is the leaderboard calculated?',
-            a: 'You earn points for correct picks: group rankings score 3 / 2 / 1 / 1 by finishing position (84 max), each correct best-third pick is worth 2 (16 max), and knockout winners are worth more in later rounds — 2 in the Round of 32 up to 12 for the final (109 max), for 209 points in total. The leaderboard ranks by accuracy — the share of available points you\'ve earned — so partial brackets are compared fairly. Ties go to whoever submitted first.'
+            a: 'You earn points for correct picks: group rankings score 3 / 2 / 1 / 1 by finishing position (84 max), each correct best-third pick is worth 2 (16 max), and knockout winners are worth more in later rounds — 2 in the Round of 32 up to 12 for the final (109 max), for 209 points in total. The leaderboard ranks by total points — most points wins. Your accuracy (the share of available points you\'ve earned) is shown alongside as a secondary stat.'
           },
           {
             q: 'Can I join multiple leagues?',

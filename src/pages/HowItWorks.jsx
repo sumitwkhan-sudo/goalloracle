@@ -157,9 +157,9 @@ export default function HowItWorks() {
             </tbody>
           </table>
           <p style={{ marginTop: '0.75rem', fontSize: '0.88rem', color: 'var(--text-sec)' }}>
-            The leaderboard ranks by <strong>accuracy</strong> — the share of available points
-            you&apos;ve earned — so partial brackets are compared fairly; ties go to whoever
-            submitted first. Predictions lock 5 minutes before each match kicks off, and
+            The leaderboard ranks by <strong>total points</strong> — most points wins. Your
+            accuracy (the share of available points you&apos;ve earned) is shown alongside as a
+            secondary stat. Predictions lock 5 minutes before each match kicks off, and
             auto-save until then.
           </p>
         </section>
