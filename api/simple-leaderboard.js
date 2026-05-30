@@ -15,49 +15,57 @@ export default async function handler(req, res) {
     const members = leagueSnap.data().members || [];
     if (members.length === 0) return res.status(200).json({ leaderboard: [] });
 
-    // Fetch user info in batches
-    const users = {};
-    for (let i = 0; i < members.length; i += 30) {
-      const batch = members.slice(i, i + 30);
-      const usersSnap = await db.collection('users').where('id', 'in', batch).get();
-      usersSnap.docs.forEach(d => {
-        const u = d.data();
-        users[d.id] = {
-          displayName: u.displayName || u.email?.split('@')[0] || d.id.slice(0, 8),
-          usernameSet: u.usernameSet || false,
-          country: u.country || null,
-        };
-      });
-    }
+    // Read users + per-league predictions in parallel. Both are independent
+    // 'in' queries (Firestore caps each at 30 ids), so we build every batch
+    // up front and fire them concurrently instead of awaiting one batch at a
+    // time. global-simple holds every signed-up user, so the old sequential
+    // loops serialized into dozens of round-trips — the dominant source of
+    // the hero-preview latency. Same queries, same results, just concurrent.
+    const chunk = (arr, n) => {
+      const out = [];
+      for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+      return out;
+    };
 
-    // Fetch simple predictions for this specific league. Each doc lives at
-    // /simplePredictions/{userId}__{leagueId}. Batched 'in' queries, max 30.
-    const preds = {};
     const compositeIds = members.map(uid => `${uid}__${leagueId}`);
-    for (let i = 0; i < compositeIds.length; i += 30) {
-      const batch = compositeIds.slice(i, i + 30);
-      const predsSnap = await db.collection('simplePredictions')
-        .where(admin.firestore.FieldPath.documentId(), 'in', batch)
-        .get();
-      predsSnap.docs.forEach(d => {
-        const data = d.data();
-        if (data?.userId) preds[data.userId] = data;
-      });
-    }
+    const [userSnaps, predSnaps] = await Promise.all([
+      Promise.all(chunk(members, 30).map(batch =>
+        db.collection('users').where('id', 'in', batch).get())),
+      Promise.all(chunk(compositeIds, 30).map(batch =>
+        db.collection('simplePredictions')
+          .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+          .get())),
+    ]);
+
+    const users = {};
+    userSnaps.forEach(snap => snap.docs.forEach(d => {
+      const u = d.data();
+      users[d.id] = {
+        displayName: u.displayName || u.email?.split('@')[0] || d.id.slice(0, 8),
+        usernameSet: u.usernameSet || false,
+        country: u.country || null,
+      };
+    }));
+
+    const preds = {};
+    predSnaps.forEach(snap => snap.docs.forEach(d => {
+      const data = d.data();
+      if (data?.userId) preds[data.userId] = data;
+    }));
 
     // Backward compat: for the Global Simple league, any member who doesn't
     // yet have a composite doc falls back to the legacy single-doc path
-    // /simplePredictions/{userId}.
+    // /simplePredictions/{userId}. Parallelized the same way.
     if (leagueId === 'global-simple') {
       const missing = members.filter(uid => !preds[uid]);
-      for (let i = 0; i < missing.length; i += 30) {
-        const batch = missing.slice(i, i + 30);
-        const legacySnap = await db.collection('simplePredictions')
-          .where(admin.firestore.FieldPath.documentId(), 'in', batch)
-          .get();
-        legacySnap.docs.forEach(d => {
+      if (missing.length > 0) {
+        const legacySnaps = await Promise.all(chunk(missing, 30).map(batch =>
+          db.collection('simplePredictions')
+            .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+            .get()));
+        legacySnaps.forEach(snap => snap.docs.forEach(d => {
           if (!preds[d.id]) preds[d.id] = d.data();
-        });
+        }));
       }
     }
 
@@ -121,6 +129,13 @@ export default async function handler(req, res) {
       return a.displayName.localeCompare(b.displayName);
     });
 
+    // Edge-cache the board: it's identical for every caller (no per-user
+    // fields) and tolerates brief staleness. Logged-in callers send an
+    // Authorization header and bypass the shared CDN cache, so a user who
+    // just submitted still gets a fresh board; the anonymous marketing-hero
+    // ticker — the hot path — gets served from the edge. Mirrors the sibling
+    // simple-consensus endpoint's caching.
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
     return res.status(200).json({ leaderboard });
   } catch (e) {
     console.error('[simple-leaderboard] Error:', e.message);
