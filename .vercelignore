@@ -6,8 +6,12 @@
 **/*.test.jsx
 **/*.spec.js
 
-# Migration / maintenance scripts
-scripts/
+# Migration / maintenance scripts — but keep the pre-deploy API import
+# guard, which runs as part of `npm run build` on Vercel. (Using
+# `scripts/*` + negation rather than `scripts/` so the re-include works;
+# gitignore can't re-include a file whose parent dir is fully excluded.)
+scripts/*
+!scripts/check-api-imports.mjs
 
 # Smart contract source (not used by the web app)
 contracts/
