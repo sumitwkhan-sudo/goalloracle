@@ -203,7 +203,7 @@ The 7 prize-contest funnel events: `prize_section_viewed`, `enter_free_cta_click
 
 ## Recent work (as of May 2026 — auth, anti-sybil, admin, perf)
 
-Context for new/parallel sessions so this isn't re-discovered. Active dev branch: **`claude/security-review-whyQq`** (ahead of `main`). Merge style: fast-forward to prod via `git push origin <branch>:main` after a `git merge-base --is-ancestor origin/main HEAD` guard — never force-push; Vercel auto-deploys `main` (project `goalloracle`, team `sumitwkhan`). Confirm deploys with the Vercel MCP `list_deployments`. The user authorizes prod merges explicitly per request.
+Context for new/parallel sessions so this isn't re-discovered. Work happens on a short-lived feature branch (check `git branch` / recent `git log` for the current one), then fast-forwards to prod via `git push origin <branch>:main` after a `git merge-base --is-ancestor origin/main HEAD` guard — never force-push; `main` auto-deploys on Vercel (project `goalloracle`, team `sumitwkhan`). Confirm deploys with the Vercel MCP `list_deployments`. The user authorizes prod merges explicitly per request.
 
 ### Mobile sign-in (Safari) — `src/config/firebase.js`, `src/utils/auth.js`
 - Auth uses `initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence], popupRedirectResolver })` — **not** `getAuth()`. Safari Private/ITP/Lockdown blocks IndexedDB, which broke `signInWithCustomToken`; the fallback chain degrades gracefully. Firestore already uses `memoryLocalCache()` for the same reason.
