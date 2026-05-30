@@ -201,6 +201,46 @@ The 7 prize-contest funnel events: `prize_section_viewed`, `enter_free_cta_click
 - **FIFA compliance caption** under hero social-proof row: "GoalOracle's prediction engine is compliant with the official FIFA World Cup 26™ rulebook".
 - **Leaderboard tabs** moved left, enlarged, renamed "Quick Picks Leaderboard" / "Classic Predictions Leaderboard".
 
+## Multi-agent operating model (how roadmap work ships)
+
+Execute the roadmap as a small disciplined team that ships in **small, reviewed phases** while keeping `main` stable and the founder (Sumit) informed.
+
+**Core principles**
+1. **One writer at a time** on any given change — never two agents editing the same files simultaneously. Parallelism is across phases (build N+1 while N is in review), never simultaneous writers on `main`.
+2. **Reach `main` only through a reviewed merge — but agents do the merging.** Work on a short-lived feature branch; once BOTH reviewers pass, the agent merges it to `main` itself (no human click), then notifies the founder. Never hand-edit `main` directly, never merge an unreviewed branch, never two merges at once.
+3. **Small phases** — smallest shippable slice reviewable in minutes. Prefer 10 small phases over 1 big one; roadmap "Acceptance" bullets make good phase boundaries.
+4. **Goal over output** — "it runs" isn't success; each phase must serve its roadmap item's stated goal.
+5. **When unsure, stop and ask the founder** — especially anything touching auth, payments, the no-login funnel (item C), or data migrations. Don't guess on high-risk changes.
+6. **Leave a trail** — every phase ends with a short written summary (what shipped, why, what's next).
+
+**Roles** (one session may play these in sequence; don't let one role rubber-stamp another):
+- **Orchestrator** — talks to the founder; reads roadmap, picks the next single phase, breaks items into phases, routes Build→Review→Critic, enforces branching/small-phase/no-direct-to-main rules, writes the founder notification, manages the merge gate + risk tiering.
+- **Builder** — implements exactly one phase on a fresh branch, nothing out of scope; resolves the item's "resolve first" questions before coding (surface blockers to Orchestrator, don't guess); proves acceptance criteria with a test or manual verification note; hands back a summary.
+- **Reviewer (correctness & safety)** — fresh eyes: acceptance criteria met? correctness/edge cases/no unrelated breakage? security/privacy (auth boundaries, data exposure, no secrets, input handling)? scope discipline? Must be willing to reject — a clean no-comment review on a non-trivial change is a red flag.
+- **Growth/Product Critic (goal-fit)** — same branch, different lens: does this actually advance the goal (emails land in Primary + drive action; funnel lowers friction + converts; F/G genuinely clearer)? Can request changes for goal-fit even when code is correct.
+
+**The loop (per phase):** PLAN (state scope, roadmap item/criteria, risk tier LOW/MEDIUM/HIGH, branch name e.g. `feat/B1-email-log-schema`) → CONFIRM (MEDIUM/HIGH risk or unresolved "resolve first" → ask founder before building) → BUILD → REVIEW (both reviewers; loop back to Builder with specific fixes until clean) → MERGE (sequential; one phase merges at a time) → NOTIFY (founder summary AFTER merging) → NEXT (may BUILD phase N+1 in parallel, but don't MERGE it until N's merge is done — build in parallel, merge sequentially, keep `main` linear + revertible).
+
+**Merge policy (merge-then-notify):** Default = **auto-merge after both reviews pass**, then notify (items A, B, D, E, F, G + routine work). Merges sequential; small+revertible is the safety net. **Standing exception — item C (no-login funnel): do NOT auto-merge.** Build + review it, then STOP and ask the founder to approve the merge, flagging the `linkWithCredential` + completion-gate risk. **Also stop-and-ask** if any phase turns out mid-build to touch auth/payments/data-migration, even if it started low-risk. Founder can change this policy anytime.
+
+**Founder notification format** (short, plain-language — Sumit is a systems thinker, not a developer; lead with what changed + why it matters):
+```
+✅ MERGED TO MAIN (or ⏳ NEEDS YOUR APPROVAL — item C only): <phase name>
+Roadmap item: <A–G> — <which acceptance criteria>
+Risk tier: LOW / MEDIUM / HIGH
+Branch / merge: <branch> → <merged to main | awaiting approval>
+Revert: revert commit/PR <ref>
+What changed (plain language): <1–3 bullets a non-dev can follow>
+How it was checked: Reviewer (correctness/safety): <pass + notable>; Growth/Product critic (goal-fit): <pass + notable>
+Risks / what to watch: <or "none">
+What's next: <next phase>
+Anything you need to decide: <a question, or "nothing — just FYI">
+```
+
+**Phasing guidance:** **B1 first** (email logging/history — foundation that segmentation + item G read from): ship log-on-send + per-user "days since last follow-up" before fancier tooling. **D + E** are LOW-risk early wins (never use "Simple Picks" in user-facing copy). **A** pairs with B1 (surfaces email-history columns). **C** phases: (i) `signInAnonymously` on load + picks save under that UID via the SAME path logged-in users use; (ii) the three contextual sign-up prompts; (iii) view-but-can't-complete knockout gate (`user.isAnonymous`); (iv) upgrade via `linkWithCredential` INCLUDING the `auth/credential-already-in-use` edge case — **no local-storage→DB migration, no copy step** (UID never changes); still STOPS for founder approval before merging. **F + G** come once deadline/lock logic exists; G reuses the same "time until lock" source of truth as B's urgency emails.
+
+**Email constraints (every engagement email):** embed the GoalOracle logo (small header, not a banner); sign off exactly `- Sumit, Founder of GoalOracle.io and Football Lover`; authenticate the domain (SPF/DKIM/DMARC) + keep emails personal/low-image for Primary placement.
+
 ## Roadmap (as of May 2026)
 
 > Read each item's **Problem** and **Goal** and verify current behavior in the
@@ -224,12 +264,15 @@ The 7 prize-contest funnel events: `prize_section_viewed`, `enter_free_cta_click
 - **Acceptance:** Before sending I can see last email (type+date) + days since contact; segments can use email-history fields; can send custom to one user + template to a segment; every email has logo + exact sign-off; automated rule fires on segment entry without violating guardrail; SPF/DKIM/DMARC pass on a test send; test send lands in Gmail **Primary**.
 - **Resolve first:** Which provider (is Brevo reused from FiatRisk?) — drives auth/templates/automation/logging. Where does the email log live (Firebase collection keyed by user)? Confirm so item A can read it. Confirm canonical logo asset path.
 
-### C. No-login play → widen the funnel *(CRITICAL — must work reliably)*
-- **Problem:** Users must sign up/login before engaging, throttling top of funnel.
-- **Goal:** Anyone can predict from the **home page without logging in**; prompt sign-up only at high-intent moments.
-- **Requirements:** Anonymous play from home page — persist in-progress picks **locally** (survive prompt/refresh), ready to attach to an account on signup. **Three context-specific prompts:** prizes → "Sign up to be eligible to win"; save → "Sign up to save your picks"; share → "Sign up to share your bracket / challenge a friend". **Gate knockout completion, not viewing:** anonymous users can view + interact with the knockout bracket but can't **complete/submit** it without an account. **Seamless carry-over:** anonymous picks transfer to the new account with nothing lost.
-- **Acceptance:** Logged-out visitor lands on home + starts predicting immediately; each of the 3 prompts shows in correct context with correct copy; logged-out user can view knockout but is blocked at *complete* with sign-up prompt; after signup, anonymous picks are present in the account (verified end to end).
-- **Resolve first:** Current pick storage shape for logged-in users (Firebase doc) — merge must map cleanly. Confirm the exact UI step that counts as "completing" the knockout bracket.
+### C. No-login play → widen the funnel *(CRITICAL — build on Firebase Anonymous Auth)*
+- **Problem:** Users must sign up/login before engaging, throttling top of funnel — and we must never lose the picks they made before signing up.
+- **Goal:** Anyone can predict from the **home page without logging in**; convert at high-intent moments with **zero risk of losing picks** at sign-up.
+- **Chosen approach — Firebase Anonymous Auth (do it this way; do NOT build a local-storage→DB migration):** The dangerous version stores anonymous picks in local storage and *copies* them into a real account at sign-up — that copy step is a silent-data-loss risk and is **deliberately not** what we do. Instead: on first load, `signInAnonymously` so every visitor has a real Firebase UID (no email yet). Picks save to Firestore **under that anonymous UID via the exact same save path a logged-in user uses** — one storage system, no separate "anonymous picks" store. At sign-up, **`linkWithCredential`** attaches the new email/Google credential to the existing anonymous account; the **UID doesn't change**, so picks are already in the account — no copy, no merge. "Logged out vs logged in" = `user.isAnonymous`.
+- **Requirements:** `signInAnonymously` on load (handle `operation-not-allowed` → Anonymous provider not enabled in Firebase console; enabling it is a prerequisite). Picks save under the anonymous UID via the same Firestore path/shape as logged-in users; confirm Security Rules let an authenticated anonymous user read/write **only their own** picks doc. **Three context-specific prompts:** prizes → "Sign up to be eligible to win"; save → "Sign up to save your picks" (picks are already saved server-side — the honest promise is not losing them across devices); share → "Sign up to share your bracket / challenge a friend". Upgrade via `linkWithCredential` so UID + existing picks are retained. **Gate knockout *completion*, not viewing:** `user.isAnonymous` users can view + interact with the knockout bracket but the final **complete/submit** action is blocked behind sign-up (data's already saved — you're gating the final action only).
+- **Acceptance:** Logged-out visitor starts predicting immediately with an anonymous UID + picks persisted in Firestore under it; leaving/returning in the **same browser** restores picks; each of the 3 prompts shows in correct context with correct copy; logged-out user can view knockout but is blocked at *complete*; **after `linkWithCredential` sign-up, UID is unchanged and all prior picks present (verified end to end)**.
+- **REQUIRED edge-case test — `auth/credential-already-in-use`:** anonymous user makes picks, then signs up with a credential that ALREADY belongs to an existing account. Firebase refuses to link (won't fuse two real accounts). Implement intended behavior deliberately — typically sign them into the existing account and explicitly decide what happens to the just-made anonymous picks (offer to apply, or clearly tell the user). This is the **one** path where picks can still be lost; handle + test it explicitly, don't leave to default error handling.
+- **Resolve first:** Confirm Anonymous provider enabled in Firebase console. Confirm current logged-in picks Firestore doc shape/path (anonymous must use identical path). Confirm Security Rules (authenticated anonymous → own picks doc only). Confirm exact UI step that counts as "completing" the knockout. **Persistence limits (for honest copy):** anonymous session is **per-device, per-browser** — a different device is a different anonymous user with no picks, so prompt sign-up before a user would switch devices; Firebase may auto-delete anonymous accounts >30 days old if that setting is on (fine inside the tournament window, but don't rely on months-long persistence).
+- **Merge policy:** despite being lower-risk than the migration approach, this item **stops for founder approval before merging** (the `linkWithCredential` flow + completion gate sit between a user and a prize entry). Builder may implement and reviewers may pass, but surface for explicit approval rather than auto-merging.
 
 ### D. Rules / Scoring FAQ — fix for current mode
 - **Problem:** Classic mode is **turned off**. The Rules/Scoring FAQ may still describe Classic scoring or otherwise not match the live mode.
