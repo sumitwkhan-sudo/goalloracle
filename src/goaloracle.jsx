@@ -2389,7 +2389,6 @@ const GoalOracle = () => {
 
   const Landing = () => {
     useScrollReveal();
-    const [lbTab, setLbTab] = useState('global');
 
     // Hero CTAs are state-aware so a logged-in user sees their next
     // useful action (finish bracket / leaderboard / invite friends)
@@ -2461,14 +2460,6 @@ const GoalOracle = () => {
       }
       return { label: 'Edit your bracket', onClick: startSimplePredicting };
     }, [authenticated, quickPicks]);
-
-    // Mock leaderboard data
-    const mockLb = [
-      { rank: 1, name: 'LeoM', pts: 78, level: 12 },
-      { rank: 2, name: 'SamNYC', pts: 74, level: 9 },
-      { rank: 3, name: 'MariaFutbol', pts: 71, level: 10 },
-      { rank: 4, name: 'You', pts: 68, level: 7, isYou: true },
-    ];
 
     // Community predictions mock
     const communityMatch = WORLD_CUP_MATCHES.find(m => m.id === 'gs17');
