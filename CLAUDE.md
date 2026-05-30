@@ -238,6 +238,34 @@ Context for new/parallel sessions so this isn't re-discovered. Work happens on a
 - **Keep copy brief in user-facing strings.** No emojis unless user asks.
 - **For React conditionals that depend on async state:** gate on a loaded sentinel (e.g., `quickPicks !== null`). Otherwise first-render flash becomes visible to users as a flicker.
 
+## Roadmap (user-curated, May 2026)
+
+Captured verbatim from operator — do NOT execute without explicit go-ahead; the operator said they'll come back to this. Treat as the canonical to-do list across sessions.
+
+### 1. Richer admin Users data + sortability
+Operator wants more than what shipped. **Already shipped in `4b7085a8a`**: sortable `<table>` with Name/Email/Location/Leagues/QP-status/Joined/Role columns; per-user `leagues` joined are visible. **Still wanted (verify with operator):** per-league prediction status (not just rollup), last activity per league, possibly per-league action affordances. If operator says "I can't see which league each user joined" after the deploy is live, first check they refreshed — that view exists. Then ask what additional dimensions they want.
+
+### 2. Better email engagement + segmenting + deliverability
+- Per-user / per-segment **pre-canned email templates** (extend the existing outreach templates in `api/_lib/outreachEmail.js`).
+- **More granular segmentation** beyond today's A/B/C (Quick Picks funnel). Likely axes: country, time-since-signup, league count, prediction completeness per stage, days-until-stage-lock, last-login recency.
+- **Automated segment-triggered emails** with urgency framing.
+- **Inbox-placement work** (the "don't go to junk" ask). Pragmatic levers — confirm what's already set vs. add: SPF/DKIM/DMARC alignment, BIMI + VMC for the gold-checkmark in Gmail (`CLAUDE.md` already lists VMC as out-of-scope-for-v1 under the prize-contest section — revisit), low spam-trigger content (no `FREE!!`, no all-caps subjects, no shorteners), warmed sending IP/domain reputation, low complaint rates, Gmail Postmaster Tools monitoring, plain-text alternative for every multipart message, `List-Unsubscribe` header (one-click + mailto), consistent From address, dedicated subdomain (e.g. `mail.goaloracle.io`) separate from transactional. Operator specifically asked for "clever ways to make Google recognize it as important" — concrete tactics: schema.org `Promotion` markup in HTML, Gmail "high priority inbox" signals (engaged sending pattern), avoiding image-only emails.
+
+### 3. Anonymous-prediction funnel with sign-up gates (HIGH-PRIORITY — operator flagged "very very important that this feature works")
+- Let users **predict from the homepage without logging in** (group ranking + best thirds work as anonymous, persisted to localStorage).
+- **Distinct sign-up prompts at key moments**, each tied to a specific value prop:
+  - "to win free prizes" — when they hit the bracket / view the leaderboard
+  - "to save your predictions" — when they leave a step or open another device
+  - "to share your bracket" — when they tap any share affordance
+- **Hard gate at the knockout bracket**: viewing the bracket screen is allowed, **completing it requires signup**. The Final-winner pick is what triggers the modal.
+- After signup, **hydrate the user's saved local picks into Firestore** (no manual re-entry).
+- Goal: top of the funnel. Critical that the flow doesn't lose picks across the signup boundary — that's the failure mode the operator was warning about.
+
+### 4. FAQ / scoring page accuracy for Quick Picks (Classic is off)
+- Update the FAQ + rules pages so Quick Picks rules are correctly reflected (Classic mode is currently feature-flagged off; rules copy probably still mixes both).
+- **Copy note**: do **NOT** use "simple picks" — keep the user-facing name **"Quick Picks"** (per the long-standing CLAUDE.md convention).
+- Add a subtle **"How does scoring work?"** tab or section on the Global League leaderboard page so a user can self-serve the answer without leaving the page.
+
 ## Open questions / deferred work
 
 - **Fair-play points + FIFA ranking** cross-group tiebreakers are present as hooks in `thirdPlaceAllocation.js` but data model doesn't capture cards. For now `fairPlayPoints === 0` for everyone; tiebreaker effectively goes straight from "goals scored" to "FIFA ranking".
