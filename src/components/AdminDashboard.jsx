@@ -931,6 +931,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       case 'leagues': return Array.isArray(u.leagues) ? u.leagues.length : 0;
       case 'status': return _qpInfo(u.id).rank;
       case 'role': return u.role || 'user';
+      // Wallet sorts has-wallet-first (by address), then the rest. Empty
+      // string sorts after any real 0x… address under localeCompare desc/asc.
+      case 'wallet': return (u.walletAddress || '').toLowerCase();
       case 'joined':
       default: return _joinMillis(u);
     }
@@ -1318,7 +1321,13 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       {label}{userSort.key === key ? (userSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
                     </th>
                   ))}
-                  <th>Wallet</th>
+                  <th
+                    className="admin-sortable"
+                    aria-sort={userSort.key === 'wallet' ? (userSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    onClick={() => toggleUserSort('wallet')}
+                  >
+                    Wallet{userSort.key === 'wallet' ? (userSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </th>
                   <th aria-label="Actions"></th>
                 </tr>
               </thead>
