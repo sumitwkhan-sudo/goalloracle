@@ -41,9 +41,68 @@ const ROUND_TOTAL = {
   final: 1,
 };
 
+// Center a match element in the *visible* band — i.e. below the sticky
+// navbar + round-progress strip, not the raw viewport center. We measure
+// the sticky chrome live (rather than hardcoding 106px) so the math stays
+// correct across viewports, themes, and when the news ticker is present.
+// item F: the next required pick is always brought clearly into view.
+function centerMatchInView(matchId) {
+  if (typeof document === 'undefined') return;
+  const el = document.querySelector(`[data-match-id="${matchId}"]`);
+  if (!el || typeof el.getBoundingClientRect !== 'function') return;
+  // Top of the usable band = bottom edge of whatever sticky chrome is
+  // currently pinned at the top (navbar + bracket progress strip).
+  let topInset = 0;
+  for (const sel of ['.navbar', '.bracket-progress']) {
+    const chrome = document.querySelector(sel);
+    if (chrome) {
+      const r = chrome.getBoundingClientRect();
+      // Only count it if it's actually pinned near the top of the screen.
+      if (r.top <= 4 && r.bottom > topInset) topInset = r.bottom;
+    }
+  }
+  const rect = el.getBoundingClientRect();
+  const visibleBand = window.innerHeight - topInset;
+  // Desired position: vertically centered within the band below the chrome,
+  // but never scrolled so far that the match's top hides under the chrome.
+  const targetTop = topInset + Math.max(0, (visibleBand - rect.height) / 2);
+  const delta = rect.top - targetTop;
+  if (Math.abs(delta) < 8) return; // already essentially in place
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollBy({ top: delta, left: 0, behavior: reduce ? 'auto' : 'smooth' });
+}
+
 export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus }) {
   const firstIncomplete = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r)) || 'roundOf32';
   const [openRound, setOpenRound] = useState(firstIncomplete);
+
+  // item F — the matchId that should currently glow as "pick this next":
+  // the first unpicked, ready (both teams known) match in the open round.
+  // Recomputed from `bracket` so it always reflects live picks.
+  const nextRequiredId = (() => {
+    if (readOnly) return null;
+    const slots = bracket[openRound] || [];
+    const slot = slots.find((s) => s.home && s.away && !s.pick?.winnerId);
+    return slot ? slot.matchId : null;
+  })();
+
+  // After each pick within a round, bring the NEXT required match into the
+  // visible band (item F). Without this, on a long round (R32 = 16 matches)
+  // the user finishes one pick and has to manually hunt for the next — the
+  // existing round-transition scroll only fires when a whole round completes.
+  // We trigger on the change of nextRequiredId (i.e. a pick was just made and
+  // the "next" pointer moved), not on every render.
+  const prevNextIdRef = useRef(nextRequiredId);
+  useEffect(() => {
+    const prev = prevNextIdRef.current;
+    prevNextIdRef.current = nextRequiredId;
+    if (readOnly) return;
+    // Only react when the pointer actually advanced to a different match
+    // (a pick was made) and there's still a next match in this round.
+    if (nextRequiredId && prev && nextRequiredId !== prev) {
+      requestAnimationFrame(() => centerMatchInView(nextRequiredId));
+    }
+  }, [nextRequiredId, readOnly]);
 
   // Auto-advance the open accordion ONLY at the moment a round's
   // completion flips from incomplete → complete. Two refs are needed:
@@ -206,8 +265,12 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                   const showBar = !!s.pick?.winnerId && consensus?.[roundKey]?.[s.matchId];
                   const homePct = showBar ? consensus[roundKey][s.matchId][s.home] : undefined;
                   const awayPct = showBar ? consensus[roundKey][s.matchId][s.away] : undefined;
+                  // item F: glow ONLY the single next-required match (not
+                  // every unpicked one), so the user's eye goes to exactly
+                  // the one to pick next.
+                  const isNext = !readOnly && s.matchId === nextRequiredId;
                   return (
-                    <div key={s.matchId} className={`bracket-match-wrap ${isHintAnchor ? 'has-hint' : ''}`}>
+                    <div key={s.matchId} className={`bracket-match-wrap ${isHintAnchor ? 'has-hint' : ''} ${isNext ? 'is-next' : ''}`}>
                       {isHintAnchor && <BracketHintTooltip onDismiss={onDismissHint} />}
                       <BracketMatch
                         matchId={s.matchId}
