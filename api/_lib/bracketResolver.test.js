@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { resolveActualBracket } from './bracketResolver.js';
+import { resolveActualBracket, buildSimpleActuals } from './bracketResolver.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
@@ -150,5 +150,108 @@ describe('bracketResolver', () => {
       expect(teams.home).not.toMatch(/^(1st|2nd|3rd)/);
       expect(teams.away).not.toMatch(/^(1st|2nd|3rd|W |L )/);
     }
+  });
+});
+
+describe('buildSimpleActuals (R1 — Quick Picks scoring inputs)', () => {
+  test('empty results: empty actuals, no throw', () => {
+    const a = buildSimpleActuals({});
+    expect(a.groupStandings).toEqual({});
+    expect(a.advancingThirds).toEqual([]);
+    expect(a.knockoutResults).toEqual({});
+  });
+
+  test('partial group stage: only fully-played groups appear, no thirds yet', () => {
+    // Play only Group A's three matches (gs01, gs25, gs26 per matches.js).
+    const partial = {};
+    const groupAMatches = GROUP_MATCHES.filter((m) => (m.stage || '') === 'Group A');
+    groupAMatches.forEach((m) => { partial[m.id] = makeResult(2, 1); });
+    const a = buildSimpleActuals(partial);
+    // Group A complete (3 each) → present and ordered (4 names).
+    if (groupAMatches.length === 3) {
+      expect(a.groupStandings.A).toBeDefined();
+      expect(a.groupStandings.A).toHaveLength(4);
+      expect(a.groupStandings.A.every((n) => typeof n === 'string')).toBe(true);
+    }
+    // Other groups absent; thirds require ALL groups complete.
+    expect(a.groupStandings.B).toBeUndefined();
+    expect(a.advancingThirds).toEqual([]);
+  });
+
+  test('all groups complete: 12 ordered standings + exactly 8 advancing thirds', () => {
+    const results = buildAllGroupsCompleteResults();
+    const a = buildSimpleActuals(results);
+    expect(Object.keys(a.groupStandings).sort()).toEqual(
+      ['A','B','C','D','E','F','G','H','I','J','K','L'],
+    );
+    for (const letter of Object.keys(a.groupStandings)) {
+      expect(a.groupStandings[letter]).toHaveLength(4);
+    }
+    expect(a.advancingThirds).toHaveLength(8);
+    // Advancing thirds are group LETTERS, each valid and unique.
+    const set = new Set(a.advancingThirds);
+    expect(set.size).toBe(8);
+    a.advancingThirds.forEach((g) => expect('ABCDEFGHIJKL').toContain(g));
+  });
+
+  test('knockoutResults carry the winning TEAM NAME keyed by matches.js id', () => {
+    const results = buildAllGroupsCompleteResults();
+    // Decide every knockout with a home win.
+    const koIds = WORLD_CUP_MATCHES.filter((m) => m.isKnockout).map((m) => m.id);
+    for (const id of koIds) results[id] = makeResult(1, 0);
+    const a = buildSimpleActuals(results);
+    const { resolved } = resolveActualBracket(results);
+    // Every decided knockout match should have a winnerId equal to the
+    // resolved HOME team (since home won each).
+    for (const id of koIds) {
+      if (!resolved[id]) continue;
+      expect(a.knockoutResults[id]).toBeDefined();
+      expect(a.knockoutResults[id].winnerId).toBe(resolved[id].home);
+    }
+    // Final winner present.
+    expect(a.knockoutResults.final?.winnerId).toBe(resolved.final.home);
+  });
+
+  test('penalty shootout: away winner is the recorded knockout winnerId', () => {
+    const results = buildAllGroupsCompleteResults();
+    for (let i = 1; i <= 16; i++) {
+      results[`r32-${String(i).padStart(2, '0')}`] = makeResult(0, 0, { extraTime: true, penalties: true, penHome: 2, penAway: 4 });
+    }
+    const a = buildSimpleActuals(results);
+    const { resolved } = resolveActualBracket(results);
+    // Away won on pens → winnerId is the away team.
+    expect(a.knockoutResults['r32-01'].winnerId).toBe(resolved['r32-01'].away);
+  });
+
+  test('feeds calculateSimpleScore: a perfect bracket scores the max', async () => {
+    const { calculateSimpleScore } = await import('../../src/utils/scoringSimple.js');
+    const results = buildAllGroupsCompleteResults();
+    const koIds = WORLD_CUP_MATCHES.filter((m) => m.isKnockout).map((m) => m.id);
+    for (const id of koIds) results[id] = makeResult(1, 0);
+    const a = buildSimpleActuals(results);
+
+    // Build a prediction that exactly matches the actuals.
+    const groupPredictions = {};
+    for (const [g, order] of Object.entries(a.groupStandings)) {
+      groupPredictions[g] = { ranking: [...order] };
+    }
+    const bestThirdPicks = [...a.advancingThirds];
+    const ROUND_BY_PREFIX = [
+      ['roundOf32', 'r32-'], ['roundOf16', 'r16-'], ['quarterFinals', 'qf-'],
+      ['semiFinals', 'sf-'], ['thirdPlace', '3rd'], ['final', 'final'],
+    ];
+    const knockoutPredictions = {};
+    for (const [round, prefix] of ROUND_BY_PREFIX) {
+      knockoutPredictions[round] = Object.entries(a.knockoutResults)
+        .filter(([mId]) => mId.startsWith(prefix) || mId === prefix)
+        .map(([mId, r]) => ({ matchId: mId, winnerId: r.winnerId }));
+    }
+    const score = calculateSimpleScore(
+      { groupPredictions, bestThirdPicks, knockoutPredictions },
+      a,
+    );
+    // A bracket that perfectly matches every actual result earns the max.
+    expect(score.totalScore).toBe(209);
+    expect(score.totalAccuracy).toBeCloseTo(1, 5);
   });
 });
