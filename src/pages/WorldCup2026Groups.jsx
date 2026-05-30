@@ -59,7 +59,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'How do I predict the group stage on GoalOracle?',
-    a: "GoalOracle's Quick Picks mode lets you rank all four teams in each group in your predicted finishing order. Earn 0.75 points for each correctly placed team — up to 3 points per group and 36 points total for the group stage.",
+    a: "GoalOracle lets you rank all four teams in each group in your predicted finishing order. You score 3 / 2 / 1 / 1 by finishing position — up to 7 points per group and 84 points total for the group stage.",
   },
 ];
 
@@ -189,15 +189,14 @@ export default function WorldCup2026Groups() {
         <section className="legal-section">
           <h2 className="legal-section-title">Predict the groups on GoalOracle</h2>
           <p>
-            GoalOracle&apos;s <strong>Quick Picks</strong> mode asks you to rank all four
-            teams in each group in your predicted finishing order. You earn{' '}
-            <strong>0.75 points</strong> for each correctly placed team — up to 3 points
-            per group, 36 points total across all 12 groups.
+            GoalOracle asks you to rank all four teams in each group in your predicted
+            finishing order. You score <strong>3 / 2 / 1 / 1</strong> by finishing position
+            — up to 7 points per group and 84 points across all 12 groups.
           </p>
           <p>
-            Prefer match-by-match predictions? <strong>Classic Predictions</strong> mode
-            lets you predict the exact score and result of every group-stage match for
-            higher potential points.
+            That&apos;s the first of three steps: after the groups you pick the 8 best
+            third-placed teams who advance, then fill the knockout bracket — 209 points in
+            total, in about ten minutes.
           </p>
           <p>
             <a href="/" className="btn btn-primary" style={{ display: 'inline-block' }}>

@@ -86,22 +86,26 @@ export default function WorldCup2026Predictor() {
             4 teams each, producing 104 total matches.
           </p>
           <p>
-            GoalOracle&apos;s predictor walks you through the bracket in two modes:
+            GoalOracle&apos;s predictor walks you through the bracket in three steps:
           </p>
           <ul className="legal-list">
             <li>
-              <strong>Quick Picks (~10 minutes):</strong> Rank the four teams in each of
-              the 12 groups, pick the 8 best third-placed teams who advance, then fill in
-              the knockout bracket. Up to 76 points.
+              <strong>Rank each group (~10 minutes total):</strong> Put the four teams in
+              each of the 12 groups in order. You score 3 / 2 / 1 / 1 by finishing position,
+              up to 84 points.
             </li>
             <li>
-              <strong>Classic Predictions:</strong> Predict the exact score and result for
-              all 104 matches. Earn 3 points for a correct result, 5 for an exact score,
-              and bonus points for calling extra time or penalties.
+              <strong>Pick the 8 best thirds:</strong> Choose which 8 of the 12 third-placed
+              teams advance to the Round of 32 — 2 points each, 16 in total.
+            </li>
+            <li>
+              <strong>Fill the knockout bracket:</strong> Pick every winner through the
+              Final. Later rounds are worth more, up to 109 points — 209 across the whole
+              bracket.
             </li>
           </ul>
           <p>
-            Both modes are free. Your bracket locks match by match — 5 minutes before each
+            It&apos;s free. Your bracket locks match by match — 5 minutes before each
             kickoff — so late-breaking team news can influence your final pick right up to
             the last moment.
           </p>
@@ -124,8 +128,8 @@ export default function WorldCup2026Predictor() {
               interest you.
             </li>
             <li>
-              <strong>Customize scoring</strong> — Classic Predictions leagues let the
-              creator set their own point values.
+              <strong>Optional house rules</strong> — private-league creators can add a
+              note describing how their group plays.
             </li>
           </ul>
         </section>

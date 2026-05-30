@@ -56,21 +56,24 @@ export default function About() {
         </section>
 
         <section className="legal-section">
-          <h2 className="legal-section-title">Two ways to play</h2>
+          <h2 className="legal-section-title">How to play</h2>
           <p>
-            GoalOracle offers two prediction modes:
+            GoalOracle is a guided three-step bracket:
           </p>
           <ul className="legal-list">
             <li>
-              <strong>Quick Picks</strong> — a guided three-step bracket. Rank each of
-              the 12 groups, select which 8 of the 12 third-placed teams advance, then fill
-              the knockout bracket. Takes about 10 minutes. Up to 76 points.
+              <strong>Rank each group</strong> — put the four teams in each of the 12 groups
+              in your predicted finishing order. You score 3 / 2 / 1 / 1 by position, up to 84
+              points across every group.
             </li>
             <li>
-              <strong>Classic Predictions</strong> — predict the exact score and result
-              for every one of the 104 matches. Higher maximum points for more precise
-              predictions. 3 points for a correct result, 5 for an exact score, plus bonuses
-              for calling extra time and penalty shootouts.
+              <strong>Pick the 8 best thirds</strong> — choose which 8 of the 12 third-placed
+              teams advance to the Round of 32. Each correct pick is worth 2 points (16 max).
+            </li>
+            <li>
+              <strong>Fill the knockout bracket</strong> — pick the winner of every tie through
+              the Final. Later rounds are worth more, up to 109 points. The whole bracket takes
+              about 10 minutes and totals 209 points.
             </li>
           </ul>
           <p>

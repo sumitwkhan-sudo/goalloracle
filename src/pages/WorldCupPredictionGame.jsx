@@ -19,7 +19,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'How does the GoalOracle World Cup prediction game work?',
-    a: 'Choose Quick Picks (guided 3-step bracket, ~10 minutes, 76 points max) or Classic Predictions (exact score and result for all 104 matches). Points award automatically after each match. You compete on a global leaderboard and optional private group leagues.',
+    a: 'GoalOracle is a guided 3-step bracket — rank each group, pick the 8 best third-placed teams, and fill the knockout bracket — about 10 minutes, 209 points max. Points award automatically as results come in, and you compete on a global leaderboard and optional private group leagues.',
   },
   {
     q: 'Is the World Cup prediction game free?',
@@ -77,24 +77,19 @@ export default function WorldCupPredictionGame() {
         </div>
 
         <section className="legal-section">
-          <h2 className="legal-section-title">Two ways to play</h2>
+          <h2 className="legal-section-title">How to play</h2>
           <p>
-            GoalOracle offers two prediction modes designed for different levels of
-            commitment.
+            GoalOracle is a guided bracket — quick to fill out, but with enough depth that
+            knowing the tournament pays off.
           </p>
-          <h3 className="legal-subhead">Quick Picks — ~10 minutes</h3>
+          <h3 className="legal-subhead">A guided bracket — ~10 minutes</h3>
           <p>
-            The guided bracket mode walks you through three steps: rank each of the 12
-            groups, pick the 8 best third-placed teams who advance, then fill the knockout
-            bracket. Up to <strong>76 points</strong>. Most players finish in under ten
-            minutes. Predictions lock 5 minutes before each match kicks off.
-          </p>
-          <h3 className="legal-subhead">Classic Predictions — the full-score version</h3>
-          <p>
-            Predict the exact score <em>and</em> result (home win / draw / away win) for
-            every one of the 104 matches. Earn <strong>3 points</strong> for a correct
-            result, <strong>5 points</strong> for an exact score. Bonus points for calling
-            extra time (+1) or a penalty shootout (+2) correctly in knockout rounds.
+            The bracket walks you through three steps: rank each of the 12 groups (scoring
+            3 / 2 / 1 / 1 by position, 84 points), pick the 8 best third-placed teams who
+            advance (2 points each, 16), then fill the knockout bracket, where later rounds
+            are worth more (up to 109). That&apos;s <strong>209 points</strong> in total, and
+            most players finish in under ten minutes. Predictions lock 5 minutes before each
+            match kicks off, and the leaderboard ranks by accuracy.
           </p>
         </section>
 

@@ -200,12 +200,12 @@ export default function WorldCup2026Schedule() {
           </p>
           <ul className="legal-list">
             <li>
-              <strong>Quick Picks:</strong> Rank each group and fill the knockout bracket.
-              About 10 minutes. Up to 76 points.
+              <strong>Rank each group</strong> and fill the knockout bracket. About 10
+              minutes, 209 points in total.
             </li>
             <li>
-              <strong>Classic Predictions:</strong> Predict the exact score and result of
-              every match. Higher maximum points for more precise predictions.
+              <strong>Pick the 8 best thirds</strong> and every knockout winner — later
+              rounds are worth more, so the bracket stays in play to the Final.
             </li>
           </ul>
           <p>
