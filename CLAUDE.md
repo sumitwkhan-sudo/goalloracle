@@ -335,6 +335,20 @@ Anything you need to decide: <a question, or "nothing — just FYI">
 - **Acceptance:** User with unfinished picks sees a clear count/indicator; each notification deep-links to its exact action; 24h/48h messaging reflects real lock times; a fully-complete user with no upcoming deadlines sees no notifications.
 - **Resolve first:** Where do lock times/deadlines live — is there a shared "time until lock" utility B + G should both consume? Current nav bar component + a place to hang a badge/dropdown.
 
+### H. Superadmin — manually add users to leagues (incl. private) *(admin tooling)*
+- **Problem:** No operator affordance to put a specific user into a specific league. Membership only changes via the user's own join flow (passcode for private). Operator can't seed a league, fix a botched join, or add someone who lost their passcode.
+- **Goal:** Superadmin can add any user to any league — public, global, or **private** — from the admin console, bypassing the passcode gate.
+- **Requirements:** From Admin (Users tab and/or Leagues tab), pick a user + a league and add the membership. Must update **both** sides of membership the app reads: the league's `members` array AND the user doc's `leagues` array (kept in sync the same way `api/leagues.js` join does via `arrayUnion`), plus the `/leagues/{id}/members/{userId}` subcollection where global-simple ranking reads. Idempotent (adding an existing member is a no-op, not a dup). Server-side + superadmin-gated (admin SDK bypasses Firestore rules + the private-league passcode). Log to `/adminLogs`. Consider the inverse (remove a user from a league) as a natural pair.
+- **Acceptance:** Superadmin adds user X to private league Y without the passcode; X appears in Y's leaderboard + sees Y in their My Leagues; re-adding is a no-op; action is audit-logged.
+- **Resolve first:** Reuse the existing join membership-write path in `api/leagues.js` (the `arrayUnion(leagueId)` on the user doc + `members` on the league + the members subcollection) rather than writing a parallel one. Confirm whether private-league `members` writes need anything beyond what the normal join does. Where to hang the UI (per-user row action vs. per-league member editor).
+
+### I. "How scoring works" on private-league leaderboards *(extends item E)*
+- **Problem:** The subtle scoring explainer (item E) renders only on the **global** league leaderboard (`isGlobal` gate in `LeagueLeaderboardLayout`). Private/public league leaderboards don't show it, so members of a friends' pool have no in-context way to understand scoring.
+- **Goal:** The same collapsible "How scoring works" explainer appears on **private (and public) league** leaderboards too, not just global.
+- **Requirements:** Relax the `isGlobal`-only gate in `LeagueLeaderboardLayout`'s `ScoringExplainer` so it renders for all Quick Picks league leaderboards. Reuse the existing `getScoringBullets()` shared source (item E/D) — no new copy. Keep it collapsed-by-default + unobtrusive, same as global. (Note: scoring is identical across leagues — Quick Picks uses the same engine everywhere — so the same explainer content is correct for private leagues.)
+- **Acceptance:** Opening a private league's leaderboard shows the collapsed "How scoring works" panel; expanding shows the same points-first bullets as the global one; still subtle (doesn't push rankings down).
+- **Resolve first:** Confirm the explainer should appear on **public** user-created leagues as well as private (assume yes unless told otherwise). Verify no per-league scoring customization exists that would make the shared copy wrong (Classic per-league custom scoring is off; Quick Picks has no per-league scoring config — so shared copy is safe).
+
 > **Cross-cutting note:** Item D states **Classic mode is turned off**. The Stack/Architecture sections above still describe Classic as live — verify the current state in code before relying on either, and reconcile when working items D/E.
 
 ## Conventions
