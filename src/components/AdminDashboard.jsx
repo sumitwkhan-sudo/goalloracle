@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send } from 'lucide-react';
+import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 // Outreach automation segments (mirror of api/_lib/outreachSegments.js
 // SEGMENTS — kept here as display labels for the rule editor).
@@ -928,6 +928,29 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     }
   };
 
+  // Add-user-to-league (item H) — modal target user + selected league.
+  const [addLeagueUser, setAddLeagueUser] = useState(null);
+  const [addLeagueId, setAddLeagueId] = useState('');
+  const [addLeagueBusy, setAddLeagueBusy] = useState(false);
+  const openAddLeague = (u) => { setAddLeagueUser(u); setAddLeagueId(''); };
+  const closeAddLeague = () => { if (!addLeagueBusy) setAddLeagueUser(null); };
+  const submitAddLeague = async () => {
+    if (!addLeagueUser || !addLeagueId) return;
+    setAddLeagueBusy(true);
+    try {
+      const res = await adminAddUserToLeague(addLeagueId, addLeagueUser.id);
+      const lname = (allLeagues || []).find(l => l.id === addLeagueId)?.name || addLeagueId;
+      notify(res?.alreadyMember ? `Already in ${lname}` : `Added to ${lname}`);
+      setAddLeagueUser(null);
+      // Refresh users so the Leagues column reflects the new membership.
+      getAllUsers().then(setUsers).catch(() => {});
+    } catch (e) {
+      notify('Add failed: ' + (e?.message || e), 'error');
+    } finally {
+      setAddLeagueBusy(false);
+    }
+  };
+
   const handleDeleteUser = async (u) => {
     const label = u.displayName || u.email || u.id.slice(0, 8);
     const confirm1 = window.confirm(`Permanently delete user "${label}"?\n\nThis wipes:\n  • their account\n  • all predictions (classic + Quick Picks)\n  • league memberships\n  • device-fingerprint + IP records\n\nThere is no undo.`);
@@ -1559,6 +1582,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       </td>
                       <td>
                         <span className="admin-user-actions">
+                          {isSuperadmin && (
+                            <button type="button" className="admin-user-email-btn" title="Add this user to a league (incl. private)" onClick={() => openAddLeague(u)}>
+                              <UserPlus size={12} />
+                            </button>
+                          )}
                           {u.email && u.emailOptOut !== true && (
                             <button type="button" className="admin-user-email-btn" title="Send a custom email to this user" onClick={() => openCustomEmail(u)}>
                               <Mail size={12} />
@@ -1613,6 +1641,34 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   <button type="button" className="btn btn-secondary btn-sm" onClick={closeCustomEmail} disabled={customSending}>Cancel</button>
                   <button type="button" className="btn btn-primary btn-sm" onClick={sendCustomEmail} disabled={customSending || !customSubject.trim() || !customBody.trim()}>
                     {customSending ? <><RefreshCw size={14} className="spin" /> Sending…</> : <><Send size={14} /> Send email</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Add-user-to-league modal (item H) */}
+          {addLeagueUser && (
+            <div className="admin-modal-overlay" onClick={closeAddLeague}>
+              <div className="admin-modal admin-add-league" onClick={e => e.stopPropagation()}>
+                <div className="admin-modal-head">
+                  <h3><UserPlus size={16} /> Add {addLeagueUser.displayName || addLeagueUser.email || addLeagueUser.id.slice(0, 8)} to a league</h3>
+                  <button type="button" className="admin-modal-close" onClick={closeAddLeague} disabled={addLeagueBusy}><X size={16} /></button>
+                </div>
+                <label className="admin-custom-email-label">League</label>
+                <select className="input-field" value={addLeagueId} onChange={e => setAddLeagueId(e.target.value)} disabled={addLeagueBusy}>
+                  <option value="">Select a league…</option>
+                  {(allLeagues || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.name || l.id}{l.visibility === 'private' ? ' (private)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="admin-custom-email-note">Adds membership directly, bypassing the passcode for private leagues. Idempotent and logged.</p>
+                <div className="admin-modal-actions">
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={closeAddLeague} disabled={addLeagueBusy}>Cancel</button>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={submitAddLeague} disabled={addLeagueBusy || !addLeagueId}>
+                    {addLeagueBusy ? <><RefreshCw size={14} className="spin" /> Adding…</> : <><UserPlus size={14} /> Add to league</>}
                   </button>
                 </div>
               </div>
