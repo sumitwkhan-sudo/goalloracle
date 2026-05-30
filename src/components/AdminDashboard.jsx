@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+
+// Outreach automation segments (mirror of api/_lib/outreachSegments.js
+// SEGMENTS — kept here as display labels for the rule editor).
+const AUTOMATION_SEGMENTS = [
+  { id: 'no_picks', label: 'No picks yet' },
+  { id: 'started_incomplete', label: 'Started but incomplete' },
+  { id: 'global_incomplete', label: 'Global bracket incomplete' },
+  { id: 'completed_global', label: 'Completed Global bracket' },
+];
 
 function _countryFlagFromCode(code) {
   if (!code || typeof code !== 'string' || code.length !== 2) return '';
@@ -90,6 +99,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // the "Send now" path; non-empty = schedule for that time.
   const [outreachScheduleAt, setOutreachScheduleAt] = useState('');
   const [outreachScheduleBusy, setOutreachScheduleBusy] = useState(false);
+  // ── Outreach automation rules (B2d) ──
+  const [automationRules, setAutomationRules] = useState(null);
+  const [ruleDraft, setRuleDraft] = useState(null); // open editor when non-null
+  const [rulePreview, setRulePreview] = useState(null); // dry-run result
+  const [ruleBusy, setRuleBusy] = useState(false);
   // Copy-to-Global audit log (superadmin tab). null = not yet fetched.
   const [globalLog, setGlobalLog] = useState(null);
   const [selMatch, setSelMatch] = useState(null);
@@ -273,6 +287,69 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     }
   };
 
+  // ── Outreach automation rule handlers (B2d) ──
+  const reloadAutomationRules = async () => {
+    try { setAutomationRules(await fetchAdminAutomationRules()); }
+    catch (e) { console.warn('[automation] rules fetch failed:', e?.message || e); setAutomationRules([]); }
+  };
+  const newRuleDraft = () => setRuleDraft({
+    name: '', segment: 'no_picks', template: 'noPicksReminder',
+    hoursBeforeLock: '', cooldownDays: 3, maxPerRun: 200, enabled: false,
+  });
+  const editRuleDraft = (r) => setRuleDraft({ ...r, hoursBeforeLock: r.hoursBeforeLock ?? '' });
+  const closeRuleDraft = () => { if (!ruleBusy) { setRuleDraft(null); setRulePreview(null); } };
+  const previewRule = async () => {
+    if (!ruleDraft) return;
+    setRuleBusy(true); setRulePreview(null);
+    try {
+      const p = await adminPreviewAutomationRule({
+        segment: ruleDraft.segment,
+        cooldownDays: Number(ruleDraft.cooldownDays) || 3,
+        maxPerRun: Number(ruleDraft.maxPerRun) || 200,
+      });
+      setRulePreview(p);
+    } catch (e) { notify('Preview failed: ' + (e?.message || e), 'error'); }
+    finally { setRuleBusy(false); }
+  };
+  const saveRule = async () => {
+    if (!ruleDraft) return;
+    // Enabling a rule means it will auto-send. Make the operator confirm.
+    if (ruleDraft.enabled && !window.confirm('Enable this rule? It will AUTOMATICALLY send real emails to matching users on each automation run (respecting the cooldown + per-run cap). Continue?')) return;
+    setRuleBusy(true);
+    try {
+      const rule = {
+        name: ruleDraft.name,
+        segment: ruleDraft.segment,
+        template: ruleDraft.template,
+        hoursBeforeLock: ruleDraft.hoursBeforeLock === '' ? null : Number(ruleDraft.hoursBeforeLock),
+        cooldownDays: Number(ruleDraft.cooldownDays) || 3,
+        maxPerRun: Number(ruleDraft.maxPerRun) || 200,
+        enabled: ruleDraft.enabled === true,
+      };
+      await adminSaveAutomationRule(rule, ruleDraft.id || null);
+      notify('Rule saved');
+      setRuleDraft(null); setRulePreview(null);
+      reloadAutomationRules();
+    } catch (e) { notify('Save failed: ' + (e?.message || e), 'error'); }
+    finally { setRuleBusy(false); }
+  };
+  const deleteRule = async (r) => {
+    if (!window.confirm(`Delete the rule "${r.name || r.id}"?`)) return;
+    try { await adminDeleteAutomationRule(r.id); notify('Rule deleted'); reloadAutomationRules(); }
+    catch (e) { notify('Delete failed: ' + (e?.message || e), 'error'); }
+  };
+  const toggleRuleEnabled = async (r) => {
+    if (!r.enabled && !window.confirm(`Enable "${r.name || r.id}"? It will AUTOMATICALLY send real emails to matching users on each run. Continue?`)) return;
+    try {
+      await adminSaveAutomationRule({
+        name: r.name, segment: r.segment, template: r.template,
+        hoursBeforeLock: r.hoursBeforeLock ?? null, cooldownDays: r.cooldownDays, maxPerRun: r.maxPerRun,
+        enabled: !r.enabled,
+      }, r.id);
+      reloadAutomationRules();
+    } catch (e) { notify('Toggle failed: ' + (e?.message || e), 'error'); }
+  };
+
   // Schedule the current selection for a future send. Same exclusion
   // rules as the immediate batch (already-sent-this-session users).
   const handleScheduleOutreach = async () => {
@@ -336,6 +413,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     reloadOutreachRenderPreview();
     reloadOutreachRecentRuns();
     reloadOutreachScheduled();
+    reloadAutomationRules();
     // Email history powers the recent-contact guardrail in the send flow.
     fetchAdminUsersEmailHistory().then(setEmailHistById).catch(e => { console.warn('[admin] email history load failed:', e?.message || e); });
     // Pre-fill the preview-email field with the admin's own account email.
@@ -2094,6 +2172,112 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   ))}
                 </tbody>
               </table>
+            )}
+          </div>
+
+          {/* ─── Automation rules (B2d) ─────────────────────────── */}
+          <div className="admin-automation">
+            <div className="admin-outreach-runs-head">
+              <h3>Automation rules</h3>
+              {isSuperadmin && <button type="button" className="btn btn-secondary btn-xs" onClick={newRuleDraft}>+ New rule</button>}
+            </div>
+            <p className="admin-automation-note">
+              Rules auto-send a template to a segment on each automation run, respecting a per-user cooldown and a per-run cap. New rules are <strong>disabled by default</strong> — enable only after previewing who they hit.
+            </p>
+            {automationRules === null ? (
+              <div className="admin-empty">Loading rules…</div>
+            ) : automationRules.length === 0 ? (
+              <div className="admin-empty">No automation rules yet.</div>
+            ) : (
+              <table className="admin-outreach-runs-table">
+                <thead>
+                  <tr><th>Rule</th><th>Segment</th><th>Template</th><th>Timing</th><th>Cooldown</th><th>Cap</th><th>State</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {automationRules.map(r => (
+                    <tr key={r.id}>
+                      <td>{r.name || <em>(unnamed)</em>}</td>
+                      <td>{AUTOMATION_SEGMENTS.find(s => s.id === r.segment)?.label || r.segment}</td>
+                      <td>{OUTREACH_TEMPLATES[r.template]?.label || r.template}</td>
+                      <td>{r.hoursBeforeLock == null ? 'any time' : `≤ ${r.hoursBeforeLock}h to lock`}</td>
+                      <td>{r.cooldownDays}d</td>
+                      <td>{r.maxPerRun}</td>
+                      <td>
+                        <button type="button" className={`admin-rule-toggle ${r.enabled ? 'on' : 'off'}`} onClick={() => isSuperadmin && toggleRuleEnabled(r)} disabled={!isSuperadmin} title={isSuperadmin ? 'Toggle enabled' : 'Superadmin only'}>
+                          {r.enabled ? 'ENABLED' : 'disabled'}
+                        </button>
+                      </td>
+                      <td className="admin-outreach-runs-num">
+                        {isSuperadmin && <>
+                          <button type="button" className="btn btn-ghost btn-xs" onClick={() => editRuleDraft(r)}>Edit</button>
+                          <button type="button" className="btn btn-ghost btn-xs admin-rule-del" onClick={() => deleteRule(r)}>Delete</button>
+                        </>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {ruleDraft && (
+              <div className="admin-modal-overlay" onClick={closeRuleDraft}>
+                <div className="admin-modal admin-rule-editor" onClick={e => e.stopPropagation()}>
+                  <div className="admin-modal-head">
+                    <h3>{ruleDraft.id ? 'Edit rule' : 'New rule'}</h3>
+                    <button type="button" className="admin-modal-close" onClick={closeRuleDraft} disabled={ruleBusy}><X size={16} /></button>
+                  </div>
+                  <label className="admin-custom-email-label">Name</label>
+                  <input className="input-field" value={ruleDraft.name} maxLength={80} onChange={e => setRuleDraft({ ...ruleDraft, name: e.target.value })} placeholder="e.g. No-picks nudge, 48h to lock" disabled={ruleBusy} />
+                  <label className="admin-custom-email-label">Segment</label>
+                  <select className="input-field" value={ruleDraft.segment} onChange={e => { setRuleDraft({ ...ruleDraft, segment: e.target.value }); setRulePreview(null); }} disabled={ruleBusy}>
+                    {AUTOMATION_SEGMENTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                  <label className="admin-custom-email-label">Template</label>
+                  <select className="input-field" value={ruleDraft.template} onChange={e => setRuleDraft({ ...ruleDraft, template: e.target.value })} disabled={ruleBusy}>
+                    {Object.keys(OUTREACH_TEMPLATES).map(t => <option key={t} value={t}>{OUTREACH_TEMPLATES[t]?.label || t}</option>)}
+                  </select>
+                  <div className="admin-rule-row">
+                    <div>
+                      <label className="admin-custom-email-label">Hours before lock (blank = any time)</label>
+                      <input className="input-field" type="number" min="0" value={ruleDraft.hoursBeforeLock} onChange={e => setRuleDraft({ ...ruleDraft, hoursBeforeLock: e.target.value })} placeholder="e.g. 48" disabled={ruleBusy} />
+                    </div>
+                    <div>
+                      <label className="admin-custom-email-label">Cooldown (days)</label>
+                      <input className="input-field" type="number" min="1" max="60" value={ruleDraft.cooldownDays} onChange={e => { setRuleDraft({ ...ruleDraft, cooldownDays: e.target.value }); setRulePreview(null); }} disabled={ruleBusy} />
+                    </div>
+                    <div>
+                      <label className="admin-custom-email-label">Max per run</label>
+                      <input className="input-field" type="number" min="1" max="1000" value={ruleDraft.maxPerRun} onChange={e => { setRuleDraft({ ...ruleDraft, maxPerRun: e.target.value }); setRulePreview(null); }} disabled={ruleBusy} />
+                    </div>
+                  </div>
+                  <label className="admin-rule-enable">
+                    <input type="checkbox" checked={ruleDraft.enabled} onChange={e => setRuleDraft({ ...ruleDraft, enabled: e.target.checked })} disabled={ruleBusy} />
+                    <span>Enabled (auto-sends on each run)</span>
+                  </label>
+
+                  <div className="admin-rule-preview-box">
+                    <button type="button" className="btn btn-secondary btn-xs" onClick={previewRule} disabled={ruleBusy}>
+                      {ruleBusy ? <><RefreshCw size={12} className="spin" /> Checking…</> : 'Dry-run preview'}
+                    </button>
+                    {rulePreview && (
+                      <div className="admin-rule-preview-result">
+                        <p><strong>{rulePreview.wouldSend}</strong> would be emailed now
+                          {' '}(segment {rulePreview.segmentSize}, {rulePreview.excludedByGuardrail} skipped by cooldown{rulePreview.cappedBy ? `, capped at ${rulePreview.cappedBy}` : ''}).</p>
+                        {rulePreview.sample?.length > 0 && (
+                          <p className="admin-rule-preview-sample">e.g. {rulePreview.sample.map(s => s.displayName || s.email || s.id).join(', ')}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="admin-modal-actions">
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={closeRuleDraft} disabled={ruleBusy}>Cancel</button>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={saveRule} disabled={ruleBusy || !ruleDraft.segment || !ruleDraft.template}>
+                      {ruleBusy ? <><RefreshCw size={14} className="spin" /> Saving…</> : 'Save rule'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

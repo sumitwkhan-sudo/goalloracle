@@ -111,6 +111,15 @@ export default async function handler(req, res) {
         // requests. ~30 bytes per (userId, displayName) pair × thousands
         // of users = well under 200 KB, fine for an admin-only payload.
         return res.status(200).json({ leagues: enriched, userNames });
+      } else if (type === 'automationRules') {
+        // Operator-editable outreach automation rules (B2d). Plain read;
+        // mutations go through the POST actions (superadmin-gated).
+        const snap = await db.collection('automationRules').orderBy('createdAt', 'desc').get().catch(async () => {
+          // createdAt may be missing on the very first rules; fall back to unordered.
+          return await db.collection('automationRules').get();
+        });
+        const rules = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        return res.status(200).json({ rules });
       } else if (type === 'outreachScheduled') {
         // All scheduled outreach sends — pending up top, then recent
         // finished/cancelled for a short audit window. The drain cron
@@ -1564,6 +1573,118 @@ export default async function handler(req, res) {
         cancelReason: reason || null,
       });
       return res.status(200).json({ ok: true });
+    }
+
+    // ─── OUTREACH AUTOMATION RULES (B2d) ───────────────────────
+    // Operator-editable rules that the automation cron evaluates. A rule
+    // is { enabled, segment, template, hoursBeforeLock, cooldownDays,
+    // maxPerRun }. Rules are DISABLED BY DEFAULT and superadmin-only to
+    // mutate, since an enabled rule auto-sends real email.
+    if (action === 'automationRuleSave') {
+      if ((await getRole(userId)) !== 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin only' });
+      }
+      const { id, rule } = req.body;
+      if (!rule || typeof rule !== 'object') return res.status(400).json({ error: 'rule object required' });
+
+      const { SEGMENTS } = await import('./_lib/outreachSegments.js');
+      const { TEMPLATES } = await import('./_lib/outreachEmail.js');
+      if (!SEGMENTS[rule.segment]) return res.status(400).json({ error: `Unknown segment: ${rule.segment}` });
+      if (!TEMPLATES[rule.template]) return res.status(400).json({ error: `Unknown template: ${rule.template}` });
+
+      // Clamp the safety knobs to sane ranges so a typo can't, e.g., set a
+      // 100000-recipient cap or a negative cooldown.
+      const clean = {
+        name: String(rule.name || '').slice(0, 80) || `${rule.segment} → ${rule.template}`,
+        enabled: rule.enabled === true, // explicit opt-in only
+        segment: rule.segment,
+        template: rule.template,
+        // Fire when within this many hours before the group-stage lock
+        // (null = no timing gate, evaluate every run).
+        hoursBeforeLock: rule.hoursBeforeLock == null ? null
+          : Math.max(0, Math.min(2160, Number(rule.hoursBeforeLock) || 0)),
+        cooldownDays: Math.max(1, Math.min(60, Number(rule.cooldownDays) || 3)),
+        maxPerRun: Math.max(1, Math.min(1000, Number(rule.maxPerRun) || 200)),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: userId,
+      };
+
+      let ruleId = id;
+      if (ruleId) {
+        await db.collection('automationRules').doc(ruleId).set(clean, { merge: true });
+      } else {
+        clean.createdAt = FieldValue.serverTimestamp();
+        clean.createdBy = userId;
+        const ref = await db.collection('automationRules').add(clean);
+        ruleId = ref.id;
+      }
+      await db.collection('adminLogs').add({
+        action: 'automation_rule_save', ruleId, enabled: clean.enabled,
+        segment: clean.segment, template: clean.template,
+        by: userId, timestamp: FieldValue.serverTimestamp(),
+      }).catch(() => {});
+      return res.status(200).json({ id: ruleId, rule: clean });
+    }
+
+    if (action === 'automationRuleDelete') {
+      if ((await getRole(userId)) !== 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin only' });
+      }
+      const { id } = req.body;
+      if (!id) return res.status(400).json({ error: 'id required' });
+      await db.collection('automationRules').doc(id).delete();
+      await db.collection('adminLogs').add({
+        action: 'automation_rule_delete', ruleId: id, by: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      }).catch(() => {});
+      return res.status(200).json({ ok: true });
+    }
+
+    // ─── OUTREACH AUTOMATION: DRY-RUN PREVIEW (B2d-1) ──────────
+    // Resolve a segment + apply the recent-contact guardrail, WITHOUT
+    // sending. Lets the operator see exactly who a rule would email before
+    // enabling it. The cron will use the identical resolver + guardrail.
+    if (action === 'automationRulePreview') {
+      const { segment, cooldownDays = 3, maxPerRun = 200 } = req.body;
+      const { resolveSegment, SEGMENTS } = await import('./_lib/outreachSegments.js');
+      if (!SEGMENTS[segment]) return res.status(400).json({ error: `Unknown segment: ${segment}` });
+
+      const { userIds } = await resolveSegment(db, segment);
+
+      // Apply the recent-contact guardrail: exclude anyone emailed within
+      // cooldownDays (any template). Read /outreachSent once.
+      const cooldownMs = Math.max(1, Number(cooldownDays) || 3) * 86400000;
+      const cutoff = Date.now() - cooldownMs;
+      const sentSnap = await db.collection('outreachSent').get();
+      const lastSentByUser = {};
+      sentSnap.docs.forEach((d) => {
+        const x = d.data();
+        if (!x.userId || x.sent === false) return;
+        const ms = x.sentAt?._seconds ? x.sentAt._seconds * 1000
+          : (typeof x.sentAt?.toMillis === 'function' ? x.sentAt.toMillis() : null);
+        if (ms && (!lastSentByUser[x.userId] || ms > lastSentByUser[x.userId])) lastSentByUser[x.userId] = ms;
+      });
+
+      const eligible = userIds.filter((uid) => !(lastSentByUser[uid] && lastSentByUser[uid] >= cutoff));
+      const excludedByGuardrail = userIds.length - eligible.length;
+      const capped = eligible.slice(0, Math.max(1, Math.min(1000, Number(maxPerRun) || 200)));
+
+      // Resolve a small sample of names for the operator to eyeball.
+      const sample = [];
+      for (const uid of capped.slice(0, 8)) {
+        const u = await db.collection('users').doc(uid).get();
+        if (u.exists) sample.push({ id: uid, displayName: u.data().displayName || null, email: u.data().email || null });
+      }
+
+      return res.status(200).json({
+        segment,
+        segmentSize: userIds.length,
+        excludedByGuardrail,
+        eligible: eligible.length,
+        wouldSend: capped.length,
+        cappedBy: capped.length < eligible.length ? maxPerRun : null,
+        sample,
+      });
     }
 
     if (action === 'reconcile') {
