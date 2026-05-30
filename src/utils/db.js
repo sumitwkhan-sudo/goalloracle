@@ -725,6 +725,22 @@ export async function adminSendOutreachCustom(targetUserId, subject, body) {
   });
 }
 
+// ── Outreach automation rules (B2d) ──
+export async function fetchAdminAutomationRules() {
+  const data = await apiCall('admin?type=automationRules');
+  return data?.rules || [];
+}
+export async function adminSaveAutomationRule(rule, id = null) {
+  return await apiCall('admin', 'POST', { action: 'automationRuleSave', id, rule });
+}
+export async function adminDeleteAutomationRule(id) {
+  return await apiCall('admin', 'POST', { action: 'automationRuleDelete', id });
+}
+// Dry-run: who WOULD a rule email right now (segment minus guardrail, capped)?
+export async function adminPreviewAutomationRule({ segment, cooldownDays = 3, maxPerRun = 200 }) {
+  return await apiCall('admin', 'POST', { action: 'automationRulePreview', segment, cooldownDays, maxPerRun });
+}
+
 // ---- PLATFORM STATS ----
 // Routes through /api/public?type=stats so the client never needs read
 // access to the entire /users collection (Firestore rules now restrict
