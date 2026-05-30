@@ -715,6 +715,16 @@ export async function adminSendOutreachBatch(template = 'noPicksReminder', userI
   });
 }
 
+// Admin: send a custom one-off email (operator subject + plain-text body)
+// to a single user, wrapped in the branded shell + sign-off (B2b). Logged
+// to /outreachSent so it appears in the user's email history.
+export async function adminSendOutreachCustom(targetUserId, subject, body) {
+  return await apiCall('admin', 'POST', {
+    action: 'outreachSendCustom',
+    targetUserId, subject, body,
+  });
+}
+
 // ---- PLATFORM STATS ----
 // Routes through /api/public?type=stats so the client never needs read
 // access to the entire /users collection (Firestore rules now restrict

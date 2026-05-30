@@ -3461,6 +3461,42 @@ button.invite-option:hover,
 }
 .admin-user-del:hover { background: rgba(255,59,92,0.08); border-color: rgba(255,59,92,0.3); }
 .admin-user-del:disabled { opacity: 0.5; cursor: default; }
+.admin-user-actions { display: inline-flex; align-items: center; gap: 4px; }
+.admin-user-email-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 24px; padding: 0;
+  background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-sec); cursor: pointer;
+}
+.admin-user-email-btn:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+
+/* Admin modal (custom-email send, B2b) */
+.admin-modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(6,7,13,0.55); display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.admin-modal {
+  width: 100%; max-width: 480px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 1.1rem 1.2rem 1.2rem; max-height: 90vh; overflow-y: auto;
+}
+.admin-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
+.admin-modal-head h3 { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; margin: 0; }
+.admin-modal-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; background: transparent; border: none;
+  color: var(--text-sec); cursor: pointer; border-radius: 6px;
+}
+.admin-modal-close:hover { background: var(--bg-elev); color: var(--text); }
+.admin-modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.9rem; }
+.admin-custom-email-to { font-size: 0.78rem; color: var(--text-sec); margin: 0 0 0.7rem; }
+.admin-custom-email-label {
+  display: block; font-size: 0.68rem; font-weight: 700; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.05em; margin: 0.6rem 0 0.25rem;
+}
+.admin-custom-email-body { width: 100%; resize: vertical; min-height: 8rem; font-family: var(--font); line-height: 1.5; }
+.admin-custom-email-note { font-size: 0.7rem; color: var(--text-dim); margin: 0.5rem 0 0; line-height: 1.4; }
 .admin-user-row-email {
   font-family: var(--mono); font-size: 0.62rem; color: var(--text-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

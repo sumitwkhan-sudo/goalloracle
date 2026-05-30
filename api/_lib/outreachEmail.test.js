@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { TEMPLATES, buildEmail } from './outreachEmail.js';
+import { TEMPLATES, buildEmail, buildCustomEmail } from './outreachEmail.js';
 
 const SIGN_OFF = '- Sumit, Founder of GoalOracle.io and Football Lover';
 const USER = { id: 'u1', displayName: 'Sam', email: 'sam@example.com' };
@@ -32,4 +32,37 @@ describe('outreach email branding (B2a)', () => {
       expect(html).toContain('https://goaloracle.io/logo-lockup-trophy.png');
     });
   }
+});
+
+describe('custom one-off email (B2b)', () => {
+  test('wraps operator content in branded shell + sign-off', () => {
+    const { html, text } = buildCustomEmail({
+      user: USER, subject: 'Quick question', body: 'Para one.\n\nPara two.',
+    });
+    expect(html).toContain('https://goaloracle.io/logo-lockup-trophy.png'); // logo
+    expect(html).toContain('Hey Sam,'); // greeting
+    expect(html).toContain(SIGN_OFF); // sign-off
+    expect(text.trimEnd().endsWith(SIGN_OFF)).toBe(true);
+    expect(text).toContain('Para one.');
+    expect(text).toContain('Para two.');
+  });
+
+  test('escapes operator HTML — no injection from subject or body', () => {
+    const { html } = buildCustomEmail({
+      user: USER,
+      subject: 'Hi <b>x</b>',
+      body: 'before\n\n<script>alert(1)</script>\n\nafter',
+    });
+    // Raw script/markup must NOT survive into the HTML.
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<b>x</b>');
+    // It should be escaped instead.
+    expect(html).toContain('&lt;script&gt;');
+  });
+
+  test('preserves paragraph breaks from blank lines', () => {
+    const { html } = buildCustomEmail({ user: USER, subject: 's', body: 'a\n\nb\n\nc' });
+    // 3 body paragraphs rendered as separate <p> blocks.
+    expect((html.match(/<p style="margin:0 0 16px/g) || []).length).toBe(3);
+  });
 });
