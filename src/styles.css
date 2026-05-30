@@ -5885,6 +5885,24 @@ button.invite-option:hover,
   border-color: rgba(245,158,11,0.45);
   box-shadow: 0 0 0 1px rgba(245,158,11,0.12), 0 0 8px rgba(245,158,11,0.08);
 }
+/* item F — the single NEXT-required match gets a gentle pulsing glow so the
+   eye lands on exactly the one to pick next. Built on the same amber as
+   .needs-pick but animated; only one match carries .is-next at a time. */
+.bracket-match-wrap.is-next .bracket-match {
+  border-color: rgba(245,158,11,0.7);
+  animation: bracket-next-pulse 1.8s ease-in-out infinite;
+}
+@keyframes bracket-next-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(245,158,11,0.25), 0 0 6px rgba(245,158,11,0.12); }
+  50%      { box-shadow: 0 0 0 2px rgba(245,158,11,0.45), 0 0 16px rgba(245,158,11,0.28); }
+}
+/* Respect reduced-motion: keep a clear static highlight, no pulsing. */
+@media (prefers-reduced-motion: reduce) {
+  .bracket-match-wrap.is-next .bracket-match {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(245,158,11,0.4), 0 0 12px rgba(245,158,11,0.22);
+  }
+}
 .bracket-match-meta {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0.2rem 0.6rem;
