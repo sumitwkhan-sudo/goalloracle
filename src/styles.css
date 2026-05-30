@@ -3529,6 +3529,10 @@ button.invite-option:hover,
 .admin-user-cell-name .admin-user-row-handle { max-width: 180px; }
 .admin-user-via { display: block; margin-top: 0.15rem; font-size: 0.6rem; color: var(--text-dim); }
 .admin-user-joined-cell { white-space: nowrap; color: var(--text-sec); }
+.admin-user-emailed-cell { white-space: nowrap; color: var(--text-sec); font-size: 0.82rem; }
+/* Recently-contacted users (within the guardrail window) flagged amber so
+   the operator can see at a glance who not to re-email. */
+.admin-user-emailed-recent { color: var(--amber, #d97706); font-weight: 600; }
 .admin-qp-pill {
   display: inline-block; padding: 0.1rem 0.4rem; border-radius: 5px;
   font-size: 0.6rem; font-weight: 600; white-space: nowrap;

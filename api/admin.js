@@ -321,6 +321,37 @@ export default async function handler(req, res) {
           }
         });
         return res.status(200).json({ status });
+      } else if (type === 'emailHistory') {
+        // Per-user email-history rollup for the admin Users table + the
+        // outreach recent-contact guardrail (item B1). Aggregates the
+        // /outreachSent audit docs (keyed `${userId}__${template}`, written
+        // on every send + stamped with delivery/open/click by the Resend
+        // webhook) into { userId -> { lastTemplate, lastSentAtMs, totalSent,
+        // lastOpenedAtMs } }. Lazy-loaded on Users-tab open, same pattern as
+        // usersQpStatus. Full-collection scan — fine at current scale.
+        const sentSnap = await db.collection('outreachSent').get();
+        const emailTsMs = (t) => (t?._seconds ? t._seconds * 1000 : (typeof t?.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null)));
+        const history = {};
+        sentSnap.docs.forEach(doc => {
+          const d = doc.data();
+          const uid = d.userId;
+          if (!uid) return;
+          // Only count actually-sent emails toward contact history; a row
+          // with sent:false is a failed attempt, not a contact.
+          if (d.sent === false) return;
+          const sentMs = emailTsMs(d.sentAt);
+          const h = history[uid] || (history[uid] = {
+            lastTemplate: null, lastSentAtMs: null, totalSent: 0, lastOpenedAtMs: null,
+          });
+          h.totalSent += 1;
+          if (sentMs && (!h.lastSentAtMs || sentMs > h.lastSentAtMs)) {
+            h.lastSentAtMs = sentMs;
+            h.lastTemplate = d.template || null;
+          }
+          const openMs = emailTsMs(d.lastOpenedAt);
+          if (openMs && (!h.lastOpenedAtMs || openMs > h.lastOpenedAtMs)) h.lastOpenedAtMs = openMs;
+        });
+        return res.status(200).json({ history });
       } else if (type === 'segments') {
         // ── User segmentation (read-only, Quick Picks only) ──────────
         // Scans users + every simplePredictions doc and buckets users:
