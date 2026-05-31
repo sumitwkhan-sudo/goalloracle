@@ -5066,6 +5066,10 @@ const GoalOracle = () => {
             </div>
           )}
           {authenticated ? <AccountDropdown /> : <button className="btn btn-primary btn-sm" onClick={login}>Sign Up or Login</button>}
+          {/* "My Team" home-team picker — removed from the nav bar per
+              product decision. Kept here (commented) for reference and
+              easy restore; the supporting state (homeTeam/teamPickerOpen/
+              teamPickerRef + TEAM_COLORS) is left intact.
           <div className="team-picker-wrap" ref={teamPickerRef} onClick={e => e.stopPropagation()}>
             <button type="button" className={`team-picker-btn${homeTeam ? ' has-team' : ''}`} onClick={() => setTeamPickerOpen(!teamPickerOpen)} title={homeTeam || 'Pick your team'}>
               {homeTeam && TEAM_COLORS[homeTeam] ? <><span className="team-picker-flag">{TEAM_COLORS[homeTeam].flag}</span><span className="team-picker-name">{homeTeam}</span></> : <><Globe size={14} /><span className="team-picker-name">My Team</span></>}
@@ -5085,6 +5089,7 @@ const GoalOracle = () => {
               </div>
             )}
           </div>
+          */}
           <div className="theme-switcher" onClick={e => e.stopPropagation()}>
             {(() => {
               const themes = { light: { icon: <Sun size={14} />, label: 'Light' }, dark: { icon: <Moon size={14} />, label: 'Dark' } };
