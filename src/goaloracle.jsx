@@ -4962,11 +4962,13 @@ const GoalOracle = () => {
 
   // ── Nav notification center (item G) ──────────────────────────────────
   // Derives open-action notifications from the SAME sources the rest of the
-  // app uses: the live `quickPicks` summary (totalRemaining/isComplete) and
-  // the shared stage-lock deadline source (stageLockTimeUtc). No new fetches.
-  // Each notification deep-links to the exact action. Quiet (empty) when the
-  // user has nothing open. Gated on quickPicks !== null so it doesn't flash
-  // a count before the prediction doc has loaded (per the flicker rule).
+  // app uses: the live Global-League `quickPicks` summary PLUS the live
+  // per-league `leagueRanks` progress — so unfinished brackets in private/
+  // public leagues surface too, not only the Global League — and the shared
+  // stage-lock deadline source (stageLockTimeUtc). No new fetches. Each
+  // notification deep-links to the exact action. Quiet (empty) when the user
+  // has nothing open; per-source guards avoid flashing a count before a
+  // prediction doc has loaded (per the flicker rule).
   const goToQuickPicks = useCallback((tab = 'predictions') => {
     const simpleLeague = leagues.find(l => l.id === 'global-simple')
       || allLeagues.find(l => l.id === 'global-simple')
@@ -4975,29 +4977,54 @@ const GoalOracle = () => {
   }, [leagues, allLeagues]);
 
   const navNotifications = useMemo(() => {
-    if (!authenticated || quickPicks === null) return [];
+    if (!authenticated) return [];
     const out = [];
-    const remaining = quickPicks.totalRemaining || 0;
+    let anyIncomplete = false;
 
-    // 1) Unfinished picks.
-    if (!quickPicks.isComplete && remaining > 0) {
+    // 1) Per-league "picks remaining" — every Quick Picks league the user
+    // is in (global + private/public) whose bracket isn't finished, not
+    // just the Global League. The Global League uses the authoritative live
+    // `quickPicks` summary; all other leagues read the live per-league
+    // progress in `leagueRanks` (myPicksLeft), which the app-level
+    // simple-prediction subscriptions keep current. Each entry deep-links
+    // to that league's own prediction wizard.
+    const addRemaining = (id, name, left, onClick) => {
+      if (typeof left !== 'number' || left <= 0) return;
+      anyIncomplete = true;
       out.push({
-        id: 'picks-remaining',
+        id: `picks-remaining-${id}`,
         urgency: 'action',
-        text: `You have ${remaining} pick${remaining === 1 ? '' : 's'} remaining`,
+        text: `You have ${left} pick${left === 1 ? '' : 's'} remaining in ${name}`,
         sub: 'Finish your bracket',
-        onClick: () => goToQuickPicks('predictions'),
+        onClick,
       });
+    };
+
+    // Global League — gated on quickPicks !== null so we don't flash a
+    // count before its doc has loaded (flicker rule).
+    if (quickPicks && !quickPicks.isComplete) {
+      addRemaining('global-simple', 'Global League', quickPicks.totalRemaining || 0,
+        () => goToQuickPicks('predictions'));
+    }
+    // Other Quick Picks leagues — skip any without a loaded picks-left
+    // number (same per-source flicker guard).
+    for (const league of leagues) {
+      if (league.predictionMode !== 'simple' || league.id === 'global-simple') continue;
+      const rk = leagueRanks[league.id];
+      if (!rk) continue;
+      addRemaining(league.id, league.name || 'your league', rk.myPicksLeft,
+        () => nav('detail', league, { tab: 'predictions' }));
     }
 
-    // 2) Deadline-aware lock warning — only while the group stage hasn't
-    // locked yet and the bracket is still incomplete. 24h / 48h thresholds
-    // come from the shared stageLockTimeUtc, the same source B's urgency
-    // emails consume, so in-app and email messaging never contradict.
+    // 2) Deadline-aware lock warning — a single notice, shown while the
+    // group stage hasn't locked and the user still has ANY incomplete
+    // Quick Picks bracket. 24h / 48h thresholds come from the shared
+    // stageLockTimeUtc, the same source B's urgency emails consume, so
+    // in-app and email messaging never contradict.
     try {
       const lockMs = stageLockTimeUtc('groupStage');
       const hoursLeft = (lockMs - Date.now()) / 3_600_000;
-      if (!quickPicks.isComplete && hoursLeft > 0 && hoursLeft <= 48) {
+      if (anyIncomplete && hoursLeft > 0 && hoursLeft <= 48) {
         const window = hoursLeft <= 24 ? '24 hours' : '48 hours';
         out.push({
           id: 'group-lock-soon',
@@ -5010,7 +5037,7 @@ const GoalOracle = () => {
     } catch { /* unknown stage — skip the deadline notice */ }
 
     return out;
-  }, [authenticated, quickPicks, goToQuickPicks]);
+  }, [authenticated, quickPicks, leagues, leagueRanks, goToQuickPicks, nav]);
 
   const Nav = () => (
     <nav className="navbar"><div className="nav-container">
