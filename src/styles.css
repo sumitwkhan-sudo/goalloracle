@@ -916,7 +916,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 .hero-lb-scroller {
   display: flex; flex-direction: column;
-  animation: hero-lb-scroll-up 45s linear infinite;
+  animation: hero-lb-scroll-up 60s linear infinite;
   will-change: transform;
 }
 .hero-lb-scroll-mask:hover .hero-lb-scroller {
