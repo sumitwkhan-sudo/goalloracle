@@ -5472,6 +5472,21 @@ button.invite-option:hover,
 .wf-label .input-field { width: 100%; }
 .wf-hint { color: var(--text-sec); font-size: 0.74rem; font-weight: 400; }
 .wf-optional { color: var(--text-sec); font-weight: 400; font-size: 0.78rem; }
+.wf-passcode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wf-passcode-toggle:hover { text-decoration: underline; }
+.wf-passcode-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
 .wf-err {
   display: flex;
   align-items: center;

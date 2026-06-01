@@ -16,18 +16,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Check, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Check, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
 import { validateUsername } from '../../utils/profanity';
 import { lookupLeagueByPasscode } from '../../utils/db';
 import COUNTRIES, { getCachedDetectedCountry, detectCountryByIP } from '../../utils/countries';
-import EligibilityCheckbox from '../EligibilityCheckbox';
-import { RULES_VERSION } from '../../config/legal';
 
 export default function WelcomeFlow({
   emailPrefix,
   allLeagues,
-  onSubmit,        // async ({ username, country, passcodeMatchedLeague, passcode, consent }) => void
-  onSeeRules,      // function — opens Official Rules in a new tab
+  onSubmit,        // async ({ username, country, passcodeMatchedLeague, passcode }) => void
+  onSeeRules,      // function — opens Official Rules in a new tab (unused here now)
 }) {
   const [username, setUsername] = useState(emailPrefix || '');
   // Seed country from the synchronous cache (warmed at app boot) so the
@@ -35,7 +33,9 @@ export default function WelcomeFlow({
   // empty while the async IP lookup resolves.
   const [country, setCountry] = useState(() => getCachedDetectedCountry() || '');
   const [passcode, setPasscode] = useState('');
-  const [eligible, setEligible] = useState(false);
+  // Passcode is hidden behind a toggle by default — most users don't have a
+  // friend's passcode, so we don't make them look at an empty field.
+  const [showPasscode, setShowPasscode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   // Country list is bundled with the modal — no async import needed.
@@ -88,8 +88,6 @@ export default function WelcomeFlow({
       }
     }
 
-    if (!eligible) { setErr('Please confirm eligibility to finish.'); return; }
-
     setBusy(true);
     try {
       await onSubmit({
@@ -97,14 +95,11 @@ export default function WelcomeFlow({
         country,
         passcode: trimmedPass || null,
         passcodeMatchedLeague,
-        // Captured at the earliest possible moment — the user can't
-        // finish onboarding without checking the box. Persisted on the
-        // user doc by the parent's createOrUpdateUser flow.
-        consent: {
-          rulesVersion: RULES_VERSION,
-          ageAttested: true,
-          jurisdictionAttested: true,
-        },
+        // No consent captured here anymore — the signup eligibility
+        // checkbox was removed. Brand-new users are picked up by the
+        // post-signup ContestConsentBanner, which prompts anyone without
+        // contestConsent on file. We deliberately do NOT fabricate an
+        // attestation the user never made.
       });
     } catch (e2) {
       setErr(e2?.message || 'Could not finish setup — try again.');
@@ -154,40 +149,42 @@ export default function WelcomeFlow({
             <span className="wf-hint">We pre-fill from your network — change if needed.</span>
           </label>
 
-          <label className="wf-label">
-            <span>Friend's league passcode <span className="wf-optional">(optional)</span></span>
-            <input
-              type="text"
-              className="input-field"
-              value={passcode}
-              onChange={(e) => { setPasscode(e.target.value.toUpperCase()); if (err) setErr(''); }}
-              maxLength={12}
-              autoCapitalize="characters"
-              spellCheck={false}
+          {/* Passcode is collapsed by default — only users with a friend's
+              passcode need it, so we keep the form short for everyone else. */}
+          {!showPasscode ? (
+            <button
+              type="button"
+              className="wf-passcode-toggle"
+              onClick={() => { setShowPasscode(true); if (err) setErr(''); }}
               disabled={busy}
-              placeholder="e.g. GOAL2026"
-            />
-            <span className="wf-hint">Auto-joins their private league. Skip if you don't have one.</span>
-          </label>
-
-          {/* Single-line eligibility consent. Required for the submit
-              button to enable. Captured the moment the user finishes
-              their account so we never have to re-prompt for the same
-              rules version unless they truly need to re-consent. */}
-          <EligibilityCheckbox
-            checked={eligible}
-            onChange={(v) => { setEligible(v); if (err) setErr(''); }}
-            disabled={busy}
-            onSeeRules={onSeeRules}
-            className="wf-eligibility"
-          />
+            >
+              <ChevronDown size={14} /> Have a friend's league passcode?
+            </button>
+          ) : (
+            <label className="wf-label">
+              <span>Friend's league passcode <span className="wf-optional">(optional)</span></span>
+              <input
+                type="text"
+                className="input-field"
+                value={passcode}
+                onChange={(e) => { setPasscode(e.target.value.toUpperCase()); if (err) setErr(''); }}
+                maxLength={12}
+                autoCapitalize="characters"
+                spellCheck={false}
+                disabled={busy}
+                autoFocus
+                placeholder="e.g. GOAL2026"
+              />
+              <span className="wf-hint">Auto-joins their private league. Skip if you don't have one.</span>
+            </label>
+          )}
 
           {err && <div className="wf-err" role="alert"><AlertTriangle size={14} /> {err}</div>}
 
           <button
             type="submit"
             className="btn btn-primary btn-lg wf-submit"
-            disabled={busy || !username.trim() || !country || !eligible}
+            disabled={busy || !username.trim() || !country}
           >
             {busy ? <><RefreshCw size={16} className="spin" /> Setting up…</> : <><Check size={16} /> Let's go</>}
           </button>
