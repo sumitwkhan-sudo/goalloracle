@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import TEAM_COLORS from '../data/teamColors';
+import COUNTRIES from '../utils/countries';
 
 // Outreach automation segments (mirror of api/_lib/outreachSegments.js
 // SEGMENTS — kept here as display labels for the rule editor).
@@ -114,6 +116,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [bracketHealth, setBracketHealth] = useState(null); // null = not fetched
   const [bracketHealthBusy, setBracketHealthBusy] = useState(false);
   const [repairingDoc, setRepairingDoc] = useState(null); // docId currently repairing, or 'all'
+  // User & prediction insights tab. null = not fetched.
+  const [insights, setInsights] = useState(null);
+  const [insightsBusy, setInsightsBusy] = useState(false);
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -464,6 +469,24 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   useEffect(() => {
     if (tab !== 'bracketHealth') return;
     reloadBracketHealth();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tab]);
+
+  // User & prediction insights — loaded on tab open + manual refresh.
+  const reloadInsights = async () => {
+    setInsightsBusy(true);
+    try {
+      setInsights(await fetchAdminUserInsights());
+    } catch (e) {
+      console.warn('[admin] userInsights fetch failed:', e?.message || e);
+      setInsights({ error: e?.message || 'Failed to load' });
+    } finally {
+      setInsightsBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (tab !== 'insights') return;
+    reloadInsights();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [tab]);
 
@@ -1234,6 +1257,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     { id: 'results', icon: '⚽', label: 'Match Results', count: `${verifiedCount}/${totalMatches}` },
     { id: 'users', icon: '👥', label: 'Users', count: String(platformStats.totalPlayers || 0) },
     { id: 'leagues', icon: '🏆', label: 'Leagues', count: String(platformStats.activeLeagues || 0) },
+    { id: 'insights', icon: '📊', label: 'Insights' },
     { id: 'outreach', icon: '✉️', label: 'Outreach' },
     { id: 'oracle', icon: '🔮', label: 'Oracle Status' },
     { id: 'contract', icon: '📜', label: 'Smart Contract' },
@@ -2933,6 +2957,73 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             )}
           </div>
         </div>
+        );
+      })()}
+
+      {/* ═══════ TAB: INSIGHTS ═══════ */}
+      {tab === 'insights' && (() => {
+        const data = insights;
+        const countryByCode = {};
+        COUNTRIES.forEach(c => { countryByCode[c.code] = c; });
+        const teamFlag = (name) => TEAM_COLORS[name]?.flag || '🏳️';
+        const pct = (n, total) => (total > 0 ? Math.round((n / total) * 100) : 0);
+        const renderBars = (items, total, flagFor, labelFor) => {
+          const max = items.reduce((m, it) => Math.max(m, it.count), 0) || 1;
+          return (
+            <div className="ins-bars">
+              {items.map((it, i) => (
+                <div className="ins-bar-row" key={i}>
+                  <span className="ins-bar-flag" aria-hidden="true">{flagFor(it)}</span>
+                  <span className="ins-bar-label" title={labelFor(it)}>{labelFor(it)}</span>
+                  <span className="ins-bar-track"><span className="ins-bar-fill" style={{ width: `${(it.count / max) * 100}%` }} /></span>
+                  <span className="ins-bar-val">{it.count} · {pct(it.count, total)}%</span>
+                </div>
+              ))}
+            </div>
+          );
+        };
+        const block = (title, sub, cat, flagFor, labelFor, emptyMsg) => (
+          <div className="ins-block">
+            <div className="ins-block-title">{title} <span className="ins-block-sub">{sub}</span></div>
+            {(!cat || cat.top.length === 0)
+              ? <div className="admin-empty">{emptyMsg}</div>
+              : renderBars(cat.top, cat.total, flagFor, labelFor)}
+          </div>
+        );
+        return (
+          <div className="admin-panel">
+            <div className="admin-outreach-runs-head">
+              <h3>User &amp; prediction insights</h3>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={reloadInsights} disabled={insightsBusy}>
+                <RefreshCw size={11} className={insightsBusy ? 'spin' : ''} /> Refresh
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Demographics from the user base + the wisdom of the crowd from everyone’s <strong>Global League</strong> bracket. Read-only.
+            </p>
+
+            {!data && <div className="admin-empty">Loading insights…</div>}
+            {data?.error && <div className="admin-empty" style={{ color: '#ef4444' }}>Error: {data.error}</div>}
+            {data && !data.error && (
+              <>
+                <div className="ins-cards">
+                  <div className="ins-card"><div className="ins-card-val">{(data.totals.totalUsers || 0).toLocaleString()}</div><div className="ins-card-label">Total users</div></div>
+                  <div className="ins-card"><div className="ins-card-val">{(data.totals.started || 0).toLocaleString()}</div><div className="ins-card-label">Started a bracket</div></div>
+                  <div className="ins-card"><div className="ins-card-val">{(data.totals.completedGlobal || 0).toLocaleString()}</div><div className="ins-card-label">Completed · Global</div></div>
+                  <div className="ins-card"><div className="ins-card-val">{pct(data.totals.completedGlobal, data.totals.totalUsers)}%</div><div className="ins-card-label">Completion rate</div></div>
+                  <div className="ins-card"><div className="ins-card-val">{(data.totals.newLast7 || 0).toLocaleString()}</div><div className="ins-card-label">New · 7 days</div></div>
+                  <div className="ins-card"><div className="ins-card-val">{(data.totals.countries || 0).toLocaleString()}</div><div className="ins-card-label">Countries</div></div>
+                </div>
+
+                <div className="ins-grid">
+                  {block('🏆 Predicted Champion', `${data.champions?.total || 0} picks`, data.champions, (it) => teamFlag(it.name), (it) => it.name, 'No champion picks yet.')}
+                  {block('🥈 Predicted Runner-up', `${data.runnersUp?.total || 0} picks`, data.runnersUp, (it) => teamFlag(it.name), (it) => it.name, 'No runner-up picks yet.')}
+                  {block('🎟️ Most-backed Best Thirds', `${data.bestThirds?.total || 0} picks`, data.bestThirds, (it) => teamFlag(it.name), (it) => it.name, 'No best-third picks yet.')}
+                  {block('🌍 Top Countries', `${data.countries?.total || 0} users`, data.countries, (it) => countryByCode[it.code]?.flag || '🏳️', (it) => countryByCode[it.code]?.name || it.code, 'No country data yet.')}
+                </div>
+              </>
+            )}
+          </div>
         );
       })()}
 
