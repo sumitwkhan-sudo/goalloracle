@@ -9,19 +9,15 @@
  * leaderboard's canonical rule (api/simple-leaderboard.js:138) trips a test.
  */
 import { describe, test, expect } from 'vitest';
+// Import the REAL completion rule the handler uses, so this test is
+// load-bearing: a drift in the source expression trips these assertions.
+import { computeIsComplete, wasComplete } from './_lib/quickPicksComplete.js';
 
-// ── Replicas of the source expressions (keep in sync with the real files) ──
-
-// api/simple-predictions.js POST handler.
+// Mirrors the handler: writePayload.isComplete = computeIsComplete(...);
+// justCompleted = computedComplete && !wasComplete(mergedOld).
 function computeWrite(partial, mergedOld) {
-  const mergedKnockout = ('knockoutPredictions' in partial)
-    ? partial.knockoutPredictions
-    : mergedOld?.knockoutPredictions;
-  const hasFinalWinner = !!(mergedKnockout?.final?.[0]?.winnerId);
-  const computedComplete = hasFinalWinner || partial.isComplete === true;
-
-  const wasComplete = !!(mergedOld?.isComplete === true || mergedOld?.knockoutPredictions?.final?.[0]?.winnerId);
-  const justCompleted = computedComplete && !wasComplete;
+  const computedComplete = computeIsComplete(partial, mergedOld);
+  const justCompleted = computedComplete && !wasComplete(mergedOld);
   return { computedComplete, justCompleted };
 }
 
@@ -120,6 +116,30 @@ describe('server isComplete computation (POST handler)', () => {
       null,
     );
     expect(computedComplete).toBe(true);
+  });
+
+  test('stored isComplete:true WITHOUT a winner, unrelated edit (groups only) → STAYS complete', () => {
+    // The latent case the reviewer flagged: a doc explicitly marked complete
+    // but with no Final winner must not silently flip back to incomplete on a
+    // later partial that touches neither the flag nor the knockout.
+    const stored = { knockoutPredictions: { semiFinals: [{ winnerId: 'x' }] }, isComplete: true };
+    const { computedComplete, justCompleted } = computeWrite(
+      { groupPredictions: { A: { ranking: ['a', 'b', 'c', 'd'] } } },
+      stored,
+    );
+    expect(computedComplete).toBe(true);
+    expect(justCompleted).toBe(false); // was already complete
+  });
+
+  test('stored isComplete:true WITHOUT a winner, but the edit changes the knockout → re-derives', () => {
+    // If the partial DOES touch the knockout, completion is re-derived from
+    // it (an explicit bracket edit), not preserved.
+    const stored = { knockoutPredictions: { semiFinals: [{ winnerId: 'x' }] }, isComplete: true };
+    const { computedComplete } = computeWrite(
+      { knockoutPredictions: { semiFinals: [] } }, // cleared, no final winner, no flag
+      stored,
+    );
+    expect(computedComplete).toBe(false);
   });
 });
 

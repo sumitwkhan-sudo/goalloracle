@@ -15,6 +15,7 @@
 
 import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { lockedSectionsInUpdate } from '../src/utils/stageLock.js';
+import { computeIsComplete, wasComplete } from './_lib/quickPicksComplete.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const SEPARATOR = '__';
@@ -73,20 +74,13 @@ export default async function handler(req, res) {
     if ('bestThirdPicks' in partial) writePayload.bestThirdPicks = partial.bestThirdPicks;
     if ('knockoutPredictions' in partial) writePayload.knockoutPredictions = partial.knockoutPredictions;
 
-    // isComplete is SERVER-AUTHORITATIVE, computed from the merged bracket
-    // rather than trusted from the client. The completion signal mirrors the
-    // leaderboard's own rule (api/simple-leaderboard.js): a bracket is
-    // "complete" once the Final winner is picked. Computing it here means a
-    // finished bracket can never be stored as isComplete:false — the bug
-    // where copying a Global bracket (whose stored flag was stale-false) into
-    // a league left the user marked "not submitted" until they re-edited.
-    // We honour an explicit client isComplete:true too (e.g. a user who
-    // submits with the 3rd-place game intentionally left blank).
-    const mergedKnockout = ('knockoutPredictions' in partial)
-      ? partial.knockoutPredictions
-      : mergedOld?.knockoutPredictions;
-    const hasFinalWinner = !!(mergedKnockout?.final?.[0]?.winnerId);
-    const computedComplete = hasFinalWinner || partial.isComplete === true;
+    // isComplete is SERVER-AUTHORITATIVE — computed from the merged bracket
+    // via the shared canonical rule (see ./_lib/quickPicksComplete.js), not
+    // trusted from the client. This means a finished bracket can never be
+    // stored as isComplete:false — the bug where copying a Global bracket
+    // (whose stored flag was stale-false) into a league left the user marked
+    // "not submitted" until they re-edited.
+    const computedComplete = computeIsComplete(partial, mergedOld);
     writePayload.isComplete = computedComplete;
 
     // submittedAt is the leaderboard tiebreaker — set once on first save,
@@ -106,8 +100,7 @@ export default async function handler(req, res) {
     // the globalSubmitLog audit row (actor 'system:auto-submit').
     // Awaited-with-catch: a copy failure must NEVER fail the user's own
     // submission, so we swallow errors and just log them.
-    const wasComplete = !!(mergedOld?.isComplete === true || mergedOld?.knockoutPredictions?.final?.[0]?.winnerId);
-    const justCompleted = computedComplete && !wasComplete;
+    const justCompleted = computedComplete && !wasComplete(mergedOld);
     if (justCompleted && leagueId !== 'global-simple' && leagueId !== 'global') {
       try {
         const { copyUserPicksToGlobalLeague } = await import('./_lib/copyToGlobal.js');
