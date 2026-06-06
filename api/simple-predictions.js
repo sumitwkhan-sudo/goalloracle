@@ -72,7 +72,22 @@ export default async function handler(req, res) {
     if ('groupPredictions' in partial) writePayload.groupPredictions = partial.groupPredictions;
     if ('bestThirdPicks' in partial) writePayload.bestThirdPicks = partial.bestThirdPicks;
     if ('knockoutPredictions' in partial) writePayload.knockoutPredictions = partial.knockoutPredictions;
-    if ('isComplete' in partial) writePayload.isComplete = !!partial.isComplete;
+
+    // isComplete is SERVER-AUTHORITATIVE, computed from the merged bracket
+    // rather than trusted from the client. The completion signal mirrors the
+    // leaderboard's own rule (api/simple-leaderboard.js): a bracket is
+    // "complete" once the Final winner is picked. Computing it here means a
+    // finished bracket can never be stored as isComplete:false — the bug
+    // where copying a Global bracket (whose stored flag was stale-false) into
+    // a league left the user marked "not submitted" until they re-edited.
+    // We honour an explicit client isComplete:true too (e.g. a user who
+    // submits with the 3rd-place game intentionally left blank).
+    const mergedKnockout = ('knockoutPredictions' in partial)
+      ? partial.knockoutPredictions
+      : mergedOld?.knockoutPredictions;
+    const hasFinalWinner = !!(mergedKnockout?.final?.[0]?.winnerId);
+    const computedComplete = hasFinalWinner || partial.isComplete === true;
+    writePayload.isComplete = computedComplete;
 
     // submittedAt is the leaderboard tiebreaker — set once on first save,
     // never overwritten. Same invariant the client-side rule used to enforce.
@@ -83,13 +98,16 @@ export default async function handler(req, res) {
     await ref.set(writePayload, { merge: true });
 
     // Auto-submit to the Global League the moment a user COMPLETES a
-    // bracket in a non-global league. Uses the shared copy util in
-    // 'skip' mode so an existing global entry is never clobbered;
-    // format + stage-lock eligibility live in the util, which also
-    // writes the globalSubmitLog audit row (actor 'system:auto-submit').
-    // Awaited-with-catch: a copy failure must NEVER fail the user's
-    // own submission, so we swallow errors and just log them.
-    const justCompleted = partial.isComplete === true && mergedOld?.isComplete !== true;
+    // bracket in a non-global league. Fires on the false→true completion
+    // transition (computed, so it also fires for brackets that became
+    // complete without an explicit isComplete flag). Uses the shared copy
+    // util in 'skip' mode so an existing global entry is never clobbered;
+    // format + stage-lock eligibility live in the util, which also writes
+    // the globalSubmitLog audit row (actor 'system:auto-submit').
+    // Awaited-with-catch: a copy failure must NEVER fail the user's own
+    // submission, so we swallow errors and just log them.
+    const wasComplete = !!(mergedOld?.isComplete === true || mergedOld?.knockoutPredictions?.final?.[0]?.winnerId);
+    const justCompleted = computedComplete && !wasComplete;
     if (justCompleted && leagueId !== 'global-simple' && leagueId !== 'global') {
       try {
         const { copyUserPicksToGlobalLeague } = await import('./_lib/copyToGlobal.js');

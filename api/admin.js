@@ -453,6 +453,73 @@ export default async function handler(req, res) {
             C: { count: C.length, users: C },
           },
         });
+      } else if (type === 'qpUnsubmitted') {
+        // ── Bracket health: full brackets stuck "not submitted" ──────────
+        // Lists every /simplePredictions doc whose bracket is effectively
+        // COMPLETE (a Final winner is picked — the same rule the leaderboard
+        // uses) but whose stored isComplete flag is NOT true. That mismatch
+        // is the class of users who finished a bracket yet show as
+        // unsubmitted (it drove the copy-from-Global bug). Read-only scan;
+        // the repairQpComplete POST action fixes rows in place.
+        const [qpPredsSnap, qpLeaguesSnap] = await Promise.all([
+          db.collection('simplePredictions').get(),
+          db.collection('leagues').get(),
+        ]);
+        const qpTsMs = (t) => (t?._seconds ? t._seconds * 1000 : (typeof t?.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null)));
+        const qpLeagueName = {};
+        qpLeaguesSnap.docs.forEach(d => { qpLeagueName[d.id] = d.data().name || d.id; });
+        const QP_BR = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['thirdPlace', 1], ['final', 1]];
+        const QP_TOTAL = 12 + 8 + 32;
+        const qpUserIds = new Set();
+        const qpRows = [];
+        qpPredsSnap.docs.forEach(doc => {
+          const id = doc.id;
+          const data = doc.data();
+          let uId, lId;
+          const sep = id.indexOf('__');
+          if (sep >= 0) { uId = id.slice(0, sep); lId = id.slice(sep + 2); }
+          else { uId = id; lId = 'global-simple'; }
+          uId = data.userId || uId;
+          lId = data.leagueId || lId;
+          const ko = data.knockoutPredictions || {};
+          const hasFinalWinner = !!(ko?.final?.[0]?.winnerId);
+          if (!hasFinalWinner) return;        // not yet "complete" by the canonical rule
+          if (data.isComplete === true) return; // already correctly flagged — healthy
+          const groups = data.groupPredictions || {};
+          const groupsDone = Object.values(groups).filter(g => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
+          const thirds = Array.isArray(data.bestThirdPicks) ? data.bestThirdPicks : [];
+          let bracketDone = 0;
+          for (const [k] of QP_BR) bracketDone += (ko[k] || []).filter(p => p && p.winnerId).length;
+          const picksLeft = Math.max(0, QP_TOTAL - (groupsDone + Math.min(thirds.filter(Boolean).length, 8) + bracketDone));
+          qpUserIds.add(uId);
+          qpRows.push({
+            docId: id, userId: uId, leagueId: lId,
+            leagueName: qpLeagueName[lId] || lId,
+            picksLeft,
+            updatedAtMs: qpTsMs(data.updatedAt),
+            submittedAtMs: qpTsMs(data.submittedAt),
+          });
+        });
+        // Resolve display names in batches of 30 (Firestore 'in' cap).
+        const qpNameById = {};
+        const qpIdArr = Array.from(qpUserIds);
+        for (let i = 0; i < qpIdArr.length; i += 30) {
+          const batch = qpIdArr.slice(i, i + 30);
+          const us = await db.collection('users').where('id', 'in', batch).get();
+          us.docs.forEach(d => { const u = d.data(); qpNameById[d.id] = u.displayName || u.email?.split('@')[0] || d.id.slice(0, 8); });
+        }
+        qpRows.forEach(r => { r.displayName = qpNameById[r.userId] || r.userId.slice(0, 8); });
+        qpRows.sort((a, b) => (b.updatedAtMs || 0) - (a.updatedAtMs || 0));
+        const qpByLeague = {};
+        qpRows.forEach(r => {
+          (qpByLeague[r.leagueId] || (qpByLeague[r.leagueId] = { leagueId: r.leagueId, leagueName: r.leagueName, count: 0 })).count++;
+        });
+        return res.status(200).json({
+          generatedAt: Date.now(),
+          total: qpRows.length,
+          byLeague: Object.values(qpByLeague).sort((a, b) => b.count - a.count),
+          rows: qpRows,
+        });
       }
       return res.status(400).json({ error: 'Invalid type' });
     } catch (e) {
@@ -882,7 +949,9 @@ export default async function handler(req, res) {
         groupPredictions: sourceDoc.groupPredictions || {},
         bestThirdPicks: sourceDoc.bestThirdPicks || [],
         knockoutPredictions: sourceDoc.knockoutPredictions || {},
-        isComplete: !!sourceDoc.isComplete,
+        // Derive from the bracket (Final winner) not the stored flag, which
+        // can be a stale false on a finished bracket. Mirrors the leaderboard.
+        isComplete: !!(sourceDoc.isComplete || sourceDoc.knockoutPredictions?.final?.[0]?.winnerId),
         updatedAt: FieldValue.serverTimestamp(),
       };
       if (!targetDoc?.submittedAt) writePayload.submittedAt = FieldValue.serverTimestamp();
@@ -898,6 +967,65 @@ export default async function handler(req, res) {
       }).catch(() => {});
 
       return res.status(200).json({ applied: true });
+    }
+
+    if (action === 'repairQpComplete') {
+      // Repair Quick Picks docs stuck in the "finished bracket but stored
+      // isComplete:false" state (see GET type=qpUnsubmitted). Sets
+      // isComplete:true (and submittedAt if missing) ONLY on docs that are
+      // genuinely complete by the canonical rule (a Final winner is picked),
+      // so it can never mark an in-progress bracket complete. Idempotent.
+      // Superadmin only; audit-logged. The server-authoritative isComplete
+      // in api/simple-predictions.js prevents NEW occurrences — this clears
+      // the existing backlog.
+      if ((await getRole(userId)) !== 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin only' });
+      }
+      const { docId, all } = req.body || {};
+      const needsRepair = (data) => !!(data?.knockoutPredictions?.final?.[0]?.winnerId) && data?.isComplete !== true;
+
+      const targets = []; // { ref, needSubmitted }
+      if (all === true) {
+        const snap = await db.collection('simplePredictions').get();
+        snap.docs.forEach(d => {
+          const data = d.data();
+          if (needsRepair(data)) targets.push({ ref: d.ref, needSubmitted: !data.submittedAt });
+        });
+      } else if (docId) {
+        const ref = db.collection('simplePredictions').doc(docId);
+        const d = await ref.get();
+        if (!d.exists) return res.status(404).json({ error: 'Doc not found' });
+        const data = d.data();
+        if (!needsRepair(data)) {
+          return res.status(200).json({ repaired: 0, skipped: true, reason: 'not_in_bad_state' });
+        }
+        targets.push({ ref, needSubmitted: !data.submittedAt });
+      } else {
+        return res.status(400).json({ error: 'docId or all required' });
+      }
+
+      let repaired = 0;
+      for (let i = 0; i < targets.length; i += 400) {
+        const slice = targets.slice(i, i + 400);
+        const batch = db.batch();
+        slice.forEach(({ ref, needSubmitted }) => {
+          const upd = { isComplete: true, updatedAt: FieldValue.serverTimestamp() };
+          if (needSubmitted) upd.submittedAt = FieldValue.serverTimestamp();
+          batch.set(ref, upd, { merge: true });
+        });
+        await batch.commit();
+        repaired += slice.length;
+      }
+
+      await db.collection('adminLogs').add({
+        action: 'repair_qp_complete',
+        adminId: userId,
+        scope: all === true ? 'all' : docId,
+        repaired,
+        timestamp: FieldValue.serverTimestamp(),
+      }).catch(() => {});
+
+      return res.status(200).json({ repaired });
     }
 
     if (action === 'backfillCountries') {
