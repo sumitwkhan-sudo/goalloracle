@@ -47,8 +47,15 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, o
   // step — e.g. after copying Global picks, jump straight to the bracket
   // so the user can confirm + submit their Final winner.
   const [initialStep, setInitialStep] = useState(1);
+  // Optional initial-data override consumed on the next remount. The copy
+  // flow passes the freshly-copied payload here so the wizard hydrates from
+  // it deterministically instead of racing the Firestore subscription for
+  // the just-written doc. Cleared (back to the live subscription `data`) on
+  // any rehydrate that doesn't supply one (e.g. reset).
+  const [rehydrateInitial, setRehydrateInitial] = useState(null);
   const triggerRehydrate = useCallback((opts = {}) => {
     if (opts.openStep) setInitialStep(opts.openStep);
+    setRehydrateInitial(opts.initialData || null);
     setRehydrateKey(k => k + 1);
   }, []);
 
@@ -66,7 +73,7 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, o
   return (
     <SimplePredictionWizard
       key={`${league?.id || 'no-league'}:${rehydrateKey}`}
-      initialData={data}
+      initialData={rehydrateInitial || data}
       initialStep={initialStep}
       userId={userId}
       league={league}
@@ -325,13 +332,26 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
       );
       if (!ok) return;
     }
-    const allComplete = step1Complete && step2Complete && ROUND_ORDER.every(r => bracketState.isRoundComplete(r));
-    if (allComplete) {
-      await saveNow({ isComplete: true });
-    }
+    // Persist the FULL bracket the user is looking at — not just the
+    // isComplete flag. The copy-from-Global path fills the wizard via
+    // hydration (frozenInitial), so the sections were never queued in this
+    // wizard instance's pending save. The old `saveNow({ isComplete: true })`
+    // therefore relied on the sections already being in the league doc, which
+    // is exactly why a copied bracket only showed on the leaderboard after a
+    // manual edit + re-save (the edit re-queued the sections). Re-sending the
+    // whole bracket here makes the FIRST "Save & submit" write everything.
+    // Unchanged sections that have already locked are a no-op server-side
+    // (lockedSectionsInUpdate only flags *changed* locked sections), so this
+    // is safe after a stage locks.
+    await saveNow({
+      groupPredictions: groups.predictions,
+      bestThirdPicks: bestThird.picks,
+      knockoutPredictions: bracketState.knockoutPredictions,
+      isComplete: true,
+    });
     if (onComplete) onComplete();
     else if (onExit) onExit();
-  }, [bracketState, step1Complete, step2Complete, saveNow, onComplete, onExit]);
+  }, [bracketState, groups.predictions, bestThird.picks, saveNow, onComplete, onExit]);
 
   const completedSteps = useMemo(() => {
     const done = [];
@@ -375,13 +395,14 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         window.alert('You haven\u2019t made any Global Simple picks yet. Start predicting here to seed your first set.');
         return;
       }
-      await copySimplePrediction(userId, GLOBAL_SIMPLE_ID, league.id);
+      const { payload } = await copySimplePrediction(userId, GLOBAL_SIMPLE_ID, league.id);
       setCopyBanner('success');
-      // Wait briefly for the Firestore subscription to deliver the freshly
-      // copied doc, then remount the wizard on Step 3 so the user can
-      // confirm + submit their Final winner without scrolling back through
-      // groups + best-thirds they already filled in the Global league.
-      setTimeout(() => onRehydrate && onRehydrate({ openStep: 3 }), 400);
+      // Remount the wizard on Step 3 hydrated DIRECTLY from the copied
+      // payload — no 400ms race against the Firestore subscription. This
+      // guarantees the wizard shows the copied bracket, so the "Save &
+      // submit" on Step 3 re-persists the full bracket (see handleFinish)
+      // and it lands on the leaderboard on the first try.
+      onRehydrate && onRehydrate({ openStep: 3, initialData: payload });
     } catch (e) {
       window.alert(e?.message || 'Copy failed');
     } finally {

@@ -117,7 +117,25 @@ function sectionEqual(a, b) {
     if (typeof v === 'object' && Object.keys(v).length === 0) return null;
     return v;
   };
-  return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+  // Compare with OBJECT keys sorted recursively (so { A, B } === { B, A })
+  // but ARRAY order preserved (ranking order is meaningful). Important now
+  // that the submit handler re-sends groupPredictions verbatim: a re-send
+  // that differs only in key order must read as "unchanged" and not trip a
+  // false locked-section 403 once a stage has locked.
+  return JSON.stringify(sortKeysDeep(norm(a))) === JSON.stringify(sortKeysDeep(norm(b)));
+}
+
+// Recursively rebuild objects with sorted keys; arrays keep their order.
+// Delegates all other serialization semantics (undefined/null handling) to
+// the JSON.stringify in sectionEqual by returning a normalized structure.
+function sortKeysDeep(v) {
+  if (Array.isArray(v)) return v.map(sortKeysDeep);
+  if (v && typeof v === 'object') {
+    const out = {};
+    for (const k of Object.keys(v).sort()) out[k] = sortKeysDeep(v[k]);
+    return out;
+  }
+  return v;
 }
 
 // Returns a map { stage: { lockedAt, lockedNow } } for the UI to render.

@@ -509,8 +509,8 @@ export async function copySimplePrediction(userId, sourceLeagueId, targetLeagueI
   if (!sourceLeagueId || !targetLeagueId) throw new Error('Missing sourceLeagueId or targetLeagueId');
   if (sourceLeagueId === targetLeagueId) throw new Error('Source and target must differ');
   const source = await getSimplePrediction(userId, sourceLeagueId);
-  if (!source) return { copied: 0 };
-  await saveSimplePrediction(userId, targetLeagueId, {
+  if (!source) return { copied: 0, payload: null };
+  const payload = {
     groupPredictions: source.groupPredictions || {},
     bestThirdPicks: source.bestThirdPicks || [],
     knockoutPredictions: source.knockoutPredictions || {},
@@ -519,8 +519,11 @@ export async function copySimplePrediction(userId, sourceLeagueId, targetLeagueI
     // finished Global bracket. The server recomputes this authoritatively too;
     // this keeps the intent explicit. Mirrors the leaderboard's rule.
     isComplete: !!(source.isComplete || source.knockoutPredictions?.final?.[0]?.winnerId),
-  });
-  return { copied: 1 };
+  };
+  await saveSimplePrediction(userId, targetLeagueId, payload);
+  // Return the copied payload so the caller can hydrate the wizard directly
+  // instead of racing the Firestore subscription for the freshly-written doc.
+  return { copied: 1, payload };
 }
 
 // Reset a user's simple prediction for a specific league. Server enforces

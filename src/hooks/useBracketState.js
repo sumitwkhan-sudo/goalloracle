@@ -168,6 +168,10 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
     isRoundComplete,
     isRoundUnlocked,
     picksByMatchId: flatPicks,
+    // Raw round-keyed picks in the stored shape ({ roundOf32: [...], ... }) —
+    // the same payload the per-pick onChange saves. Exposed so the submit
+    // handler can re-persist the full bracket, not just the isComplete flag.
+    knockoutPredictions: picks,
   };
 }
 
