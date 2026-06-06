@@ -50,7 +50,18 @@ export default async function handler(req, res) {
     const preds = {};
     predSnaps.forEach(snap => snap.docs.forEach(d => {
       const data = d.data();
-      if (data?.userId) preds[data.userId] = data;
+      // Key by the uid embedded in the doc id, NOT the stored userId field.
+      // The doc id is authoritative — this query only requested
+      // `${memberUid}__${leagueId}` ids — whereas the userId FIELD can be
+      // absent on older docs. The client wizard injects userId on read
+      // (subscribeToSimplePrediction), so the owner always sees their
+      // bracket; but this server-side read used `if (data.userId)` and
+      // SKIPPED any field-less doc, so the member rendered as "—" on the
+      // leaderboard despite a full submitted bracket. Deriving the uid from
+      // the id fixes that for everyone, retroactively, with no migration.
+      const sep = d.id.indexOf('__');
+      const uid = sep >= 0 ? d.id.slice(0, sep) : (data.userId || d.id);
+      if (uid) preds[uid] = data;
     }));
 
     // Backward compat: for the Global Simple league, any member who doesn't
