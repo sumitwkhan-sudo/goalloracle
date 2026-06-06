@@ -752,6 +752,11 @@ export async function adminRepairQpComplete({ docId = null, all = false } = {}) 
   return await apiCall('admin', 'POST', { action: 'repairQpComplete', docId, all });
 }
 
+// ── User & prediction insights (read-only aggregate analytics) ──
+export async function fetchAdminUserInsights() {
+  return await apiCall('admin?type=userInsights');
+}
+
 // ── Outreach automation rules (B2d) ──
 export async function fetchAdminAutomationRules() {
   const data = await apiCall('admin?type=automationRules');

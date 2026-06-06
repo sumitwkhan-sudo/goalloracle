@@ -520,6 +520,109 @@ export default async function handler(req, res) {
           byLeague: Object.values(qpByLeague).sort((a, b) => b.count - a.count),
           rows: qpRows,
         });
+      } else if (type === 'userInsights') {
+        // ── User & prediction insights (read-only aggregates) ───────────
+        // Demographics from the users collection + the "wisdom of the crowd"
+        // from each user's GLOBAL Quick Picks bracket (the league everyone is
+        // in). Returns raw names/codes + counts; the client maps flags/names.
+        // Full-collection scan — same pattern as the segments scan.
+        const [insUsersSnap, insPredsSnap] = await Promise.all([
+          db.collection('users').get(),
+          db.collection('simplePredictions').get(),
+        ]);
+        const insTsMs = (t) => (t?._seconds ? t._seconds * 1000 : (typeof t?.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null)));
+        const NOW = Date.now();
+        const DAY = 86400000;
+
+        // Demographics.
+        const totalUsers = insUsersSnap.size;
+        const countryCounts = {};
+        let withWallet = 0;
+        let newLast7 = 0;
+        let newLast30 = 0;
+        insUsersSnap.docs.forEach(d => {
+          const u = d.data();
+          const code = u.country || u.geoCountry;
+          if (code) countryCounts[code] = (countryCounts[code] || 0) + 1;
+          if (u.walletAddress) withWallet += 1;
+          const created = insTsMs(u.createdAt) || insTsMs(u.joinedAt);
+          if (created && created >= NOW - 7 * DAY) newLast7 += 1;
+          if (created && created >= NOW - 30 * DAY) newLast30 += 1;
+        });
+
+        // Predictions: pick each user's global-simple bracket (prefer the
+        // composite doc over the legacy single-doc) and tally the crowd.
+        const globalByUser = {};
+        const startedUserIds = new Set();
+        const insHasPicks = (data) => {
+          const g = data.groupPredictions || {};
+          if (Object.values(g).some(v => Array.isArray(v?.ranking) && v.ranking.filter(Boolean).length > 0)) return true;
+          if (Array.isArray(data.bestThirdPicks) && data.bestThirdPicks.length > 0) return true;
+          const ko = data.knockoutPredictions || {};
+          return Object.values(ko).some(a => Array.isArray(a) && a.length > 0);
+        };
+        insPredsSnap.docs.forEach(d => {
+          const id = d.id;
+          const data = d.data();
+          let uId, lId;
+          const sep = id.indexOf('__');
+          if (sep >= 0) { uId = id.slice(0, sep); lId = id.slice(sep + 2); }
+          else { uId = id; lId = 'global-simple'; }
+          uId = data.userId || uId;
+          lId = data.leagueId || lId;
+          if (insHasPicks(data)) startedUserIds.add(uId);
+          if (lId === 'global-simple') {
+            // Composite doc (has '__') wins over the legacy single-id doc.
+            if (!globalByUser[uId] || sep >= 0) globalByUser[uId] = data;
+          }
+        });
+
+        const championCounts = {};
+        const runnerUpCounts = {};
+        const bestThirdCounts = {};
+        let championPicks = 0;
+        let runnerUpPicks = 0;
+        let bestThirdPicks = 0;
+        let completedGlobal = 0;
+        Object.values(globalByUser).forEach(doc => {
+          const ko = doc.knockoutPredictions || {};
+          const groups = doc.groupPredictions || {};
+          const finalPick = ko.final?.[0];
+          const champ = finalPick?.winnerId;
+          const runner = finalPick?.loserId;
+          if (champ) { championCounts[champ] = (championCounts[champ] || 0) + 1; championPicks += 1; completedGlobal += 1; }
+          if (runner) { runnerUpCounts[runner] = (runnerUpCounts[runner] || 0) + 1; runnerUpPicks += 1; }
+          const thirds = Array.isArray(doc.bestThirdPicks) ? doc.bestThirdPicks : [];
+          thirds.forEach(letter => {
+            const team = groups[letter]?.ranking?.[2]; // 3rd in the user's ranking
+            if (team) { bestThirdCounts[team] = (bestThirdCounts[team] || 0) + 1; bestThirdPicks += 1; }
+          });
+        });
+
+        const topN = (obj, n) => Object.entries(obj)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, n)
+          .map(([name, count]) => ({ name, count }));
+
+        return res.status(200).json({
+          generatedAt: NOW,
+          totals: {
+            totalUsers,
+            started: startedUserIds.size,
+            completedGlobal,
+            withWallet,
+            newLast7,
+            newLast30,
+            countries: Object.keys(countryCounts).length,
+          },
+          champions: { total: championPicks, top: topN(championCounts, 12) },
+          runnersUp: { total: runnerUpPicks, top: topN(runnerUpCounts, 10) },
+          bestThirds: { total: bestThirdPicks, top: topN(bestThirdCounts, 10) },
+          countries: {
+            total: Object.values(countryCounts).reduce((s, n) => s + n, 0),
+            top: Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([code, count]) => ({ code, count })),
+          },
+        });
       }
       return res.status(400).json({ error: 'Invalid type' });
     } catch (e) {

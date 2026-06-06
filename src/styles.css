@@ -10831,3 +10831,21 @@ ol.legal-list li { margin-bottom: 0.35rem; }
   word-break: break-all;
 }
 .creator-invite-link-copy { align-self: flex-start; }
+
+/* ── Admin → Insights tab (user & prediction analytics) ── */
+.ins-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin: 10px 0 18px; }
+.ins-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.ins-card-val { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+.ins-card-label { font-size: 0.7rem; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 3px; }
+.ins-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 860px) { .ins-grid { grid-template-columns: 1fr; } }
+.ins-block { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.ins-block-title { font-weight: 700; font-size: 0.92rem; margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px; }
+.ins-block-sub { font-size: 0.72rem; color: var(--text-sec); font-weight: 500; }
+.ins-bars { display: flex; flex-direction: column; gap: 7px; }
+.ins-bar-row { display: grid; grid-template-columns: 20px minmax(0, 1.1fr) 1.6fr auto; align-items: center; gap: 8px; font-size: 0.82rem; }
+.ins-bar-flag { font-size: 1.05rem; line-height: 1; text-align: center; }
+.ins-bar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.ins-bar-track { height: 8px; background: rgba(125, 125, 160, 0.16); border-radius: 999px; overflow: hidden; }
+.ins-bar-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary, #7c5cff), var(--cyan, #14b8e6)); }
+.ins-bar-val { font-size: 0.74rem; color: var(--text-sec); font-variant-numeric: tabular-nums; white-space: nowrap; }
