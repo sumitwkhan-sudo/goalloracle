@@ -120,7 +120,10 @@ export async function copyUserPicksToGlobalLeague(userId, sourceLeagueId, opts =
       groupPredictions: sourceDoc.groupPredictions || {},
       bestThirdPicks: sourceDoc.bestThirdPicks || [],
       knockoutPredictions: sourceDoc.knockoutPredictions || {},
-      isComplete: !!sourceDoc.isComplete,
+      // Derive from the bracket (Final winner) not the source's stored flag,
+      // which can be a stale false on a finished bracket. Mirrors the
+      // leaderboard's completion rule.
+      isComplete: !!(sourceDoc.isComplete || sourceDoc.knockoutPredictions?.final?.[0]?.winnerId),
       updatedAt: FieldValue.serverTimestamp(),
     };
     // submittedAt is the leaderboard tiebreaker — set once, never reset.

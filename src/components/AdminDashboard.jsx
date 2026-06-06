@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 
 // Outreach automation segments (mirror of api/_lib/outreachSegments.js
 // SEGMENTS — kept here as display labels for the rule editor).
@@ -110,6 +110,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [ruleBusy, setRuleBusy] = useState(false);
   // Copy-to-Global audit log (superadmin tab). null = not yet fetched.
   const [globalLog, setGlobalLog] = useState(null);
+  // Bracket-health tab (superadmin): finished brackets stuck "not submitted".
+  const [bracketHealth, setBracketHealth] = useState(null); // null = not fetched
+  const [bracketHealthBusy, setBracketHealthBusy] = useState(false);
+  const [repairingDoc, setRepairingDoc] = useState(null); // docId currently repairing, or 'all'
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -443,6 +447,40 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     reloadGlobalSubmitLog();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [tab]);
+
+  // Bracket health — finished brackets stuck "not submitted" (superadmin).
+  const reloadBracketHealth = async () => {
+    setBracketHealthBusy(true);
+    try {
+      const data = await fetchAdminQpUnsubmitted();
+      setBracketHealth(data || { total: 0, rows: [], byLeague: [] });
+    } catch (e) {
+      console.warn('[admin] qpUnsubmitted fetch failed:', e?.message || e);
+      setBracketHealth({ total: 0, rows: [], byLeague: [], error: e?.message || 'Failed to load' });
+    } finally {
+      setBracketHealthBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (tab !== 'bracketHealth') return;
+    reloadBracketHealth();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tab]);
+
+  const handleRepairBracket = async ({ docId = null, all = false } = {}) => {
+    const label = all ? 'all flagged brackets' : 'this bracket';
+    if (!window.confirm(`Mark ${label} as submitted (isComplete: true)? This only affects brackets that already have a Final winner picked.`)) return;
+    setRepairingDoc(all ? 'all' : docId);
+    try {
+      const r = await adminRepairQpComplete({ docId, all });
+      notify(`Repaired ${r?.repaired ?? 0} bracket${(r?.repaired ?? 0) === 1 ? '' : 's'}.`);
+      await reloadBracketHealth();
+    } catch (e) {
+      notify(`Repair failed: ${e?.message || 'try again'}`, 'error');
+    } finally {
+      setRepairingDoc(null);
+    }
+  };
 
   const handleSendPreview = async () => {
     const to = (outreachPreviewEmail || '').trim();
@@ -1200,6 +1238,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     { id: 'oracle', icon: '🔮', label: 'Oracle Status' },
     { id: 'contract', icon: '📜', label: 'Smart Contract' },
     ...(isSuperadmin ? [{ id: 'globalLog', icon: '🔁', label: 'Global Submits' }] : []),
+    ...(isSuperadmin ? [{ id: 'bracketHealth', icon: '🩺', label: 'Bracket Health' }] : []),
     { id: 'settings', icon: '⚙️', label: 'Settings' },
   ];
 
@@ -2896,6 +2935,83 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
         </div>
         );
       })()}
+
+      {/* ═══════ TAB: BRACKET HEALTH (superadmin) ═══════ */}
+      {tab === 'bracketHealth' && (
+        <div className="admin-panel">
+          <div className="admin-outreach-runs">
+            <div className="admin-outreach-runs-head">
+              <h3>Bracket health — finished but not submitted</h3>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={reloadBracketHealth} disabled={bracketHealthBusy}>
+                <RefreshCw size={11} className={bracketHealthBusy ? 'spin' : ''} /> Refresh
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Quick Picks docs whose bracket is complete (a Final winner is picked) but whose stored <code>isComplete</code> flag is not <code>true</code> — i.e. a finished bracket that still shows as “not submitted”. The save path is now server-authoritative so this list should stay empty going forward; use <strong>Mark submitted</strong> to repair any legacy rows.
+            </p>
+
+            {bracketHealth === null && <div className="admin-empty">Loading…</div>}
+            {bracketHealth?.error && <div className="admin-empty" style={{ color: '#ef4444' }}>Error: {bracketHealth.error}</div>}
+            {bracketHealth && !bracketHealth.error && bracketHealth.total === 0 && (
+              <div className="admin-empty">✓ All clear — no finished brackets are stuck unsubmitted.</div>
+            )}
+            {bracketHealth && bracketHealth.total > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', margin: '0 0 12px' }}>
+                  <strong>{bracketHealth.total}</strong> affected bracket{bracketHealth.total === 1 ? '' : 's'}
+                  {Array.isArray(bracketHealth.byLeague) && bracketHealth.byLeague.length > 0 && (
+                    <span style={{ color: 'var(--text-sec)', fontSize: '0.85rem' }}>
+                      ({bracketHealth.byLeague.map(l => `${l.leagueName}: ${l.count}`).join(' · ')})
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-xs"
+                    onClick={() => handleRepairBracket({ all: true })}
+                    disabled={!!repairingDoc}
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    {repairingDoc === 'all' ? <><RefreshCw size={11} className="spin" /> Repairing…</> : <>Mark all {bracketHealth.total} submitted</>}
+                  </button>
+                </div>
+                <table className="admin-outreach-runs-table">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>League</th>
+                      <th>Picks left</th>
+                      <th>Last updated</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bracketHealth.rows.map((r) => (
+                      <tr key={r.docId}>
+                        <td title={r.userId}>{r.displayName || r.userId}</td>
+                        <td title={r.leagueId}>{r.leagueName || r.leagueId}</td>
+                        <td>{r.picksLeft}</td>
+                        <td title={r.updatedAtMs ? new Date(r.updatedAtMs).toString() : ''}>
+                          {r.updatedAtMs ? new Date(r.updatedAtMs).toLocaleString() : '—'}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-xs"
+                            onClick={() => handleRepairBracket({ docId: r.docId })}
+                            disabled={!!repairingDoc}
+                          >
+                            {repairingDoc === r.docId ? <RefreshCw size={11} className="spin" /> : 'Mark submitted'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══════ TAB: SETTINGS ═══════ */}
       {tab === 'settings' && (

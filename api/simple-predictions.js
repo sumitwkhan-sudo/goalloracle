@@ -15,6 +15,7 @@
 
 import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { lockedSectionsInUpdate } from '../src/utils/stageLock.js';
+import { computeIsComplete, wasComplete } from './_lib/quickPicksComplete.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const SEPARATOR = '__';
@@ -72,7 +73,15 @@ export default async function handler(req, res) {
     if ('groupPredictions' in partial) writePayload.groupPredictions = partial.groupPredictions;
     if ('bestThirdPicks' in partial) writePayload.bestThirdPicks = partial.bestThirdPicks;
     if ('knockoutPredictions' in partial) writePayload.knockoutPredictions = partial.knockoutPredictions;
-    if ('isComplete' in partial) writePayload.isComplete = !!partial.isComplete;
+
+    // isComplete is SERVER-AUTHORITATIVE — computed from the merged bracket
+    // via the shared canonical rule (see ./_lib/quickPicksComplete.js), not
+    // trusted from the client. This means a finished bracket can never be
+    // stored as isComplete:false — the bug where copying a Global bracket
+    // (whose stored flag was stale-false) into a league left the user marked
+    // "not submitted" until they re-edited.
+    const computedComplete = computeIsComplete(partial, mergedOld);
+    writePayload.isComplete = computedComplete;
 
     // submittedAt is the leaderboard tiebreaker — set once on first save,
     // never overwritten. Same invariant the client-side rule used to enforce.
@@ -83,13 +92,15 @@ export default async function handler(req, res) {
     await ref.set(writePayload, { merge: true });
 
     // Auto-submit to the Global League the moment a user COMPLETES a
-    // bracket in a non-global league. Uses the shared copy util in
-    // 'skip' mode so an existing global entry is never clobbered;
-    // format + stage-lock eligibility live in the util, which also
-    // writes the globalSubmitLog audit row (actor 'system:auto-submit').
-    // Awaited-with-catch: a copy failure must NEVER fail the user's
-    // own submission, so we swallow errors and just log them.
-    const justCompleted = partial.isComplete === true && mergedOld?.isComplete !== true;
+    // bracket in a non-global league. Fires on the false→true completion
+    // transition (computed, so it also fires for brackets that became
+    // complete without an explicit isComplete flag). Uses the shared copy
+    // util in 'skip' mode so an existing global entry is never clobbered;
+    // format + stage-lock eligibility live in the util, which also writes
+    // the globalSubmitLog audit row (actor 'system:auto-submit').
+    // Awaited-with-catch: a copy failure must NEVER fail the user's own
+    // submission, so we swallow errors and just log them.
+    const justCompleted = computedComplete && !wasComplete(mergedOld);
     if (justCompleted && leagueId !== 'global-simple' && leagueId !== 'global') {
       try {
         const { copyUserPicksToGlobalLeague } = await import('./_lib/copyToGlobal.js');

@@ -514,7 +514,11 @@ export async function copySimplePrediction(userId, sourceLeagueId, targetLeagueI
     groupPredictions: source.groupPredictions || {},
     bestThirdPicks: source.bestThirdPicks || [],
     knockoutPredictions: source.knockoutPredictions || {},
-    isComplete: !!source.isComplete,
+    // Derive completion from the bracket itself (Final winner present) rather
+    // than copying the source's stored flag, which can be a stale false on a
+    // finished Global bracket. The server recomputes this authoritatively too;
+    // this keeps the intent explicit. Mirrors the leaderboard's rule.
+    isComplete: !!(source.isComplete || source.knockoutPredictions?.final?.[0]?.winnerId),
   });
   return { copied: 1 };
 }
@@ -736,6 +740,16 @@ export async function adminAddUserToLeague(leagueId, targetUserId) {
 // overwrites). Returns { applied } or { skipped, reason }.
 export async function adminApplyGlobalPicksToLeague(targetUserId, leagueId) {
   return await apiCall('admin', 'POST', { action: 'applyGlobalPicksToLeague', targetUserId, leagueId });
+}
+
+// ── Bracket health: finished brackets stuck "not submitted" ──
+// Lists docs with a Final winner picked but stored isComplete !== true.
+export async function fetchAdminQpUnsubmitted() {
+  return await apiCall('admin?type=qpUnsubmitted');
+}
+// Repair one doc (pass docId) or the whole backlog (pass { all: true }).
+export async function adminRepairQpComplete({ docId = null, all = false } = {}) {
+  return await apiCall('admin', 'POST', { action: 'repairQpComplete', docId, all });
 }
 
 // ── Outreach automation rules (B2d) ──
