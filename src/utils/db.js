@@ -535,7 +535,15 @@ export async function resetSimplePrediction(userId, leagueId) {
 }
 
 export async function getSimpleLeaderboard(leagueId) {
-  const data = await apiCall(`simple-leaderboard?leagueId=${leagueId}`);
+  // Logged-in viewers must see their own just-submitted picks immediately.
+  // The board is edge-cached (s-maxage 60 + SWR 300) for the anonymous hero
+  // ticker — the hot path — but that public cache was being served to authed
+  // viewers too, so a user who just copied/submitted could see a stale "—"
+  // for minutes while a different viewer (fresh edge) saw their picks. Bust
+  // the CDN cache for authed callers with a unique param so the URL never
+  // matches a cached entry; anonymous calls keep the cache.
+  const bust = _authToken ? `&_ts=${Date.now()}` : '';
+  const data = await apiCall(`simple-leaderboard?leagueId=${encodeURIComponent(leagueId)}${bust}`);
   return data;
 }
 

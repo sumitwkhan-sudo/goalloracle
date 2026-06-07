@@ -185,13 +185,19 @@ export default async function handler(req, res) {
       return a.displayName.localeCompare(b.displayName);
     });
 
-    // Edge-cache the board: it's identical for every caller (no per-user
-    // fields) and tolerates brief staleness. Logged-in callers send an
-    // Authorization header and bypass the shared CDN cache, so a user who
-    // just submitted still gets a fresh board; the anonymous marketing-hero
-    // ticker — the hot path — gets served from the edge. Mirrors the sibling
-    // simple-consensus endpoint's caching.
-    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    // Edge-cache the board ONLY for anonymous callers (the marketing hero
+    // ticker — the hot path). Authenticated viewers must never be served a
+    // stale board: they need to see their own just-submitted picks. Sending
+    // the public cache header to everyone meant a user who just submitted got
+    // a stale "—" from the edge for up to s-maxage + SWR (this is why a user
+    // saw no picks while an admin viewing the same league saw them). The
+    // client also cache-busts authed leaderboard fetches, so this header is
+    // defense-in-depth against storing the per-request URLs.
+    if (req.headers.authorization) {
+      res.setHeader('Cache-Control', 'private, no-store');
+    } else {
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    }
     return res.status(200).json({ leaderboard });
   } catch (e) {
     console.error('[simple-leaderboard] Error:', e.message);
