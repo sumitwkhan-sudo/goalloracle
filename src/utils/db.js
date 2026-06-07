@@ -768,6 +768,12 @@ export async function fetchAdminUserInsights() {
   return await apiCall('admin?type=userInsights');
 }
 
+// One-time sweep: copy members' Global brackets into their leagues (where
+// they have a Global bracket and no league picks yet). dryRun previews.
+export async function adminSweepGlobalPicksToLeagues({ dryRun = true, leagueId = null } = {}) {
+  return await apiCall('admin', 'POST', { action: 'sweepGlobalPicksToLeagues', dryRun, leagueId });
+}
+
 // ── Outreach automation rules (B2d) ──
 export async function fetchAdminAutomationRules() {
   const data = await apiCall('admin?type=automationRules');

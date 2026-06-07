@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -119,6 +119,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // User & prediction insights tab. null = not fetched.
   const [insights, setInsights] = useState(null);
   const [insightsBusy, setInsightsBusy] = useState(false);
+  // Sweep: copy members' Global brackets into their leagues.
+  const [sweepBusy, setSweepBusy] = useState(false);
+  const [sweepResult, setSweepResult] = useState(null);
   const [selMatch, setSelMatch] = useState(null);
   const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
   const [saving, setSaving] = useState(false);
@@ -502,6 +505,20 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       notify(`Repair failed: ${e?.message || 'try again'}`, 'error');
     } finally {
       setRepairingDoc(null);
+    }
+  };
+
+  const runSweep = async (dryRun) => {
+    if (!dryRun && !window.confirm('Copy every member’s Global bracket into the leagues they’re in (only where they have a Global bracket and no league picks yet)? This writes prediction docs.')) return;
+    setSweepBusy(true);
+    try {
+      const r = await adminSweepGlobalPicksToLeagues({ dryRun });
+      setSweepResult(r);
+      if (!dryRun) notify(`Copied ${r?.copiedCount ?? 0} member bracket(s) into their leagues.`);
+    } catch (e) {
+      notify(`Sweep failed: ${e?.message || 'try again'}`, 'error');
+    } finally {
+      setSweepBusy(false);
     }
   };
 
@@ -3030,6 +3047,32 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       {/* ═══════ TAB: BRACKET HEALTH (superadmin) ═══════ */}
       {tab === 'bracketHealth' && (
         <div className="admin-panel">
+          <div className="admin-outreach-runs" style={{ marginBottom: '1.5rem' }}>
+            <div className="admin-outreach-runs-head">
+              <h3>Populate leagues from members’ Global picks</h3>
+              <span style={{ display: 'inline-flex', gap: 8 }}>
+                <button type="button" className="btn btn-ghost btn-xs" onClick={() => runSweep(true)} disabled={sweepBusy}>
+                  {sweepBusy ? <RefreshCw size={11} className="spin" /> : null} Preview (dry run)
+                </button>
+                <button type="button" className="btn btn-primary btn-xs" onClick={() => runSweep(false)} disabled={sweepBusy || !sweepResult}>
+                  Apply
+                </button>
+              </span>
+            </div>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              One-time sweep: copies each member’s Global bracket into every Quick Picks league they’re in — only where they have a Global bracket AND no picks in that league yet. Fixes members who joined a private league but never copied their picks in (they show “—”). Idempotent; run <strong>Preview</strong> first, then <strong>Apply</strong>.
+            </p>
+            {sweepResult && (
+              <div className="form-hint" style={{ marginTop: 8 }}>
+                {sweepResult.dryRun ? '🔍 Dry run — nothing written yet. ' : '✓ Applied. '}
+                <strong>{sweepResult.copiedCount}</strong> bracket(s) {sweepResult.dryRun ? 'would be' : 'were'} copied across {sweepResult.leaguesProcessed} league(s).
+                {' '}Skipped: {sweepResult.skipped?.hasPicks || 0} already have league picks, {sweepResult.skipped?.noGlobalPicks || 0} have no Global bracket
+                {sweepResult.skipped?.stageLocked ? `, ${sweepResult.skipped.stageLocked} stage-locked` : ''}
+                {sweepResult.skipped?.errors ? `, ${sweepResult.skipped.errors} errors` : ''}.
+              </div>
+            )}
+          </div>
+
           <div className="admin-outreach-runs">
             <div className="admin-outreach-runs-head">
               <h3>Bracket health — finished but not submitted</h3>
