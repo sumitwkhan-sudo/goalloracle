@@ -18,6 +18,23 @@
 import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { migrationDecision, anonDocId } from './_lib/anonMigration.js';
+import { dayId } from './_lib/funnelHealth.js';
+
+// Increment today's funnel-health counter for this migration outcome so the
+// admin "Funnel Health" control can monitor the conversion path without
+// trawling Vercel logs. Best-effort — never blocks/fails the migration.
+async function recordMigration(outcome) {
+  try {
+    const id = dayId();
+    await db.collection('funnelHealth').doc(id).set({
+      date: id,
+      migration: { [outcome]: FieldValue.increment(1) },
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch (e) {
+    console.warn('[migrate-anon-picks] health write failed:', e?.message);
+  }
+}
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -54,6 +71,7 @@ export default async function handler(req, res) {
     const tgt = tgtSnap.exists ? tgtSnap.data() : null;
     const decision = migrationDecision({ anonUid, newUid, srcData: src, tgtData: tgt });
     if (!decision.migrate) {
+      await recordMigration(decision.reason);
       return res.status(200).json({ migrated: false, reason: decision.reason });
     }
 
@@ -77,9 +95,11 @@ export default async function handler(req, res) {
     // Clean up the orphaned anonymous doc so it never lingers.
     await srcRef.delete().catch(() => {});
 
+    await recordMigration('migrated');
     return res.status(200).json({ migrated: true });
   } catch (e) {
     console.error('[migrate-anon-picks] error:', e?.message);
+    await recordMigration('error');
     return res.status(500).json({ error: e.message });
   }
 }

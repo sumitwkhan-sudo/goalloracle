@@ -685,6 +685,19 @@ export async function fetchAdminGlobalSubmitLog(limit = 50) {
   return { rows: data?.rows || [] };
 }
 
+// No-login funnel monitoring (item C). Daily anon-picks migration outcomes +
+// custom-token sign-in error counts, newest day first, plus a derived
+// { status: 'ok'|'watch', reasons[] } banner. See api/admin.js type=funnelHealth.
+export async function fetchAdminFunnelHealth(days = 7) {
+  const data = await apiCall(`admin?type=funnelHealth&days=${days}`);
+  return {
+    days: data?.days || [],
+    totals: data?.totals || null,
+    status: data?.status || 'ok',
+    reasons: data?.reasons || [],
+  };
+}
+
 // Per-user Quick Picks prediction-status map { userId -> {globalComplete,
 // completeAny, startedAny, privateCompleteCount, ...} } for the admin Users
 // table. See api/admin.js type=usersQpStatus.

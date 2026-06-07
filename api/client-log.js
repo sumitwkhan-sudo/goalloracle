@@ -1,10 +1,14 @@
-import { applyCors } from './_lib/firebase.js';
+import { db, applyCors } from './_lib/firebase.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import { dayId, normalizeAuthCode, normalizeStep } from './_lib/funnelHealth.js';
 
 // Server-side capture of critical client-side events that we otherwise
 // can't see (mobile users with no DevTools, silent Firebase Auth
 // failures, etc). Posts go to Vercel runtime logs where the operator
-// can review them. Intentionally minimal — no DB writes, no auth, just
-// a console.log so the event lands in Vercel's runtime logs.
+// can review them. Mostly a console.log so the event lands in Vercel's
+// runtime logs; a few critical tags ALSO bump a daily funnel-health
+// counter (see HEALTH_COUNTED_TAGS) so the admin "Funnel Health" control
+// can monitor them without trawling logs.
 //
 // Hardened against abuse:
 //   - Method gate (POST only)
@@ -26,7 +30,18 @@ const ALLOWED_TAGS = new Set([
   'auth.popup.opened',
   'auth.popup.resolved',
   'auth.popup.error',
+  // Custom-token sign-in path (email-OTP + Google/GIS). These were shipped
+  // by auth.js (signInWithCustomTokenRetry, exchangeGoogleCredential) but
+  // were missing from this whitelist, so the breadcrumbs were silently
+  // dropped with a 400. Now allowed AND counted for funnel-health.
+  'auth.customtoken.error',
+  'auth.gis.exchange-start',
+  'auth.gis.exchange-complete',
 ]);
+
+// Tags that also bump the daily /funnelHealth counter. An unauthenticated
+// abuser can only inflate a counter on one doc/day, not create storage.
+const HEALTH_COUNTED_TAGS = new Set(['auth.customtoken.error']);
 
 const MAX_PAYLOAD_BYTES = 4 * 1024;
 const MAX_FIELD_LEN = 800;
@@ -70,6 +85,27 @@ export default async function handler(req, res) {
 
   // One-line summary so it's easy to scan in Vercel's log table.
   console.log(`[client-log] ${tag} ua=${truncate(ua)} ref=${truncate(ref)} ip=${truncate(ip)} data=${truncate(data)}`);
+
+  // Persist a daily counter for the few tags the Funnel Health control
+  // monitors. Best-effort — a health-write failure never fails the log post.
+  if (HEALTH_COUNTED_TAGS.has(tag)) {
+    try {
+      const id = dayId();
+      const code = normalizeAuthCode(data?.code);
+      const step = normalizeStep(data?.step);
+      await db.collection('funnelHealth').doc(id).set({
+        date: id,
+        authCustomToken: {
+          total: FieldValue.increment(1),
+          byCode: { [code]: FieldValue.increment(1) },
+          byStep: { [step]: FieldValue.increment(1) },
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (e) {
+      console.warn('[client-log] health write failed:', e?.message);
+    }
+  }
 
   return res.status(200).json({ ok: true });
 }

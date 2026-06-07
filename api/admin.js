@@ -1,5 +1,6 @@
 import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { recentDayIds, blankDay, computeHealthStatus, sumOutcomes } from './_lib/funnelHealth.js';
 import { ipHash, normalizeBypassEmail, _invalidateBypassCache } from './_lib/security.js';
 import { sendOperatorAlert } from './_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
@@ -280,6 +281,35 @@ export default async function handler(req, res) {
         }));
 
         return res.status(200).json({ rows: enriched });
+      } else if (type === 'funnelHealth') {
+        // No-login funnel monitoring (roadmap item C). Reads the daily
+        // /funnelHealth counter docs (written by api/migrate-anon-picks.js
+        // + api/client-log.js) and returns the last N days newest-first plus
+        // a derived status banner. Vercel logs aren't queryable from the app,
+        // so this is the operator's window into migration + custom-token
+        // health without trawling runtime logs.
+        const days = Math.min(Math.max(1, Number(req.query.days) || 7), 30);
+        const ids = recentDayIds(days);
+        const snaps = await db.getAll(...ids.map(id => db.collection('funnelHealth').doc(id)));
+        const records = snaps.map((s, i) => {
+          const base = blankDay(ids[i]);
+          if (!s.exists) return base;
+          const d = s.data();
+          return {
+            date: ids[i],
+            migration: { ...base.migration, ...(d.migration || {}) },
+            authCustomToken: {
+              total: d.authCustomToken?.total || 0,
+              byCode: d.authCustomToken?.byCode || {},
+              byStep: d.authCustomToken?.byStep || {},
+            },
+          };
+        });
+        return res.status(200).json({
+          days: records,
+          totals: sumOutcomes(records),
+          ...computeHealthStatus(records),
+        });
       } else if (type === 'usersQpStatus') {
         // Per-user Quick Picks prediction-status rollup for the admin Users
         // table. Same simplePredictions scan as type=segments; returned as a

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -119,6 +119,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   // User & prediction insights tab. null = not fetched.
   const [insights, setInsights] = useState(null);
   const [insightsBusy, setInsightsBusy] = useState(false);
+  const [funnelHealth, setFunnelHealth] = useState(null);
+  const [funnelHealthBusy, setFunnelHealthBusy] = useState(false);
   // Sweep: copy members' Global brackets into their leagues.
   const [sweepBusy, setSweepBusy] = useState(false);
   const [sweepResult, setSweepResult] = useState(null);
@@ -490,6 +492,24 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   useEffect(() => {
     if (tab !== 'insights') return;
     reloadInsights();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tab]);
+
+  // No-login funnel health — loaded on tab open + manual refresh.
+  const reloadFunnelHealth = async () => {
+    setFunnelHealthBusy(true);
+    try {
+      setFunnelHealth(await fetchAdminFunnelHealth(7));
+    } catch (e) {
+      console.warn('[admin] funnelHealth fetch failed:', e?.message || e);
+      setFunnelHealth({ error: e?.message || 'Failed to load' });
+    } finally {
+      setFunnelHealthBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (tab !== 'funnelHealth') return;
+    reloadFunnelHealth();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [tab]);
 
@@ -1288,6 +1308,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     { id: 'contract', icon: '📜', label: 'Smart Contract' },
     ...(isSuperadmin ? [{ id: 'globalLog', icon: '🔁', label: 'Global Submits' }] : []),
     ...(isSuperadmin ? [{ id: 'bracketHealth', icon: '🩺', label: 'Bracket Health' }] : []),
+    ...(isSuperadmin ? [{ id: 'funnelHealth', icon: '🚦', label: 'Funnel Health' }] : []),
     { id: 'settings', icon: '⚙️', label: 'Settings' },
   ];
 
@@ -3159,6 +3180,127 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           </div>
         </div>
       )}
+
+      {/* ═══════ TAB: FUNNEL HEALTH (superadmin) ═══════ */}
+      {tab === 'funnelHealth' && (() => {
+        const fh = funnelHealth;
+        const days = fh?.days || [];
+        const today = days[0] || null;
+        const mig = today?.migration || {};
+        const auth = today?.authCustomToken || {};
+        const totals = fh?.totals || null;
+        const fmtDay = (iso) => {
+          if (!iso) return '—';
+          const d = new Date(iso + 'T12:00:00Z');
+          return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        };
+        const codeRows = Object.entries(auth.byCode || {}).sort((a, b) => b[1] - a[1]);
+        return (
+          <div className="admin-panel">
+            <div className="admin-outreach-runs-head">
+              <h3>Funnel health <span style={{ fontWeight: 400, opacity: 0.6 }}>· no-login conversion</span></h3>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={reloadFunnelHealth} disabled={funnelHealthBusy}>
+                <RefreshCw size={11} className={funnelHealthBusy ? 'spin' : ''} /> Refresh
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Monitors the anonymous → sign-up path: did pre-signup picks migrate to the new
+              account, and are custom-token sign-ins erroring? Daily counters (UTC), last 7 days.
+            </p>
+
+            {!fh && <div className="admin-empty">Loading funnel health…</div>}
+            {fh?.error && <div className="admin-empty" style={{ color: '#ef4444' }}>Error: {fh.error}</div>}
+
+            {fh && !fh.error && (
+              <>
+                {/* Status banner */}
+                <div className={`fh-status fh-status-${fh.status === 'watch' ? 'watch' : 'ok'}`}>
+                  <span className="fh-status-dot" aria-hidden="true" />
+                  <div>
+                    <div className="fh-status-title">
+                      {fh.status === 'watch' ? 'Worth a look' : 'All clear'}
+                    </div>
+                    {fh.status === 'watch'
+                      ? <ul className="fh-status-reasons">{(fh.reasons || []).map((r, i) => <li key={i}>{r}</li>)}</ul>
+                      : <div className="fh-status-sub">No migration errors and custom-token errors under threshold today.</div>}
+                  </div>
+                </div>
+
+                {/* Today's headline metrics */}
+                <div className="fh-section-label">Today ({fmtDay(today?.date)})</div>
+                <div className="ins-cards">
+                  <div className="ins-card"><div className="ins-card-val">{mig.migrated || 0}</div><div className="ins-card-label">Picks migrated ✓</div></div>
+                  <div className="ins-card"><div className="ins-card-val">{mig.target_has_picks || 0}</div><div className="ins-card-label">Not applied · existing acct</div></div>
+                  <div className="ins-card"><div className={`ins-card-val${(mig.error || 0) > 0 ? ' fh-bad' : ''}`}>{mig.error || 0}</div><div className="ins-card-label">Migration errors</div></div>
+                  <div className="ins-card"><div className={`ins-card-val${(auth.total || 0) >= 10 ? ' fh-bad' : ''}`}>{auth.total || 0}</div><div className="ins-card-label">Custom-token errors</div></div>
+                  <div className="ins-card"><div className="ins-card-val">{mig.no_anon_picks || 0}</div><div className="ins-card-label">Signup · no anon picks</div></div>
+                </div>
+
+                {/* Today's auth-error breakdown by Firebase code */}
+                {codeRows.length > 0 && (
+                  <>
+                    <div className="fh-section-label">Today’s sign-in errors by code</div>
+                    <div className="fh-codes">
+                      {codeRows.map(([code, n]) => (
+                        <div className="fh-code-row" key={code}>
+                          <code className="fh-code">{code}</code>
+                          <span className="fh-code-n">{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* 7-day table */}
+                <div className="fh-section-label">Last 7 days</div>
+                <div className="fh-table-wrap">
+                  <table className="admin-outreach-runs-table fh-table">
+                    <thead>
+                      <tr>
+                        <th>Day</th>
+                        <th title="Anon picks migrated to a new account">Migrated</th>
+                        <th title="Returning user signed into an account that already had a bracket — new anon picks not applied">Not applied</th>
+                        <th title="Signed up without making picks first">No picks</th>
+                        <th title="Exceptions during migration">Mig. err</th>
+                        <th title="Custom-token sign-in errors">Auth err</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {days.map((d) => (
+                        <tr key={d.date}>
+                          <td>{fmtDay(d.date)}</td>
+                          <td>{d.migration?.migrated || 0}</td>
+                          <td>{d.migration?.target_has_picks || 0}</td>
+                          <td>{d.migration?.no_anon_picks || 0}</td>
+                          <td className={(d.migration?.error || 0) > 0 ? 'fh-bad' : ''}>{d.migration?.error || 0}</td>
+                          <td className={(d.authCustomToken?.total || 0) >= 10 ? 'fh-bad' : ''}>{d.authCustomToken?.total || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {totals && (
+                      <tfoot>
+                        <tr>
+                          <td>7-day total</td>
+                          <td>{totals.migration?.migrated || 0}</td>
+                          <td>{totals.migration?.target_has_picks || 0}</td>
+                          <td>{totals.migration?.no_anon_picks || 0}</td>
+                          <td className={(totals.migration?.error || 0) > 0 ? 'fh-bad' : ''}>{totals.migration?.error || 0}</td>
+                          <td className={(totals.authCustomToken?.total || 0) > 0 ? '' : ''}>{totals.authCustomToken?.total || 0}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+                <p className="form-hint">
+                  “Not applied” is an expected edge case (a returning user signing into an account
+                  that already has a bracket) — surfaced for visibility, it doesn’t raise the status.
+                  “Migration errors” and a spike in custom-token errors do.
+                </p>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ═══════ TAB: SETTINGS ═══════ */}
       {tab === 'settings' && (
