@@ -797,7 +797,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, isAnonymous = false, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -1227,7 +1227,10 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       )}
 
       {sTab === 'predictions' && (
-        authenticated ? (
+        // No-login funnel: anonymous visitors CAN predict (their picks save
+        // under the anon UID via the same path). Only a truly logged-out
+        // session with no anon fallback sees the sign-in prompt.
+        (authenticated || isAnonymous) ? (
           <SimplePrediction
             key={`simple-${league?.id}`}
             userId={userData?.id}
@@ -2459,7 +2462,10 @@ const GoalOracle = () => {
     // "Start Predicting" buttons: route straight to Global Quick Picks flow
     const startSimplePredicting = () => {
       track('bracket_start', { league_id: 'global-simple', authenticated });
-      if (!authenticated) { login(); return; }
+      // No-login funnel: anonymous visitors go straight into the Global
+      // wizard (picks save under their anon UID). Only a true logged-out
+      // session with no anon fallback is sent to sign-in.
+      if (!authenticated && !isAnonymous) { login(); return; }
       const globalSimple = leagues.find(l => l.id === 'global-simple') || {
         id: 'global-simple', name: 'Global League', type: 'free',
         predictionMode: 'simple', isGlobal: true,
@@ -5286,6 +5292,7 @@ const GoalOracle = () => {
           league={selLeague}
           userData={uData}
           authenticated={authenticated}
+          isAnonymous={isAnonymous}
           onSignIn={login}
           onBack={() => nav(authenticated ? 'leagues' : 'landing')}
           onSetUsername={() => setShowUsernamePrompt(true)}
