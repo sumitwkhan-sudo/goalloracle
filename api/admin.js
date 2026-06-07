@@ -1156,8 +1156,13 @@ export default async function handler(req, res) {
         if (lg.predictionMode === 'classic') return; // Quick Picks only
         if (onlyLeague && id !== onlyLeague) return;
         if (!Array.isArray(lg.members) || lg.members.length === 0) return;
-        targetLeagues.push({ id, name: lg.name || id, members: lg.members.slice(0, 5000) });
+        targetLeagues.push({ id, name: lg.name || id, members: lg.members.slice(0, 5000), totalMembers: lg.members.length });
       });
+      // Surface any league whose member list was capped at 5000, so a large
+      // run can't silently skip members with no operator signal.
+      const truncatedLeagues = targetLeagues
+        .filter((l) => l.totalMembers > 5000)
+        .map((l) => ({ id: l.id, name: l.name, total: l.totalMembers, capped: 5000 }));
 
       const copied = [];
       const skip = { hasPicks: 0, noGlobalPicks: 0, stageLocked: 0, other: 0, errors: 0 };
@@ -1237,8 +1242,11 @@ export default async function handler(req, res) {
         dryRun,
         leaguesProcessed: targetLeagues.length,
         copiedCount: copied.length,
+        // copied is capped at 1000 for response size; copiedCount is the true
+        // total (copied.length may be < copiedCount on very large sweeps).
         copied: copied.slice(0, 1000),
         skipped: skip,
+        truncatedLeagues,
       });
     }
 
