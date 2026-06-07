@@ -69,7 +69,15 @@ async function verifyAuth(req) {
   const token = authHeader.slice(7);
   try {
     const decoded = await admin.auth().verifyIdToken(token);
-    return { userId: decoded.uid, sub: decoded.uid, email: decoded.email || null };
+    return {
+      userId: decoded.uid,
+      sub: decoded.uid,
+      email: decoded.email || null,
+      // sign-in provider: 'anonymous' for no-login visitors, 'custom' for the
+      // Privy/GIS swap, 'password'/'google.com', … Lets write endpoints refuse
+      // doc-less anonymous sessions (e.g. league join/create).
+      provider: decoded.firebase?.sign_in_provider || null,
+    };
   } catch (e) {
     console.error('Token verification failed:', e.message);
     return null;

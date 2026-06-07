@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Helmet } from 'react-helmet-async';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth as fbAuth } from './config/firebase';
-import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail, ensureAnonymousSession } from './utils/auth';
+import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail, ensureAnonymousSession, isRealSignInInFlight } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil, FileText, Bell } from 'lucide-react';
@@ -2002,10 +2002,10 @@ const GoalOracle = () => {
       }
       await processFirebaseUser(fbUser);
       // No-login funnel: with no session at all, establish an anonymous one
-      // so the visitor can predict immediately. Guarded (auth.currentUser +
-      // _anonInFlight inside ensureAnonymousSession) against loops; skipped
-      // mid-swap so it never races a real sign-in.
-      if (!fbUser && !isAuthSwapInFlight()) {
+      // so the visitor can predict immediately. Skipped while a real sign-in
+      // is in flight so it never races/clobbers it; ensureAnonymousSession
+      // also self-guards on auth.currentUser + its own in-flight flags.
+      if (!fbUser && !isRealSignInInFlight()) {
         ensureAnonymousSession();
       }
     });
@@ -3251,6 +3251,9 @@ const GoalOracle = () => {
     const f = publicLeagues.filter(l => l.name?.toLowerCase().includes(q.toLowerCase()));
 
     const handleJoin = async (league, passcode = null) => {
+      // Anonymous (no-login) visitors can predict but must sign up to join a
+      // league (they're doc-less). authenticated === real account.
+      if (!authenticated) { login('join-league'); return; }
       if (!uData?.id) return;
       try {
         setJoinErr('');
@@ -3288,7 +3291,9 @@ const GoalOracle = () => {
             <Key size={16} style={{color:'var(--cyan)', flexShrink:0}} />
             <input ref={passInputRef} type="text" placeholder="Enter invite passcode (e.g., GOAL2026)" value={passInput} onChange={e => setPassInput(e.target.value.toUpperCase())} className="input-field" style={{flex:1}} maxLength={8} />
             <button className="btn btn-primary btn-sm" disabled={!passInput.trim()} onClick={async () => {
-              if (!passInput.trim() || !uData?.id) return;
+              if (!passInput.trim()) return;
+              if (!authenticated) { login('join-passcode'); return; }
+              if (!uData?.id) return;
               try {
                 setJoinErr('');
                 // Server-side lookup because new private leagues keep their
@@ -3855,7 +3860,7 @@ const GoalOracle = () => {
         </div>}
 
         {tab === 'leaderboard' && <div className="leaderboard">
-          {uData && !uData.usernameSet && (
+          {authenticated && uData && !uData.usernameSet && (
             <div className="username-nudge" onClick={() => setShowUsernamePrompt(true)}>
               <AlertTriangle size={14} />
               <span>You haven't set a username yet.</span>

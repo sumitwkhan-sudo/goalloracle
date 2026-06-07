@@ -11,9 +11,15 @@ import { getVisitorId } from './fingerprint';
 // are already in the account (no copy, no migration). Doc-less: no /users
 // doc is created until the visitor converts.
 let _anonInFlight = false;
+// Set while a REAL sign-in (email/Google custom-token swap) is in progress so
+// a stray logged-out `onAuthStateChanged(null)` can't kick off an anonymous
+// sign-in that races/clobbers the real one. (The old isAuthSwapInFlight()
+// guard is hardwired to false and no longer protects this.)
+let _realSignInInFlight = false;
+export function isRealSignInInFlight() { return _realSignInInFlight; }
 export async function ensureAnonymousSession() {
   if (auth.currentUser) return auth.currentUser; // already have a session
-  if (_anonInFlight) return null;
+  if (_anonInFlight || _realSignInInFlight) return null;
   _anonInFlight = true;
   try {
     const cred = await signInAnonymously(auth);
@@ -158,12 +164,17 @@ export async function requestEmailCode(email) {
 }
 
 export async function verifyEmailCode(email, code) {
-  const deviceFingerprint = await safeFingerprint();
-  const { firebaseToken } = await postJSON('/api/auth/verify-code', { email, code, deviceFingerprint });
-  // Stash before the swap so onAuthStateChanged can backfill the user doc.
-  setPendingEmail(email);
-  await signInWithCustomTokenRetry(firebaseToken, 'email');
-  return auth.currentUser;
+  _realSignInInFlight = true;
+  try {
+    const deviceFingerprint = await safeFingerprint();
+    const { firebaseToken } = await postJSON('/api/auth/verify-code', { email, code, deviceFingerprint });
+    // Stash before the swap so onAuthStateChanged can backfill the user doc.
+    setPendingEmail(email);
+    await signInWithCustomTokenRetry(firebaseToken, 'email');
+    return auth.currentUser;
+  } finally {
+    _realSignInInFlight = false;
+  }
 }
 
 // Exchange a Google ID token (obtained from GIS) for a Firebase session.
@@ -175,19 +186,24 @@ export async function verifyEmailCode(email, code) {
 // Called by LoginScreen.jsx after the GIS button callback fires.
 export async function exchangeGoogleCredential(googleIdToken) {
   if (!googleIdToken) throw new Error('No Google credential provided');
-  console.log('[auth] exchangeGoogleCredential: posting to /api/auth/google');
-  clientLog('auth.gis.exchange-start', {});
-  const deviceFingerprint = await safeFingerprint();
-  const { firebaseToken, email: serverEmail } = await postJSON('/api/auth/google', {
-    idToken: googleIdToken,
-    deviceFingerprint,
-  });
-  console.log('[auth] exchangeGoogleCredential: server returned firebaseToken; signing in');
-  setPendingEmail(serverEmail);
-  await signInWithCustomTokenRetry(firebaseToken, 'google');
-  clientLog('auth.gis.exchange-complete', { uid: auth.currentUser?.uid || null });
-  console.log('[auth] exchangeGoogleCredential: done. uid=', auth.currentUser?.uid);
-  return auth.currentUser;
+  _realSignInInFlight = true;
+  try {
+    console.log('[auth] exchangeGoogleCredential: posting to /api/auth/google');
+    clientLog('auth.gis.exchange-start', {});
+    const deviceFingerprint = await safeFingerprint();
+    const { firebaseToken, email: serverEmail } = await postJSON('/api/auth/google', {
+      idToken: googleIdToken,
+      deviceFingerprint,
+    });
+    console.log('[auth] exchangeGoogleCredential: server returned firebaseToken; signing in');
+    setPendingEmail(serverEmail);
+    await signInWithCustomTokenRetry(firebaseToken, 'google');
+    clientLog('auth.gis.exchange-complete', { uid: auth.currentUser?.uid || null });
+    console.log('[auth] exchangeGoogleCredential: done. uid=', auth.currentUser?.uid);
+    return auth.currentUser;
+  } finally {
+    _realSignInInFlight = false;
+  }
 }
 
 // Compatibility shim — the old useEffect in goaloracle.jsx that ran

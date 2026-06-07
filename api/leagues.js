@@ -27,6 +27,9 @@ export default async function handler(req, res) {
   try {
     // ─── CREATE ───────────────────────────────────────────
     if (action === 'create') {
+      if (claims.provider === 'anonymous') {
+        return res.status(403).json({ error: 'Sign up to create a league.' });
+      }
       const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds, predictionMode, houseRules } = req.body;
       if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
       if (name.trim().length > 60) return res.status(400).json({ error: 'Name too long (max 60 chars)' });
@@ -156,6 +159,11 @@ export default async function handler(req, res) {
     } else if (action === 'join') {
       const { leagueId, passcode } = req.body;
       if (!leagueId) return res.status(400).json({ error: 'League ID required' });
+      // No-login visitors are doc-less (no /users doc) — they can predict but
+      // must convert before joining a league, or we'd leave a ghost member.
+      if (claims.provider === 'anonymous') {
+        return res.status(403).json({ error: 'Sign up to join a league.' });
+      }
 
       const leagueRef = db.collection('leagues').doc(leagueId);
       const leagueSnap = await leagueRef.get();
@@ -183,7 +191,10 @@ export default async function handler(req, res) {
       const hasHouseRules = !!(league.houseRules && league.houseRules.content);
       const memberWrites = [
         leagueRef.update({ members: FieldValue.arrayUnion(userId), memberCount: FieldValue.increment(1) }),
-        db.collection('users').doc(userId).update({ leagues: FieldValue.arrayUnion(leagueId) }),
+        // set(merge) not update(): update() throws NOT_FOUND on a missing user
+        // doc, which would half-commit the membership (ghost member). merge
+        // creates-or-updates safely.
+        db.collection('users').doc(userId).set({ leagues: FieldValue.arrayUnion(leagueId) }, { merge: true }),
       ];
       if (hasHouseRules) {
         // Per-(user,league) doc keyed by composite ID. Cheap and avoids
