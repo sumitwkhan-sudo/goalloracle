@@ -131,15 +131,19 @@ export default async function handler(req, res) {
   const incompleteByUserId = new Map();
   predsSnap.forEach((d) => {
     const data = d.data() || {};
-    if (!data.userId) return;
-    if (data.leagueId && data.leagueId !== 'global-simple') return;
+    // Derive userId + leagueId from the doc id (authoritative) so field-less
+    // docs aren't skipped. Legacy global docs are keyed by bare uid (no '__').
+    const sep = d.id.indexOf('__');
+    const userId = sep >= 0 ? d.id.slice(0, sep) : (data.userId || d.id);
+    const leagueId = sep >= 0 ? d.id.slice(sep + 2) : (data.leagueId || 'global-simple');
+    if (leagueId !== 'global-simple') return;
     if (data.isComplete === true) return;
     const groupCount = Object.keys(data.groupPredictions || {}).length;
     const thirdCount = (data.bestThirdPicks || []).length;
     const koCount = Object.values(data.knockoutPredictions || {})
       .reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.filter((p) => p?.winnerId).length : 0), 0);
     const picksMade = Math.min(52, groupCount + thirdCount + koCount);
-    incompleteByUserId.set(data.userId, picksMade);
+    incompleteByUserId.set(userId, picksMade);
   });
 
   const targets = [];

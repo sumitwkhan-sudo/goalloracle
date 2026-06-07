@@ -63,7 +63,12 @@ async function fetchPredictions(members, leagueId) {
       .get();
     snap.docs.forEach((d) => {
       const data = d.data();
-      if (data?.userId) preds[data.userId] = data;
+      // Key by the uid in the (authoritative) composite doc id, not the
+      // stored userId field — field-less docs were being skipped and the
+      // member dropped from the crowd stats. Mirrors api/simple-leaderboard.js.
+      const sep = d.id.indexOf('__');
+      const uid = sep >= 0 ? d.id.slice(0, sep) : (data.userId || d.id);
+      if (uid) preds[uid] = data;
     });
   }
   // Legacy fallback for global-simple, same as /api/simple-consensus.

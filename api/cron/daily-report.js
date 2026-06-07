@@ -152,10 +152,11 @@ async function runReport(req, res) {
         .get().catch(() => ({ docs: [] }));
       snap.docs.forEach((d) => {
         const data = d.data();
-        if (data?.userId) {
-          submitted++;
-          if (data.isComplete || data.knockoutPredictions?.final?.[0]?.winnerId) complete++;
-        }
+        // The composite-id `in` query only returns this league's member docs,
+        // so every returned doc is a real submission. Count unconditionally —
+        // gating on the stored userId field undercounted older field-less docs.
+        submitted++;
+        if (data.isComplete || data.knockoutPredictions?.final?.[0]?.winnerId) complete++;
       });
     }
     leagueStats.push({ id: ld.id, name: league.name || ld.id, members: members.length, submitted, complete });
