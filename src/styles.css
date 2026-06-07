@@ -10868,3 +10868,31 @@ ol.legal-list li { margin-bottom: 0.35rem; }
 .ins-bar-track { height: 8px; background: rgba(125, 125, 160, 0.16); border-radius: 999px; overflow: hidden; }
 .ins-bar-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary, #7c5cff), var(--cyan, #14b8e6)); }
 .ins-bar-val { font-size: 0.74rem; color: var(--text-sec); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── No-login funnel: sign-up conversion prompt (item C) ── */
+.signup-prompt {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 24px 22px;
+  max-width: 380px;
+  width: calc(100% - 32px);
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+.signup-prompt-trophy { color: var(--amber, #f5a623); display: inline-flex; margin-bottom: 6px; }
+.signup-prompt-title { font-size: 1.35rem; font-weight: 800; margin: 0 0 4px; }
+.signup-prompt-sub { color: var(--text-sec); font-size: 0.92rem; line-height: 1.45; margin: 0 0 16px; }
+.signup-prompt-prizes { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
+.signup-prompt-prize {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 12px; padding: 8px 12px; min-width: 78px;
+}
+.signup-prompt-medal { font-size: 1.25rem; line-height: 1; }
+.signup-prompt-amount { font-size: 1.05rem; font-weight: 800; }
+.signup-prompt-cur { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; color: var(--text-sec); }
+.signup-prompt-fine { font-size: 0.72rem; color: var(--text-dim); margin: 0 0 16px; }
+.signup-prompt-cta { width: 100%; justify-content: center; }
+.signup-prompt-note { font-size: 0.74rem; color: var(--text-dim); margin: 10px 0 0; }

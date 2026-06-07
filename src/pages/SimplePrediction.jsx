@@ -38,7 +38,7 @@ import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSi
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
 
-export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded = false }) {
+export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded = false, isAnonymous = false, onRequireSignup = () => {} }) {
   const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId, league?.id);
   // Bumping this key remounts the wizard so its frozen-initial hooks
   // rehydrate from the latest subscription data (used after copy / reset).
@@ -83,6 +83,8 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, o
       onCelebrate={onCelebrate}
       displayName={displayName}
       embedded={embedded}
+      isAnonymous={isAnonymous}
+      onRequireSignup={onRequireSignup}
       saving={saving}
       savedAt={savedAt}
       error={error}
@@ -118,7 +120,7 @@ function pickResumeStep(initialData, explicitStep) {
   return 3;
 }
 
-function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded, saving, savedAt, error, save, saveNow, onRehydrate }) {
+function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded, isAnonymous = false, onRequireSignup = () => {}, saving, savedAt, error, save, saveNow, onRehydrate }) {
   // Resume on the first incomplete step instead of always starting at
   // group rankings. Users with 1 pick left were being sent back to
   // Step 1 — they had to scroll past 12 already-correct group rankings
@@ -298,6 +300,12 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // it's worth 5 points and easy to miss after picking the Final.
   const handleFinish = useCallback(async () => {
     if (!bracketState.isRoundComplete('final')) return;
+    // No-login funnel completion gate: an anonymous visitor's picks are
+    // already saved under their anon UID (autosaved as they picked), so the
+    // SUBMIT action is the conversion moment. Show the prize sign-up prompt
+    // instead of submitting; after they sign up, the post-signup migration
+    // carries their bracket to the new account (already complete).
+    if (isAnonymous) { onRequireSignup('prizes'); return; }
     const thirdPlacePicked = bracketState.isRoundComplete('thirdPlace');
     if (!thirdPlacePicked) {
       const ok = window.confirm(
@@ -327,7 +335,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     const champ = bracketState.knockoutPredictions?.final?.[0];
     setCelebrationChampion({ name: champ?.winnerId || null, flag: champ?.winnerFlag || null });
     setCelebrationOpen(true);
-  }, [bracketState, groups.predictions, bestThird.picks, saveNow]);
+  }, [bracketState, groups.predictions, bestThird.picks, saveNow, isAnonymous, onRequireSignup]);
 
   const completedSteps = useMemo(() => {
     const done = [];

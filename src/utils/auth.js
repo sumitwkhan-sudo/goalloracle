@@ -17,6 +17,28 @@ let _anonInFlight = false;
 // guard is hardwired to false and no longer protects this.)
 let _realSignInInFlight = false;
 export function isRealSignInInFlight() { return _realSignInInFlight; }
+
+// Before a real sign-in swaps the session, capture the current anonymous
+// user's still-valid ID token so the post-signup flow can migrate its Global
+// bracket to the new UID (phase iv). Stashed in sessionStorage so it survives
+// the reload some sign-in paths trigger. Consumed once, after the new account
+// doc is created.
+const PENDING_ANON_TOKEN_KEY = 'goaloracle_pending_anon_token';
+async function captureAnonForMigration() {
+  const cur = auth.currentUser;
+  if (!cur?.isAnonymous) return;
+  try {
+    const token = await cur.getIdToken();
+    sessionStorage.setItem(PENDING_ANON_TOKEN_KEY, token);
+  } catch { /* no-op — migration just won't run */ }
+}
+export function consumePendingAnonToken() {
+  try {
+    const t = sessionStorage.getItem(PENDING_ANON_TOKEN_KEY);
+    if (t) sessionStorage.removeItem(PENDING_ANON_TOKEN_KEY);
+    return t || null;
+  } catch { return null; }
+}
 export async function ensureAnonymousSession() {
   if (auth.currentUser) return auth.currentUser; // already have a session
   if (_anonInFlight || _realSignInInFlight) return null;
@@ -165,6 +187,7 @@ export async function requestEmailCode(email) {
 
 export async function verifyEmailCode(email, code) {
   _realSignInInFlight = true;
+  await captureAnonForMigration();
   try {
     const deviceFingerprint = await safeFingerprint();
     const { firebaseToken } = await postJSON('/api/auth/verify-code', { email, code, deviceFingerprint });
@@ -187,6 +210,7 @@ export async function verifyEmailCode(email, code) {
 export async function exchangeGoogleCredential(googleIdToken) {
   if (!googleIdToken) throw new Error('No Google credential provided');
   _realSignInInFlight = true;
+  await captureAnonForMigration();
   try {
     console.log('[auth] exchangeGoogleCredential: posting to /api/auth/google');
     clientLog('auth.gis.exchange-start', {});

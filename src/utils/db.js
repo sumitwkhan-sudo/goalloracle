@@ -534,6 +534,13 @@ export async function resetSimplePrediction(userId, leagueId) {
   await apiCall('simple-predictions', 'DELETE', { leagueId });
 }
 
+// No-login funnel (item C, phase iv): at sign-up, migrate the anonymous UID's
+// Global bracket to the new real account UID. Caller is authed as the new
+// account; anonIdToken proves control of the anon session.
+export async function migrateAnonPicks(anonIdToken) {
+  return await apiCall('migrate-anon-picks', 'POST', { anonIdToken });
+}
+
 export async function getSimpleLeaderboard(leagueId) {
   // Logged-in viewers must see their own just-submitted picks immediately.
   // The board is edge-cached (s-maxage 60 + SWR 300) for the anonymous hero

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Helmet } from 'react-helmet-async';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth as fbAuth } from './config/firebase';
-import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail, ensureAnonymousSession, isRealSignInInFlight } from './utils/auth';
+import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail, ensureAnonymousSession, isRealSignInInFlight, consumePendingAnonToken } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil, FileText, Bell } from 'lucide-react';
@@ -18,7 +18,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, lookupLeagueByPasscode, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, fetchAdminLeaguesEnriched, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, lookupLeagueByPasscode, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, migrateAnonPicks, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, fetchAdminLeaguesEnriched, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -51,6 +51,7 @@ import BracketShareModal from './components/BracketShareModal';
 import InviteFriendsModal from './components/InviteFriendsModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
 import WelcomeFlow from './components/onboarding/WelcomeFlow';
+import SignupPromptModal from './components/SignupPromptModal';
 import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import MyPicksCard from './components/MyPicksCard';
 import HomeHeroCard from './components/HomeHeroCard';
@@ -797,7 +798,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, isAnonymous = false, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, isAnonymous = false, onRequireSignup = () => {}, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
   const [sTab, setSTab] = useState(initialTab);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
@@ -1236,6 +1237,8 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             userId={userData?.id}
             league={league}
             displayName={userData?.displayName}
+            isAnonymous={isAnonymous}
+            onRequireSignup={onRequireSignup}
             onExit={onBack}
             onComplete={handleComplete}
             onShareBracket={openShareBracket}
@@ -1310,6 +1313,8 @@ const GoalOracle = () => {
   // false for them — it means a REAL account — so existing UI keeps nudging
   // them to sign up. Predict-gates use (authenticated || isAnonymous).
   const [isAnonymous, setIsAnonymous] = useState(false);
+  // No-login funnel conversion prompt: null | 'prizes' | 'save' | 'share'.
+  const [signupPrompt, setSignupPrompt] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
   // When the Google redirect path silently fails (mobile bfcache /
   // storage partitioning eating the credential), we auto-open the
@@ -1320,6 +1325,13 @@ const GoalOracle = () => {
   const login = useCallback((trigger = 'unknown') => {
     track('signup_started', { trigger });
     setShowLogin(true);
+  }, []);
+  // No-login funnel: an anonymous visitor hit a sign-up moment (submit, save,
+  // share). Show the prize-incentive prompt; "Sign up free" opens the login
+  // flow, and the post-signup migration carries their picks to the new UID.
+  const requireSignup = useCallback((context = 'prizes') => {
+    track('signup_prompt_shown', { context });
+    setSignupPrompt(context || 'prizes');
   }, []);
   const logout = useCallback(async () => {
     try { await authSignOut(); } catch (e) { console.warn('[auth] sign-out failed:', e.message); }
@@ -1960,6 +1972,17 @@ const GoalOracle = () => {
       setShowLogin(false);
       setGoogleRecoveryNotice(null);
       if (u.usernameSet === false) setShowUsernamePrompt(true);
+
+      // No-login funnel (phase iv): if this account just converted from an
+      // anonymous session, migrate the anon UID's Global bracket to this UID
+      // so picks made before signing up are never lost. Best-effort — the
+      // quickPicks subscription re-keys on the new UID and picks it up.
+      const anonTok = consumePendingAnonToken();
+      if (anonTok) {
+        migrateAnonPicks(anonTok)
+          .then((r) => { if (r?.migrated) console.log('[auth] migrated anon picks to', u.id); })
+          .catch((e) => console.warn('[auth] anon picks migration failed:', e?.message || e));
+      }
 
       // Backfill country for existing users who signed up before we required
       // it. Product directive: known overrides go first, then IP geolocation,
@@ -5219,6 +5242,15 @@ const GoalOracle = () => {
         />
       )}
 
+      {/* No-login funnel conversion prompt (item C) — over any view. */}
+      {signupPrompt && (
+        <SignupPromptModal
+          context={signupPrompt}
+          onSignUp={() => { setSignupPrompt(null); login('anon-convert-' + signupPrompt); }}
+          onClose={() => setSignupPrompt(null)}
+        />
+      )}
+
       {view === 'fontPreview' && <FontPreview />}
       {view === 'firstPickPreview' && <FirstPickPreview />}
       {view === 'groupRedesignPreview' && <GroupRedesignPreview />}
@@ -5293,6 +5325,7 @@ const GoalOracle = () => {
           userData={uData}
           authenticated={authenticated}
           isAnonymous={isAnonymous}
+          onRequireSignup={requireSignup}
           onSignIn={login}
           onBack={() => nav(authenticated ? 'leagues' : 'landing')}
           onSetUsername={() => setShowUsernamePrompt(true)}
