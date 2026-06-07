@@ -396,19 +396,28 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         return;
       }
       const { payload } = await copySimplePrediction(userId, GLOBAL_SIMPLE_ID, league.id);
-      setCopyBanner('success');
-      // Remount the wizard on Step 3 hydrated DIRECTLY from the copied
-      // payload — no 400ms race against the Firestore subscription. This
-      // guarantees the wizard shows the copied bracket, so the "Save &
-      // submit" on Step 3 re-persists the full bracket (see handleFinish)
-      // and it lands on the leaderboard on the first try.
-      onRehydrate && onRehydrate({ openStep: 3, initialData: payload });
+      const copiedComplete = !!(payload?.knockoutPredictions?.final?.[0]?.winnerId);
+      if (copiedComplete) {
+        // The copy wrote a COMPLETE bracket and marked it submitted (isComplete
+        // is derived from the bracket server-side; the leaderboard keys by the
+        // doc id). Go straight to THIS league's leaderboard with the picks
+        // already reflected — no separate "Save & submit" step needed.
+        setCopyBanner(null);
+        if (onComplete) onComplete();
+        else if (onExit) onExit();
+      } else {
+        // Global bracket isn't finished — drop the user on Step 3, hydrated
+        // directly from the copied payload (no subscription race), so they
+        // can complete + submit it.
+        setCopyBanner('success');
+        onRehydrate && onRehydrate({ openStep: 3, initialData: payload });
+      }
     } catch (e) {
       window.alert(e?.message || 'Copy failed');
     } finally {
       setCopyBusy(false);
     }
-  }, [userId, league?.id, onRehydrate]);
+  }, [userId, league?.id, onRehydrate, onComplete, onExit]);
 
   // Live "does the user have any picks here yet?" \u2014 drives the label
   // on the Global-copy button (Replace vs Copy) and whether we need
