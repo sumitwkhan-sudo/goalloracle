@@ -305,6 +305,7 @@ export default async function handler(req, res) {
         const ensureQp = (uid) => (status[uid] || (status[uid] = {
           startedAny: false, completeAny: false, globalHasPicks: false,
           globalComplete: false, privateCompleteCount: 0, lastActivityMs: null,
+          gGroups: 0, gThirds: 0, gBracket: 0,
         }));
         qpPredsSnap.docs.forEach(doc => {
           const id = doc.id;
@@ -325,6 +326,18 @@ export default async function handler(req, res) {
           if (leagueId === 'global-simple') {
             if (picks) a.globalHasPicks = true;
             if (complete) a.globalComplete = true;
+            // Per-section progress on the Global bracket → granular status
+            // label in the admin Users table (Groups picked / Best thirds in /
+            // Filling bracket), mirroring the leaderboard. Keep the max across
+            // any legacy + composite global docs.
+            const gd = Object.values(data.groupPredictions || {}).filter(v => Array.isArray(v?.ranking) && v.ranking.length === 4 && v.ranking.every(Boolean)).length;
+            const td = Math.min(8, Array.isArray(data.bestThirdPicks) ? data.bestThirdPicks.filter(Boolean).length : 0);
+            const ko = data.knockoutPredictions || {};
+            let bd = 0;
+            for (const k of ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final']) bd += (ko[k] || []).filter(p => p && p.winnerId).length;
+            a.gGroups = Math.max(a.gGroups, gd);
+            a.gThirds = Math.max(a.gThirds, td);
+            a.gBracket = Math.max(a.gBracket, bd);
           } else if (leagueId !== 'global') {
             if (complete && qpLeagueVis[leagueId] === 'private') a.privateCompleteCount += 1;
           }

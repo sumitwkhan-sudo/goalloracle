@@ -1215,8 +1215,16 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     if (!q) return { label: 'None', tone: 'none', rank: 0 };
     if (q.globalComplete) return { label: q.privateCompleteCount > 0 ? `Global ✓ · ${q.privateCompleteCount} priv` : 'Global ✓', tone: 'ok', rank: 4 };
     if (q.completeAny) return { label: q.privateCompleteCount > 0 ? `${q.privateCompleteCount} priv ✓` : 'Complete', tone: 'ok', rank: 3 };
-    if (q.startedAny || q.globalHasPicks) return { label: 'In progress', tone: 'warn', rank: 2 };
-    return { label: 'None', tone: 'none', rank: 0 };
+    if (q.startedAny || q.globalHasPicks) {
+      // Granular Global-bracket progress, matching the leaderboard status.
+      const g = q.gGroups || 0, t = q.gThirds || 0, b = q.gBracket || 0;
+      let label = 'In progress';
+      if (g >= 12 && t >= 8 && b > 0) label = 'Filling bracket';
+      else if (g >= 12 && t >= 8) label = 'Best thirds in';
+      else if (g >= 12) label = 'Groups picked';
+      return { label, tone: 'warn', rank: 2 };
+    }
+    return { label: 'No picks yet', tone: 'none', rank: 0 };
   };
   // Coarse, IP-derived location captured at login (geo* fields); falls back to
   // the legacy manually-backfilled country. Blank until the user next logs in.
