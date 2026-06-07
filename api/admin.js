@@ -2428,6 +2428,52 @@ export default async function handler(req, res) {
       const privyMatches = allDocs.filter((d) => d.id.startsWith('did:privy:'));
       const wouldResolveTo = privyMatches[0]?.id || allDocs[0]?.id || null;
 
+      // Quick Picks state per league — the question that actually matters for
+      // "why don't my submissions show?". For every UID this email maps to,
+      // and every league that UID belongs to, read the prediction doc and
+      // summarize it: does it exist, is the Final winner picked, how many
+      // picks are left. Surfaces the difference between "submitted but hidden"
+      // (doc with a winner exists) and "never actually submitted here".
+      const QP_BR = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['thirdPlace', 1], ['final', 1]];
+      const QP_TOTAL = 12 + 8 + 32;
+      const candidateIds = new Set();
+      allDocs.forEach((u) => {
+        candidateIds.add(u.id); // legacy single-doc (global-simple)
+        (Array.isArray(u.leagues) ? u.leagues : []).forEach((lid) => candidateIds.add(`${u.id}__${lid}`));
+      });
+      const idList = Array.from(candidateIds);
+      const quickPicks = [];
+      try {
+        const refs = idList.map((id) => db.collection('simplePredictions').doc(id));
+        for (let i = 0; i < refs.length; i += 200) {
+          const snaps = await db.getAll(...refs.slice(i, i + 200));
+          snaps.forEach((s) => {
+            if (!s.exists) return;
+            const d = s.data() || {};
+            const sep = s.id.indexOf('__');
+            const lid = sep >= 0 ? s.id.slice(sep + 2) : (d.leagueId || 'global-simple');
+            const ko = d.knockoutPredictions || {};
+            const groups = d.groupPredictions || {};
+            const groupsDone = Object.values(groups).filter((g) => Array.isArray(g?.ranking) && g.ranking.length === 4 && g.ranking.every(Boolean)).length;
+            const thirds = Array.isArray(d.bestThirdPicks) ? d.bestThirdPicks : [];
+            let bracketDone = 0;
+            for (const [k] of QP_BR) bracketDone += (ko[k] || []).filter((p) => p && p.winnerId).length;
+            quickPicks.push({
+              docId: s.id,
+              leagueId: lid,
+              hasFinalWinner: !!(ko?.final?.[0]?.winnerId),
+              champion: ko?.final?.[0]?.winnerId || null,
+              picksLeft: Math.max(0, QP_TOTAL - (groupsDone + Math.min(thirds.filter(Boolean).length, 8) + bracketDone)),
+              isComplete: !!(d.isComplete || ko?.final?.[0]?.winnerId),
+              hasUserIdField: !!d.userId,
+              updatedAt: d.updatedAt?.toDate?.()?.toISOString?.() ?? null,
+            });
+          });
+        }
+      } catch (e) {
+        quickPicks.push({ error: e.message });
+      }
+
       return res.status(200).json({
         queriedEmail: rawEmail,
         normalizedDedupeKey: dedupeKey,
@@ -2436,6 +2482,7 @@ export default async function handler(req, res) {
         firebaseAuthRecord,
         duplicateCount: allDocs.length,
         wouldResolveTo,
+        quickPicks,
       });
     } else if (action === 'copyUsersToGlobal') {
       // Superadmin-only: copy each user's completed private Quick Picks
