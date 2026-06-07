@@ -3067,6 +3067,33 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   {block('🎟️ Most-backed Best Thirds', `${data.bestThirds?.total || 0} picks`, data.bestThirds, (it) => teamFlag(it.name), (it) => it.name, 'No best-third picks yet.')}
                   {block('🌍 Top Countries', `${data.countries?.total || 0} users`, data.countries, (it) => countryByCode[it.code]?.flag || '🏳️', (it) => countryByCode[it.code]?.name || it.code, 'No country data yet.')}
                 </div>
+
+                {/* Anonymous starters — made picks but never signed up (item C) */}
+                {(() => {
+                  const a = data.anonStarters || { total: 0, completed: 0, groupsOnly: 0, withCountry: 0, countries: { total: 0, top: [] } };
+                  const anonLabel = (it) => it.code === 'unknown' ? 'Unknown (no IP geo)' : (countryByCode[it.code]?.name || it.code);
+                  const anonFlag = (it) => it.code === 'unknown' ? '🏳️' : (countryByCode[it.code]?.flag || '🏳️');
+                  return (
+                    <div className="ins-anon">
+                      <div className="ins-block-title" style={{ marginBottom: 8 }}>
+                        👤 Anonymous starters <span className="ins-block-sub">made picks, not signed up</span>
+                      </div>
+                      <div className="ins-cards">
+                        <div className="ins-card"><div className="ins-card-val">{(a.total || 0).toLocaleString()}</div><div className="ins-card-label">Started · not signed up</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(a.completed || 0).toLocaleString()}</div><div className="ins-card-label">Filled full bracket</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(a.groupsOnly || 0).toLocaleString()}</div><div className="ins-card-label">Partial (no champion)</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{pct(a.completed, a.total)}%</div><div className="ins-card-label">Bracket-fill rate</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(a.withCountry || 0).toLocaleString()}</div><div className="ins-card-label">With known country</div></div>
+                      </div>
+                      <div className="ins-block" style={{ marginTop: 4 }}>
+                        <div className="ins-block-title">🌍 Anonymous starters by country <span className="ins-block-sub">via IP geo</span></div>
+                        {(!a.countries || a.countries.top.length === 0)
+                          ? <div className="admin-empty">No anonymous starters yet. Country fills in as logged-out visitors make picks (blank on localhost).</div>
+                          : renderBars(a.countries.top, a.countries.total, anonFlag, anonLabel)}
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>

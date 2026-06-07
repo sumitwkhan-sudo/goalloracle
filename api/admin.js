@@ -583,7 +583,12 @@ export default async function handler(req, res) {
         let withWallet = 0;
         let newLast7 = 0;
         let newLast30 = 0;
+        // Set of signed-up user ids. A global-simple prediction doc whose uid
+        // is NOT in here is an anonymous (un-converted) visitor — no /users
+        // doc was ever created for them. Used for the "anon starters" insight.
+        const usersIdSet = new Set();
         insUsersSnap.docs.forEach(d => {
+          usersIdSet.add(d.id);
           const u = d.data();
           const code = u.country || u.geoCountry;
           if (code) countryCounts[code] = (countryCounts[code] || 0) + 1;
@@ -642,6 +647,30 @@ export default async function handler(req, res) {
           });
         });
 
+        // ── Anonymous starters (item C): visitors who made picks but never
+        // signed up. A global-simple bracket whose uid has no /users doc.
+        // globalByUser is already deduped (composite doc wins), so iterating
+        // it counts each anon visitor once. Country comes from the geo we
+        // stamp on anon saves (api/simple-predictions.js); 'unknown' until a
+        // save lands with edge headers (blank on localhost / pre-feature).
+        const anonCountryCounts = {};
+        let anonStarted = 0;
+        let anonCompleted = 0;     // reached a Final winner
+        let anonGroupsOnly = 0;    // has picks but no Final winner yet
+        Object.entries(globalByUser).forEach(([uId, doc]) => {
+          if (usersIdSet.has(uId)) return;     // signed-up — not anonymous
+          if (!insHasPicks(doc)) return;       // no picks — not a starter
+          anonStarted += 1;
+          const code = doc.geoCountry || 'unknown';
+          anonCountryCounts[code] = (anonCountryCounts[code] || 0) + 1;
+          if (doc.knockoutPredictions?.final?.[0]?.winnerId) anonCompleted += 1;
+          else anonGroupsOnly += 1;
+        });
+        const anonCountriesTop = Object.entries(anonCountryCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 12)
+          .map(([code, count]) => ({ code, count }));
+
         const topN = (obj, n) => Object.entries(obj)
           .sort((a, b) => b[1] - a[1])
           .slice(0, n)
@@ -664,6 +693,13 @@ export default async function handler(req, res) {
           countries: {
             total: Object.values(countryCounts).reduce((s, n) => s + n, 0),
             top: Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([code, count]) => ({ code, count })),
+          },
+          anonStarters: {
+            total: anonStarted,
+            completed: anonCompleted,
+            groupsOnly: anonGroupsOnly,
+            withCountry: anonStarted - (anonCountryCounts.unknown || 0),
+            countries: { total: anonStarted, top: anonCountriesTop },
           },
         });
       }

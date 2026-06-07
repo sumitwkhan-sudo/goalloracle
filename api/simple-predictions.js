@@ -16,6 +16,7 @@
 import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { lockedSectionsInUpdate } from '../src/utils/stageLock.js';
 import { computeIsComplete, wasComplete } from './_lib/quickPicksComplete.js';
+import { getGeoFromRequest } from './_lib/security.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const SEPARATOR = '__';
@@ -70,6 +71,21 @@ export default async function handler(req, res) {
       leagueId,
       updatedAt: FieldValue.serverTimestamp(),
     };
+
+    // No-login funnel (item C): anonymous visitors are DOC-LESS (no /users
+    // row), so their country is never captured the usual way. Stamp the
+    // Vercel edge geo (country/region/city — NOT raw IP, same privacy rule
+    // as api/user.js) and an isAnon marker onto the prediction doc so the
+    // admin insight can report where un-converted starters are coming from.
+    // Forward-only: fills in on the next save; blank on localhost.
+    if (claims.provider === 'anonymous') {
+      const geo = getGeoFromRequest(req);
+      writePayload.isAnon = true;
+      if (geo.country) writePayload.geoCountry = geo.country;
+      if (geo.region) writePayload.geoRegion = geo.region;
+      if (geo.city) writePayload.geoCity = geo.city;
+      writePayload.geoUpdatedAt = FieldValue.serverTimestamp();
+    }
     if ('groupPredictions' in partial) writePayload.groupPredictions = partial.groupPredictions;
     if ('bestThirdPicks' in partial) writePayload.bestThirdPicks = partial.bestThirdPicks;
     if ('knockoutPredictions' in partial) writePayload.knockoutPredictions = partial.knockoutPredictions;
