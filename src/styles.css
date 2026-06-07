@@ -8901,6 +8901,25 @@ body.light .lsd-head,
 [data-theme="light"] .ll-pred-rare-bold { color: var(--primary, #5b3df5); border-color: rgba(91, 61, 245, 0.30); background: rgba(91, 61, 245, 0.08); }
 .ll-pred-arrow { color: var(--text-dim); flex-shrink: 0; }
 .ll-pred-empty { color: var(--text-dim); font-size: 0.85rem; }
+/* Progress status shown in the prediction column for players without a
+   locked-in champion yet (No picks yet / Groups picked / …). */
+.ll-pred-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--text-sec);
+  background: rgba(125, 125, 160, 0.12);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.ll-pred-status-none { color: var(--text-dim); }
+.ll-pred-status-groups,
+.ll-pred-status-thirds { color: var(--cyan, #14b8e6); border-color: rgba(20, 184, 230, 0.28); background: rgba(20, 184, 230, 0.08); }
+.ll-pred-status-bracket { color: var(--amber, #f5a623); border-color: rgba(245, 166, 35, 0.30); background: rgba(245, 166, 35, 0.09); }
 
 /* Points */
 .ll-cell-pts { justify-content: flex-end; }
