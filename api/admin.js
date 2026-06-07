@@ -1131,6 +1131,117 @@ export default async function handler(req, res) {
       return res.status(200).json({ repaired });
     }
 
+    if (action === 'sweepGlobalPicksToLeagues') {
+      // One-time sweep: copy each member's GLOBAL bracket into the Quick
+      // Picks leagues they belong to, but only where they have a Global
+      // bracket AND no picks in that league yet (evaluateCopy 'skip' mode).
+      // Fixes members who joined a private/public league but never copied
+      // their Global picks in, so they show '—' on that league's board.
+      // dryRun (default true) reports counts without writing. Idempotent,
+      // superadmin-only, audit-logged. Optional leagueId scopes to one league.
+      if ((await getRole(userId)) !== 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin only' });
+      }
+      const dryRun = req.body?.dryRun !== false; // default true
+      const onlyLeague = req.body?.leagueId || null;
+      const { evaluateCopy } = await import('./_lib/copyToGlobalLogic.js');
+      const SEP = '__';
+
+      const leaguesSnap = await db.collection('leagues').get();
+      const targetLeagues = [];
+      leaguesSnap.docs.forEach((d) => {
+        const lg = d.data();
+        const id = d.id;
+        if (id === 'global' || id === 'global-simple') return;
+        if (lg.predictionMode === 'classic') return; // Quick Picks only
+        if (onlyLeague && id !== onlyLeague) return;
+        if (!Array.isArray(lg.members) || lg.members.length === 0) return;
+        targetLeagues.push({ id, name: lg.name || id, members: lg.members.slice(0, 5000) });
+      });
+
+      const copied = [];
+      const skip = { hasPicks: 0, noGlobalPicks: 0, stageLocked: 0, other: 0, errors: 0 };
+
+      for (const lg of targetLeagues) {
+        const uids = lg.members;
+        const srcData = {};
+        const tgtData = {};
+        // Batch-read each member's global + this-league prediction docs.
+        for (let i = 0; i < uids.length; i += 150) {
+          const batch = uids.slice(i, i + 150);
+          const srcRefs = batch.map((uid) => db.collection('simplePredictions').doc(`${uid}${SEP}global-simple`));
+          const tgtRefs = batch.map((uid) => db.collection('simplePredictions').doc(`${uid}${SEP}${lg.id}`));
+          const [sSnaps, tSnaps] = await Promise.all([db.getAll(...srcRefs), db.getAll(...tgtRefs)]);
+          sSnaps.forEach((s, idx) => { if (s.exists) srcData[batch[idx]] = s.data(); });
+          tSnaps.forEach((s, idx) => { if (s.exists) tgtData[batch[idx]] = s.data(); });
+        }
+        // Legacy single-doc global fallback for members without a composite doc.
+        const missing = uids.filter((uid) => !srcData[uid]);
+        for (let i = 0; i < missing.length; i += 150) {
+          const batch = missing.slice(i, i + 150);
+          const snaps = await db.getAll(...batch.map((uid) => db.collection('simplePredictions').doc(uid)));
+          snaps.forEach((s, idx) => { if (s.exists) srcData[batch[idx]] = s.data(); });
+        }
+
+        const toWrite = [];
+        for (const uid of uids) {
+          try {
+            const sourceDoc = srcData[uid] || null;
+            const targetDoc = tgtData[uid] || null;
+            const decision = evaluateCopy({ sourceDoc, sourceLeague: { predictionMode: 'simple' }, targetDoc, mode: 'skip' });
+            if (decision.action !== 'create') {
+              if (decision.reason === 'existing_global_entry') skip.hasPicks++;
+              else if (decision.reason === 'no_source_picks') skip.noGlobalPicks++;
+              else if (decision.reason === 'stage_locked') skip.stageLocked++;
+              else skip.other++;
+              continue;
+            }
+            toWrite.push({ uid, sourceDoc, targetDoc });
+            copied.push({ leagueId: lg.id, leagueName: lg.name, userId: uid });
+          } catch (e) { skip.errors++; }
+        }
+
+        if (!dryRun && toWrite.length > 0) {
+          for (let i = 0; i < toWrite.length; i += 400) {
+            const batch = db.batch();
+            toWrite.slice(i, i + 400).forEach(({ uid, sourceDoc, targetDoc }) => {
+              const ref = db.collection('simplePredictions').doc(`${uid}${SEP}${lg.id}`);
+              const payload = {
+                userId: uid,
+                leagueId: lg.id,
+                groupPredictions: sourceDoc.groupPredictions || {},
+                bestThirdPicks: sourceDoc.bestThirdPicks || [],
+                knockoutPredictions: sourceDoc.knockoutPredictions || {},
+                isComplete: !!(sourceDoc.isComplete || sourceDoc.knockoutPredictions?.final?.[0]?.winnerId),
+                updatedAt: FieldValue.serverTimestamp(),
+              };
+              if (!targetDoc?.submittedAt) payload.submittedAt = FieldValue.serverTimestamp();
+              batch.set(ref, payload, { merge: true });
+            });
+            await batch.commit();
+          }
+        }
+      }
+
+      if (!dryRun) {
+        await db.collection('adminLogs').add({
+          action: 'sweep_global_picks_to_leagues',
+          adminId: userId,
+          scope: onlyLeague || 'all',
+          copiedCount: copied.length,
+          timestamp: FieldValue.serverTimestamp(),
+        }).catch(() => {});
+      }
+
+      return res.status(200).json({
+        dryRun,
+        leaguesProcessed: targetLeagues.length,
+        copiedCount: copied.length,
+        copied: copied.slice(0, 1000),
+        skipped: skip,
+      });
+    }
+
     if (action === 'backfillCountries') {
       // One-shot: walk every user and assign a country if they don't have
       // one. Product-directed override map wins; everyone else defaults to
