@@ -206,15 +206,6 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // editing later-stage picks even after earlier stages have started.
   const isMatchLocked = useCallback((matchId) => isMatchStageLocked(matchId), []);
 
-  // Track whether the bracket was already fully picked on hydration so
-  // we don't show the "you finished!" celebration to users returning to
-  // a bracket they already finished. "Fully picked" means BOTH the Final
-  // winner AND the 3rd-place match — same condition the celebration
-  // trigger watches for, so the false → true transition is symmetric.
-  const wasCompleteOnLoadRef = useRef(
-    !!(frozenInitial?.knockoutPredictions?.final?.[0]?.winnerId
-      && frozenInitial?.knockoutPredictions?.thirdPlace?.[0]?.winnerId)
-  );
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationChampion, setCelebrationChampion] = useState({ name: null, flag: null });
 
@@ -238,25 +229,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
       // skipped the 3rd-Place match.
       const finalPick = next?.final?.[0];
       const finalPicked = !!finalPick?.winnerId;
-      const thirdPicked = !!next?.thirdPlace?.[0]?.winnerId;
       save({ knockoutPredictions: next, isComplete: finalPicked });
-
-      // Celebration: hold the modal until BOTH the Final winner AND the
-      // 3rd-place match are picked. Firing on Final alone interrupted
-      // users who still wanted to enter the 3rd-place pick. Order of
-      // picking doesn't matter — the celebration triggers on the second
-      // of the two saves to land. Skip if the user already had a
-      // complete-with-3rd bracket when the wizard mounted (they're
-      // just editing).
-      const fullyPicked = finalPicked && thirdPicked;
-      if (fullyPicked && !wasCompleteOnLoadRef.current && !celebrationOpen) {
-        wasCompleteOnLoadRef.current = true; // don't fire again this session
-        setCelebrationChampion({
-          name: finalPick.winnerId || null,
-          flag: finalPick.winnerFlag || null,
-        });
-        setCelebrationOpen(true);
-      }
     },
   });
 
@@ -349,9 +322,12 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
       knockoutPredictions: bracketState.knockoutPredictions,
       isComplete: true,
     });
-    if (onComplete) onComplete();
-    else if (onExit) onExit();
-  }, [bracketState, groups.predictions, bestThird.picks, saveNow, onComplete, onExit]);
+    // Surface the "Bracket locked in!" + Share moment AFTER the user submits
+    // — not mid-pick. Dismissing (or sharing) continues to the leaderboard.
+    const champ = bracketState.knockoutPredictions?.final?.[0];
+    setCelebrationChampion({ name: champ?.winnerId || null, flag: champ?.winnerFlag || null });
+    setCelebrationOpen(true);
+  }, [bracketState, groups.predictions, bestThird.picks, saveNow]);
 
   const completedSteps = useMemo(() => {
     const done = [];
@@ -915,14 +891,18 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         </section>
       )}
 
-      {/* #2 — One-time celebration when the user transitions from
-          incomplete → complete by picking the Final winner. */}
+      {/* #2 — Post-SUBMIT celebration (fired from handleFinish, not during
+          picking). Dismissing or sharing continues to the leaderboard. */}
       <CompletionCelebration
         open={celebrationOpen}
         championName={celebrationChampion.name}
         championFlag={celebrationChampion.flag}
         onShare={onShareBracket}
-        onDismiss={() => setCelebrationOpen(false)}
+        onDismiss={() => {
+          setCelebrationOpen(false);
+          if (onComplete) onComplete();
+          else if (onExit) onExit();
+        }}
       />
 
       {/* #6 — First-visit 3-step tutorial. */}
