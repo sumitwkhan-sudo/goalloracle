@@ -157,6 +157,11 @@ export default async function handler(req, res) {
         hasSubmitted: !!pred,
         isComplete,
         picksLeft,
+        // Per-section progress so the UI can show a meaningful status
+        // ("No picks yet" / "Groups picked" / …) instead of a bare "—".
+        groupsDone,
+        thirdsDone: Math.min(thirdsDone, 8),
+        bracketDone,
         submittedAt: ts?._seconds ? ts._seconds * 1000 : ts?.toMillis ? ts.toMillis() : ts || null,
         totalScore: score.totalScore,
         totalAccuracy: score.totalAccuracy,

@@ -109,8 +109,27 @@ function uniquenessLabel(pct, upsetCount = 0) {
     : { label: 'Bold', tier: 'bold' };
 }
 
-function PredictionCell({ winner, runnerUp, uniqueness, upsetCount = 0 }) {
-  if (!winner && !runnerUp) return <span className="ll-pred-empty">—</span>;
+// Friendly status for a player who hasn't locked in a champion yet, derived
+// from how far they've gotten through the Quick Picks flow (groups → best
+// thirds → bracket). Lets the leaderboard say "Groups picked" / "No picks
+// yet" instead of a bare "—".
+function predictionStatus(row) {
+  const g = row.groupsDone || 0;
+  const t = row.thirdsDone || 0;
+  const b = row.bracketDone || 0;
+  if (g + t + b === 0) return { key: 'none', label: 'No picks yet' };
+  if (g >= 12 && t >= 8 && b > 0) return { key: 'bracket', label: 'Filling bracket' };
+  if (g >= 12 && t >= 8) return { key: 'thirds', label: 'Best thirds in' };
+  if (g >= 12) return { key: 'groups', label: 'Groups picked' };
+  return { key: 'partial', label: 'In progress' };
+}
+
+function PredictionCell({ winner, runnerUp, uniqueness, upsetCount = 0, status }) {
+  if (!winner && !runnerUp) {
+    return status
+      ? <span className={`ll-pred-status ll-pred-status-${status.key}`}>{status.label}</span>
+      : <span className="ll-pred-empty">—</span>;
+  }
   const u = uniquenessLabel(uniqueness, upsetCount);
   // Tooltip explains both halves of the score: how many other players
   // picked the same pair (consensus) AND how many lower-ranked teams
@@ -181,7 +200,7 @@ function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onSha
         <StatusIcon row={row} />
       </div>
       <div className="ll-cell ll-cell-pred">
-        <PredictionCell winner={row.winner} runnerUp={row.runnerUp} uniqueness={row.uniqueness} upsetCount={row.upsetCount || 0} />
+        <PredictionCell winner={row.winner} runnerUp={row.runnerUp} uniqueness={row.uniqueness} upsetCount={row.upsetCount || 0} status={(!row.winner && !row.runnerUp) ? predictionStatus(row) : null} />
       </div>
       <div className="ll-cell ll-cell-pts">
         {/* Ranking is by points; accuracy shown as a secondary stat. */}
