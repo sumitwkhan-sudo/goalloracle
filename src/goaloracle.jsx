@@ -1546,6 +1546,11 @@ const GoalOracle = () => {
         thirdsRemaining,
         bracketRemaining,
         totalRemaining,
+        // Has the user made ANY pick yet? Distinguishes a brand-new visitor
+        // (CTA: "Start predicting") from a returning one mid-bracket (CTA:
+        // "Continue") — the home page can't tell from isComplete alone since
+        // a blank doc and an in-progress doc are both !isComplete.
+        started: groupsDone > 0 || thirds.filter(Boolean).length > 0 || bracketFilled > 0,
         isComplete: totalRemaining === 0,
         winner: finalSlot?.winnerId || null,
         runnerUp: finalSlot?.loserId || null,
@@ -2538,30 +2543,45 @@ const GoalOracle = () => {
     // invite path the user asked for.
     const [inviteOpen, setInviteOpen] = useState(false);
 
-    // Anonymous-only big-button CTAs. Logged-in users use the unified
-    // chip row instead — keeps the home page CTA UX consistent
-    // instead of pairing a random-gradient pill with neutral chips.
+    // Logged-out big-button CTAs. With the no-login funnel live, a visitor
+    // can predict WITHOUT an account (anonymous Firebase session), so the
+    // primary no longer promises "Sign Up Free" — clicking it just opens the
+    // wizard; sign-up is prompted later, at the prize/save/share moments.
     //
-    // Primary says "Sign Up Free" explicitly so new mobile users
-    // understand clicking it creates an account (the previous
-    // "Start Predicting — It's Free" left "sign up" implicit, which
-    // is fine on desktop with more context but confusing on a small
-    // screen). Secondary is now "Sign in" so returning users who've
-    // logged out have an unambiguous re-entry path — the previous
-    // "Create a League" secondary led to the same login modal but
-    // hid that fact behind misleading copy.
-    //
-    // Create-a-league remains discoverable post-login via the Quick
-    // Actions panel and /create. Anonymous visitors who want to
-    // create a league sign up first, which is the required flow
-    // anyway.
+    // State-aware so a RETURNING anonymous visitor (same browser) doesn't get
+    // pitched "Start predicting" over picks they already made:
+    //   - no picks yet  -> "Start predicting — Free"
+    //   - mid-bracket   -> "Continue predicting · N left"
+    //   - fully filled  -> "Sign up to lock in your bracket" (the conversion
+    //                       moment — their picks are saved but not yet
+    //                       submitted/eligible behind the completion gate)
+    // The secondary stays "Sign in" so a returning real user who logged out
+    // (and is now on a fresh anon session) has an unambiguous re-entry path.
     const anonCtas = useMemo(() => {
       if (authenticated) return null;
+      const secondary = { label: 'Sign in', onClick: () => { track('cta_signin', { source: 'hero' }); login(); } };
+      // quickPicks === null until the first snapshot (or when there's no anon
+      // session at all) — show the neutral starter rather than flash a count.
+      if (isAnonymous && quickPicks) {
+        if (quickPicks.isComplete) {
+          return {
+            primary: { label: <>Sign up to lock in your bracket</>, onClick: () => requireSignup('prizes') },
+            secondary,
+          };
+        }
+        if (quickPicks.started) {
+          const n = quickPicks.totalRemaining;
+          return {
+            primary: { label: <>Continue predicting{n ? ` · ${n} left` : ''}</>, onClick: startSimplePredicting, urgent: true },
+            secondary,
+          };
+        }
+      }
       return {
-        primary: { label: <>Start Predicting &mdash; Sign Up Free</>, onClick: startSimplePredicting },
-        secondary: { label: 'Sign in', onClick: () => { track('cta_signin', { source: 'hero' }); login(); } },
+        primary: { label: <>Start Predicting &mdash; Free</>, onClick: startSimplePredicting },
+        secondary,
       };
-    }, [authenticated]);
+    }, [authenticated, isAnonymous, quickPicks]);
 
     // The single "do this now" chip for logged-in users. Sits at the
     // start of the chip row with an accent style so it pops without
@@ -2885,7 +2905,7 @@ const GoalOracle = () => {
               <div className="comm-cta">
                 <p>Predictions are open. Make yours before kickoff and your bracket joins the leaderboard the moment results post.</p>
                 <button type="button" className="btn btn-primary btn-sm" onClick={startSimplePredicting}>
-                  {authenticated ? 'Continue predicting' : 'Start your bracket'} <ChevronRight size={14} />
+                  {(authenticated || (isAnonymous && quickPicks?.started)) ? 'Continue predicting' : 'Start your bracket'} <ChevronRight size={14} />
                 </button>
               </div>
             </div>
