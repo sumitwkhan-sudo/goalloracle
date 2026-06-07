@@ -6,10 +6,17 @@ import { getVisitorId } from './fingerprint';
 // Give every visitor a real Firebase identity (a UID, no email) so they can
 // predict BEFORE signing up. Picks then save under this UID via the exact
 // same path a logged-in user uses (one storage system, no separate
-// "anonymous picks" store). At sign-up, linkWithCredential attaches the
-// email/Google credential to THIS uid — the uid never changes, so the picks
-// are already in the account (no copy, no migration). Doc-less: no /users
-// doc is created until the visitor converts.
+// "anonymous picks" store). Doc-less: no /users doc is created until the
+// visitor converts.
+//
+// NOTE on conversion: GoalOracle's sign-in is a Privy/GIS *custom-token*
+// swap, which mints a NEW UID and replaces the session — it is NOT
+// linkWithCredential, so the anonymous UID's picks do NOT automatically
+// follow the account. Instead we capture the anon ID token just before the
+// swap (captureAnonForMigration) and, after the real account is created,
+// server-side migrate the anon UID's Global bracket to the new UID
+// (api/migrate-anon-picks.js). The uid DOES change; the picks are carried
+// across explicitly.
 let _anonInFlight = false;
 // Set while a REAL sign-in (email/Google custom-token swap) is in progress so
 // a stray logged-out `onAuthStateChanged(null)` can't kick off an anonymous

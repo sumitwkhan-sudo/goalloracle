@@ -17,18 +17,7 @@
 
 import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
-
-const SEP = '__';
-
-function hasPicks(d) {
-  if (!d) return false;
-  const g = d.groupPredictions || {};
-  if (Object.values(g).some(v => Array.isArray(v?.ranking) && v.ranking.filter(Boolean).length > 0)) return true;
-  if (Array.isArray(d.bestThirdPicks) && d.bestThirdPicks.length > 0) return true;
-  const ko = d.knockoutPredictions || {};
-  if (Object.values(ko).some(a => Array.isArray(a) && a.length > 0)) return true;
-  return false;
-}
+import { migrationDecision, anonDocId } from './_lib/anonMigration.js';
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -56,23 +45,18 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(403).json({ error: 'Invalid anonymous token' });
   }
-  if (anonUid === newUid) return res.status(200).json({ migrated: false, reason: 'same_uid' });
-
   try {
-    const srcRef = db.collection('simplePredictions').doc(`${anonUid}${SEP}global-simple`);
-    const tgtRef = db.collection('simplePredictions').doc(`${newUid}${SEP}global-simple`);
+    const srcRef = db.collection('simplePredictions').doc(anonDocId(anonUid));
+    const tgtRef = db.collection('simplePredictions').doc(anonDocId(newUid));
     const [srcSnap, tgtSnap] = await Promise.all([srcRef.get(), tgtRef.get()]);
 
-    if (!srcSnap.exists || !hasPicks(srcSnap.data())) {
-      return res.status(200).json({ migrated: false, reason: 'no_anon_picks' });
-    }
+    const src = srcSnap.exists ? srcSnap.data() : null;
     const tgt = tgtSnap.exists ? tgtSnap.data() : null;
-    // Never clobber picks the new account already made.
-    if (tgt && (hasPicks(tgt) || tgt.submittedAt)) {
-      return res.status(200).json({ migrated: false, reason: 'target_has_picks' });
+    const decision = migrationDecision({ anonUid, newUid, srcData: src, tgtData: tgt });
+    if (!decision.migrate) {
+      return res.status(200).json({ migrated: false, reason: decision.reason });
     }
 
-    const src = srcSnap.data();
     await tgtRef.set({
       userId: newUid,
       leagueId: 'global-simple',
@@ -81,9 +65,13 @@ export default async function handler(req, res) {
       knockoutPredictions: src.knockoutPredictions || {},
       // isComplete derived from the bracket (Final winner), mirroring the
       // server-authoritative rule everywhere else.
-      isComplete: !!(src.isComplete || src.knockoutPredictions?.final?.[0]?.winnerId),
+      isComplete: decision.isComplete,
       updatedAt: FieldValue.serverTimestamp(),
-      submittedAt: FieldValue.serverTimestamp(),
+      // Preserve the original first-submit time — submittedAt is the
+      // leaderboard tiebreaker, so a converted user keeps the moment they
+      // actually locked their bracket, not the moment they signed up. The
+      // anon doc gets a submittedAt on its first autosave, so this is set.
+      submittedAt: src.submittedAt || FieldValue.serverTimestamp(),
     }, { merge: true });
 
     // Clean up the orphaned anonymous doc so it never lingers.

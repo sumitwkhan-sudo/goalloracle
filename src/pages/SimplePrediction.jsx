@@ -337,6 +337,24 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     setCelebrationOpen(true);
   }, [bracketState, groups.predictions, bestThird.picks, saveNow, isAnonymous, onRequireSignup]);
 
+  // No-login funnel 'save' prompt: when an anonymous visitor who has already
+  // made picks tries to leave the wizard, surface the "keep your picks across
+  // devices" sign-up prompt ONCE (their picks are safe server-side under the
+  // anon UID — the honest promise is cross-device persistence, not rescue from
+  // loss). Dismissing the prompt lets them leave on the next press; we don't
+  // trap them. Only fires for the standalone (non-embedded) route's back
+  // button, the exit affordance anon users actually reach.
+  const savePromptShownRef = useRef(false);
+  const guardedExit = useCallback(() => {
+    const hasPicks = groups?.predictions && Object.keys(groups.predictions).length > 0;
+    if (isAnonymous && hasPicks && !savePromptShownRef.current) {
+      savePromptShownRef.current = true;
+      onRequireSignup('save');
+      return;
+    }
+    if (onExit) onExit();
+  }, [isAnonymous, onRequireSignup, onExit, groups?.predictions]);
+
   const completedSteps = useMemo(() => {
     const done = [];
     if (step1Complete) done.push(1);
@@ -480,7 +498,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
       {!embedded && (
         <div className="simple-page-header">
-          <button type="button" className="btn-back-sm btn-back-sm-named" onClick={onExit} aria-label="Back to leagues">
+          <button type="button" className="btn-back-sm btn-back-sm-named" onClick={guardedExit} aria-label="Back to leagues">
             <ArrowLeft size={14} /> <span>Leagues</span>
           </button>
           <div className="simple-page-title">

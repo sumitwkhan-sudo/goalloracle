@@ -800,6 +800,20 @@ const RankDelta = ({ delta }) => {
 
 const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, isAnonymous = false, onRequireSignup = () => {}, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
   const [sTab, setSTab] = useState(initialTab);
+  // No-login funnel 'save' prompt: when an anonymous visitor leaves the
+  // predictions flow, surface the "keep your picks across devices" sign-up
+  // prompt ONCE (picks are already saved server-side under the anon UID — the
+  // honest promise is cross-device persistence). Dismissing lets them leave on
+  // the next tap; we don't trap them.
+  const savePromptShownRef = useRef(false);
+  const guardedBack = useCallback(() => {
+    if (isAnonymous && sTab === 'predictions' && !savePromptShownRef.current) {
+      savePromptShownRef.current = true;
+      onRequireSignup('save');
+      return;
+    }
+    onBack?.();
+  }, [isAnonymous, sTab, onRequireSignup, onBack]);
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
   const [simLbl, setSimLbl] = useState(false);
@@ -903,6 +917,10 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   }, [userData?.id, notify]);
 
   const openShareBracket = useCallback(async () => {
+    // No-login funnel (item C): the 'share' moment is a sign-up trigger.
+    // Anonymous visitors get the prizes/share prompt instead of the modal —
+    // sharing/challenging a friend is gated behind a real account.
+    if (isAnonymous) { onRequireSignup('share'); return; }
     if (!userData?.id || !league?.id) return;
     try {
       const { getSimplePrediction } = await import('./utils/db');
@@ -935,7 +953,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
     } catch (e) {
       if (notify) notify(e?.message || 'Failed to load bracket', 'error');
     }
-  }, [userData?.id, league?.id, notify]);
+  }, [userData?.id, league?.id, notify, isAnonymous, onRequireSignup]);
 
   // Eagerly fetch consensus when the leaderboard is active so each
   // row can show its uniqueness chip without waiting for a hover.
@@ -1032,7 +1050,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
               title + member count + mode pill used to live here too,
               but they duplicated the LeagueLeaderboardLayout header
               right below — kept just the back button + leave action. */}
-          <button className="btn-back-sm btn-back-sm-named" onClick={onBack}>
+          <button className="btn-back-sm btn-back-sm-named" onClick={guardedBack}>
             &larr; <span>{authenticated ? 'Back to My Leagues' : 'Home'}</span>
           </button>
         </div>
@@ -1923,7 +1941,8 @@ const GoalOracle = () => {
     // under this UID via the normal /api path, but we do NOT create a /users
     // doc (no signup count, no leaderboard row) and keep authenticated=false
     // so the UI still nudges them to sign up. They materialize as a real
-    // account only on conversion (linkWithCredential, phase iv).
+    // account only on conversion (custom-token swap → new UID, then
+    // server-side anon-picks migration; see migrateAnonPicks below).
     if (fbUser.isAnonymous) {
       setAuthenticated(false);
       setIsAnonymous(true);
@@ -1973,14 +1992,31 @@ const GoalOracle = () => {
       setGoogleRecoveryNotice(null);
       if (u.usernameSet === false) setShowUsernamePrompt(true);
 
-      // No-login funnel (phase iv): if this account just converted from an
+      // No-login funnel conversion: if this account just converted from an
       // anonymous session, migrate the anon UID's Global bracket to this UID
       // so picks made before signing up are never lost. Best-effort — the
       // quickPicks subscription re-keys on the new UID and picks it up.
       const anonTok = consumePendingAnonToken();
       if (anonTok) {
         migrateAnonPicks(anonTok)
-          .then((r) => { if (r?.migrated) console.log('[auth] migrated anon picks to', u.id); })
+          .then((r) => {
+            if (r?.migrated) {
+              console.log('[auth] migrated anon picks to', u.id);
+              return;
+            }
+            // Item C REQUIRED edge case (the credential-already-in-use
+            // analog): the visitor made a bracket as a guest, then signed in
+            // to an account that ALREADY has a Global bracket. We sign them
+            // into the existing account and DON'T clobber its picks — but we
+            // must tell them their just-made bracket wasn't applied rather
+            // than dropping it silently.
+            if (r?.reason === 'target_has_picks') {
+              notify(
+                'Welcome back! This account already has a bracket, so the picks you just made weren’t applied — your saved bracket is unchanged.',
+                'success',
+              );
+            }
+          })
           .catch((e) => console.warn('[auth] anon picks migration failed:', e?.message || e));
       }
 
@@ -5370,6 +5406,8 @@ const GoalOracle = () => {
           key={`simple-${selLeague?.id || 'solo'}`}
           userId={uData?.id}
           league={selLeague}
+          isAnonymous={isAnonymous}
+          onRequireSignup={requireSignup}
           onExit={() => nav('leagues')}
           onCelebrate={celebrate}
         />
