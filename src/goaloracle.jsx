@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Helmet } from 'react-helmet-async';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth as fbAuth } from './config/firebase';
-import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail } from './utils/auth';
+import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail, ensureAnonymousSession } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
 import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil, FileText, Bell } from 'lucide-react';
@@ -1302,6 +1302,11 @@ const GoalOracle = () => {
   // know the user's signed-in state. `authenticated` mirrors fbAuth.currentUser.
   const [ready, setReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
+  // No-login funnel (item C): true when the current Firebase session is an
+  // anonymous visitor (predicting before sign-up). `authenticated` stays
+  // false for them — it means a REAL account — so existing UI keeps nudging
+  // them to sign up. Predict-gates use (authenticated || isAnonymous).
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   // When the Google redirect path silently fails (mobile bfcache /
   // storage partitioning eating the credential), we auto-open the
@@ -1893,12 +1898,29 @@ const GoalOracle = () => {
     setReady(true);
     if (!fbUser) {
       setAuthenticated(false);
+      setIsAnonymous(false);
       setUData(null); setRole('user'); setAuthToken(null); resetFirebaseAuth();
       authInitRef.current = false;
       lastProcessedUidRef.current = null;
       return;
     }
+    // Anonymous (no-login) visitor — DOC-LESS. They get a token so picks save
+    // under this UID via the normal /api path, but we do NOT create a /users
+    // doc (no signup count, no leaderboard row) and keep authenticated=false
+    // so the UI still nudges them to sign up. They materialize as a real
+    // account only on conversion (linkWithCredential, phase iv).
+    if (fbUser.isAnonymous) {
+      setAuthenticated(false);
+      setIsAnonymous(true);
+      setRole('user');
+      try { setAuthToken(await fbUser.getIdToken()); } catch {}
+      setUData({ id: fbUser.uid, isAnonymous: true, displayName: null });
+      authInitRef.current = true;
+      lastProcessedUidRef.current = fbUser.uid;
+      return;
+    }
     setAuthenticated(true);
+    setIsAnonymous(false);
     // Re-run for any UID change. Without this, a popup→custom-token swap
     // (transient-google-uid → did:privy:) or a sign-out-then-sign-in that
     // missed its null event leaves uData pointing at the prior account
@@ -1979,6 +2001,13 @@ const GoalOracle = () => {
         return;
       }
       await processFirebaseUser(fbUser);
+      // No-login funnel: with no session at all, establish an anonymous one
+      // so the visitor can predict immediately. Guarded (auth.currentUser +
+      // _anonInFlight inside ensureAnonymousSession) against loops; skipped
+      // mid-swap so it never races a real sign-in.
+      if (!fbUser && !isAuthSwapInFlight()) {
+        ensureAnonymousSession();
+      }
     });
 
     // Refresh the cached ID token periodically so server calls don't hit

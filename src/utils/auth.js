@@ -1,6 +1,33 @@
 import { auth } from '../config/firebase';
-import { signInWithCustomToken, signOut as fbSignOut } from 'firebase/auth';
+import { signInWithCustomToken, signOut as fbSignOut, signInAnonymously } from 'firebase/auth';
 import { getVisitorId } from './fingerprint';
+
+// ── No-login funnel (roadmap item C) ─────────────────────────────────────
+// Give every visitor a real Firebase identity (a UID, no email) so they can
+// predict BEFORE signing up. Picks then save under this UID via the exact
+// same path a logged-in user uses (one storage system, no separate
+// "anonymous picks" store). At sign-up, linkWithCredential attaches the
+// email/Google credential to THIS uid — the uid never changes, so the picks
+// are already in the account (no copy, no migration). Doc-less: no /users
+// doc is created until the visitor converts.
+let _anonInFlight = false;
+export async function ensureAnonymousSession() {
+  if (auth.currentUser) return auth.currentUser; // already have a session
+  if (_anonInFlight) return null;
+  _anonInFlight = true;
+  try {
+    const cred = await signInAnonymously(auth);
+    return cred.user;
+  } catch (e) {
+    // auth/operation-not-allowed => the Anonymous provider isn't enabled in
+    // the Firebase console. Degrade to the logged-out experience instead of
+    // crashing the app.
+    console.warn('[auth] anonymous sign-in unavailable:', e?.code || e?.message);
+    return null;
+  } finally {
+    _anonInFlight = false;
+  }
+}
 
 // Google sign-in is now handled by Google Identity Services (GIS) via
 // renderGoogleButton (src/utils/googleIdentity.js). The previous
