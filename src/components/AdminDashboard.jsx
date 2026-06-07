@@ -3069,6 +3069,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 {' '}Skipped: {sweepResult.skipped?.hasPicks || 0} already have league picks, {sweepResult.skipped?.noGlobalPicks || 0} have no Global bracket
                 {sweepResult.skipped?.stageLocked ? `, ${sweepResult.skipped.stageLocked} stage-locked` : ''}
                 {sweepResult.skipped?.errors ? `, ${sweepResult.skipped.errors} errors` : ''}.
+                {Array.isArray(sweepResult.truncatedLeagues) && sweepResult.truncatedLeagues.length > 0 && (
+                  <span style={{ color: 'var(--danger)', display: 'block', marginTop: 4 }}>
+                    ⚠ {sweepResult.truncatedLeagues.length} league(s) over 5000 members were capped: {sweepResult.truncatedLeagues.map(l => `${l.name} (${l.total})`).join(', ')}. Some members were not covered.
+                  </span>
+                )}
               </div>
             )}
           </div>
