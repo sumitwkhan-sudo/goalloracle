@@ -3259,14 +3259,15 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   <div className="ins-card"><div className="ins-card-val">{mig.migrated || 0}</div><div className="ins-card-label">Picks migrated ✓</div></div>
                   <div className="ins-card"><div className="ins-card-val">{mig.target_has_picks || 0}</div><div className="ins-card-label">Not applied · existing acct</div></div>
                   <div className="ins-card"><div className={`ins-card-val${(mig.error || 0) > 0 ? ' fh-bad' : ''}`}>{mig.error || 0}</div><div className="ins-card-label">Migration errors</div></div>
-                  <div className="ins-card"><div className={`ins-card-val${(auth.total || 0) >= 10 ? ' fh-bad' : ''}`}>{auth.total || 0}</div><div className="ins-card-label">Custom-token errors</div></div>
+                  <div className="ins-card" title="Users who couldn't sign in after all retries"><div className={`ins-card-val${(auth.total || 0) >= 10 ? ' fh-bad' : ''}`}>{auth.total || 0}</div><div className="ins-card-label">Sign-in failures</div></div>
+                  <div className="ins-card" title="Sign-in attempts that failed once but recovered on retry — flaky networks, not blocked users"><div className="ins-card-val" style={{ opacity: 0.7 }}>{auth.transient || 0}</div><div className="ins-card-label">Transient retries</div></div>
                   <div className="ins-card"><div className="ins-card-val">{mig.no_anon_picks || 0}</div><div className="ins-card-label">Signup · no anon picks</div></div>
                 </div>
 
                 {/* Today's auth-error breakdown by Firebase code */}
                 {codeRows.length > 0 && (
                   <>
-                    <div className="fh-section-label">Today’s sign-in errors by code</div>
+                    <div className="fh-section-label">Today’s sign-in failures by code</div>
                     <div className="fh-codes">
                       {codeRows.map(([code, n]) => (
                         <div className="fh-code-row" key={code}>
@@ -3289,7 +3290,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                         <th title="Returning user signed into an account that already had a bracket — new anon picks not applied">Not applied</th>
                         <th title="Signed up without making picks first">No picks</th>
                         <th title="Exceptions during migration">Mig. err</th>
-                        <th title="Custom-token sign-in errors">Auth err</th>
+                        <th title="Terminal sign-in failures (after all retries)">Sign-in fail</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3321,7 +3322,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 <p className="form-hint">
                   “Not applied” is an expected edge case (a returning user signing into an account
                   that already has a bracket) — surfaced for visibility, it doesn’t raise the status.
-                  “Migration errors” and a spike in custom-token errors do.
+                  “Sign-in failures” count only users blocked after all 3 retries (transient retries
+                  that recover are tracked separately and don’t alarm). “Migration errors” and a
+                  spike in sign-in failures raise the status.
                 </p>
               </>
             )}

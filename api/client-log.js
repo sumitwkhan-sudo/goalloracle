@@ -1,6 +1,6 @@
 import { db, applyCors } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { dayId, normalizeAuthCode, normalizeStep } from './_lib/funnelHealth.js';
+import { dayId, normalizeAuthCode, normalizeStep, isTerminalAuthError } from './_lib/funnelHealth.js';
 
 // Server-side capture of critical client-side events that we otherwise
 // can't see (mobile users with no DevTools, silent Firebase Auth
@@ -91,17 +91,30 @@ export default async function handler(req, res) {
   if (HEALTH_COUNTED_TAGS.has(tag)) {
     try {
       const id = dayId();
-      const code = normalizeAuthCode(data?.code);
-      const step = normalizeStep(data?.step);
-      await db.collection('funnelHealth').doc(id).set({
-        date: id,
-        authCustomToken: {
-          total: FieldValue.increment(1),
-          byCode: { [code]: FieldValue.increment(1) },
-          byStep: { [step]: FieldValue.increment(1) },
-        },
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      // The sign-in retry loop emits one breadcrumb PER attempt. Only the
+      // TERMINAL one means the user actually couldn't sign in; the rest are
+      // transient attempts that recovered on retry. Counting every attempt
+      // triple-counts a single flaky session, so split them: terminal drives
+      // the alert (total/byCode/byStep), transient is informational only.
+      if (isTerminalAuthError(data)) {
+        const code = normalizeAuthCode(data?.code);
+        const step = normalizeStep(data?.step);
+        await db.collection('funnelHealth').doc(id).set({
+          date: id,
+          authCustomToken: {
+            total: FieldValue.increment(1),
+            byCode: { [code]: FieldValue.increment(1) },
+            byStep: { [step]: FieldValue.increment(1) },
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } else {
+        await db.collection('funnelHealth').doc(id).set({
+          date: id,
+          authCustomToken: { transient: FieldValue.increment(1) },
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
     } catch (e) {
       console.warn('[client-log] health write failed:', e?.message);
     }

@@ -300,6 +300,7 @@ export default async function handler(req, res) {
             migration: { ...base.migration, ...(d.migration || {}) },
             authCustomToken: {
               total: d.authCustomToken?.total || 0,
+              transient: d.authCustomToken?.transient || 0,
               byCode: d.authCustomToken?.byCode || {},
               byStep: d.authCustomToken?.byStep || {},
             },

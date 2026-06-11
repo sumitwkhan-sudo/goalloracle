@@ -13,6 +13,7 @@ import {
   sumOutcomes,
   normalizeAuthCode,
   normalizeStep,
+  isTerminalAuthError,
   WATCH_THRESHOLDS,
   MIGRATION_OUTCOMES,
 } from './funnelHealth.js';
@@ -70,6 +71,30 @@ describe('computeHealthStatus', () => {
   test('empty input is safe → ok', () => {
     expect(computeHealthStatus([]).status).toBe('ok');
     expect(computeHealthStatus(undefined).status).toBe('ok');
+  });
+});
+
+describe('isTerminalAuthError (only count the failure, not each retry)', () => {
+  test('explicit terminal flag wins', () => {
+    expect(isTerminalAuthError({ terminal: true })).toBe(true);
+    expect(isTerminalAuthError({ terminal: false, retriable: false })).toBe(false);
+  });
+  test('derives from attempt/retriable for older clients', () => {
+    // network error, attempts 1 & 2 → still retrying → not terminal
+    expect(isTerminalAuthError({ retriable: true, attempt: 1 })).toBe(false);
+    expect(isTerminalAuthError({ retriable: true, attempt: 2 })).toBe(false);
+    // network error, attempt 3 → retries exhausted → terminal
+    expect(isTerminalAuthError({ retriable: true, attempt: 3 })).toBe(true);
+    // non-retriable error (e.g. invalid token) → terminal on first attempt
+    expect(isTerminalAuthError({ retriable: false, attempt: 1 })).toBe(true);
+  });
+  test('a cluster of 3 network attempts counts exactly once', () => {
+    const cluster = [
+      { retriable: true, attempt: 1 },
+      { retriable: true, attempt: 2 },
+      { retriable: true, attempt: 3 },
+    ];
+    expect(cluster.filter(isTerminalAuthError).length).toBe(1);
   });
 });
 

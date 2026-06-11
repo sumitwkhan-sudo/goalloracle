@@ -173,6 +173,10 @@ async function signInWithCustomTokenRetry(token, step) {
     } catch (err) {
       lastErr = err;
       const retriable = err?.code === 'auth/network-request-failed';
+      // terminal = the user actually couldn't sign in (non-retriable error,
+      // or retries exhausted). The funnel-health counter only tallies these,
+      // so a single flaky session that retries isn't counted 3×.
+      const terminal = !retriable || attempt === MAX_ATTEMPTS;
       clientLog('auth.customtoken.error', {
         step,
         attempt,
@@ -180,8 +184,9 @@ async function signInWithCustomTokenRetry(token, step) {
         message: err?.message || null,
         ua: typeof navigator !== 'undefined' ? navigator.userAgent : null,
         retriable,
+        terminal,
       });
-      if (!retriable || attempt === MAX_ATTEMPTS) throw err;
+      if (terminal) throw err;
       await new Promise((r) => setTimeout(r, attempt * 600));
     }
   }

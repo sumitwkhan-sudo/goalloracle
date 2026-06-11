@@ -21,8 +21,26 @@ export const MIGRATION_OUTCOMES = ['migrated', 'target_has_picks', 'no_anon_pick
 // Heuristic alert thresholds. Tuned to flag a genuine regression, not normal
 // flaky-mobile noise (custom-token retries are expected at a low rate).
 export const WATCH_THRESHOLDS = {
-  authCustomTokenPerDay: 10, // total custom-token errors in a day before we flag
+  authCustomTokenPerDay: 10, // TERMINAL sign-in failures in a day before we flag
 };
+
+// The custom-token sign-in retry loop in src/utils/auth.js retries up to this
+// many times on auth/network-request-failed. Each failed ATTEMPT logs a
+// breadcrumb, so a single failing sign-in emits up to 3 — we only want to
+// COUNT the terminal one (the retries are exhausted / a non-retriable error),
+// otherwise the metric triple-counts a single flaky session.
+export const AUTH_MAX_ATTEMPTS = 3;
+
+// Is this auth.customtoken.error breadcrumb the TERMINAL failure (the user
+// actually couldn't sign in) vs a transient attempt that will be retried?
+// New clients send `terminal` explicitly; for older deployed clients we
+// derive it from the attempt/retriable fields they already send.
+export function isTerminalAuthError(data) {
+  if (typeof data?.terminal === 'boolean') return data.terminal;
+  const retriable = data?.retriable === true;
+  const attempt = Number(data?.attempt) || 0;
+  return !retriable || attempt >= AUTH_MAX_ATTEMPTS;
+}
 
 // UTC day bucket id, e.g. '2026-06-07'. UTC (not ET) so the bucket boundary
 // is stable regardless of where the serverless region runs.
@@ -45,7 +63,9 @@ export function blankDay(date) {
   return {
     date,
     migration: { migrated: 0, target_has_picks: 0, no_anon_picks: 0, same_uid: 0, error: 0 },
-    authCustomToken: { total: 0, byCode: {}, byStep: {} },
+    // total = TERMINAL sign-in failures (drives the alert). transient =
+    // attempts that failed but recovered on retry (informational only).
+    authCustomToken: { total: 0, transient: 0, byCode: {}, byStep: {} },
   };
 }
 
@@ -68,7 +88,7 @@ export function computeHealthStatus(days) {
   }
   const authTotal = auth.total || 0;
   if (authTotal >= WATCH_THRESHOLDS.authCustomTokenPerDay) {
-    reasons.push(`${authTotal} custom-token sign-in errors today (≥ ${WATCH_THRESHOLDS.authCustomTokenPerDay})`);
+    reasons.push(`${authTotal} sign-in failures today (after retries, ≥ ${WATCH_THRESHOLDS.authCustomTokenPerDay})`);
   }
 
   return { status: reasons.length ? 'watch' : 'ok', reasons };
