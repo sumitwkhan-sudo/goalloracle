@@ -8750,6 +8750,32 @@ body.light .lsd-head,
 }
 .ll-row:last-child { border-bottom: none; }
 
+/* Live-score column (group stage): inject a 7th column before SCORE. Only
+   applied while the group stage is live (showLiveScore) so the board keeps
+   its tighter 6-column layout pre-tournament and in the knockouts. */
+.ll-colheader.ll-with-live,
+.ll-row.ll-with-live {
+  grid-template-columns: 64px 1fr 20px minmax(150px, 1.25fr) 50px 60px 16px;
+}
+.ll-cell-live { display: flex; justify-content: flex-end; align-items: center; }
+.ll-live-wrap { display: inline-flex; align-items: center; gap: 0.28rem; }
+.ll-live-num {
+  font-family: var(--mono); font-weight: 700; font-size: 0.82rem;
+  color: var(--success, #00c853); font-variant-numeric: tabular-nums;
+}
+.ll-live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--success, #00c853);
+  box-shadow: 0 0 0 0 rgba(0, 200, 83, 0.5);
+  animation: ll-live-pulse 1.8s ease-out infinite;
+}
+@keyframes ll-live-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(0, 200, 83, 0.5); }
+  70% { box-shadow: 0 0 0 5px rgba(0, 200, 83, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 200, 83, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .ll-live-dot { animation: none; } }
+
 /* You-row highlight — subtle tint + 3px primary edge, no heavy border */
 /* Chevron — Apple HIG cue that the row is tappable. Hidden on the user's
    own row (they get explicit Edit/Share buttons instead). */
@@ -9001,6 +9027,11 @@ body.light .lsd-head,
     padding: 0.55rem 0.7rem;
     min-height: 56px; /* keep touch target */
   }
+  /* With the live column, slot it in next to the score on the top row. */
+  .ll-row.ll-with-live, .ll-colheader.ll-with-live {
+    grid-template-columns: 44px 1fr auto auto 14px;
+  }
+  .ll-cell-live { font-size: 0.8rem; }
   .ll-cell-status { display: none; }
   .ll-cell-pred {
     grid-column: 1 / -1;

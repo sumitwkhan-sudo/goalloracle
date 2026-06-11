@@ -1,4 +1,6 @@
 import { db, admin, applyCors } from './_lib/firebase.js';
+import { buildLiveGroupStandings } from './_lib/bracketResolver.js';
+import { scoreGroupStage } from '../src/utils/scoringSimple.js';
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -28,14 +30,26 @@ export default async function handler(req, res) {
     };
 
     const compositeIds = members.map(uid => `${uid}__${leagueId}`);
-    const [userSnaps, predSnaps] = await Promise.all([
+    const [userSnaps, predSnaps, resultsSnap] = await Promise.all([
       Promise.all(chunk(members, 30).map(batch =>
         db.collection('users').where('id', 'in', batch).get())),
       Promise.all(chunk(compositeIds, 30).map(batch =>
         db.collection('simplePredictions')
           .where(admin.firestore.FieldPath.documentId(), 'in', batch)
           .get())),
+      // Match results back the LIVE group score (provisional points from the
+      // CURRENT group tables, before a group is fully played). One small
+      // collection (~104 docs), read concurrently with the rest.
+      db.collection('matchResults').get(),
     ]);
+
+    const resultsMap = {};
+    resultsSnap.forEach(d => { resultsMap[d.id] = d.data(); });
+    // Live (partial) group standings + whether the group stage has any
+    // completed matches yet (gates whether the UI shows the Live column).
+    const { standings: liveStandings, matchesPlayed: groupMatchesPlayed } =
+      buildLiveGroupStandings(resultsMap);
+    const groupStageStarted = groupMatchesPlayed > 0;
 
     const users = {};
     userSnaps.forEach(snap => snap.docs.forEach(d => {
@@ -149,6 +163,16 @@ export default async function handler(req, res) {
       const isComplete = !!(pred?.isComplete || winner);
       const score = scoresByUser[userId] || { totalScore: 0, totalAccuracy: 0 };
 
+      // LIVE score: group-stage points scored against the CURRENT (partial)
+      // group tables — real-time feedback before a group finishes and the
+      // official score counts it. Group-stage only ("based on current group
+      // rankings"); 0 if the user hasn't ranked any groups or nothing's been
+      // played. Converges to the official group-stage points once groups
+      // complete (live standings == final standings for a finished group).
+      const liveGroupScore = groupStageStarted && pred?.groupPredictions
+        ? scoreGroupStage(pred.groupPredictions, liveStandings)
+        : 0;
+
       return {
         userId,
         displayName: user.displayName,
@@ -165,6 +189,7 @@ export default async function handler(req, res) {
         submittedAt: ts?._seconds ? ts._seconds * 1000 : ts?.toMillis ? ts.toMillis() : ts || null,
         totalScore: score.totalScore,
         totalAccuracy: score.totalAccuracy,
+        liveGroupScore,
         winner,
         runnerUp,
       };
@@ -178,6 +203,15 @@ export default async function handler(req, res) {
     // a secondary stat but is NOT a ranking key.)
     leaderboard.sort((a, b) => {
       if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+      // Live group score breaks ties below the official points — so during
+      // the group stage (when every official totalScore is still 0 because no
+      // group has fully finished), the board meaningfully orders by who's
+      // doing best against the CURRENT tables instead of by submission time.
+      // Once official points accrue they dominate, preserving the published
+      // "rank by total points" rule.
+      if ((b.liveGroupScore || 0) !== (a.liveGroupScore || 0)) {
+        return (b.liveGroupScore || 0) - (a.liveGroupScore || 0);
+      }
       if (a.hasSubmitted !== b.hasSubmitted) return b.hasSubmitted ? 1 : -1;
       // Earlier submission wins — but only when the times actually differ,
       // otherwise fall through to the alphabetical tiebreak (a bare
@@ -203,7 +237,7 @@ export default async function handler(req, res) {
     } else {
       res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
     }
-    return res.status(200).json({ leaderboard });
+    return res.status(200).json({ leaderboard, groupStageStarted });
   } catch (e) {
     console.error('[simple-leaderboard] Error:', e.message);
     return res.status(500).json({ error: e.message });

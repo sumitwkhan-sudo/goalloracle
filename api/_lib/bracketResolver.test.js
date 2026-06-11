@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { resolveActualBracket, buildSimpleActuals } from './bracketResolver.js';
+import { resolveActualBracket, buildSimpleActuals, buildLiveGroupStandings } from './bracketResolver.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
@@ -253,5 +253,43 @@ describe('buildSimpleActuals (R1 — Quick Picks scoring inputs)', () => {
     // A bracket that perfectly matches every actual result earns the max.
     expect(score.totalScore).toBe(209);
     expect(score.totalAccuracy).toBeCloseTo(1, 5);
+  });
+});
+
+describe('buildLiveGroupStandings (live/provisional group score input)', () => {
+  test('empty results → no standings, zero matches played', () => {
+    const { standings, matchesPlayed } = buildLiveGroupStandings({});
+    expect(standings).toEqual({});
+    expect(matchesPlayed).toBe(0);
+  });
+
+  test('a single completed match makes that PARTIAL group appear (unlike buildSimpleActuals)', () => {
+    // gs01: Mexico 2–0 South Africa (Group A). Only one match played.
+    const results = { gs01: makeResult(2, 0) };
+
+    // The official actuals OMIT Group A (not all 3 played)…
+    expect(buildSimpleActuals(results).groupStandings.A).toBeUndefined();
+
+    // …but the LIVE standings include it, ranked by the current table.
+    const { standings, matchesPlayed } = buildLiveGroupStandings(results);
+    expect(Object.keys(standings)).toEqual(['A']);
+    expect(standings.A).toHaveLength(4);
+    expect(standings.A[0]).toBe('Mexico'); // winner currently on top
+    expect(matchesPlayed).toBe(1);
+  });
+
+  test('groups with no completed match are omitted', () => {
+    const results = { gs01: makeResult(1, 0) }; // only Group A has a result
+    const { standings } = buildLiveGroupStandings(results);
+    expect(standings.B).toBeUndefined();
+    expect(standings.L).toBeUndefined();
+  });
+
+  test('live group score rewards a correct current-leader pick', async () => {
+    const { scoreGroupStage } = await import('../../src/utils/scoringSimple.js');
+    const { standings } = buildLiveGroupStandings({ gs01: makeResult(2, 0) });
+    // User predicted Mexico 1st in Group A → 3 pts against the live table.
+    const preds = { A: { ranking: ['Mexico', 'South Africa', 'South Korea', 'Czechia'] } };
+    expect(scoreGroupStage(preds, standings)).toBe(3);
   });
 });

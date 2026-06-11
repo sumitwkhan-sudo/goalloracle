@@ -173,11 +173,11 @@ function PredictionCell({ winner, runnerUp, uniqueness, upsetCount = 0, status }
 }
 
 // ── single row — used for both standard and you-row ─────────────────────
-function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onShareBracket }) {
+function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onShareBracket, showLiveScore = false }) {
   const handleKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(row); } };
   return (
     <div
-      className={`ll-row ${isYou ? 'll-row-you' : ''}`}
+      className={`ll-row ${isYou ? 'll-row-you' : ''}${showLiveScore ? ' ll-with-live' : ''}`}
       onClick={() => onRowClick?.(row)}
       role="button"
       tabIndex={0}
@@ -202,6 +202,16 @@ function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onSha
       <div className="ll-cell ll-cell-pred">
         <PredictionCell winner={row.winner} runnerUp={row.runnerUp} uniqueness={row.uniqueness} upsetCount={row.upsetCount || 0} status={(!row.winner && !row.runnerUp) ? predictionStatus(row) : null} />
       </div>
+      {showLiveScore && (
+        <div className="ll-cell ll-cell-live">
+          {row.liveGroupScore > 0 ? (
+            <span className="ll-live-wrap">
+              <span className="ll-live-dot" aria-hidden="true" />
+              <span className="ll-live-num">{row.liveGroupScore}</span>
+            </span>
+          ) : <span className="ll-pts-empty">—</span>}
+        </div>
+      )}
       <div className="ll-cell ll-cell-pts">
         {/* Ranking is by points; accuracy shown as a secondary stat. */}
         {(row.totalScore > 0 || row.totalAccuracy > 0) ? (
@@ -405,6 +415,7 @@ export default function LeagueLeaderboardLayout({
   onJoin,
   loading = false,
   onBack,
+  showLiveScore = false,
 }) {
   const isGlobal = league?.id === 'global-simple' || league?.id === 'global' || league?.isGlobal === true;
   const isPrivate = league?.visibility === 'private';
@@ -476,11 +487,14 @@ export default function LeagueLeaderboardLayout({
       {/* Optional column header — small caps, low contrast. Helps scan
           when the rows have lots of fields. Hidden on mobile (the row
           hierarchy is unambiguous at this density). */}
-      <div className="ll-colheader" aria-hidden="true">
+      <div className={`ll-colheader${showLiveScore ? ' ll-with-live' : ''}`} aria-hidden="true">
         <div className="ll-cell ll-cell-rank">RANK</div>
         <div className="ll-cell ll-cell-id">PLAYER</div>
         <div className="ll-cell ll-cell-status" />
         <div className="ll-cell ll-cell-pred">PREDICTION</div>
+        {showLiveScore && (
+          <div className="ll-cell ll-cell-live" title="Live points from the current group tables — provisional, updates as matches are played">LIVE</div>
+        )}
         <div className="ll-cell ll-cell-pts" title="Total points (ranking) · accuracy">SCORE</div>
         <div className="ll-cell ll-cell-chev" />
       </div>
@@ -502,6 +516,7 @@ export default function LeagueLeaderboardLayout({
                 rank={rank}
                 isYou={isYou}
                 isCreator={isCreator}
+                showLiveScore={showLiveScore}
                 onRowClick={onRowClick}
                 onEdit={onEdit}
                 onShareBracket={isYou ? onShareBracket : null}
@@ -521,6 +536,7 @@ export default function LeagueLeaderboardLayout({
             rank={youIdx + 1}
             isYou={true}
             isCreator={!!creatorId && youRow.userId === creatorId}
+            showLiveScore={showLiveScore}
             onRowClick={onRowClick}
             onEdit={onEdit}
             onShareBracket={onShareBracket}

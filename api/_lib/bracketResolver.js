@@ -356,3 +356,30 @@ export function buildSimpleActuals(matchResults) {
 
   return { groupStandings, advancingThirds, knockoutResults };
 }
+
+// LIVE (provisional) group standings — like buildSimpleActuals' groupStandings
+// but INCLUDES partially-played groups so a "live score" can reflect the
+// CURRENT table before a group finishes. buildSimpleActuals deliberately omits
+// a group until all 3 matches are played (so the official score can't be
+// mis-scored mid-group); this is the opposite — it returns the current
+// ordering for any group that has at least one completed match. Groups with
+// no completed match are omitted (their order would be arbitrary).
+//
+// Returns { standings: { A: ['1st','2nd','3rd','4th'], ... }, matchesPlayed }.
+export function buildLiveGroupStandings(matchResults) {
+  const standings = buildGroupStandings(matchResults || {});
+  const live = {};
+  let matchesPlayed = 0;
+  for (const letter of GROUP_LETTERS) {
+    const teams = standings[letter];
+    if (!teams || teams.length !== 4) continue;
+    // Each completed match increments `played` for two teams, so the group's
+    // match count is half the sum of per-team played counts.
+    const groupPlayed = teams.reduce((s, t) => s + (t.played || 0), 0) / 2;
+    if (groupPlayed > 0) {
+      live[letter] = teams.map((t) => t.name);
+      matchesPlayed += groupPlayed;
+    }
+  }
+  return { standings: live, matchesPlayed };
+}

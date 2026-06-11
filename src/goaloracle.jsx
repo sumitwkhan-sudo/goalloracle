@@ -817,6 +817,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
   const [lbMode, setLbMode] = useState('simple'); // 'simple' | 'classic'
   const [simLb, setSimLb] = useState([]);
   const [simLbl, setSimLbl] = useState(false);
+  const [simGroupStageStarted, setSimGroupStageStarted] = useState(false);
   const [simDeltas, setSimDeltas] = useState({});
   const [classicLb, setClassicLb] = useState([]);
   const [classicLbl, setClassicLbl] = useState(false);
@@ -979,6 +980,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
         if (!cancelled) {
           const entries = data.leaderboard || [];
           setSimLb(entries);
+          setSimGroupStageStarted(!!data.groupStageStarted);
           setSimDeltas(computeRankDeltas(`simple:${league.id}`, entries));
         }
       } catch (e) { console.error(e); }
@@ -1207,6 +1209,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           <LeagueLeaderboardLayout
             league={league}
             rows={rows}
+            showLiveScore={simGroupStageStarted}
             currentUserId={userData?.id}
             scope={lbScope}
             onScopeChange={setLbScope}
