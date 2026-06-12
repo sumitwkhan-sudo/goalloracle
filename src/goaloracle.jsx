@@ -5,7 +5,7 @@ import { auth as fbAuth } from './config/firebase';
 import { signOut as authSignOut, isAuthSwapInFlight, completeGoogleRedirectIfNeeded, consumePendingEmail, ensureAnonymousSession, isRealSignInInFlight, consumePendingAnonToken } from './utils/auth';
 import LoginScreen from './components/auth/LoginScreen';
 import { track } from './utils/track';
-import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil, FileText, Bell } from 'lucide-react';
+import { Trophy, Users, Coins, Shield, ChevronRight, Menu, X, Globe, Zap, TrendingUp, Award, Lock, Unlock, LogOut, Plus, Search, CheckCircle, Clock, Target, Save, Eye, EyeOff, RefreshCw, UserPlus, AlertTriangle, Copy, Wallet, ChevronDown, User, ArrowRightLeft, ExternalLink, Loader, Moon, Sun, Trash2, Share2, Key, Home, HelpCircle, Sparkles, MessageSquare, Send, LayoutGrid, List, Flame, Star, MapPin, Calendar, RotateCcw, Pencil, FileText, Bell, BarChart3 } from 'lucide-react';
 import WORLD_CUP_MATCHES from './data/matches';
 import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
@@ -59,6 +59,7 @@ import QuickActionsTiles from './components/QuickActionsTiles';
 import FontPreview from './pages/FontPreview';
 import FirstPickPreview from './pages/FirstPickPreview';
 import GroupRedesignPreview from './pages/GroupRedesignPreview';
+import Standings from './pages/Standings';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
 import PublicBracket from './components/PublicBracket';
@@ -84,6 +85,7 @@ const VIEW_META = {
     path: '/faq',
     index: true,
   },
+  standings: { title: 'World Cup 2026 Standings & Results — GoalOracle', description: 'Live FIFA World Cup 2026 group standings and match results. Compare the current group tables against your Quick Picks bracket.', path: '/standings', index: true },
   dashboard: { title: 'Dashboard — GoalOracle', path: '/dashboard', index: false },
   leagues: { title: 'My Leagues — GoalOracle', path: '/leagues', index: false },
   browse: { title: 'Browse Leagues — GoalOracle', path: '/browse', index: false },
@@ -147,6 +149,7 @@ const PATH_TO_VIEW = {
   '/how-world-cup-third-place-qualification-works': 'howThirdPlaceQualificationWorks',
   '/about': 'about',
   '/contact': 'contact',
+  '/standings': 'standings',
   '/dashboard': 'dashboard',
   '/leagues': 'leagues',
   '/browse': 'browse',
@@ -5175,6 +5178,7 @@ const GoalOracle = () => {
           nav('detail', simpleLeague);
           setDetailTab('leaderboard');
         }}><TrendingUp size={14} /><span>Leaderboard</span></a>
+        <a className="nav-link" onClick={() => nav('standings')}><BarChart3 size={14} /><span>Standings</span></a>
         {authenticated && <>
           <a className="nav-link" onClick={() => nav('dashboard')}><Trophy size={14} /><span>Dashboard</span></a>
           <a className="nav-link" onClick={() => nav('leagues')}><Users size={14} /><span>My Leagues</span></a>
@@ -5435,6 +5439,7 @@ const GoalOracle = () => {
           onCelebrate={celebrate}
         />
       )}
+      {view === 'standings' && <Standings results={results} userId={uData?.id} authenticated={authenticated} leagues={leagues} onSignIn={login} />}
       {view === 'faq' && <FAQ />}
       {view === 'terms' && <Terms />}
       {view === 'officialRules' && <OfficialRules onNavPrivacy={() => nav('privacy')} />}
