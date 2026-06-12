@@ -28,7 +28,12 @@ import { teamNameMatches } from '../_lib/teamMatch.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
-const FT_GRACE_MS = 3 * 60 * 60 * 1000; // wait 3h after kickoff before trying
+// Earliest a match could be final: 90' + halftime + stoppage ≈ 105 min after
+// kickoff. We start checking then and let the provider's FINISHED status gate
+// ingestion (so we never store a mid-game score) — results land within one
+// poll (~2 min) of full time instead of waiting a fixed 3 hours. Knockouts
+// that go to extra time / penalties simply stay "pending" until FINISHED.
+const FT_GRACE_MS = 105 * 60 * 1000;
 
 async function isAuthorized(req) {
   const auth = req.headers.authorization || '';
@@ -47,29 +52,31 @@ function kickoffUtcMs(match) {
   return date.getTime();
 }
 
-async function fetchFootballDataByDateAndTeams({ dateFrom, dateTo, homeTeam, awayTeam }) {
+// Fetch the WC match list for a date range in ONE request, shared across all
+// candidates in a run (instead of one list call per game) so the lower grace
+// can't blow football-data's free-tier 10 req/min limit on busy days. The
+// list items carry status + teams, enough to match + gate on FINISHED.
+async function fetchWcMatches({ dateFrom, dateTo }) {
   const apiKey = process.env.FOOTBALL_DATA_API_KEY;
   if (!apiKey) throw new Error('FOOTBALL_DATA_API_KEY not set');
-  // World Cup competition code is 'WC' in football-data.org v4. We query a
-  // DATE RANGE, not a single day: our matches.js dates are local (ET), but
-  // football-data indexes by UTC kickoff date — so a 22:00-ET game (02:00 UTC
-  // next day) is listed under the NEXT calendar day there. Querying only the
-  // ET date missed every late kickoff (e.g. South Korea), so the result was
-  // never found. The range [ET date, UTC kickoff date] covers both.
+  // World Cup competition code is 'WC' in football-data.org v4. Date range,
+  // not a single day: our matches.js dates are local (ET) but football-data
+  // indexes by UTC kickoff date, so a late-ET game lands on the next UTC day.
   const r = await fetch(`https://api.football-data.org/v4/competitions/WC/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
     headers: { 'X-Auth-Token': apiKey },
   });
   if (!r.ok) throw new Error(`football-data.org list: HTTP ${r.status}`);
   const data = await r.json();
-  // Match on team names with alias + accent-aware comparison (teamMatch.js).
-  // The old naive lowercase-substring match silently failed whenever the
-  // provider used a team's official FIFA name (e.g. "Korea Republic" for
-  // South Korea), so that game's result was never ingested.
-  const match = (data.matches || []).find((m) =>
-    teamNameMatches(homeTeam, m.homeTeam?.name) && teamNameMatches(awayTeam, m.awayTeam?.name));
-  if (!match) throw new Error(`football-data.org: no match for ${homeTeam} vs ${awayTeam} on ${dateFrom}..${dateTo}`);
-  // Fetch detail (status FINISHED + score breakdown).
-  const detail = await fetch(`https://api.football-data.org/v4/matches/${match.id}`, {
+  return data.matches || [];
+}
+
+// Pull the per-match detail (full score breakdown incl. extra-time/penalties)
+// for a FINISHED game. parseFootballDataResponse throws unless status is
+// FINISHED, so this only ingests final results.
+async function fetchFootballDataDetail(matchId) {
+  const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+  if (!apiKey) throw new Error('FOOTBALL_DATA_API_KEY not set');
+  const detail = await fetch(`https://api.football-data.org/v4/matches/${matchId}`, {
     headers: { 'X-Auth-Token': apiKey },
   }).then((r) => r.json());
   return parseFootballDataResponse(detail);
@@ -121,14 +128,34 @@ export default async function handler(req, res) {
     summary.candidates = candidates.length;
     summary.knockoutsResolved = Object.keys(resolvedKnockouts).length;
     summary.allGroupsComplete = allGroupsComplete;
+    summary.pending = []; // candidates found upstream but not yet FINISHED
+
+    // Fetch the WC match list ONCE per run, over a date range covering every
+    // candidate (ET date is the earliest possible UTC date; the UTC kickoff
+    // date the latest). One request even when many games are in their post-
+    // kickoff window — keeps us well under the free-tier rate limit.
+    let wcMatches = [];
+    let listError = null;
+    if (candidates.length > 0) {
+      let dateFrom = null;
+      let dateTo = null;
+      for (const m of candidates) {
+        const et = m.date;
+        const utc = new Date(kickoffUtcMs(m)).toISOString().slice(0, 10);
+        if (!dateFrom || et < dateFrom) dateFrom = et;
+        if (!dateTo || utc > dateTo) dateTo = utc;
+      }
+      try {
+        wcMatches = await fetchWcMatches({ dateFrom, dateTo });
+      } catch (e) {
+        listError = e.message;
+        summary.errors.push({ source: 'football-data.org-list', error: e.message });
+      }
+    }
 
     for (const m of candidates) {
+      if (listError) { summary.skipped += 1; continue; } // retry next run
       try {
-        // football-data indexes by UTC kickoff date; our m.date is ET. Query
-        // the range [ET date, UTC kickoff date] so late-ET games that roll
-        // into the next UTC day are still found.
-        const dateFrom = m.date;
-        const dateTo = new Date(kickoffUtcMs(m)).toISOString().slice(0, 10);
         // For knockout matches, swap placeholder team names for the
         // actually-resolved team names. For group matches, m.home/m.away
         // already are the real names.
@@ -136,11 +163,26 @@ export default async function handler(req, res) {
         const lookupHome = resolvedTeams?.home || m.home;
         const lookupAway = resolvedTeams?.away || m.away;
 
-        let s = null;
-        try { s = await fetchFootballDataByDateAndTeams({ dateFrom, dateTo, homeTeam: lookupHome, awayTeam: lookupAway }); }
-        catch (e) { summary.errors.push({ matchId: m.id, source: 'football-data.org', error: e.message }); }
+        // Alias + accent-aware match against the shared list (teamMatch.js):
+        // handles "Korea Republic" for South Korea, "Côte d'Ivoire", etc.
+        const provider = wcMatches.find((pm) =>
+          teamNameMatches(lookupHome, pm.homeTeam?.name) && teamNameMatches(lookupAway, pm.awayTeam?.name));
+        if (!provider) {
+          summary.errors.push({ matchId: m.id, source: 'football-data.org', error: `no match for ${lookupHome} vs ${lookupAway}` });
+          summary.skipped += 1;
+          continue;
+        }
+        if (provider.status !== 'FINISHED') {
+          // Final whistle isn't in yet (IN_PLAY / PAUSED / TIMED). This is a
+          // normal transient state, NOT a pipeline error — record it quietly
+          // so a game that's mid-broadcast doesn't trip the no-results alert.
+          summary.pending.push({ matchId: m.id, status: provider.status });
+          summary.skipped += 1;
+          continue;
+        }
 
-        if (!s) { summary.skipped += 1; continue; }
+        // FINISHED → pull the detail for the full score breakdown and ingest.
+        const s = await fetchFootballDataDetail(provider.id);
 
         // Single-source ingestion: football-data.org is the source of
         // truth. Operator can override via /api/admin → updateResult and
@@ -201,9 +243,11 @@ export default async function handler(req, res) {
     console.log('[cron/poll-results] summary', JSON.stringify({
       candidates: summary.candidates,
       ingested: summary.ingested,
+      pending: (summary.pending || []).length,    // found, awaiting full time
       skipped: summary.skipped,
       errorCount: summary.errors.length,
       firstErrors: summary.errors.slice(0, 5),
+      pendingSample: (summary.pending || []).slice(0, 5),
       knockoutsResolved: summary.knockoutsResolved,
       allGroupsComplete: summary.allGroupsComplete,
       nowUtc: summary.runAt,
