@@ -570,10 +570,15 @@ export default async function handler(req, res) {
         // from each user's GLOBAL Quick Picks bracket (the league everyone is
         // in). Returns raw names/codes + counts; the client maps flags/names.
         // Full-collection scan — same pattern as the segments scan.
-        const [insUsersSnap, insPredsSnap] = await Promise.all([
+        const [insUsersSnap, insPredsSnap, insLeaguesSnap] = await Promise.all([
           db.collection('users').get(),
           db.collection('simplePredictions').get(),
+          db.collection('leagues').get(),
         ]);
+        // leagueId -> visibility ('private' | 'public' | ...), for splitting
+        // identical-bracket counts by league type.
+        const leagueVisibility = {};
+        insLeaguesSnap.docs.forEach(d => { leagueVisibility[d.id] = d.data().visibility || 'public'; });
         const insTsMs = (t) => (t?._seconds ? t._seconds * 1000 : (typeof t?.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null)));
         const NOW = Date.now();
         const DAY = 86400000;
@@ -602,6 +607,7 @@ export default async function handler(req, res) {
         // Predictions: pick each user's global-simple bracket (prefer the
         // composite doc over the legacy single-doc) and tally the crowd.
         const globalByUser = {};
+        const nonGlobalByUser = {}; // uid -> [{ leagueId, data }] for non-global QP leagues
         const startedUserIds = new Set();
         const insHasPicks = (data) => {
           const g = data.groupPredictions || {};
@@ -623,8 +629,51 @@ export default async function handler(req, res) {
           if (lId === 'global-simple') {
             // Composite doc (has '__') wins over the legacy single-id doc.
             if (!globalByUser[uId] || sep >= 0) globalByUser[uId] = data;
+          } else if (lId && lId !== 'global') {
+            // A user's bracket in a non-global Quick Picks league.
+            (nonGlobalByUser[uId] = nonGlobalByUser[uId] || []).push({ leagueId: lId, data });
           }
         });
+
+        // ── Identical brackets: how many users have the SAME Quick Picks in a
+        // non-global league as in the Global League (i.e. copied their Global
+        // bracket and left it unchanged). Compares a canonical signature of
+        // the three pick sections so incidental field-order / extra-flag
+        // differences don't count as a mismatch; only non-empty brackets are
+        // compared. Split by league visibility (private vs public).
+        const KO_ROUNDS = ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final'];
+        const GROUP_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+        const bracketSig = (d) => {
+          const g = d.groupPredictions || {};
+          const groups = GROUP_KEYS.map(L => `${L}:${(g[L]?.ranking || []).map(x => x || '').join('>')}`).join('|');
+          const thirds = (Array.isArray(d.bestThirdPicks) ? d.bestThirdPicks : []).slice().sort().join(',');
+          const ko = d.knockoutPredictions || {};
+          const koSig = KO_ROUNDS.map(r =>
+            `${r}:${(ko[r] || []).map(p => `${p?.matchId || ''}=${p?.winnerId || ''}`).sort().join(',')}`).join('|');
+          return `${groups}#${thirds}#${koSig}`;
+        };
+        let identicalUsers = 0;          // users with >=1 non-global league identical to Global
+        let identicalPairs = 0;          // (user, league) identical pairs
+        let identicalPrivatePairs = 0;
+        let identicalPublicPairs = 0;
+        let usersWithNonGlobal = 0;      // denominator: users with >=1 non-global QP bracket
+        for (const [uid, leagues] of Object.entries(nonGlobalByUser)) {
+          const gdoc = globalByUser[uid];
+          const withPicks = leagues.filter(l => insHasPicks(l.data));
+          if (withPicks.length > 0) usersWithNonGlobal += 1;
+          if (!gdoc || !insHasPicks(gdoc)) continue;
+          const gsig = bracketSig(gdoc);
+          let userHasIdentical = false;
+          for (const l of withPicks) {
+            if (bracketSig(l.data) === gsig) {
+              identicalPairs += 1;
+              userHasIdentical = true;
+              if (leagueVisibility[l.leagueId] === 'private') identicalPrivatePairs += 1;
+              else identicalPublicPairs += 1;
+            }
+          }
+          if (userHasIdentical) identicalUsers += 1;
+        }
 
         const championCounts = {};
         const runnerUpCounts = {};
@@ -701,6 +750,13 @@ export default async function handler(req, res) {
             groupsOnly: anonGroupsOnly,
             withCountry: anonStarted - (anonCountryCounts.unknown || 0),
             countries: { total: anonStarted, top: anonCountriesTop },
+          },
+          identicalBrackets: {
+            users: identicalUsers,            // people whose Global == a non-global league
+            pairs: identicalPairs,            // identical (user, league) pairs
+            privatePairs: identicalPrivatePairs,
+            publicPairs: identicalPublicPairs,
+            usersWithNonGlobal,               // denominator: users in any non-global QP league
           },
         });
       }

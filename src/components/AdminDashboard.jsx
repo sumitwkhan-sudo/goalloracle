@@ -3094,6 +3094,28 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     </div>
                   );
                 })()}
+
+                {/* Identical brackets: Global vs non-global leagues */}
+                {(() => {
+                  const ib = data.identicalBrackets || { users: 0, pairs: 0, privatePairs: 0, publicPairs: 0, usersWithNonGlobal: 0 };
+                  return (
+                    <div className="ins-anon">
+                      <div className="ins-block-title" style={{ marginBottom: 8 }}>
+                        🧬 Identical brackets <span className="ins-block-sub">same picks in Global &amp; another league</span>
+                      </div>
+                      <div className="ins-cards">
+                        <div className="ins-card"><div className="ins-card-val">{(ib.users || 0).toLocaleString()}</div><div className="ins-card-label">People · Global = a league</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{pct(ib.users, ib.usersWithNonGlobal)}%</div><div className="ins-card-label">of users in a 2nd league</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(ib.privatePairs || 0).toLocaleString()}</div><div className="ins-card-label">Private-league matches</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(ib.publicPairs || 0).toLocaleString()}</div><div className="ins-card-label">Public-league matches</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(ib.usersWithNonGlobal || 0).toLocaleString()}</div><div className="ins-card-label">In a non-Global league</div></div>
+                      </div>
+                      <p className="form-hint" style={{ marginTop: 0 }}>
+                        Counts users whose Global bracket exactly matches their bracket in at least one private/public league (copied Global picks, left unchanged). “Matches” counts each identical (user, league) pair. Only non-empty brackets compared.
+                      </p>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
