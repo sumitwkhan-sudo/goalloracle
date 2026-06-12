@@ -184,6 +184,22 @@ export default async function handler(req, res) {
       summary.scoring = { skipped: 'no new results this run' };
     }
 
+    // One-line console summary on EVERY run so the operator can see results
+    // flowing (or not) in Vercel runtime logs without reading /adminLogs.
+    // Counts + a sample of skip reasons make a silent "ingests nothing" run
+    // diagnosable at a glance (e.g. candidates=0 → clock/schedule; errors>0 →
+    // upstream/parse failures with the reason inline).
+    console.log('[cron/poll-results] summary', JSON.stringify({
+      candidates: summary.candidates,
+      ingested: summary.ingested,
+      skipped: summary.skipped,
+      errorCount: summary.errors.length,
+      firstErrors: summary.errors.slice(0, 5),
+      knockoutsResolved: summary.knockoutsResolved,
+      allGroupsComplete: summary.allGroupsComplete,
+      nowUtc: summary.runAt,
+    }));
+
     await db.collection('adminLogs').add({
       action: 'cron_poll_results',
       timestamp: FieldValue.serverTimestamp(),
