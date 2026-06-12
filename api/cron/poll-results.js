@@ -47,11 +47,16 @@ function kickoffUtcMs(match) {
   return date.getTime();
 }
 
-async function fetchFootballDataByDateAndTeams({ date, homeTeam, awayTeam }) {
+async function fetchFootballDataByDateAndTeams({ dateFrom, dateTo, homeTeam, awayTeam }) {
   const apiKey = process.env.FOOTBALL_DATA_API_KEY;
   if (!apiKey) throw new Error('FOOTBALL_DATA_API_KEY not set');
-  // World Cup competition code is 'WC' in football-data.org v4.
-  const r = await fetch(`https://api.football-data.org/v4/competitions/WC/matches?dateFrom=${date}&dateTo=${date}`, {
+  // World Cup competition code is 'WC' in football-data.org v4. We query a
+  // DATE RANGE, not a single day: our matches.js dates are local (ET), but
+  // football-data indexes by UTC kickoff date — so a 22:00-ET game (02:00 UTC
+  // next day) is listed under the NEXT calendar day there. Querying only the
+  // ET date missed every late kickoff (e.g. South Korea), so the result was
+  // never found. The range [ET date, UTC kickoff date] covers both.
+  const r = await fetch(`https://api.football-data.org/v4/competitions/WC/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
     headers: { 'X-Auth-Token': apiKey },
   });
   if (!r.ok) throw new Error(`football-data.org list: HTTP ${r.status}`);
@@ -62,7 +67,7 @@ async function fetchFootballDataByDateAndTeams({ date, homeTeam, awayTeam }) {
   // South Korea), so that game's result was never ingested.
   const match = (data.matches || []).find((m) =>
     teamNameMatches(homeTeam, m.homeTeam?.name) && teamNameMatches(awayTeam, m.awayTeam?.name));
-  if (!match) throw new Error(`football-data.org: no match for ${homeTeam} vs ${awayTeam} on ${date}`);
+  if (!match) throw new Error(`football-data.org: no match for ${homeTeam} vs ${awayTeam} on ${dateFrom}..${dateTo}`);
   // Fetch detail (status FINISHED + score breakdown).
   const detail = await fetch(`https://api.football-data.org/v4/matches/${match.id}`, {
     headers: { 'X-Auth-Token': apiKey },
@@ -119,7 +124,11 @@ export default async function handler(req, res) {
 
     for (const m of candidates) {
       try {
-        const date = m.date;
+        // football-data indexes by UTC kickoff date; our m.date is ET. Query
+        // the range [ET date, UTC kickoff date] so late-ET games that roll
+        // into the next UTC day are still found.
+        const dateFrom = m.date;
+        const dateTo = new Date(kickoffUtcMs(m)).toISOString().slice(0, 10);
         // For knockout matches, swap placeholder team names for the
         // actually-resolved team names. For group matches, m.home/m.away
         // already are the real names.
@@ -128,7 +137,7 @@ export default async function handler(req, res) {
         const lookupAway = resolvedTeams?.away || m.away;
 
         let s = null;
-        try { s = await fetchFootballDataByDateAndTeams({ date, homeTeam: lookupHome, awayTeam: lookupAway }); }
+        try { s = await fetchFootballDataByDateAndTeams({ dateFrom, dateTo, homeTeam: lookupHome, awayTeam: lookupAway }); }
         catch (e) { summary.errors.push({ matchId: m.id, source: 'football-data.org', error: e.message }); }
 
         if (!s) { summary.skipped += 1; continue; }
