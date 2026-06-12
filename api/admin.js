@@ -675,6 +675,35 @@ export default async function handler(req, res) {
           if (userHasIdentical) identicalUsers += 1;
         }
 
+        // ── Cross-user duplicate brackets in the GLOBAL League: different
+        // users whose Global bracket is byte-for-byte identical. These users
+        // are GUARANTEED the same final score regardless of results — the
+        // deterministic answer to "will anyone tie on points". (Non-identical
+        // brackets can also tie depending on outcomes, but that's results-
+        // dependent and can't be known up front.) Group by canonical signature.
+        const sigToUsers = {};
+        for (const [uid, gdoc] of Object.entries(globalByUser)) {
+          if (!insHasPicks(gdoc)) continue;
+          const sig = bracketSig(gdoc);
+          (sigToUsers[sig] = sigToUsers[sig] || []).push(uid);
+        }
+        const hasFinalWinner = (d) => !!d?.knockoutPredictions?.final?.[0]?.winnerId;
+        let dupUsers = 0;            // users sharing their exact bracket with >=1 other
+        let dupClusters = 0;        // distinct brackets shared by >=2 users
+        let dupUsersComplete = 0;   // of those, brackets with a Final winner
+        let largestCluster = 0;
+        const clusterSizes = [];
+        for (const uids of Object.values(sigToUsers)) {
+          if (uids.length < 2) continue;
+          dupClusters += 1;
+          dupUsers += uids.length;
+          largestCluster = Math.max(largestCluster, uids.length);
+          clusterSizes.push(uids.length);
+          for (const u of uids) if (hasFinalWinner(globalByUser[u])) dupUsersComplete += 1;
+        }
+        clusterSizes.sort((a, b) => b - a);
+        const globalWithPicks = Object.values(globalByUser).filter(insHasPicks).length;
+
         const championCounts = {};
         const runnerUpCounts = {};
         const bestThirdCounts = {};
@@ -757,6 +786,14 @@ export default async function handler(req, res) {
             privatePairs: identicalPrivatePairs,
             publicPairs: identicalPublicPairs,
             usersWithNonGlobal,               // denominator: users in any non-global QP league
+          },
+          globalDuplicates: {
+            dupUsers,                 // users sharing an identical Global bracket with someone else
+            dupClusters,              // distinct brackets shared by >=2 users
+            dupUsersComplete,         // of dupUsers, those with a full bracket (Final winner)
+            largestCluster,           // biggest group of identical brackets
+            globalWithPicks,          // denominator: users with any Global picks
+            topClusters: clusterSizes.slice(0, 8),
           },
         });
       }

@@ -3116,6 +3116,34 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     </div>
                   );
                 })()}
+
+                {/* Cross-user duplicate brackets in Global → guaranteed same score */}
+                {(() => {
+                  const gd = data.globalDuplicates || { dupUsers: 0, dupClusters: 0, dupUsersComplete: 0, largestCluster: 0, globalWithPicks: 0, topClusters: [] };
+                  return (
+                    <div className="ins-anon">
+                      <div className="ins-block-title" style={{ marginBottom: 8 }}>
+                        🟰 Duplicate brackets in Global <span className="ins-block-sub">different users, identical picks → same score</span>
+                      </div>
+                      <div className="ins-cards">
+                        <div className="ins-card"><div className="ins-card-val">{(gd.dupUsers || 0).toLocaleString()}</div><div className="ins-card-label">Users sharing a bracket</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(gd.dupClusters || 0).toLocaleString()}</div><div className="ins-card-label">Identical-bracket groups</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(gd.largestCluster || 0).toLocaleString()}</div><div className="ins-card-label">Largest group</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{(gd.dupUsersComplete || 0).toLocaleString()}</div><div className="ins-card-label">Of those · full bracket</div></div>
+                        <div className="ins-card"><div className="ins-card-val">{pct(gd.dupUsers, gd.globalWithPicks)}%</div><div className="ins-card-label">of Global predictors</div></div>
+                      </div>
+                      {Array.isArray(gd.topClusters) && gd.topClusters.length > 0 && (
+                        <p className="form-hint" style={{ marginTop: 0 }}>
+                          Biggest identical-bracket groups: {gd.topClusters.map((n, i) => `${n}${i < gd.topClusters.length - 1 ? '' : ''}`).join(' · ')} users.
+                          Anyone in a group is locked to the exact same score as the others, so they’ll tie on points (the leaderboard breaks ties by earliest submission, then name). Different brackets can still tie depending on results — that’s outcome-dependent.
+                        </p>
+                      )}
+                      {(!gd.topClusters || gd.topClusters.length === 0) && (
+                        <p className="form-hint" style={{ marginTop: 0 }}>No two users currently share an identical Global bracket — no guaranteed point ties yet.</p>
+                      )}
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
