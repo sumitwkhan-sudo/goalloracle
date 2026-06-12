@@ -24,6 +24,7 @@ import { parseFootballDataResponse } from '../_lib/oracleParsers.js';
 import { sendOperatorAlert } from '../_lib/alerts.js';
 import { resolveActualBracket, buildSimpleActuals } from '../_lib/bracketResolver.js';
 import { recomputeSimpleScores } from '../_lib/computeSimpleScores.js';
+import { teamNameMatches } from '../_lib/teamMatch.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -55,13 +56,12 @@ async function fetchFootballDataByDateAndTeams({ date, homeTeam, awayTeam }) {
   });
   if (!r.ok) throw new Error(`football-data.org list: HTTP ${r.status}`);
   const data = await r.json();
-  const ht = (homeTeam || '').toLowerCase();
-  const at = (awayTeam || '').toLowerCase();
-  const match = (data.matches || []).find((m) => {
-    const h = (m.homeTeam?.name || '').toLowerCase();
-    const a = (m.awayTeam?.name || '').toLowerCase();
-    return (h.includes(ht) || ht.includes(h)) && (a.includes(at) || at.includes(a));
-  });
+  // Match on team names with alias + accent-aware comparison (teamMatch.js).
+  // The old naive lowercase-substring match silently failed whenever the
+  // provider used a team's official FIFA name (e.g. "Korea Republic" for
+  // South Korea), so that game's result was never ingested.
+  const match = (data.matches || []).find((m) =>
+    teamNameMatches(homeTeam, m.homeTeam?.name) && teamNameMatches(awayTeam, m.awayTeam?.name));
   if (!match) throw new Error(`football-data.org: no match for ${homeTeam} vs ${awayTeam} on ${date}`);
   // Fetch detail (status FINISHED + score breakdown).
   const detail = await fetch(`https://api.football-data.org/v4/matches/${match.id}`, {
