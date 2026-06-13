@@ -1,6 +1,7 @@
 import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { recentDayIds, blankDay, computeHealthStatus, sumOutcomes } from './_lib/funnelHealth.js';
+import { RANK_DIGEST_DEFAULTS, sanitizeConfigPatch } from './_lib/rankDigest.js';
 import { ipHash, normalizeBypassEmail, _invalidateBypassCache } from './_lib/security.js';
 import { sendOperatorAlert } from './_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
@@ -311,6 +312,21 @@ export default async function handler(req, res) {
           totals: sumOutcomes(records),
           ...computeHealthStatus(records),
         });
+      } else if (type === 'rankDigestConfig') {
+        // Daily leaderboard-movement email config (+ last run / pending
+        // preview). Defaults merged so the UI always has a full shape.
+        const snap = await db.collection('config').doc('rankDigest').get();
+        const data = snap.exists ? snap.data() : {};
+        const tsMs = (t) => (t?.toMillis ? t.toMillis() : (t?._seconds ? t._seconds * 1000 : null));
+        const config = { ...RANK_DIGEST_DEFAULTS, ...data };
+        // Serialize timestamps the client can render.
+        if (config.lastSendAt) config.lastSendAtMs = tsMs(config.lastSendAt);
+        delete config.lastSendAt;
+        if (config.pendingPreview?.computedAt) {
+          config.pendingPreview = { ...config.pendingPreview, computedAtMs: config.pendingPreview.computedAtMs || tsMs(config.pendingPreview.computedAt) };
+          delete config.pendingPreview.computedAt;
+        }
+        return res.status(200).json({ config });
       } else if (type === 'usersQpStatus') {
         // Per-user Quick Picks prediction-status rollup for the admin Users
         // table. Same simplePredictions scan as type=segments; returned as a
@@ -1523,6 +1539,49 @@ export default async function handler(req, res) {
         timestamp: FieldValue.serverTimestamp(),
       });
       return res.status(200).json({ success: true, flag, value });
+    }
+
+    if (action === 'setRankDigestConfig') {
+      // Daily leaderboard-movement email config (/settings/rankDigest).
+      // Superadmin-only, same as feature flags (platform-wide + sends email).
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can change the rank-digest config' });
+      }
+      const patch = sanitizeConfigPatch(req.body?.config || {});
+      const ref = db.collection('config').doc('rankDigest');
+      await ref.set({ ...patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      await db.collection('adminLogs').add({
+        action: 'set_rank_digest_config',
+        patch,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+      }).catch(() => {});
+      const snap = await ref.get();
+      return res.status(200).json({ success: true, config: { ...RANK_DIGEST_DEFAULTS, ...(snap.data() || {}) } });
+    }
+
+    if (action === 'rankDigestPreviewNow') {
+      // On-demand: run the digest's PREVIEW phase right now (emails the
+      // operator the real email + counts, stashes pendingPreview). Triggers
+      // the cron with force=preview via the shared CRON_SECRET.
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can run a preview' });
+      }
+      const secret = process.env.CRON_SECRET;
+      if (!secret) return res.status(500).json({ error: 'CRON_SECRET not configured' });
+      try {
+        const r = await fetch('https://goaloracle.io/api/cron/rank-digest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+          body: JSON.stringify({ force: 'preview' }),
+        });
+        const out = await r.json().catch(() => ({}));
+        return res.status(200).json({ success: true, ...out });
+      } catch (e) {
+        return res.status(500).json({ error: e?.message || 'preview trigger failed' });
+      }
     }
 
     if (action === 'getFeatureFlagAuditLog') {

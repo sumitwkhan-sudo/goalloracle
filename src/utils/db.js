@@ -708,6 +708,20 @@ export async function fetchAdminGlobalSubmitLog(limit = 50) {
   return { rows: data?.rows || [] };
 }
 
+// Daily leaderboard-movement email config (+ last run / pending preview).
+// See api/admin.js type=rankDigestConfig.
+export async function fetchAdminRankDigestConfig() {
+  const data = await apiCall('admin?type=rankDigestConfig');
+  return data?.config || {};
+}
+export async function adminSetRankDigestConfig(config) {
+  const data = await apiCall('admin', 'POST', { action: 'setRankDigestConfig', config });
+  return data?.config || {};
+}
+export async function adminRankDigestPreviewNow() {
+  return await apiCall('admin', 'POST', { action: 'rankDigestPreviewNow' });
+}
+
 // No-login funnel monitoring (item C). Daily anon-picks migration outcomes +
 // custom-token sign-in error counts, newest day first, plus a derived
 // { status: 'ok'|'watch', reasons[] } banner. See api/admin.js type=funnelHealth.

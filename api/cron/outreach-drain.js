@@ -88,7 +88,7 @@ async function claimNextPending() {
 }
 
 async function runScheduledSend(claimed) {
-  const { id, ref, template, userIds, scheduledBy } = claimed;
+  const { id, ref, template, userIds, scheduledBy, userPayloads } = claimed;
   if (!TEMPLATES[template]) {
     await ref.update({
       status: 'failed',
@@ -107,7 +107,11 @@ async function runScheduledSend(claimed) {
       const user = { id: userSnap.id, ...userSnap.data() };
       if (!user.email || user.emailOptOut === true) { results.skipped++; continue; }
 
-      const { subject, html, text } = buildEmail(template, { user, ctx: {} });
+      // Per-user context for personalized templates (e.g. rankDigest carries
+      // each user's movement). Absent for the standard templates → ctx {} →
+      // unchanged behavior.
+      const ctx = (userPayloads && userPayloads[uid]) || {};
+      const { subject, html, text } = buildEmail(template, { user, ctx });
       const r = await sendOutreachEmail({
         to: user.email,
         subject, html, text,

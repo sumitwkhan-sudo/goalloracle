@@ -11090,3 +11090,33 @@ ol.legal-list li { margin-bottom: 0.35rem; }
 .wcs-score-live { color: #ff3b5c; }
 .wcs-match-state.wcs-state-live { color: #ff3b5c; font-weight: 800; }
 @media (prefers-reduced-motion: reduce) { .wcs-live-pip { animation: none; } }
+
+/* Admin — leaderboard movement email config (.rde-*) */
+.rde-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem 1.2rem; margin-bottom: 1.5rem; }
+.rde-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.2rem; }
+.rde-status { font-family: var(--mono); font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 999px; }
+.rde-status.on { color: var(--success, #00c853); background: rgba(0,200,83,0.13); }
+.rde-status.off { color: var(--text-sec); background: var(--bg-elev); }
+.rde-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem 1rem; margin: 0.8rem 0; }
+.rde-field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.rde-field.rde-wide { grid-column: 1 / -1; }
+.rde-field.rde-toggle { flex-direction: row; align-items: center; gap: 0.5rem; }
+.rde-label { font-size: 0.72rem; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.03em; }
+.rde-sub { font-size: 0.68rem; color: var(--text-dim); }
+.rde-field input[type="text"], .rde-field input[type="number"], .rde-field textarea {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.5rem 0.7rem; color: var(--text); font-family: var(--font); font-size: 0.85rem; width: 100%; box-sizing: border-box;
+}
+.rde-field textarea { resize: vertical; }
+.rde-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.4rem; }
+.rde-msg { font-size: 0.8rem; }
+.rde-msg.ok { color: var(--success, #00c853); }
+.rde-msg.err { color: #ef4444; }
+.rde-runs { margin-top: 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.rde-run { font-size: 0.82rem; color: var(--text-sec); background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.8rem; }
+.rde-movers { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.rde-mover { font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--bg-card); border: 1px solid var(--border); }
+.rde-mover.up { color: var(--success, #00c853); }
+.rde-mover.down { color: #ef4444; }
+.rde-mover-rank { color: var(--text-dim); font-weight: 700; }
+@media (max-width: 640px) { .rde-grid { grid-template-columns: 1fr; } }

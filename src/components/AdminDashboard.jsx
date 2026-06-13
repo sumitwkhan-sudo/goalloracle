@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -233,6 +233,41 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     }
   };
   useEffect(() => { loadFlagAuditLog(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // Daily leaderboard-movement email config.
+  const [rankCfg, setRankCfg] = useState(null);
+  const [rankCfgBusy, setRankCfgBusy] = useState(false);
+  const [rankPreviewMsg, setRankPreviewMsg] = useState(null);
+  const loadRankCfg = async () => {
+    try { setRankCfg(await fetchAdminRankDigestConfig()); }
+    catch (e) { console.warn('[admin] rankDigestConfig fetch failed:', e?.message || e); }
+  };
+  useEffect(() => { if (tab === 'settings') loadRankCfg(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tab]);
+  const setRankField = (k, v) => setRankCfg((c) => ({ ...(c || {}), [k]: v }));
+  const saveRankCfg = async () => {
+    if (!rankCfg) return;
+    setRankCfgBusy(true);
+    try {
+      const { lastSendAtMs, lastSendDate, lastSendCounts, pendingPreview, updatedAt, ...patch } = rankCfg;
+      const fresh = await adminSetRankDigestConfig(patch);
+      setRankCfg((c) => ({ ...c, ...fresh }));
+      setRankPreviewMsg({ ok: true, text: 'Saved.' });
+    } catch (e) {
+      setRankPreviewMsg({ ok: false, text: e?.message || 'Save failed' });
+    } finally { setRankCfgBusy(false); }
+  };
+  const sendRankPreview = async () => {
+    setRankCfgBusy(true);
+    setRankPreviewMsg(null);
+    try {
+      const r = await adminRankDigestPreviewNow();
+      const n = r?.total ?? 0;
+      setRankPreviewMsg({ ok: true, text: `Preview emailed to you — ${n} recipient${n === 1 ? '' : 's'} (${r?.upCount ?? 0} up, ${r?.downCount ?? 0} down).` });
+      loadRankCfg();
+    } catch (e) {
+      setRankPreviewMsg({ ok: false, text: e?.message || 'Preview failed' });
+    } finally { setRankCfgBusy(false); }
+  };
 
   // Fetch leagues with creator displayName + private-league passcode
   // joined when the Leagues tab activates. Cheap (admin SDK batches the
@@ -3391,6 +3426,99 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               <p className="admin-panel-desc">Feature toggles, platform configuration, and environment status</p>
             </div>
           </div>
+
+          {/* ── Daily leaderboard-movement emails ── */}
+          {isSuperadmin && (
+            <div className="rde-card">
+              <div className="rde-head">
+                <h3 className="admin-section-title" style={{ margin: 0 }}>📣 Leaderboard movement emails</h3>
+                {rankCfg && (
+                  <span className={`rde-status ${rankCfg.enabled ? 'on' : 'off'}`}>{rankCfg.enabled ? 'ON' : 'OFF'}</span>
+                )}
+              </div>
+              <p className="form-hint" style={{ marginTop: 0 }}>
+                After each day’s games, email Global-League players who climbed ≥{rankCfg?.upThreshold ?? 20} or dropped ≥{rankCfg?.downThreshold ?? 30} places. You get a preview + recipient count 2 hours before each send, and nothing sends unless this is ON.
+              </p>
+              {!rankCfg ? <div className="admin-empty">Loading…</div> : (
+                <>
+                  <div className="rde-grid">
+                    <label className="rde-field rde-toggle">
+                      <input type="checkbox" checked={!!rankCfg.enabled} onChange={(e) => setRankField('enabled', e.target.checked)} />
+                      <span>Enabled (master switch)</span>
+                    </label>
+                    <label className="rde-field rde-toggle">
+                      <input type="checkbox" checked={!!rankCfg.skipNext} onChange={(e) => setRankField('skipNext', e.target.checked)} />
+                      <span>Skip the next send</span>
+                    </label>
+                    <label className="rde-field">
+                      <span className="rde-label">Send hour (UTC, 0–23)</span>
+                      <input type="number" min="0" max="23" value={rankCfg.sendHourUtc ?? 13} onChange={(e) => setRankField('sendHourUtc', e.target.value)} />
+                      <span className="rde-sub">Preview goes out 2h before. Set this ~2h after the day’s last game.</span>
+                    </label>
+                    <div />
+                    <label className="rde-field">
+                      <span className="rde-label">Up threshold (places climbed)</span>
+                      <input type="number" min="1" max="500" value={rankCfg.upThreshold ?? 20} onChange={(e) => setRankField('upThreshold', e.target.value)} />
+                    </label>
+                    <label className="rde-field">
+                      <span className="rde-label">Down threshold (places dropped)</span>
+                      <input type="number" min="1" max="500" value={rankCfg.downThreshold ?? 30} onChange={(e) => setRankField('downThreshold', e.target.value)} />
+                    </label>
+                    <label className="rde-field">
+                      <span className="rde-label">Subject — climbed (blank = default)</span>
+                      <input type="text" maxLength={160} placeholder="🚀 You climbed N spots on the World Cup leaderboard!" value={rankCfg.subjectUp || ''} onChange={(e) => setRankField('subjectUp', e.target.value)} />
+                    </label>
+                    <label className="rde-field">
+                      <span className="rde-label">Subject — dropped (blank = default)</span>
+                      <input type="text" maxLength={160} placeholder="📊 Your World Cup leaderboard update" value={rankCfg.subjectDown || ''} onChange={(e) => setRankField('subjectDown', e.target.value)} />
+                    </label>
+                    <label className="rde-field rde-wide">
+                      <span className="rde-label">Intro note — climbed (blank = default, keep it fun)</span>
+                      <textarea rows={2} maxLength={600} placeholder="Big moves on the pitch, big moves on the table…" value={rankCfg.introUp || ''} onChange={(e) => setRankField('introUp', e.target.value)} />
+                    </label>
+                    <label className="rde-field rde-wide">
+                      <span className="rde-label">Intro note — dropped (blank = default)</span>
+                      <textarea rows={2} maxLength={600} placeholder="Today's results shook things up…" value={rankCfg.introDown || ''} onChange={(e) => setRankField('introDown', e.target.value)} />
+                    </label>
+                  </div>
+
+                  <div className="rde-actions">
+                    <button type="button" className="btn btn-primary btn-sm" onClick={saveRankCfg} disabled={rankCfgBusy}>
+                      {rankCfgBusy ? 'Saving…' : 'Save config'}
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={sendRankPreview} disabled={rankCfgBusy}>
+                      <Send size={13} /> Send me a preview now
+                    </button>
+                    {rankPreviewMsg && (
+                      <span className={`rde-msg ${rankPreviewMsg.ok ? 'ok' : 'err'}`}>{rankPreviewMsg.text}</span>
+                    )}
+                  </div>
+
+                  {(rankCfg.pendingPreview || rankCfg.lastSendCounts) && (
+                    <div className="rde-runs">
+                      {rankCfg.pendingPreview && (
+                        <div className="rde-run">
+                          <strong>Pending preview</strong> — {rankCfg.pendingPreview.total} recipient{rankCfg.pendingPreview.total === 1 ? '' : 's'} ({rankCfg.pendingPreview.upCount}↑ {rankCfg.pendingPreview.downCount}↓), sends {String(rankCfg.pendingPreview.sendHourUtc).padStart(2, '0')}:00 UTC.
+                          {Array.isArray(rankCfg.pendingPreview.topMovers) && rankCfg.pendingPreview.topMovers.length > 0 && (
+                            <div className="rde-movers">
+                              {rankCfg.pendingPreview.topMovers.slice(0, 12).map((m, i) => (
+                                <span key={i} className={`rde-mover ${m.direction}`}>{m.direction === 'up' ? '▲' : '▼'}{m.places} {m.name} <span className="rde-mover-rank">#{m.newRank}</span></span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {rankCfg.lastSendCounts && (
+                        <div className="rde-run">
+                          <strong>Last send</strong> — {rankCfg.lastSendCounts.total} email{rankCfg.lastSendCounts.total === 1 ? '' : 's'} ({rankCfg.lastSendCounts.up}↑ {rankCfg.lastSendCounts.down}↓){rankCfg.lastSendDate ? ` · ${rankCfg.lastSendDate}` : ''}.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <h3 className="admin-section-title">Feature flags</h3>
           <div className="admin-flag-card">

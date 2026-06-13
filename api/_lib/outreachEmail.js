@@ -491,6 +491,95 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
   return { subject, html, text };
 }
 
+// ─── Template: Daily Leaderboard Movement Digest ─────────────────
+// Personalized per recipient. ctx (per-user, supplied by the rank-digest
+// cron via the scheduled-send payload):
+//   { direction:'up'|'down', places:number, newRank:number, total:number,
+//     subject?:string, intro?:string }   subject/intro override the defaults
+// (operator-customizable copy from /settings/rankDigest).
+function rankDigestTemplate({ user, ctx }) {
+  const up = ctx?.direction !== 'down';
+  const places = Math.max(0, Math.round(Number(ctx?.places) || 0));
+  const newRank = Number.isFinite(Number(ctx?.newRank)) ? Number(ctx.newRank) : null;
+  const total = Number.isFinite(Number(ctx?.total)) ? Number(ctx.total) : null;
+  const rankOrd = ordinal(newRank);
+
+  const defaultSubject = up
+    ? `🚀 You climbed ${places} spot${places === 1 ? '' : 's'} on the World Cup leaderboard!`
+    : `📊 Your World Cup leaderboard update`;
+  const subject = (ctx?.subject && String(ctx.subject).trim()) || defaultSubject;
+
+  const emoji = up ? '🚀' : '💪';
+  const headline = up
+    ? `Up ${places} place${places === 1 ? '' : 's'}!`
+    : `Down ${places} — time to climb back.`;
+  const defaultIntro = up
+    ? `Big moves on the pitch, big moves on the table. After today's games you surged up the Global League. Keep it rolling.`
+    : `Today's results shook things up and you slipped a few spots — but there's a lot of football left and your bracket is still very much alive.`;
+  const intro = (ctx?.intro && String(ctx.intro).trim()) || defaultIntro;
+  const rankLine = rankOrd
+    ? `You're now <strong>${escape(rankOrd)}</strong>${total ? ` of ${total.toLocaleString()}` : ''} in the Global League.`
+    : '';
+
+  const accent = up ? '#00c853' : '#ff7a18';
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=rank_digest`;
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <div style="font-size:40px;line-height:1;margin:0 0 10px;">${emoji}</div>
+              <h1 style="margin:0 0 16px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">
+                ${escape(headline)}
+              </h1>
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">${escape(intro)}</p>
+              ${rankLine ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 22px;">
+                <tr><td style="background:#f5f6f8;border-left:4px solid ${accent};border-radius:10px;padding:14px 18px;font-size:18px;color:#0a0a0f;">${rankLine}</td></tr>
+              </table>` : ''}
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 8px;">
+                <tr><td style="border-radius:12px;background:#0a0a0f;">
+                  <a href="${ctaUrl}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">See the leaderboard →</a>
+                </td></tr>
+              </table>
+              <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#6e6e80;">
+                Top 3 on the Global Quick Picks Leaderboard at the end of the Final win <strong>$150 / $100 / $50 in USDC</strong>. Every match counts.
+              </p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `${up ? 'You moved UP' : 'You dropped'} ${places} place${places === 1 ? '' : 's'} on the World Cup leaderboard.
+
+${intro}${rankOrd ? `\n\nYou're now ${rankOrd}${total ? ` of ${total}` : ''} in the Global League.` : ''}
+
+See the leaderboard: ${ctaUrl}
+
+Top 3 on the Global Quick Picks Leaderboard at the end of the Final win $150 / $100 / $50 in USDC.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 // ─── Registry ────────────────────────────────────────────────────
 
 export const TEMPLATES = {
@@ -517,6 +606,12 @@ export const TEMPLATES = {
     label: 'Mid-Tournament Nudge',
     description: "Sent during the group stage to bring users back to check their standings. Default eligibility: in the Global Quick Picks League, has email, not opted out, has at least one completed group ranking (so we don't nag users who haven't started — the No Picks Reminder is the right tool for that).",
     build: midTournamentNudgeTemplate,
+  },
+  rankDigest: {
+    id: 'rankDigest',
+    label: 'Daily Leaderboard Movement',
+    description: 'Personalized daily digest sent to users who moved up or down a configurable number of places on the Global League after the day\'s games. Driven by the rank-digest cron; per-user movement is supplied via the scheduled-send payload.',
+    build: rankDigestTemplate,
   },
 };
 
