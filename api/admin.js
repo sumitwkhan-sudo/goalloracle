@@ -2,6 +2,8 @@ import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { recentDayIds, blankDay, computeHealthStatus, sumOutcomes } from './_lib/funnelHealth.js';
 import { RANK_DIGEST_DEFAULTS, sanitizeConfigPatch } from './_lib/rankDigest.js';
+import { calculateSimpleScore, scoreGroupStage } from '../src/utils/scoringSimple.js';
+import { buildSimpleActuals, buildLiveGroupStandings } from './_lib/bracketResolver.js';
 import { ipHash, normalizeBypassEmail, _invalidateBypassCache } from './_lib/security.js';
 import { sendOperatorAlert } from './_lib/alerts.js';
 import WORLD_CUP_MATCHES from '../src/data/matches.js';
@@ -1582,6 +1584,121 @@ export default async function handler(req, res) {
       } catch (e) {
         return res.status(500).json({ error: e?.message || 'preview trigger failed' });
       }
+    }
+
+    if (action === 'seedRankBaseline') {
+      // One-time: seed the day-over-day baseline (/leaderboardSnapshots) from
+      // a RECONSTRUCTED earlier leaderboard, so the first digest captures the
+      // latest batch's movement instead of waiting a cycle. By default it
+      // excludes the latest match-day's results (ET date), i.e. "yesterday's
+      // standings". Ranked with the EXACT same scoring + sort as
+      // /api/simple-leaderboard so movement isn't polluted by method drift.
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can seed the baseline' });
+      }
+      const LEAGUE = 'global-simple';
+      const excludeLatestDay = req.body?.excludeLatestDay !== false; // default true
+
+      // All match results + each match's ET date (matches.js `date`).
+      const resultsSnap = await db.collection('matchResults').get();
+      const allResults = {};
+      resultsSnap.forEach(d => { allResults[d.id] = d.data(); });
+      const dateById = {};
+      WORLD_CUP_MATCHES.forEach(m => { dateById[m.id] = m.date; });
+      const completedDates = Object.keys(allResults)
+        .filter(id => allResults[id]?.completed === true && dateById[id])
+        .map(id => dateById[id]);
+      const latestDate = completedDates.length ? completedDates.sort().slice(-1)[0] : null;
+
+      // Filtered results = exclude the latest ET match-day (the batch the
+      // first digest should report on).
+      const filtered = {};
+      let excluded = 0;
+      for (const [id, r] of Object.entries(allResults)) {
+        if (excludeLatestDay && latestDate && dateById[id] === latestDate) { excluded++; continue; }
+        filtered[id] = r;
+      }
+
+      // Members + their Global brackets (mirror simple-leaderboard's read).
+      const leagueSnap = await db.collection('leagues').doc(LEAGUE).get();
+      const members = leagueSnap.exists ? (leagueSnap.data().members || []) : [];
+      const predsSnap = await db.collection('simplePredictions').get();
+      const preds = {};
+      const usersForName = {};
+      predsSnap.forEach(d => {
+        const id = d.id; const data = d.data();
+        const sep = id.indexOf('__');
+        const uid = sep >= 0 ? id.slice(0, sep) : (data.userId || id);
+        const lid = sep >= 0 ? id.slice(sep + 2) : (data.leagueId || LEAGUE);
+        if (lid !== LEAGUE) return;
+        if (!preds[uid] || sep >= 0) preds[uid] = data;
+      });
+      // Display names for the sort tiebreak.
+      const usersSnap = await db.collection('users').get();
+      usersSnap.forEach(d => { usersForName[d.id] = d.data().displayName || d.id.slice(0, 8); });
+
+      const tsMs = (t) => (t?.toMillis ? t.toMillis() : (t?._seconds ? t._seconds * 1000 : (typeof t === 'number' ? t : null)));
+      const actuals = buildSimpleActuals(filtered);
+      const liveStandings = buildLiveGroupStandings(filtered).standings;
+
+      const entries = members.map(uid => {
+        const pred = preds[uid];
+        const totalScore = pred ? (calculateSimpleScore(pred, actuals).totalScore || 0) : 0;
+        const liveGroupScore = pred?.groupPredictions ? scoreGroupStage(pred.groupPredictions, liveStandings) : 0;
+        return {
+          uid,
+          totalScore,
+          liveGroupScore,
+          hasSubmitted: !!pred,
+          submittedAt: tsMs(pred?.submittedAt || pred?.updatedAt),
+          displayName: usersForName[uid] || uid.slice(0, 8),
+        };
+      });
+      // EXACT same sort as api/simple-leaderboard.js.
+      entries.sort((a, b) => {
+        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+        if ((b.liveGroupScore || 0) !== (a.liveGroupScore || 0)) return (b.liveGroupScore || 0) - (a.liveGroupScore || 0);
+        if (a.hasSubmitted !== b.hasSubmitted) return b.hasSubmitted ? 1 : -1;
+        if (a.submittedAt && b.submittedAt && a.submittedAt !== b.submittedAt) return a.submittedAt - b.submittedAt;
+        if (a.submittedAt && !b.submittedAt) return -1;
+        if (b.submittedAt && !a.submittedAt) return 1;
+        return a.displayName.localeCompare(b.displayName);
+      });
+
+      const ranks = {};
+      entries.forEach((e, i) => { ranks[e.uid] = i + 1; });
+
+      // takenAt = now so the cron's loadPreviousSnapshot (max takenAt) uses
+      // this as the baseline; dated as "before the latest match-day".
+      const baselineDate = latestDate || new Date().toISOString().slice(0, 10);
+      await db.collection('leaderboardSnapshots').doc(`${LEAGUE}__seed-${baselineDate}`).set({
+        league: LEAGUE,
+        date: baselineDate,
+        seeded: true,
+        excludedDate: excludeLatestDay ? latestDate : null,
+        takenAt: FieldValue.serverTimestamp(),
+        takenAtMs: Date.now(),
+        total: entries.length,
+        ranks,
+      });
+
+      await db.collection('adminLogs').add({
+        action: 'seed_rank_baseline',
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        summary: { members: members.length, ranked: entries.length, excludedDate: excludeLatestDay ? latestDate : null, excludedMatches: excluded },
+      }).catch(() => {});
+
+      return res.status(200).json({
+        success: true,
+        ranked: entries.length,
+        excludedDate: excludeLatestDay ? latestDate : null,
+        excludedMatches: excluded,
+        note: excludeLatestDay && latestDate
+          ? `Baseline = standings before ${latestDate}'s games. The next digest will report movement from ${latestDate}'s batch.`
+          : `Baseline = current standings. The next digest will report movement from here on.`,
+      });
     }
 
     if (action === 'getFeatureFlagAuditLog') {

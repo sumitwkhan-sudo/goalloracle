@@ -721,6 +721,9 @@ export async function adminSetRankDigestConfig(config) {
 export async function adminRankDigestPreviewNow() {
   return await apiCall('admin', 'POST', { action: 'rankDigestPreviewNow' });
 }
+export async function adminSeedRankBaseline(excludeLatestDay = true) {
+  return await apiCall('admin', 'POST', { action: 'seedRankBaseline', excludeLatestDay });
+}
 
 // No-login funnel monitoring (item C). Daily anon-picks migration outcomes +
 // custom-token sign-in error counts, newest day first, plus a derived

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -266,6 +266,17 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       loadRankCfg();
     } catch (e) {
       setRankPreviewMsg({ ok: false, text: e?.message || 'Preview failed' });
+    } finally { setRankCfgBusy(false); }
+  };
+  const seedBaseline = async () => {
+    if (!window.confirm('Seed the baseline from yesterday\'s standings? The next digest will report movement from the most recent batch of games.')) return;
+    setRankCfgBusy(true);
+    setRankPreviewMsg(null);
+    try {
+      const r = await adminSeedRankBaseline(true);
+      setRankPreviewMsg({ ok: true, text: r?.note || `Baseline seeded (${r?.ranked ?? 0} players).` });
+    } catch (e) {
+      setRankPreviewMsg({ ok: false, text: e?.message || 'Seed failed' });
     } finally { setRankCfgBusy(false); }
   };
 
@@ -3488,6 +3499,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     </button>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={sendRankPreview} disabled={rankCfgBusy}>
                       <Send size={13} /> Send me a preview now
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={seedBaseline} disabled={rankCfgBusy}>
+                      Seed baseline from yesterday
                     </button>
                     {rankPreviewMsg && (
                       <span className={`rde-msg ${rankPreviewMsg.ok ? 'ok' : 'err'}`}>{rankPreviewMsg.text}</span>
