@@ -1669,6 +1669,19 @@ export default async function handler(req, res) {
       const ranks = {};
       entries.forEach((e, i) => { ranks[e.uid] = i + 1; });
 
+      // Log a summary so the operator (and I) can verify the seed from the
+      // runtime logs — top of the reconstructed board + counts + which day's
+      // games the first digest will report on.
+      console.log('[admin/seedRankBaseline]', JSON.stringify({
+        members: members.length,
+        ranked: entries.length,
+        withPicks: entries.filter(e => e.hasSubmitted).length,
+        latestDate,
+        excludedDate: excludeLatestDay ? latestDate : null,
+        excludedMatches: excluded,
+        top5: entries.slice(0, 5).map((e, i) => `#${i + 1} ${e.displayName} (pts ${e.totalScore}, live ${e.liveGroupScore})`),
+      }));
+
       // takenAt = now so the cron's loadPreviousSnapshot (max takenAt) uses
       // this as the baseline; dated as "before the latest match-day".
       const baselineDate = latestDate || new Date().toISOString().slice(0, 10);
