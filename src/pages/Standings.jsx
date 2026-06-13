@@ -15,16 +15,16 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { BarChart3, ListChecks, GitCompareArrows, Trophy, Check, ChevronDown, RefreshCw } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import TEAM_COLORS from '../data/teamColors';
-import { computeLiveStandings, GROUP_LETTERS, countGroupMatchesPlayed } from '../utils/liveStandings';
+import { computeLiveStandings, GROUP_LETTERS, countGroupMatchesPlayed, mergeLiveScores } from '../utils/liveStandings';
 import { scoreGroup, GROUP_STAGE_MAX_PER_GROUP } from '../utils/scoringSimple';
-import { getSimplePrediction } from '../utils/db';
+import { getSimplePrediction, subscribeToLiveScores } from '../utils/db';
 
 const flagOf = (name) => TEAM_COLORS[name]?.flag || '🏳️';
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
 
 // ─── A single group's standings card ───────────────────────────────
-function GroupCard({ letter, rows, compare, pred }) {
-  const complete = rows.every((t) => t.played === 3);
+function GroupCard({ letter, rows, compare, pred, live = false }) {
+  const complete = !live && rows.every((t) => t.played === 3);
   const started = rows.some((t) => t.played > 0);
   const actualNames = rows.map((t) => t.name);
   const livePts = compare && pred ? scoreGroup(pred, actualNames) : null;
@@ -34,11 +34,13 @@ function GroupCard({ letter, rows, compare, pred }) {
       <div className="wcs-group-head">
         <span className="wcs-group-badge">{letter}</span>
         <span className="wcs-group-title">Group {letter}</span>
-        {started && (
+        {live ? (
+          <span className="wcs-group-state is-playing"><span className="wcs-live-pip" aria-hidden="true" />LIVE</span>
+        ) : started ? (
           <span className={`wcs-group-state ${complete ? 'is-final' : 'is-live'}`}>
-            {complete ? 'Final' : 'Live'}
+            {complete ? 'Final' : 'In progress'}
           </span>
-        )}
+        ) : null}
         {compare && pred && (
           <span className="wcs-group-pts" title="Your live points for this group">
             {livePts}<span className="wcs-group-pts-max">/{GROUP_STAGE_MAX_PER_GROUP}</span>
@@ -100,9 +102,27 @@ export default function Standings({ results = {}, userId, authenticated = false,
   const [compare, setCompare] = useState(false);
   const [compareLeagueId, setCompareLeagueId] = useState('global-simple');
   const [brackets, setBrackets] = useState({}); // leagueId -> doc | 'loading' | null
+  const [liveScores, setLiveScores] = useState({}); // matchId -> { homeScore, awayScore, status, minute }
 
-  const standings = useMemo(() => computeLiveStandings(results), [results]);
-  const played = useMemo(() => countGroupMatchesPlayed(results), [results]);
+  // Real-time in-progress scores: a Firestore subscription pushes updates
+  // within ~1 min (the cron's cadence), so the tables move while a game is on.
+  useEffect(() => subscribeToLiveScores(setLiveScores), []);
+
+  // Merge official (FINISHED) results with the live in-progress feed; live
+  // games' current scores count toward the standings, finals always win.
+  const merged = useMemo(() => mergeLiveScores(results, liveScores), [results, liveScores]);
+  const standings = useMemo(() => computeLiveStandings(merged), [merged]);
+  const played = useMemo(() => countGroupMatchesPlayed(merged), [merged]);
+  const anyLive = useMemo(() => Object.values(liveScores).some((l) => l && (l.status === 'IN_PLAY' || l.status === 'PAUSED')), [liveScores]);
+  // Which group letters have a game in progress right now (for the LIVE badge).
+  const liveGroups = useMemo(() => {
+    const set = new Set();
+    for (const m of GROUP_MATCHES) {
+      const ls = liveScores[m.id];
+      if (ls && (ls.status === 'IN_PLAY' || ls.status === 'PAUSED')) set.add((m.stage || '').replace('Group ', ''));
+    }
+    return set;
+  }, [liveScores]);
 
   // The leagues whose bracket the user can compare against. Always offer the
   // Global League; add any other Quick Picks leagues they're in.
@@ -212,12 +232,13 @@ export default function Standings({ results = {}, userId, authenticated = false,
                 rows={standings[g]}
                 compare={compare && hasBracket}
                 pred={groupPreds[g]?.ranking}
+                live={liveGroups.has(g)}
               />
             ))}
           </div>
         </>
       ) : (
-        <ResultsViewLive results={results} />
+        <ResultsViewLive results={merged} />
       )}
     </div>
   );
@@ -245,21 +266,25 @@ function ResultsViewLive({ results }) {
           <div className="wcs-day-matches">
             {matches.map((m) => {
               const r = results[m.id];
-              const done = r && r.completed === true && typeof r.homeScore === 'number';
+              const hasScore = r && typeof r.homeScore === 'number' && typeof r.awayScore === 'number';
+              const live = !!r?.live;
+              const done = hasScore && !live;
               const hWin = done && r.homeScore > r.awayScore;
               const aWin = done && r.awayScore > r.homeScore;
               return (
-                <div key={m.id} className="wcs-match">
+                <div key={m.id} className={`wcs-match ${live ? 'wcs-match-islive' : ''}`}>
                   <span className="wcs-match-group">{(m.stage || '').replace('Group ', '')}</span>
                   <span className={`wcs-match-team wcs-match-home ${hWin ? 'is-win' : ''}`}>
                     <span className="wcs-team-name">{m.home}</span>
                     <span className="wcs-flag" aria-hidden="true">{m.homeFlag || flagOf(m.home)}</span>
                   </span>
                   <span className="wcs-match-score">
-                    {done
-                      ? <span className="wcs-score">{r.homeScore}<span className="wcs-score-dash">–</span>{r.awayScore}</span>
+                    {hasScore
+                      ? <span className={`wcs-score ${live ? 'wcs-score-live' : ''}`}>{r.homeScore}<span className="wcs-score-dash">–</span>{r.awayScore}</span>
                       : <span className="wcs-match-time">{m.time}</span>}
-                    <span className="wcs-match-state">{done ? 'FT' : 'ET'}</span>
+                    <span className={`wcs-match-state ${live ? 'wcs-state-live' : ''}`}>
+                      {live ? (r.minute ? `${r.minute}'` : 'LIVE') : (done ? 'FT' : 'ET')}
+                    </span>
                   </span>
                   <span className={`wcs-match-team wcs-match-away ${aWin ? 'is-win' : ''}`}>
                     <span className="wcs-flag" aria-hidden="true">{m.awayFlag || flagOf(m.away)}</span>

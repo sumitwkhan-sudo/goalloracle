@@ -11081,3 +11081,12 @@ ol.legal-list li { margin-bottom: 0.35rem; }
   .wcs-table .wcs-trow { grid-template-columns: 22px 1fr 26px 32px 32px; }
   .wcs-table-compare .wcs-trow { grid-template-columns: 20px 1fr 38px 24px 30px 32px; }
 }
+
+/* World Cup Standings — live in-progress indicators */
+.wcs-group-state.is-playing { color: #ff3b5c; background: rgba(255,59,92,0.13); display: inline-flex; align-items: center; gap: 4px; }
+.wcs-live-pip { width: 6px; height: 6px; border-radius: 50%; background: #ff3b5c; box-shadow: 0 0 0 0 rgba(255,59,92,0.55); animation: wcs-pip 1.4s ease-out infinite; }
+@keyframes wcs-pip { 0% { box-shadow: 0 0 0 0 rgba(255,59,92,0.55); } 70% { box-shadow: 0 0 0 5px rgba(255,59,92,0); } 100% { box-shadow: 0 0 0 0 rgba(255,59,92,0); } }
+.wcs-match-islive { background: rgba(255,59,92,0.05); }
+.wcs-score-live { color: #ff3b5c; }
+.wcs-match-state.wcs-state-live { color: #ff3b5c; font-weight: 800; }
+@media (prefers-reduced-motion: reduce) { .wcs-live-pip { animation: none; } }

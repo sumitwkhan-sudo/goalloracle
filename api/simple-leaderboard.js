@@ -30,7 +30,7 @@ export default async function handler(req, res) {
     };
 
     const compositeIds = members.map(uid => `${uid}__${leagueId}`);
-    const [userSnaps, predSnaps, resultsSnap] = await Promise.all([
+    const [userSnaps, predSnaps, resultsSnap, liveSnap] = await Promise.all([
       Promise.all(chunk(members, 30).map(batch =>
         db.collection('users').where('id', 'in', batch).get())),
       Promise.all(chunk(compositeIds, 30).map(batch =>
@@ -41,10 +41,23 @@ export default async function handler(req, res) {
       // CURRENT group tables, before a group is fully played). One small
       // collection (~104 docs), read concurrently with the rest.
       db.collection('matchResults').get(),
+      // In-progress scores (updated every minute) so the Live column reflects
+      // a game while it's being played. Final results (matchResults) win.
+      db.collection('liveMatchScores').get(),
     ]);
 
     const resultsMap = {};
     resultsSnap.forEach(d => { resultsMap[d.id] = d.data(); });
+    // Fold in live in-progress scores: only fill a match with no FINISHED
+    // official result yet; mark completed so buildLiveGroupStandings counts
+    // the current score.
+    liveSnap.forEach(d => {
+      const ls = d.data();
+      const official = resultsMap[d.id];
+      if (official && official.completed === true) return;
+      if (typeof ls?.homeScore !== 'number' || typeof ls?.awayScore !== 'number') return;
+      resultsMap[d.id] = { homeScore: ls.homeScore, awayScore: ls.awayScore, completed: true, live: true };
+    });
     // Live (partial) group standings + whether the group stage has any
     // completed matches yet (gates whether the UI shows the Live column).
     const { standings: liveStandings, matchesPlayed: groupMatchesPlayed } =

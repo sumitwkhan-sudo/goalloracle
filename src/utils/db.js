@@ -606,6 +606,17 @@ export function subscribeToMatchResults(callback) {
   }, () => callback({}));
 }
 
+// Near-real-time in-progress scores (/liveMatchScores), written every minute
+// by the live-scores cron. Merge with matchResults via mergeLiveScores for
+// "current" standings; this is provisional, never final.
+export function subscribeToLiveScores(callback) {
+  return onSnapshot(collection(db, 'liveMatchScores'), (snap) => {
+    const live = {};
+    snap.docs.forEach(d => { live[d.id] = d.data(); });
+    callback(live);
+  }, () => callback({}));
+}
+
 export async function updateMatchResult(matchId, result, adminId) {
   await apiCall('admin', 'POST', { action: 'updateResult', matchId, ...result });
 }

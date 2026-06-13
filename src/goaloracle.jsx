@@ -972,12 +972,14 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
     return () => { cancelled = true; };
   }, [sTab, lbMode, league?.id, shareConsensus]);
 
-  // Fetch Simple leaderboard
+  // Fetch Simple leaderboard — and re-poll every 60s while it's open so the
+  // Live group-score column tracks in-progress games (live scores update each
+  // minute). Silent refreshes don't toggle the spinner.
   useEffect(() => {
     if (sTab !== 'leaderboard' || lbMode !== 'simple' || !league?.id) return;
     let cancelled = false;
-    (async () => {
-      setSimLbl(true);
+    const load = async (silent) => {
+      if (!silent) setSimLbl(true);
       try {
         const data = await getSimpleLeaderboard(league.id);
         if (!cancelled) {
@@ -987,9 +989,11 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           setSimDeltas(computeRankDeltas(`simple:${league.id}`, entries));
         }
       } catch (e) { console.error(e); }
-      finally { if (!cancelled) setSimLbl(false); }
-    })();
-    return () => { cancelled = true; };
+      finally { if (!cancelled && !silent) setSimLbl(false); }
+    };
+    load(false);
+    const t = setInterval(() => load(true), 60000);
+    return () => { cancelled = true; clearInterval(t); };
   }, [sTab, lbMode, league?.id, lbKey]);
 
   // Fetch Classic leaderboard (from the Global classic league) — only

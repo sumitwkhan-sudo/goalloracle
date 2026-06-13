@@ -79,6 +79,30 @@ export function computeLiveStandings(matchResults = {}) {
   return standings;
 }
 
+// Merge the live in-progress feed (/liveMatchScores) into a matchResults-shaped
+// map so the CURRENT score of a game being played counts toward the live
+// standings. Official FINISHED results (matchResults) always win — a live doc
+// only fills a match that has no final result yet. Live entries are flagged
+// `live: true` so the UI can badge them ("LIVE 73'") and are marked
+// `completed: true` purely so computeLiveStandings counts their current score.
+export function mergeLiveScores(matchResults = {}, liveScores = {}) {
+  const merged = { ...matchResults };
+  for (const [id, ls] of Object.entries(liveScores || {})) {
+    const official = matchResults[id];
+    if (official && official.completed === true) continue; // final result wins
+    if (typeof ls?.homeScore !== 'number' || typeof ls?.awayScore !== 'number') continue;
+    merged[id] = {
+      homeScore: ls.homeScore,
+      awayScore: ls.awayScore,
+      completed: true,
+      live: true,
+      status: ls.status || 'IN_PLAY',
+      minute: typeof ls.minute === 'number' ? ls.minute : null,
+    };
+  }
+  return merged;
+}
+
 // How many group matches have a completed result (gates "has the tournament
 // started" UI states).
 export function countGroupMatchesPlayed(matchResults = {}) {

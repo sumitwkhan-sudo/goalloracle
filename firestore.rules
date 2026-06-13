@@ -100,6 +100,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Live in-progress scores (item: real-time leaderboard). Public read like
+    // matchResults; written only by the live-scores cron via the admin SDK.
+    // NEVER the source of truth for final scoring — that's matchResults.
+    match /liveMatchScores/{matchId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /adminLogs/{logId} {
       allow read: if false;
       allow write: if false;

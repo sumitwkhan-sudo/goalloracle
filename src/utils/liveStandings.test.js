@@ -4,7 +4,7 @@
  * so the on-screen standings agree with what the live score is graded against.
  */
 import { describe, test, expect } from 'vitest';
-import { computeLiveStandings, countGroupMatchesPlayed, GROUP_LETTERS } from './liveStandings.js';
+import { computeLiveStandings, countGroupMatchesPlayed, mergeLiveScores, GROUP_LETTERS } from './liveStandings.js';
 import WORLD_CUP_MATCHES from '../data/matches';
 
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
@@ -47,5 +47,25 @@ describe('computeLiveStandings', () => {
   test('ignores non-completed / malformed results', () => {
     const s = computeLiveStandings({ gs01: { homeScore: 2, awayScore: 0, completed: false } });
     expect(s.A.every((t) => t.played === 0)).toBe(true);
+  });
+});
+
+describe('mergeLiveScores', () => {
+  test('live score fills a match with no official result, flagged live', () => {
+    const m = mergeLiveScores({}, { gs05: { homeScore: 2, awayScore: 0, status: 'IN_PLAY', minute: 73 } });
+    expect(m.gs05).toMatchObject({ homeScore: 2, awayScore: 0, completed: true, live: true });
+    // counts toward the live standings (completed:true)
+    expect(countGroupMatchesPlayed(m)).toBe(1);
+  });
+  test('a FINISHED official result wins over a live score', () => {
+    const official = { gs05: { homeScore: 1, awayScore: 1, completed: true } };
+    const m = mergeLiveScores(official, { gs05: { homeScore: 2, awayScore: 0, status: 'IN_PLAY' } });
+    expect(m.gs05).toEqual({ homeScore: 1, awayScore: 1, completed: true });
+    expect(m.gs05.live).toBeUndefined();
+  });
+  test('malformed live entries are ignored', () => {
+    const m = mergeLiveScores({}, { gs05: { status: 'IN_PLAY' }, gs06: { homeScore: 'x', awayScore: 1 } });
+    expect(m.gs05).toBeUndefined();
+    expect(m.gs06).toBeUndefined();
   });
 });
