@@ -617,6 +617,18 @@ export function subscribeToLiveScores(callback) {
   }, () => callback({}));
 }
 
+// Public fetch of the in-progress score feed via /api/live-scores (admin-SDK
+// read). Used by the Standings page so live scores work WITHOUT a client-side
+// Firestore rule for /liveMatchScores. Never throws — returns {} on failure.
+export async function fetchLiveScores() {
+  try {
+    const data = await apiCall('live-scores');
+    return data?.live || {};
+  } catch {
+    return {};
+  }
+}
+
 export async function updateMatchResult(matchId, result, adminId) {
   await apiCall('admin', 'POST', { action: 'updateResult', matchId, ...result });
 }

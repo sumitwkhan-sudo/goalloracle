@@ -17,7 +17,7 @@ import WORLD_CUP_MATCHES from '../data/matches';
 import TEAM_COLORS from '../data/teamColors';
 import { computeLiveStandings, GROUP_LETTERS, countGroupMatchesPlayed, mergeLiveScores } from '../utils/liveStandings';
 import { scoreGroup, GROUP_STAGE_MAX_PER_GROUP } from '../utils/scoringSimple';
-import { getSimplePrediction, subscribeToLiveScores } from '../utils/db';
+import { getSimplePrediction, fetchLiveScores } from '../utils/db';
 
 const flagOf = (name) => TEAM_COLORS[name]?.flag || '🏳️';
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
@@ -104,9 +104,20 @@ export default function Standings({ results = {}, userId, authenticated = false,
   const [brackets, setBrackets] = useState({}); // leagueId -> doc | 'loading' | null
   const [liveScores, setLiveScores] = useState({}); // matchId -> { homeScore, awayScore, status, minute }
 
-  // Real-time in-progress scores: a Firestore subscription pushes updates
-  // within ~1 min (the cron's cadence), so the tables move while a game is on.
-  useEffect(() => subscribeToLiveScores(setLiveScores), []);
+  // In-progress scores: poll the public /api/live-scores endpoint every 30s
+  // (the cron updates the feed each minute). Polling an endpoint — rather than
+  // a client Firestore subscription — means live scores work with no extra
+  // Firestore rule. Immediate fetch on mount, then on an interval.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const l = await fetchLiveScores();
+      if (!cancelled) setLiveScores(l || {});
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
 
   // Merge official (FINISHED) results with the live in-progress feed; live
   // games' current scores count toward the standings, finals always win.
