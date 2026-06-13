@@ -86,7 +86,7 @@ export default async function handler(req, res) {
   }
 
   let written = 0;
-  const liveIds = [];
+  const live = [];
   const batch = db.batch();
   for (const m of inWindow) {
     const provider = providerMatches.find((pm) =>
@@ -104,10 +104,10 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     written += 1;
-    liveIds.push(m.id);
+    live.push(`${m.id} ${m.home} ${hs}-${as} ${m.away} [${provider.status}${provider.minute ? ' ' + provider.minute + "'" : ''}]`);
   }
   if (written > 0) await batch.commit();
 
-  console.log('[cron/live-scores]', JSON.stringify({ inWindow: inWindow.length, written, liveIds }));
-  return res.status(200).json({ inWindow: inWindow.length, written, liveIds });
+  console.log('[cron/live-scores]', JSON.stringify({ inWindow: inWindow.length, written, live }));
+  return res.status(200).json({ inWindow: inWindow.length, written, live });
 }
