@@ -24,6 +24,7 @@ import {
   WORLD_HEIGHT, GROUND_Y, PLAYER_W, PLAYER_H,
   RUN_SPEED, GRAVITY, JUMP_SPEED, TERMINAL_VY, COYOTE_TIME,
 } from '../games/breadToaster/constants';
+import { sfx, resumeAudio, setMuted } from '../games/breadToaster/sound';
 
 function useNoIndexMeta() {
   useEffect(() => {
@@ -47,11 +48,14 @@ function hazardRect(h) {
   return { x: h.x, y: h.y - h.h, w: h.w, h: h.h };
 }
 
-function bossRect(boss, t) {
-  // Rolling pin sweeps smoothly between x0 and x1.
-  const phase = 0.5 - 0.5 * Math.cos(t * boss.speed);
-  const x = boss.x0 + (boss.x1 - boss.x0) * phase;
-  return { x, y: GROUND_Y - boss.h, w: boss.w, h: boss.h };
+function bossPinRects(boss, t) {
+  // Each rolling pin sweeps smoothly between x0 and x1.
+  if (!boss?.pins) return [];
+  return boss.pins.map((pin) => {
+    const phase = 0.5 - 0.5 * Math.cos(t * pin.speed + (pin.phase || 0));
+    const x = pin.x0 + (pin.x1 - pin.x0) * phase;
+    return { x, y: GROUND_Y - pin.h, w: pin.w, h: pin.h };
+  });
 }
 
 function toasterRect(goal) {
@@ -70,6 +74,10 @@ function makeState(level) {
       coyote: 0,
       facing: 1,
       jumpPrev: false,
+      moving: false,
+      runPhase: 0,
+      blinkTimer: 2.5,
+      blinkDur: 0,
     },
     cameraX: 0,
     t: 0,
@@ -237,16 +245,49 @@ function drawRollingPin(ctx, r, t) {
 }
 
 function drawBread(ctx, p, t) {
-  const { x, y } = p;
-  // Squash & stretch from vertical speed.
+  const airborne = !p.grounded;
+  const running = p.grounded && p.moving;
+  const swing = running ? Math.sin(p.runPhase) : 0;
+
+  // Squash & stretch from vertical speed + a little run bob.
   const stretch = Math.max(-0.18, Math.min(0.18, -p.vy / 4000));
+  const bob = running ? Math.abs(Math.cos(p.runPhase)) * 2 : 0;
   const w = PLAYER_W * (1 - stretch);
   const h = PLAYER_H * (1 + stretch);
-  const ox = x + (PLAYER_W - w) / 2;
-  const oy = y + (PLAYER_H - h);
+  const ox = p.x + (PLAYER_W - w) / 2;
+  const oy = p.y + (PLAYER_H - h) - bob;
+  const dir = p.facing >= 0 ? 1 : -1;
 
   ctx.save();
-  // Crust
+
+  // --- Arms (behind body) — raise up when jumping, swing when running.
+  ctx.strokeStyle = '#caa05a';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  const armY = oy + h * 0.55;
+  if (airborne) {
+    ctx.beginPath(); ctx.moveTo(ox + 4, armY); ctx.lineTo(ox - 4, oy + h * 0.3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox + w - 4, armY); ctx.lineTo(ox + w + 4, oy + h * 0.3); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.moveTo(ox + 4, armY); ctx.lineTo(ox - 3, armY + 6 + swing * 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox + w - 4, armY); ctx.lineTo(ox + w + 3, armY + 6 - swing * 3); ctx.stroke();
+  }
+
+  // --- Feet — alternate while running, tuck together in the air.
+  ctx.fillStyle = '#c98a3c';
+  const footW = 9, footH = 6;
+  const footBase = oy + h;
+  if (airborne) {
+    ctx.beginPath(); ctx.ellipse(ox + w * 0.34, footBase - 3, footW / 2, footH / 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ox + w * 0.66, footBase - 3, footW / 2, footH / 2, 0, 0, Math.PI * 2); ctx.fill();
+  } else {
+    const lLift = Math.max(0, swing) * 6;
+    const rLift = Math.max(0, -swing) * 6;
+    ctx.beginPath(); ctx.ellipse(ox + w * 0.34, footBase - lLift, footW / 2, footH / 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ox + w * 0.66, footBase - rLift, footW / 2, footH / 2, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // --- Body: crust on top, soft bread inside.
   ctx.fillStyle = '#e3a857';
   ctx.beginPath();
   ctx.moveTo(ox, oy + h * 0.45);
@@ -256,24 +297,31 @@ function drawBread(ctx, p, t) {
   ctx.lineTo(ox, oy + h);
   ctx.closePath();
   ctx.fill();
-  // Soft inside
   ctx.fillStyle = '#fbe6c2';
   roundRect(ctx, ox + 3, oy + h * 0.42, w - 6, h * 0.58 - 3, 6);
   ctx.fill();
 
-  // Face (looks toward facing direction)
-  const dir = p.facing >= 0 ? 1 : -1;
+  // --- Face (looks toward travel direction).
   const cx = ox + w / 2 + dir * 4;
   const ey = oy + h * 0.62;
-  ctx.fillStyle = '#3a2a18';
-  ctx.beginPath(); ctx.arc(cx - 7, ey, 3.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + 7, ey, 3.2, 0, Math.PI * 2); ctx.fill();
-  // Smile
+  const blinking = p.blinkDur > 0;
   ctx.strokeStyle = '#3a2a18';
+  ctx.fillStyle = '#3a2a18';
+  if (blinking) {
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 10, ey); ctx.lineTo(cx - 4, ey); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 4, ey); ctx.lineTo(cx + 10, ey); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.arc(cx - 7, ey, 3.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 7, ey, 3.2, 0, Math.PI * 2); ctx.fill();
+  }
+  // Mouth: open "o" of excitement mid-jump, smile on the ground.
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, ey + 4, 6, 0.15 * Math.PI, 0.85 * Math.PI);
-  ctx.stroke();
+  if (airborne) {
+    ctx.beginPath(); ctx.arc(cx, ey + 7, 3.2, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.arc(cx, ey + 4, 6, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  }
   // Cheeks
   ctx.fillStyle = 'rgba(255,150,120,0.5)';
   ctx.beginPath(); ctx.arc(cx - 13, ey + 4, 3, 0, Math.PI * 2); ctx.fill();
@@ -289,6 +337,7 @@ export default function IssaGame() {
   const [screen, setScreen] = useState('title'); // title | playing | levelclear | won
   const [levelIndex, setLevelIndex] = useState(0);
   const [deaths, setDeaths] = useState(0);
+  const [muted, setMutedState] = useState(false);
 
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
@@ -372,7 +421,7 @@ export default function IssaGame() {
         if (h.type === 'puddle') drawPuddle(ctx, r); else drawKnife(ctx, r);
       }
       drawToaster(ctx, toasterRect(level.goal), g.t);
-      if (level.boss) drawRollingPin(ctx, bossRect(level.boss, g.t), g.t);
+      if (level.boss) for (const r of bossPinRects(level.boss, g.t)) drawRollingPin(ctx, r, g.t);
       drawBread(ctx, g.player, g.t);
 
       // Red flash on death.
@@ -396,12 +445,20 @@ export default function IssaGame() {
       p.x += dir * RUN_SPEED * dt;
       p.x = Math.max(0, Math.min(level.width - PLAYER_W, p.x));
 
+      // Animation state: run cycle + occasional blink.
+      p.moving = dir !== 0;
+      if (p.moving && p.grounded) p.runPhase += dt * 11;
+      p.blinkTimer -= dt;
+      if (p.blinkTimer <= 0 && p.blinkDur <= 0) { p.blinkDur = 0.12; p.blinkTimer = 2.2 + Math.random() * 2.5; }
+      if (p.blinkDur > 0) p.blinkDur = Math.max(0, p.blinkDur - dt);
+
       // Jump (edge-triggered, with coyote time)
       const jumpPressed = inp.jumpHeld && !p.jumpPrev;
       if (jumpPressed && (p.grounded || p.coyote > 0)) {
         p.vy = -JUMP_SPEED;
         p.grounded = false;
         p.coyote = 0;
+        sfx.jump();
       }
       p.jumpPrev = inp.jumpHeld;
 
@@ -443,13 +500,15 @@ export default function IssaGame() {
         if (overlap(p.x + 4, p.y + 4, PLAYER_W - 8, PLAYER_H - 6, r.x, r.y, r.w, r.h)) dead = true;
       }
       if (level.boss) {
-        const r = bossRect(level.boss, g.t);
-        if (overlap(p.x + 4, p.y + 4, PLAYER_W - 8, PLAYER_H - 6, r.x, r.y, r.w, r.h)) dead = true;
+        for (const r of bossPinRects(level.boss, g.t)) {
+          if (overlap(p.x + 4, p.y + 4, PLAYER_W - 8, PLAYER_H - 6, r.x, r.y, r.w, r.h)) dead = true;
+        }
       }
       // Fell into a pit
       if (p.y > WORLD_HEIGHT + 80) dead = true;
 
       if (dead) {
+        sfx.die();
         deathsRef.current += 1;
         setDeaths(deathsRef.current);
         // Respawn at the level start.
@@ -465,6 +524,7 @@ export default function IssaGame() {
       const tr = toasterRect(level.goal);
       if (overlap(p.x, p.y, PLAYER_W, PLAYER_H, tr.x, tr.y, tr.w, tr.h)) {
         g.finished = true;
+        if (level.isBoss) sfx.win(); else sfx.levelClear();
         finishLevel(!!level.isBoss);
         return;
       }
@@ -490,7 +550,13 @@ export default function IssaGame() {
     else inputRef.current[key] = val;
   };
 
+  const toggleMute = () => {
+    setMutedState((m) => { const next = !m; setMuted(next); return next; });
+  };
+
   const startGame = () => {
+    resumeAudio();
+    sfx.start();
     deathsRef.current = 0;
     setDeaths(0);
     setLevelIndex(0);
@@ -508,9 +574,14 @@ export default function IssaGame() {
       <div className="ig-shell">
         <div className="ig-topbar">
           <span className="ig-brand">🍞 Bread to Toaster</span>
-          {screen === 'playing' && (
-            <span className="ig-status">Level {levelIndex + 1}/{LEVELS.length} · Tries: {deaths}</span>
-          )}
+          <div className="ig-topright">
+            {screen === 'playing' && (
+              <span className="ig-status">Level {levelIndex + 1}/{LEVELS.length} · Tries: {deaths}</span>
+            )}
+            <button className="ig-mute" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'}>
+              {muted ? '🔇' : '🔊'}
+            </button>
+          </div>
         </div>
 
         <div className="ig-stage" ref={wrapRef}>
@@ -613,7 +684,14 @@ const IG_CSS = `
   gap: 12px;
 }
 .ig-brand { font-weight: 800; font-size: 1.05rem; }
+.ig-topright { display: flex; align-items: center; gap: 12px; }
 .ig-status { font-size: 0.9rem; color: #aab3c5; }
+.ig-mute {
+  background: rgba(255,255,255,0.08);
+  border: none; cursor: pointer;
+  width: 34px; height: 34px; border-radius: 8px;
+  font-size: 1rem; line-height: 1;
+}
 .ig-stage {
   position: relative;
   width: 100%;

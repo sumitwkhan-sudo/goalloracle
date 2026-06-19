@@ -11,6 +11,12 @@
  * A "pit" is simply the absence of a floor surface — fall in and you
  * respawn at the start.
  *
+ * Difficulty ramps across levels: longer stages, more pits/hazards, and
+ * taller climbs. Geometry stays within the jump envelope (validated by
+ * the test suite) so every level is provably beatable. The boss adds two
+ * sweeping rolling pins in separate zones — a timing challenge that's
+ * hard but always fair (the zones never overlap).
+ *
  * Adding levels 4-10 later is just appending entries before the boss.
  */
 
@@ -23,71 +29,94 @@ export const LEVELS = [
     id: 1,
     name: 'Kitchen Counter',
     isBoss: false,
-    width: 1820,
+    width: 2400,
     start: { x: 60, y: G },
-    goal: { x: 1700, y: G },
+    goal: { x: 2280, y: G },
     surfaces: [
-      { x: 0, y: G, w: 600 },        // floor A
-      { x: 720, y: G, w: 1100 },     // floor B (after a small pit)
-      { x: 1280, y: 420, w: 170 },   // optional high shelf
+      { x: 0, y: G, w: 560 },        // floor A
+      { x: 700, y: G, w: 520 },      // floor B (after a pit)
+      { x: 1360, y: G, w: 1040 },    // floor C (after a pit)
+      { x: 880, y: 420, w: 150 },    // optional high shelf
     ],
     hazards: [
-      { x: 1000, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 950, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 1550, y: G, w: 52, h: 30, type: 'puddle' },
+      { x: 1950, y: G, w: 40, h: 44, type: 'knife' },
     ],
   },
   {
     id: 2,
     name: 'Up the Shelves',
     isBoss: false,
-    width: 1960,
-    start: { x: 60, y: G },
-    goal: { x: 1820, y: G },
+    width: 2700,
+    start: { x: 50, y: G },
+    goal: { x: 2600, y: G },
     surfaces: [
-      { x: 0, y: G, w: 400 },        // floor A
-      { x: 480, y: 440, w: 140 },    // step 1
-      { x: 720, y: 380, w: 140 },    // step 2
-      { x: 980, y: G, w: 980 },      // floor B
+      { x: 0, y: G, w: 360 },        // floor A
+      { x: 460, y: 440, w: 130 },    // step 1
+      { x: 700, y: 370, w: 130 },    // step 2
+      { x: 950, y: G, w: 520 },      // floor B
+      { x: 1580, y: 440, w: 120 },   // step 3 (over a pit)
+      { x: 1820, y: G, w: 880 },     // floor C
     ],
     hazards: [
-      { x: 1200, y: G, w: 52, h: 30, type: 'puddle' },
-      { x: 1500, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 1050, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 1250, y: G, w: 52, h: 30, type: 'puddle' },
+      { x: 2000, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 2300, y: G, w: 52, h: 30, type: 'puddle' },
+      { x: 2500, y: G, w: 40, h: 44, type: 'knife' },
     ],
   },
   {
     id: 3,
     name: 'The Spice Climb',
     isBoss: false,
-    width: 2060,
-    start: { x: 50, y: G },
-    goal: { x: 1900, y: G },
+    width: 3050,
+    start: { x: 40, y: G },
+    goal: { x: 2950, y: G },
     surfaces: [
-      { x: 0, y: G, w: 300 },        // floor A
-      { x: 380, y: 460, w: 120 },    // step 1
-      { x: 600, y: 400, w: 120 },    // step 2
-      { x: 840, y: 340, w: 120 },    // step 3 (high)
-      { x: 1060, y: G, w: 1000 },    // floor B
+      { x: 0, y: G, w: 280 },        // floor A
+      { x: 370, y: 460, w: 110 },    // climb 1
+      { x: 580, y: 400, w: 110 },    // climb 2
+      { x: 790, y: 340, w: 110 },    // climb 3 (high)
+      { x: 1000, y: 400, w: 110 },   // step down
+      { x: 1230, y: G, w: 540 },     // floor B
+      { x: 1880, y: 430, w: 110 },   // climb 4 (over a pit)
+      { x: 2100, y: 360, w: 110 },   // climb 5
+      { x: 2320, y: G, w: 730 },     // floor C
     ],
     hazards: [
-      { x: 1250, y: G, w: 40, h: 44, type: 'knife' },
-      { x: 1450, y: G, w: 60, h: 30, type: 'puddle' },
-      { x: 1700, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 1350, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 1500, y: G, w: 52, h: 30, type: 'puddle' },
+      { x: 1680, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 2450, y: G, w: 52, h: 30, type: 'puddle' },
+      { x: 2650, y: G, w: 40, h: 44, type: 'knife' },
+      { x: 2850, y: G, w: 52, h: 30, type: 'puddle' },
     ],
   },
   {
     id: 4,
-    name: 'Boss: The Rolling Pin',
+    name: 'Boss: The Rolling Pins',
     isBoss: true,
-    width: 1480,
-    start: { x: 50, y: G },
-    goal: { x: 1350, y: 470 },
+    width: 1800,
+    start: { x: 40, y: G },
+    goal: { x: 1650, y: 470 },
     surfaces: [
-      { x: 0, y: G, w: 1300 },       // arena floor
-      { x: 1300, y: 470, w: 140 },   // raised toaster ledge
+      { x: 0, y: G, w: 1600 },       // arena floor
+      { x: 1600, y: 470, w: 160 },   // raised toaster ledge
     ],
-    hazards: [],
-    // The hard obstacle: a rolling pin that sweeps the arena. The player
-    // times jumps over it to cross to the toaster ledge.
-    boss: { type: 'rollingPin', x0: 180, x1: 1120, speed: 1.15, w: 80, h: 34 },
+    hazards: [
+      { x: 820, y: G, w: 52, h: 30, type: 'puddle' }, // spill between the pin zones
+    ],
+    // Two rolling pins sweep separate, non-overlapping zones — time your
+    // jumps over each to cross to the toaster ledge.
+    boss: {
+      type: 'rollingPin',
+      pins: [
+        { x0: 220, x1: 720, speed: 1.35, phase: 0, w: 80, h: 34 },
+        { x0: 900, x1: 1480, speed: 1.1, phase: 0, w: 80, h: 34 },
+      ],
+    },
   },
 ];
 
