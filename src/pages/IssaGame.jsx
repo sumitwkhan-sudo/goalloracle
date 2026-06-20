@@ -51,14 +51,25 @@ function hazardRect(h) {
   return { x: h.x, y: h.y - h.h, w: h.w, h: h.h };
 }
 
-function bossPinRects(boss, t) {
-  // Each rolling pin sweeps smoothly between x0 and x1.
-  if (!boss?.pins) return [];
-  return boss.pins.map((pin) => {
-    const phase = 0.5 - 0.5 * Math.cos(t * pin.speed + (pin.phase || 0));
-    const x = pin.x0 + (pin.x1 - pin.x0) * phase;
-    return { x, y: GROUND_Y - pin.h, w: pin.w, h: pin.h };
-  });
+function bossHazardRects(boss, t) {
+  if (!boss) return [];
+  if (boss.type === 'rollingPin') {
+    // Each rolling pin sweeps smoothly between x0 and x1.
+    return boss.pins.map((pin) => {
+      const phase = 0.5 - 0.5 * Math.cos(t * pin.speed + (pin.phase || 0));
+      const x = pin.x0 + (pin.x1 - pin.x0) * phase;
+      return { x, y: GROUND_Y - pin.h, w: pin.w, h: pin.h, kind: 'pin' };
+    });
+  }
+  if (boss.type === 'choppers') {
+    // Each cleaver bobs between hiY (raised, safe) and loY (down, blocking).
+    return boss.choppers.map((ch) => {
+      const phase = 0.5 - 0.5 * Math.cos(t * ch.speed + (ch.phase || 0));
+      const y = ch.hiY + (ch.loY - ch.hiY) * phase;
+      return { x: ch.x, y, w: ch.w, h: ch.h, kind: 'chopper' };
+    });
+  }
+  return [];
 }
 
 function toasterRect(goal) {
@@ -462,6 +473,41 @@ function drawRollingPin(ctx, r, t) {
   ctx.stroke();
 }
 
+function drawChopper(ctx, r) {
+  const cx = r.x + r.w / 2;
+  // Guide rail up to the ceiling.
+  ctx.strokeStyle = 'rgba(90,102,117,0.35)';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(cx, 60); ctx.lineTo(cx, r.y); ctx.stroke();
+  // Mount block at the top of the blade.
+  ctx.fillStyle = '#b23b32';
+  roundRect(ctx, r.x + 4, r.y, r.w - 8, 22, 5); ctx.fill();
+  ctx.fillStyle = '#7d2c25';
+  ctx.fillRect(r.x + 10, r.y + 6, r.w - 20, 4);
+  // Cleaver blade: steel body with a sharp bottom edge.
+  const blade = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y);
+  blade.addColorStop(0, '#eef2f6');
+  blade.addColorStop(0.5, '#cdd6df');
+  blade.addColorStop(1, '#9aa6b1');
+  ctx.fillStyle = blade;
+  const top = r.y + 20;
+  const bot = r.y + r.h;
+  ctx.beginPath();
+  ctx.moveTo(r.x + 6, top);
+  ctx.lineTo(r.x + r.w - 6, top);
+  ctx.lineTo(r.x + r.w - 6, bot - 16);
+  ctx.lineTo(cx, bot);                 // pointed cutting edge
+  ctx.lineTo(r.x + 6, bot - 16);
+  ctx.closePath();
+  ctx.fill();
+  // Edge highlight
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(r.x + 6, bot - 16); ctx.lineTo(cx, bot); ctx.lineTo(r.x + r.w - 6, bot - 16);
+  ctx.stroke();
+}
+
 function drawBread(ctx, p, t, skin) {
   const airborne = !p.grounded;
   const running = p.grounded && p.moving;
@@ -809,8 +855,8 @@ export default function IssaGame() {
   const inputRef = useRef({ left: false, right: false, jumpHeld: false });
   const deathsRef = useRef(0);
 
-  const finishLevel = useCallback((isBoss) => {
-    setScreen(isBoss ? 'won' : 'levelclear');
+  const finishLevel = useCallback((isFinal) => {
+    setScreen(isFinal ? 'won' : 'levelclear');
   }, []);
 
   // Keyboard input
@@ -893,7 +939,9 @@ export default function IssaGame() {
         if (h.type === 'puddle') drawPuddle(ctx, r); else drawKnife(ctx, r);
       }
       drawToaster(ctx, toasterRect(level.goal), g.t);
-      if (level.boss) for (const r of bossPinRects(level.boss, g.t)) drawRollingPin(ctx, r, g.t);
+      if (level.boss) for (const r of bossHazardRects(level.boss, g.t)) {
+        if (r.kind === 'chopper') drawChopper(ctx, r); else drawRollingPin(ctx, r, g.t);
+      }
       drawBread(ctx, g.player, g.t, skinRef.current || DEFAULT_SKIN);
 
       // Red flash on death.
@@ -972,7 +1020,7 @@ export default function IssaGame() {
         if (overlap(p.x + 4, p.y + 4, PLAYER_W - 8, PLAYER_H - 6, r.x, r.y, r.w, r.h)) dead = true;
       }
       if (level.boss) {
-        for (const r of bossPinRects(level.boss, g.t)) {
+        for (const r of bossHazardRects(level.boss, g.t)) {
           if (overlap(p.x + 4, p.y + 4, PLAYER_W - 8, PLAYER_H - 6, r.x, r.y, r.w, r.h)) dead = true;
         }
       }
@@ -996,8 +1044,9 @@ export default function IssaGame() {
       const tr = toasterRect(level.goal);
       if (overlap(p.x, p.y, PLAYER_W, PLAYER_H, tr.x, tr.y, tr.w, tr.h)) {
         g.finished = true;
-        if (!level.isBoss) sfx.levelClear(); // boss fanfare plays with the trophy summon
-        finishLevel(!!level.isBoss);
+        const isFinal = levelIndex === LEVELS.length - 1;
+        if (!isFinal) sfx.levelClear(); // final-win fanfare plays with the trophy summon
+        finishLevel(isFinal);
         return;
       }
 
@@ -1088,7 +1137,7 @@ export default function IssaGame() {
               <div className="ig-card">
                 <div className="ig-bigbread">🍞</div>
                 <h1>Bread to Toaster</h1>
-                <p>Hop across the kitchen, dodge the knives and spills, and reach the toaster. Beat all the levels to take on the rolling-pin boss!</p>
+                <p>Hop across the kitchen, dodge the knives and spills, and reach the toaster. Clear all 10 levels &mdash; with a boss waiting every 5th floor!</p>
 
                 <div className="ig-picker">
                   <div className="ig-picker-label">Your toast</div>
@@ -1145,7 +1194,7 @@ export default function IssaGame() {
               <TrophyWin />
               <div className="ig-card ig-win-card">
                 <h1>Toasty victory!</h1>
-                <p>You beat the rolling-pin boss in {deaths} tr{deaths === 1 ? 'y' : 'ies'}. You&rsquo;re officially golden brown.</p>
+                <p>You cleared all 10 levels and toasted the Falling Cleavers in {deaths} tr{deaths === 1 ? 'y' : 'ies'}. You&rsquo;re officially golden brown.</p>
                 <button className="ig-cta" onClick={startGame}>Play again</button>
               </div>
             </div>
