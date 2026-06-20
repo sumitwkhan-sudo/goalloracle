@@ -558,6 +558,231 @@ function drawBread(ctx, p, t, skin) {
 }
 
 // ---------------------------------------------------------------------------
+// Trophy summon animation (final-win screen)
+// ---------------------------------------------------------------------------
+function drawStar(ctx, cx, cy, r, points) {
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const rad = i % 2 === 0 ? r : r * 0.45;
+    const a = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+    const x = cx + Math.cos(a) * rad;
+    const y = cy + Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// A classic gold cup, drawn in a unit space then scaled by `size`.
+function drawTrophy(ctx, cx, cy, size) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(size, size);
+
+  const gold = ctx.createLinearGradient(0, -1.2, 0, 0.5);
+  gold.addColorStop(0, '#fff3c4');
+  gold.addColorStop(0.5, '#f4c430');
+  gold.addColorStop(1, '#bd8a1c');
+
+  // Handles (behind the bowl)
+  ctx.strokeStyle = '#e8b324';
+  ctx.lineWidth = 0.16;
+  ctx.beginPath(); ctx.ellipse(-0.98, -0.82, 0.32, 0.44, 0, Math.PI * 0.45, Math.PI * 1.65); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0.98, -0.82, 0.32, 0.44, 0, -Math.PI * 0.65, Math.PI * 0.55); ctx.stroke();
+
+  // Bowl
+  ctx.fillStyle = gold;
+  ctx.beginPath();
+  ctx.moveTo(-1, -1.15);
+  ctx.lineTo(1, -1.15);
+  ctx.lineTo(0.52, -0.25);
+  ctx.quadraticCurveTo(0, -0.02, -0.52, -0.25);
+  ctx.closePath();
+  ctx.fill();
+  // Rim
+  ctx.fillStyle = '#ffe9a0';
+  ctx.beginPath(); ctx.ellipse(0, -1.15, 1, 0.17, 0, 0, Math.PI * 2); ctx.fill();
+  // Stem
+  ctx.fillStyle = gold;
+  ctx.fillRect(-0.13, -0.28, 0.26, 0.42);
+  // Base
+  ctx.fillStyle = '#d9a528';
+  ctx.beginPath(); ctx.ellipse(0, 0.13, 0.5, 0.12, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = gold;
+  roundRect(ctx, -0.52, 0.12, 1.04, 0.3, 0.06); ctx.fill();
+  ctx.fillStyle = '#bd8a1c';
+  roundRect(ctx, -0.72, 0.42, 1.44, 0.17, 0.05); ctx.fill();
+  // Star emblem
+  ctx.fillStyle = '#fff3c4';
+  drawStar(ctx, 0, -0.72, 0.27, 5);
+  // Shine
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.beginPath(); ctx.ellipse(-0.4, -0.82, 0.12, 0.34, 0.3, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+// backOut easing — overshoots then settles, for a satisfying "pop".
+function backOut(p) {
+  const s = 1.9;
+  const q = p - 1;
+  return 1 + (s + 1) * q * q * q + s * q * q;
+}
+
+const CONFETTI_COLORS = ['#ffce4a', '#cf5b4a', '#7cae57', '#7fc8ff', '#ffffff', '#e3a857'];
+
+function TrophyWin() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return undefined;
+    const parent = canvas.parentElement;
+    const ctx = canvas.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const resize = () => {
+      canvas.width = Math.round(parent.clientWidth * dpr);
+      canvas.height = Math.round(parent.clientHeight * dpr);
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(parent);
+
+    sfx.fanfare();
+
+    const SUMMON = 0.55; // seconds: particles converge, then the trophy appears
+    const parts = Array.from({ length: 64 }, () => ({
+      a: Math.random() * Math.PI * 2,
+      d: 0.55 + Math.random() * 0.45,
+      size: 2 + Math.random() * 3,
+      gold: Math.random() < 0.6,
+    }));
+    const conf = [];
+    let confSpawned = false;
+
+    const start = performance.now();
+    let raf = 0;
+    let last = start;
+
+    const loop = (now) => {
+      const t = (now - start) / 1000;
+      const dt = Math.min((now - last) / 1000, 0.033);
+      last = now;
+      const W = canvas.width, H = canvas.height;
+      const cx = W / 2, cy = H * 0.44;
+      const R = Math.min(W, H);
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+
+      // Glow + rays use additive blending for a bright "summon" feel.
+      ctx.globalCompositeOperation = 'lighter';
+
+      // Rotating light rays
+      const rayAlpha = 0.10 + 0.05 * Math.sin(t * 4);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(t * 0.5);
+      for (let i = 0; i < 14; i++) {
+        ctx.rotate((Math.PI * 2) / 14);
+        ctx.fillStyle = `rgba(255,215,120,${rayAlpha})`;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-R * 0.04, -R * 0.8);
+        ctx.lineTo(R * 0.04, -R * 0.8);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Central glow, pulsing once the trophy lands
+      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.34);
+      const glowA = t < SUMMON ? 0.25 : 0.4 + 0.12 * Math.sin(t * 5);
+      glow.addColorStop(0, `rgba(255,225,150,${glowA})`);
+      glow.addColorStop(1, 'rgba(255,225,150,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, H);
+
+      // Summon flash
+      if (t >= SUMMON - 0.05 && t < SUMMON + 0.3) {
+        const fa = Math.max(0, 1 - (t - (SUMMON - 0.05)) / 0.35);
+        const fl = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.5);
+        fl.addColorStop(0, `rgba(255,255,255,${fa})`);
+        fl.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = fl;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // Converging particles (before the trophy forms)
+      if (t < SUMMON) {
+        const k = 1 - t / SUMMON;
+        for (const p of parts) {
+          const dist = p.d * R * 0.55 * k;
+          const ang = p.a + t * 2.2;
+          const x = cx + Math.cos(ang) * dist;
+          const y = cy + Math.sin(ang) * dist;
+          ctx.fillStyle = p.gold ? 'rgba(255,210,110,0.95)' : 'rgba(255,255,255,0.95)';
+          ctx.beginPath();
+          ctx.arc(x, y, p.size * (0.6 + k), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
+
+      // Trophy
+      if (t >= SUMMON) {
+        const p = Math.min(1, (t - SUMMON) / 0.55);
+        const pop = backOut(p);
+        const bob = p >= 1 ? Math.sin(t * 2.5) * R * 0.006 : 0;
+        drawTrophy(ctx, cx, cy + bob, R * 0.17 * pop);
+      }
+
+      // Confetti — burst at the summon, then keep a gentle fall going.
+      if (t >= SUMMON && !confSpawned) {
+        confSpawned = true;
+        for (let i = 0; i < 60; i++) {
+          conf.push({
+            x: cx + (Math.random() - 0.5) * R * 0.2,
+            y: cy,
+            vx: (Math.random() - 0.5) * R * 1.1,
+            vy: -R * (0.6 + Math.random() * 0.9),
+            rot: Math.random() * Math.PI,
+            vr: (Math.random() - 0.5) * 8,
+            s: R * 0.012,
+            c: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0],
+          });
+        }
+      }
+      for (const c of conf) {
+        c.vy += R * 1.6 * dt;
+        c.x += c.vx * dt;
+        c.y += c.vy * dt;
+        c.rot += c.vr * dt;
+        if (c.y > H + 20) { // recycle from the top for a steady drizzle
+          c.y = -20;
+          c.x = Math.random() * W;
+          c.vy = R * (0.2 + Math.random() * 0.3);
+          c.vx = (Math.random() - 0.5) * R * 0.2;
+        }
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.rot);
+        ctx.fillStyle = c.c;
+        ctx.fillRect(-c.s, -c.s * 0.6, c.s * 2, c.s * 1.2);
+        ctx.restore();
+      }
+
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, []);
+
+  return <canvas ref={ref} className="ig-win-canvas" />;
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 export default function IssaGame() {
@@ -771,7 +996,7 @@ export default function IssaGame() {
       const tr = toasterRect(level.goal);
       if (overlap(p.x, p.y, PLAYER_W, PLAYER_H, tr.x, tr.y, tr.w, tr.h)) {
         g.finished = true;
-        if (level.isBoss) sfx.win(); else sfx.levelClear();
+        if (!level.isBoss) sfx.levelClear(); // boss fanfare plays with the trophy summon
         finishLevel(!!level.isBoss);
         return;
       }
@@ -914,11 +1139,11 @@ export default function IssaGame() {
             </div>
           )}
 
-          {/* Win */}
+          {/* Win — trophy summon animation behind a fade-in card */}
           {screen === 'won' && (
-            <div className="ig-overlay">
-              <div className="ig-card">
-                <div className="ig-bigbread">🏆🍞</div>
+            <div className="ig-overlay ig-win">
+              <TrophyWin />
+              <div className="ig-card ig-win-card">
                 <h1>Toasty victory!</h1>
                 <p>You beat the rolling-pin boss in {deaths} tr{deaths === 1 ? 'y' : 'ies'}. You&rsquo;re officially golden brown.</p>
                 <button className="ig-cta" onClick={startGame}>Play again</button>
@@ -1035,6 +1260,26 @@ const IG_CSS = `
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
 }
 .ig-bigbread { font-size: 3rem; line-height: 1; margin-bottom: 6px; }
+
+.ig-win { background: rgba(6,8,16,0.82); flex-direction: column; }
+.ig-win-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+.ig-win-card {
+  position: relative; z-index: 2;
+  margin-top: 38%;
+  background: rgba(17,22,42,0.78);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  animation: igWinCardIn 0.5s ease forwards;
+  animation-delay: 1.15s;
+}
+@keyframes igWinCardIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .ig-card h1 { margin: 4px 0 8px; font-size: 1.6rem; }
 .ig-card p { margin: 0 0 14px; color: #c3ccdc; font-size: 0.98rem; line-height: 1.45; }
 .ig-cta {
