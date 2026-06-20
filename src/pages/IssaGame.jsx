@@ -383,34 +383,149 @@ function drawPlatform(ctx, s) {
   ctx.fillRect(s.x + 6, s.y + 6, s.w - 12, 4);
 }
 
-function drawKnife(ctx, r) {
-  // Handle
-  ctx.fillStyle = '#5b3b1a';
-  roundRect(ctx, r.x + r.w / 2 - 5, r.y + r.h - 16, 10, 16, 3);
-  ctx.fill();
-  // Blade
-  ctx.fillStyle = '#cdd6df';
-  ctx.beginPath();
-  ctx.moveTo(r.x + r.w / 2 - 6, r.y + r.h - 14);
-  ctx.lineTo(r.x + r.w / 2 + 6, r.y + r.h - 14);
-  ctx.lineTo(r.x + r.w / 2 + 4, r.y);
-  ctx.lineTo(r.x + r.w / 2 - 6, r.y + 6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#9aa6b1';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+// Deterministic 0..1 pseudo-random from a number (stable per hazard).
+function hashRand(n) {
+  const s = Math.sin(n * 12.9898) * 43758.5453;
+  return s - Math.floor(s);
 }
 
-function drawPuddle(ctx, r) {
-  ctx.fillStyle = '#7fc8ff';
+function drawKnife(ctx, r, t) {
+  const cx = r.x + r.w / 2;
+  const baseY = r.y + r.h;        // sits on the floor
+  const bob = Math.sin(t * 2 + r.x * 0.05) * 0.8;
+
+  ctx.save();
+  ctx.translate(0, bob);
+
+  // Little cutting board it's planted in.
+  ctx.fillStyle = '#c79a64';
+  ctx.beginPath(); ctx.ellipse(cx, baseY - 1, 17, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#b2854f';
+  ctx.beginPath(); ctx.ellipse(cx, baseY - 2.5, 17, 4, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Wooden handle with two rivets.
+  const handleH = 17;
+  const hTop = baseY - 5 - handleH;
+  const hg = ctx.createLinearGradient(cx - 6, 0, cx + 6, 0);
+  hg.addColorStop(0, '#6b4423'); hg.addColorStop(0.5, '#824f28'); hg.addColorStop(1, '#5b3b1a');
+  ctx.fillStyle = hg;
+  roundRect(ctx, cx - 6, hTop, 12, handleH + 2, 4); ctx.fill();
+  ctx.fillStyle = '#caa06a';
+  ctx.beginPath(); ctx.arc(cx, hTop + 5, 1.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, hTop + 11, 1.6, 0, Math.PI * 2); ctx.fill();
+
+  // Metal bolster (collar).
+  ctx.fillStyle = '#8b97a4';
+  roundRect(ctx, cx - 6, hTop - 5, 12, 6, 2); ctx.fill();
+
+  // Blade — chef's knife profile, tapering to a point, curved edge.
+  const tipY = r.y - 2;
+  const bladeBottom = hTop - 5;
+  const blade = ctx.createLinearGradient(cx - 7, 0, cx + 7, 0);
+  blade.addColorStop(0, '#aeb8c2');
+  blade.addColorStop(0.45, '#eef3f7');
+  blade.addColorStop(0.6, '#dfe6ec');
+  blade.addColorStop(1, '#9aa6b1');
   ctx.beginPath();
-  ctx.ellipse(r.x + r.w / 2, r.y + r.h - 4, r.w / 2, r.h / 2, 0, 0, Math.PI * 2);
+  ctx.moveTo(cx - 7, bladeBottom);                 // spine base (left)
+  ctx.lineTo(cx + 5, bladeBottom);                 // edge base (right)
+  ctx.quadraticCurveTo(cx + 8, (bladeBottom + tipY) / 2, cx + 2, tipY); // curved cutting edge to tip
+  ctx.quadraticCurveTo(cx - 4, tipY + 8, cx - 7, bladeBottom + 2);      // straight spine back
+  ctx.closePath();
+  ctx.fillStyle = blade;
   ctx.fill();
-  ctx.fillStyle = '#aee0ff';
+  ctx.strokeStyle = '#8a97a4'; ctx.lineWidth = 1; ctx.stroke();
+
+  // Sharp edge highlight.
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.ellipse(r.x + r.w / 2 - 6, r.y + r.h - 7, r.w / 6, r.h / 5, 0, 0, Math.PI * 2);
+  ctx.moveTo(cx + 4.5, bladeBottom - 1);
+  ctx.quadraticCurveTo(cx + 7, (bladeBottom + tipY) / 2, cx + 1.8, tipY + 1);
+  ctx.stroke();
+
+  // Travelling glint that sweeps up the blade every ~1.8s.
+  const gp = (t * 0.55 + r.x * 0.01) % 1;
+  const gy = bladeBottom + (tipY - bladeBottom) * gp;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx - 7, bladeBottom + 2);
+  ctx.lineTo(cx + 5, bladeBottom);
+  ctx.quadraticCurveTo(cx + 8, (bladeBottom + tipY) / 2, cx + 2, tipY);
+  ctx.quadraticCurveTo(cx - 4, tipY + 8, cx - 7, bladeBottom + 2);
+  ctx.closePath();
+  ctx.clip();
+  const ga = Math.sin(gp * Math.PI); // fade in/out at the ends
+  ctx.strokeStyle = `rgba(255,255,255,${0.85 * ga})`;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, gy + 4); ctx.lineTo(cx + 9, gy - 4);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawPuddle(ctx, r, t) {
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h - 4;          // rests on the floor
+  const seed = r.x * 0.013;
+  const rx = r.w * 0.55;
+  const ry = r.h * 0.5;
+
+  // Irregular, slightly wobbling blob outline.
+  const N = 14;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const noise = 0.78 + 0.22 * hashRand(seed + i * 7.13);
+    const wob = 1 + 0.04 * Math.sin(t * 2 + i + seed);
+    const x = cx + Math.cos(a) * rx * noise * wob;
+    const y = cy + Math.sin(a) * ry * noise * wob;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+
+  // Glossy liquid fill.
+  const g = ctx.createRadialGradient(cx - rx * 0.3, cy - ry * 0.4, 1, cx, cy, rx * 1.2);
+  g.addColorStop(0, 'rgba(190,230,255,0.95)');
+  g.addColorStop(0.6, 'rgba(120,200,245,0.9)');
+  g.addColorStop(1, 'rgba(70,160,220,0.88)');
+  ctx.fillStyle = g;
   ctx.fill();
+  // Wet rim
+  ctx.strokeStyle = 'rgba(60,140,200,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.save();
+  ctx.clip();
+
+  // Expanding ripple ring.
+  const rp = (t * 0.5 + seed) % 1;
+  ctx.strokeStyle = `rgba(255,255,255,${0.45 * (1 - rp)})`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx * rp, ry * rp, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Drifting specular highlights for a wet shimmer.
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  const hx = cx - rx * 0.35 + Math.sin(t * 1.6 + seed) * 2;
+  ctx.beginPath(); ctx.ellipse(hx, cy - ry * 0.4, rx * 0.18, ry * 0.16, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.beginPath(); ctx.ellipse(cx + rx * 0.25, cy - ry * 0.1, rx * 0.1, ry * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+
+  // A couple of tiny bubbles near the edge.
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 1;
+  for (let b = 0; b < 3; b++) {
+    const ba = hashRand(seed + b * 3.1) * Math.PI * 2;
+    const bx = cx + Math.cos(ba) * rx * 0.5;
+    const by = cy + Math.sin(ba) * ry * 0.5;
+    const br = 1.2 + hashRand(seed + b) * 1.4;
+    ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawToaster(ctx, r, t) {
@@ -936,7 +1051,7 @@ export default function IssaGame() {
       }
       for (const h of level.hazards || []) {
         const r = hazardRect(h);
-        if (h.type === 'puddle') drawPuddle(ctx, r); else drawKnife(ctx, r);
+        if (h.type === 'puddle') drawPuddle(ctx, r, g.t); else drawKnife(ctx, r, g.t);
       }
       drawToaster(ctx, toasterRect(level.goal), g.t);
       if (level.boss) for (const r of bossHazardRects(level.boss, g.t)) {
