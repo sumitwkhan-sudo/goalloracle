@@ -24,7 +24,10 @@ export function resumeAudio() {
   if (c && c.state === 'suspended') c.resume();
 }
 
-export function setMuted(m) { muted = m; }
+export function setMuted(m) {
+  muted = m;
+  if (musicGain) musicGain.gain.value = m ? 0 : MUSIC_VOL;
+}
 export function isMuted() { return muted; }
 
 // One enveloped beep, optionally sliding to another frequency.
@@ -64,3 +67,67 @@ export const sfx = {
   levelClear() { seq([{ f: 392, d: 0.12 }, { f: 523, d: 0.12 }, { f: 659, d: 0.22 }]); },
   win() { seq([{ f: 523, d: 0.12 }, { f: 659, d: 0.12 }, { f: 784, d: 0.12 }, { f: 1047, d: 0.3 }]); },
 };
+
+// ---------------------------------------------------------------------------
+// Background music — a light, looping chiptune bounced through a master gain
+// so it can be muted without touching the SFX. Notes are scheduled against
+// the audio clock with a small lookahead for steady timing.
+// ---------------------------------------------------------------------------
+const MUSIC_VOL = 0.5;
+const STEP_DUR = 0.18; // seconds per 1/8 note (~bouncy tempo)
+// 16-step cheerful melody (C major) + a root bassline underneath.
+const MELODY = [523, 659, 784, 659, 587, 784, 1047, 784, 523, 659, 784, 880, 784, 659, 587, 0];
+const BASS = [131, 0, 196, 0, 220, 0, 175, 0, 131, 0, 196, 0, 220, 0, 175, 0];
+
+let musicGain = null;
+let musicTimer = null;
+let musicStep = 0;
+let nextNoteTime = 0;
+
+function musicNote(time, freq, dur, type, vol) {
+  const c = getCtx();
+  if (!c || !musicGain) return;
+  const o = c.createOscillator();
+  const g = c.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, time);
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(vol, time + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+  o.connect(g);
+  g.connect(musicGain);
+  o.start(time);
+  o.stop(time + dur + 0.03);
+}
+
+function musicScheduler() {
+  const c = getCtx();
+  if (!c) return;
+  while (nextNoteTime < c.currentTime + 0.12) {
+    const m = MELODY[musicStep % MELODY.length];
+    if (m) musicNote(nextNoteTime, m, STEP_DUR * 0.9, 'triangle', 0.13);
+    const b = BASS[musicStep % BASS.length];
+    if (b) musicNote(nextNoteTime, b, STEP_DUR * 1.7, 'sine', 0.18);
+    nextNoteTime += STEP_DUR;
+    musicStep += 1;
+  }
+}
+
+export function startMusic() {
+  const c = getCtx();
+  if (!c) return;
+  if (!musicGain) {
+    musicGain = c.createGain();
+    musicGain.gain.value = muted ? 0 : MUSIC_VOL;
+    musicGain.connect(c.destination);
+  }
+  if (musicTimer) return; // already playing
+  musicStep = 0;
+  nextNoteTime = c.currentTime + 0.1;
+  musicScheduler();
+  musicTimer = setInterval(musicScheduler, 25);
+}
+
+export function stopMusic() {
+  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+}

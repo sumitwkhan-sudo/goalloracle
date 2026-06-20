@@ -24,7 +24,10 @@ import {
   WORLD_HEIGHT, GROUND_Y, PLAYER_W, PLAYER_H,
   RUN_SPEED, GRAVITY, JUMP_SPEED, TERMINAL_VY, COYOTE_TIME,
 } from '../games/breadToaster/constants';
-import { sfx, resumeAudio, setMuted } from '../games/breadToaster/sound';
+import { sfx, resumeAudio, setMuted, startMusic, stopMusic } from '../games/breadToaster/sound';
+import {
+  TOAST_SKINS, KITCHEN_THEMES, DEFAULT_SKIN, DEFAULT_THEME, skinById, themeById,
+} from '../games/breadToaster/cosmetics';
 
 function useNoIndexMeta() {
   useEffect(() => {
@@ -100,26 +103,26 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawBackground(ctx, w, h, cameraX) {
-  // Warm kitchen wall (screen space).
+function drawBackground(ctx, w, h, cameraX, theme) {
+  // Kitchen wall (screen space), tinted by the chosen theme.
   const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#fdf3e3');
-  g.addColorStop(1, '#f6e2c4');
+  g.addColorStop(0, theme.wallTop);
+  g.addColorStop(1, theme.wallBottom);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
   // A cheerful window with sky, gently parallaxed.
   const px = -((cameraX * 0.25) % 520);
   for (let wx = px; wx < w; wx += 520) {
-    ctx.fillStyle = '#bfe6ff';
+    ctx.fillStyle = theme.sky;
     roundRect(ctx, wx + 60, 40, 150, 110, 10);
     ctx.fill();
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = theme.cloud;
     ctx.globalAlpha = 0.85;
     ctx.beginPath(); ctx.arc(wx + 175, 70, 16, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(wx + 155, 78, 12, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = '#d9b27a';
+    ctx.strokeStyle = theme.frame;
     ctx.lineWidth = 6;
     ctx.strokeRect(wx + 60, 40, 150, 110);
     ctx.beginPath();
@@ -244,7 +247,7 @@ function drawRollingPin(ctx, r, t) {
   ctx.stroke();
 }
 
-function drawBread(ctx, p, t) {
+function drawBread(ctx, p, t, skin) {
   const airborne = !p.grounded;
   const running = p.grounded && p.moving;
   const swing = running ? Math.sin(p.runPhase) : 0;
@@ -274,7 +277,7 @@ function drawBread(ctx, p, t) {
   }
 
   // --- Feet — alternate while running, tuck together in the air.
-  ctx.fillStyle = '#c98a3c';
+  ctx.fillStyle = skin.foot;
   const footW = 9, footH = 6;
   const footBase = oy + h;
   if (airborne) {
@@ -288,7 +291,7 @@ function drawBread(ctx, p, t) {
   }
 
   // --- Body: crust on top, soft bread inside.
-  ctx.fillStyle = '#e3a857';
+  ctx.fillStyle = skin.crust;
   ctx.beginPath();
   ctx.moveTo(ox, oy + h * 0.45);
   ctx.arc(ox + w * 0.3, oy + h * 0.42, w * 0.3, Math.PI, 0);
@@ -297,9 +300,19 @@ function drawBread(ctx, p, t) {
   ctx.lineTo(ox, oy + h);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = '#fbe6c2';
+  ctx.fillStyle = skin.inside;
   roundRect(ctx, ox + 3, oy + h * 0.42, w - 6, h * 0.58 - 3, 6);
   ctx.fill();
+  // Optional grainy seeds (e.g. wheat).
+  if (skin.seeds) {
+    ctx.fillStyle = 'rgba(90,60,30,0.5)';
+    const seedY = oy + h * 0.5;
+    for (const sx of [0.3, 0.5, 0.7, 0.42, 0.6]) {
+      ctx.beginPath();
+      ctx.ellipse(ox + w * sx, seedY + (sx * 11 % 5), 1.6, 1, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   // --- Face (looks toward travel direction).
   const cx = ox + w / 2 + dir * 4;
@@ -339,6 +352,16 @@ export default function IssaGame() {
   const [deaths, setDeaths] = useState(0);
   const [muted, setMutedState] = useState(false);
 
+  const readStored = (key, fallback) => {
+    try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+  };
+  const [skinId, setSkinId] = useState(() => readStored('issa_toast', DEFAULT_SKIN.id));
+  const [themeId, setThemeId] = useState(() => readStored('issa_kitchen', DEFAULT_THEME.id));
+  const skinRef = useRef(skinById(skinId));
+  const themeRef = useRef(themeById(themeId));
+  useEffect(() => { skinRef.current = skinById(skinId); try { localStorage.setItem('issa_toast', skinId); } catch { /* ignore */ } }, [skinId]);
+  useEffect(() => { themeRef.current = themeById(themeId); try { localStorage.setItem('issa_kitchen', themeId); } catch { /* ignore */ } }, [themeId]);
+
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const gameRef = useRef(null);
@@ -368,6 +391,16 @@ export default function IssaGame() {
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
+
+  // Background music: plays while actively in a level (incl. the brief
+  // level-clear screen), pauses on title/win so the fanfare stands out.
+  useEffect(() => {
+    if (screen === 'playing' || screen === 'levelclear') startMusic();
+    else stopMusic();
+  }, [screen]);
+
+  // Stop music if the page unmounts (navigating away).
+  useEffect(() => () => stopMusic(), []);
 
   // Main game loop — runs only while playing the current level.
   useEffect(() => {
@@ -409,7 +442,7 @@ export default function IssaGame() {
 
       // ---- render ----
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      drawBackground(ctx, canvas.width, canvas.height, g.cameraX * scale);
+      drawBackground(ctx, canvas.width, canvas.height, g.cameraX * scale, themeRef.current || DEFAULT_THEME);
 
       ctx.setTransform(scale, 0, 0, scale, -g.cameraX * scale, 0);
 
@@ -422,7 +455,7 @@ export default function IssaGame() {
       }
       drawToaster(ctx, toasterRect(level.goal), g.t);
       if (level.boss) for (const r of bossPinRects(level.boss, g.t)) drawRollingPin(ctx, r, g.t);
-      drawBread(ctx, g.player, g.t);
+      drawBread(ctx, g.player, g.t, skinRef.current || DEFAULT_SKIN);
 
       // Red flash on death.
       if (g.deadFlash > 0) {
@@ -617,6 +650,38 @@ export default function IssaGame() {
                 <div className="ig-bigbread">🍞</div>
                 <h1>Bread to Toaster</h1>
                 <p>Hop across the kitchen, dodge the knives and spills, and reach the toaster. Beat all the levels to take on the rolling-pin boss!</p>
+
+                <div className="ig-picker">
+                  <div className="ig-picker-label">Your toast</div>
+                  <div className="ig-swatches">
+                    {TOAST_SKINS.map((s) => (
+                      <button
+                        key={s.id}
+                        className={`ig-swatch${skinId === s.id ? ' sel' : ''}`}
+                        onClick={() => setSkinId(s.id)}
+                        type="button"
+                      >
+                        <span className="ig-dot" style={{ background: s.crust, borderColor: s.inside }} />
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="ig-picker-label">Your kitchen</div>
+                  <div className="ig-swatches">
+                    {KITCHEN_THEMES.map((th) => (
+                      <button
+                        key={th.id}
+                        className={`ig-swatch${themeId === th.id ? ' sel' : ''}`}
+                        onClick={() => setThemeId(th.id)}
+                        type="button"
+                      >
+                        <span className="ig-dot" style={{ background: `linear-gradient(${th.wallBottom}, ${th.sky})`, borderColor: th.frame }} />
+                        {th.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <button className="ig-cta" onClick={startGame}>Start</button>
                 <p className="ig-hint">Move: ◀ ▶ or arrow keys · Jump: JUMP or Space</p>
               </div>
@@ -766,6 +831,26 @@ const IG_CSS = `
 }
 .ig-cta:active { transform: translateY(1px); }
 .ig-hint { margin-top: 14px !important; font-size: 0.82rem !important; color: #8893a8 !important; }
+
+.ig-picker { margin: 6px 0 16px; text-align: left; }
+.ig-picker-label {
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #8893a8; margin: 10px 0 6px;
+}
+.ig-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.ig-swatch {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #e7ecf5; cursor: pointer;
+  font-size: 0.85rem; font-weight: 600;
+  padding: 6px 11px 6px 7px; border-radius: 999px;
+}
+.ig-swatch.sel { border-color: #e3a857; background: rgba(227,168,87,0.18); }
+.ig-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid; display: inline-block; flex: none;
+}
 
 .ig-footer {
   display: flex; align-items: center; justify-content: space-between;
