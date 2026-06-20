@@ -103,33 +103,248 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawBackground(ctx, w, h, cameraX, theme) {
-  // Kitchen wall (screen space), tinted by the chosen theme.
+const BG_PARALLAX = 0.6;     // back wall moves slower than the counter for depth
+const BG_PERIOD = 1200;      // one repeating kitchen "scene" is this wide (world px)
+
+function drawBackground(ctx, w, h, cameraXWorld, scale, theme, t) {
+  // 1) Flat themed wall fill (screen space).
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   const g = ctx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, theme.wallTop);
   g.addColorStop(1, theme.wallBottom);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
-  // A cheerful window with sky, gently parallaxed.
-  const px = -((cameraX * 0.25) % 520);
-  for (let wx = px; wx < w; wx += 520) {
-    ctx.fillStyle = theme.sky;
-    roundRect(ctx, wx + 60, 40, 150, 110, 10);
-    ctx.fill();
-    ctx.fillStyle = theme.cloud;
-    ctx.globalAlpha = 0.85;
-    ctx.beginPath(); ctx.arc(wx + 175, 70, 16, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(wx + 155, 78, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = theme.frame;
-    ctx.lineWidth = 6;
-    ctx.strokeRect(wx + 60, 40, 150, 110);
+  // 2) Everything else lives on a parallax world layer so it scales with
+  //    the game and sits clearly behind the foreground counter.
+  const start = cameraXWorld * BG_PARALLAX;
+  ctx.setTransform(scale, 0, 0, scale, -start * scale, 0);
+  const worldVisible = w / scale;
+  const left = start;
+  const right = start + worldVisible;
+
+  // Tiled backsplash band just above the counter.
+  ctx.save();
+  ctx.globalAlpha = 0.32;
+  ctx.fillStyle = '#ffffff';
+  const ts = 26;
+  for (let tx = Math.floor(left / ts) * ts; tx < right; tx += ts) {
+    for (let ty = 408; ty < 520; ty += ts) {
+      ctx.fillRect(tx + 2, ty + 2, ts - 4, ts - 4);
+    }
+  }
+  ctx.restore();
+
+  // Repeating kitchen scene.
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  const firstK = Math.floor(left / BG_PERIOD) - 1;
+  const lastK = Math.floor(right / BG_PERIOD) + 1;
+  for (let k = firstK; k <= lastK; k++) {
+    const bx = k * BG_PERIOD;
+    drawWindowProp(ctx, bx + 30, 40, theme);
+    drawClockProp(ctx, bx + 250, 96, t);
+    drawShelfProp(ctx, bx + 340, 150);
+    drawStoveProp(ctx, bx + 560, t);
+    drawPlantProp(ctx, bx + 800, 486);
+    drawFrameProp(ctx, bx + 960, 80);
+    drawUtensilsProp(ctx, bx + 1090, 52);
+  }
+  ctx.restore();
+}
+
+// --- Background prop helpers (drawn in world coords on the parallax layer) ---
+function drawWindowProp(ctx, x, y, theme) {
+  ctx.fillStyle = theme.sky;
+  roundRect(ctx, x, y, 150, 110, 10);
+  ctx.fill();
+  ctx.fillStyle = theme.cloud;
+  ctx.globalAlpha *= 0.85;
+  ctx.beginPath(); ctx.arc(x + 115, y + 30, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 95, y + 38, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha /= 0.85;
+  ctx.strokeStyle = theme.frame;
+  ctx.lineWidth = 6;
+  ctx.strokeRect(x, y, 150, 110);
+  ctx.beginPath();
+  ctx.moveTo(x + 75, y); ctx.lineTo(x + 75, y + 110);
+  ctx.moveTo(x, y + 55); ctx.lineTo(x + 150, y + 55);
+  ctx.stroke();
+}
+
+function drawClockProp(ctx, cx, cy, t) {
+  const r = 26;
+  ctx.fillStyle = '#f4f6f8';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#5a6675'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#9aa6b1'; ctx.lineWidth = 2;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
     ctx.beginPath();
-    ctx.moveTo(wx + 135, 40); ctx.lineTo(wx + 135, 150);
-    ctx.moveTo(wx + 60, 95); ctx.lineTo(wx + 210, 95);
+    ctx.moveTo(cx + Math.cos(a) * (r - 4), cy + Math.sin(a) * (r - 4));
+    ctx.lineTo(cx + Math.cos(a) * (r - 1), cy + Math.sin(a) * (r - 1));
     ctx.stroke();
   }
+  // Hands
+  ctx.strokeStyle = '#3a4654'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + 8, cy - 6); ctx.stroke();
+  const sec = (t * 0.6) % (Math.PI * 2);
+  ctx.strokeStyle = '#cf5b4a'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(sec) * (r - 6), cy + Math.sin(sec) * (r - 6)); ctx.stroke();
+  ctx.lineCap = 'butt';
+}
+
+function drawShelfProp(ctx, x, y) {
+  // Board
+  ctx.fillStyle = '#caa472';
+  roundRect(ctx, x, y, 130, 12, 4); ctx.fill();
+  ctx.fillStyle = '#b88f59';
+  ctx.fillRect(x + 4, y + 8, 122, 3);
+  // Three spice jars on top.
+  const jars = [
+    { jx: x + 12, fill: '#cf5b4a' },
+    { jx: x + 52, fill: '#7cae57' },
+    { jx: x + 92, fill: '#e0b13c' },
+  ];
+  for (const j of jars) {
+    ctx.fillStyle = '#e9eef2';
+    roundRect(ctx, j.jx, y - 30, 26, 30, 5); ctx.fill();
+    ctx.fillStyle = j.fill;
+    roundRect(ctx, j.jx + 3, y - 18, 20, 16, 3); ctx.fill();
+    ctx.fillStyle = '#9aa6b1';
+    roundRect(ctx, j.jx + 1, y - 34, 24, 7, 3); ctx.fill();
+  }
+}
+
+function drawStoveProp(ctx, x, t) {
+  const w = 150;
+  // Range hood
+  ctx.fillStyle = '#c2c9d0';
+  ctx.beginPath();
+  ctx.moveTo(x + 35, 175); ctx.lineTo(x + w - 35, 175);
+  ctx.lineTo(x + w - 55, 120); ctx.lineTo(x + 55, 120);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#aeb6bf';
+  ctx.fillRect(x + 35, 172, w - 70, 8);
+  ctx.fillStyle = 'rgba(255,240,180,0.6)'; // hood light glow
+  ctx.beginPath(); ctx.ellipse(x + w / 2, 184, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Oven body
+  const body = ctx.createLinearGradient(x, 350, x + w, 350);
+  body.addColorStop(0, '#dfe4e9');
+  body.addColorStop(0.5, '#c2cad2');
+  body.addColorStop(1, '#aab3bd');
+  ctx.fillStyle = body;
+  roundRect(ctx, x + 10, 350, w - 20, 170, 8); ctx.fill();
+  // Cooktop
+  ctx.fillStyle = '#6b7480';
+  roundRect(ctx, x + 6, 344, w - 12, 16, 5); ctx.fill();
+  // Control panel + knobs
+  ctx.fillStyle = '#8b97a4';
+  roundRect(ctx, x + 16, 366, w - 32, 16, 4); ctx.fill();
+  ctx.fillStyle = '#3a4654';
+  for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(x + 30 + i * 28, 374, 4, 0, Math.PI * 2); ctx.fill(); }
+  // Oven door + window + handle
+  ctx.fillStyle = '#cfd6dd';
+  roundRect(ctx, x + 20, 392, w - 40, 120, 8); ctx.fill();
+  ctx.fillStyle = '#3a4654';
+  roundRect(ctx, x + 34, 410, w - 68, 70, 6); ctx.fill();
+  ctx.fillStyle = '#54606e';
+  roundRect(ctx, x + 26, 398, w - 52, 7, 3); ctx.fill();
+
+  // Frying pan with a fried egg on the cooktop.
+  const px = x + 84, py = 342;
+  ctx.fillStyle = '#2a2c30';
+  ctx.beginPath(); ctx.ellipse(px, py, 36, 11, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#3c3f44';
+  ctx.beginPath(); ctx.ellipse(px, py - 2, 32, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#2a2c30'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(px + 32, py); ctx.lineTo(px + 60, py + 4); ctx.stroke();
+  ctx.lineCap = 'butt';
+  // Egg
+  ctx.fillStyle = '#fffdf6';
+  ctx.beginPath(); ctx.ellipse(px - 4, py - 3, 13, 6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffce4a';
+  ctx.beginPath(); ctx.arc(px - 2, py - 4, 4.5, 0, Math.PI * 2); ctx.fill();
+  // Steam (animated)
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (let s = 0; s < 3; s++) {
+    const sx = px - 10 + s * 12;
+    ctx.beginPath();
+    for (let yy = 0; yy <= 30; yy += 6) {
+      const wob = Math.sin(t * 3 + s + yy * 0.2) * 4;
+      const xx = sx + wob;
+      if (yy === 0) ctx.moveTo(xx, py - 8 - yy); else ctx.lineTo(xx, py - 8 - yy);
+    }
+    ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+}
+
+function drawPlantProp(ctx, x, baseY) {
+  // Terracotta pot
+  ctx.fillStyle = '#c9714a';
+  ctx.beginPath();
+  ctx.moveTo(x - 16, baseY - 40); ctx.lineTo(x + 16, baseY - 40);
+  ctx.lineTo(x + 12, baseY); ctx.lineTo(x - 12, baseY);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#b35f3c';
+  ctx.fillRect(x - 18, baseY - 44, 36, 7);
+  // Leaves
+  const leaves = [[-10, -52, -0.5], [0, -64, 0], [10, -52, 0.5], [-4, -58, -0.2], [5, -58, 0.25]];
+  for (const [lx, ly, rot] of leaves) {
+    ctx.save();
+    ctx.translate(x + lx, baseY + ly);
+    ctx.rotate(rot);
+    ctx.fillStyle = '#5fae5a';
+    ctx.beginPath(); ctx.ellipse(0, 0, 7, 16, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4f9a4a';
+    ctx.beginPath(); ctx.ellipse(2, 2, 3, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawFrameProp(ctx, x, y) {
+  const w = 92, h = 86;
+  ctx.fillStyle = '#a9784a';
+  roundRect(ctx, x, y, w, h, 4); ctx.fill();
+  ctx.fillStyle = '#fbf3e6';
+  ctx.fillRect(x + 8, y + 8, w - 16, h - 16);
+  // Simple still life: a fruit bowl
+  ctx.fillStyle = '#d8b27a';
+  ctx.beginPath(); ctx.ellipse(x + w / 2, y + h - 22, 26, 9, 0, 0, Math.PI); ctx.fill();
+  ctx.fillStyle = '#cf5b4a';
+  ctx.beginPath(); ctx.arc(x + w / 2 - 9, y + h - 30, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e0b13c';
+  ctx.beginPath(); ctx.arc(x + w / 2 + 6, y + h - 28, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#7cae57';
+  ctx.beginPath(); ctx.arc(x + w / 2 + 16, y + h - 34, 6, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawUtensilsProp(ctx, x, y) {
+  // Rail
+  ctx.strokeStyle = '#8b97a4'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x + 80, y); ctx.stroke();
+  ctx.fillStyle = '#6b7480';
+  for (const hx of [x, x + 35, x + 70]) { ctx.beginPath(); ctx.arc(hx, y, 3, 0, Math.PI * 2); ctx.fill(); }
+  // Spatula
+  ctx.strokeStyle = '#5a6675'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 40); ctx.stroke();
+  ctx.fillStyle = '#54606e'; roundRect(ctx, x - 7, y + 40, 14, 16, 3); ctx.fill();
+  // Whisk
+  ctx.beginPath(); ctx.moveTo(x + 35, y); ctx.lineTo(x + 35, y + 22); ctx.stroke();
+  ctx.strokeStyle = '#9aa6b1'; ctx.lineWidth = 2;
+  for (const dx of [-7, -3, 3, 7]) {
+    ctx.beginPath(); ctx.moveTo(x + 35, y + 22);
+    ctx.quadraticCurveTo(x + 35 + dx, y + 36, x + 35, y + 48); ctx.stroke();
+  }
+  // Ladle
+  ctx.strokeStyle = '#5a6675'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x + 70, y); ctx.lineTo(x + 70, y + 36); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + 70, y + 44, 8, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+  ctx.lineCap = 'butt';
 }
 
 function drawFloor(ctx, s) {
@@ -441,8 +656,7 @@ export default function IssaGame() {
       if (!g.finished) update(g, dt, visibleW);
 
       // ---- render ----
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      drawBackground(ctx, canvas.width, canvas.height, g.cameraX * scale, themeRef.current || DEFAULT_THEME);
+      drawBackground(ctx, canvas.width, canvas.height, g.cameraX, scale, themeRef.current || DEFAULT_THEME, g.t);
 
       ctx.setTransform(scale, 0, 0, scale, -g.cameraX * scale, 0);
 
