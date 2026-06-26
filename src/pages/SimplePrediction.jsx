@@ -864,6 +864,10 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               the actual result — advance any team you correctly called to the knockouts; teams you
               didn’t pick are <span className="bracket-reseed-locked">greyed out</span>. Third-place
               slots fill once all groups finish; unfinished groups still show your prediction.
+              <br />
+              <strong>Happy with your picks?</strong> You don’t have to change a thing — your original
+              bracket is saved and still scoring exactly as you submitted it. This just lets you
+              re-pick winners now that the real teams are set.
             </div>
           )}
 

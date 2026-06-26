@@ -67,8 +67,11 @@ async function loadLastSentByUser() {
 
 function timingAllows(rule, now) {
   if (rule.hoursBeforeLock == null) return true; // no timing gate
+  // Which stage's lock the window is measured against. Defaults to the
+  // group stage (back-compat); a rule can target a later lock — e.g.
+  // `stage: 'roundOf32'` for a "finalize your knockout picks" nudge.
   let lockMs;
-  try { lockMs = stageLockTimeUtc('groupStage'); } catch { return true; }
+  try { lockMs = stageLockTimeUtc(rule.stage || 'groupStage'); } catch { return true; }
   const hoursLeft = (lockMs - now) / 3_600_000;
   // Fire only while we're inside the window and not past the lock.
   return hoursLeft > 0 && hoursLeft <= rule.hoursBeforeLock;

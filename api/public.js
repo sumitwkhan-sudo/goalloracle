@@ -73,6 +73,7 @@ export default async function handler(req, res) {
         quickPicksEnabled: stored.quickPicksEnabled !== false,
         classicEnabled: stored.classicEnabled !== false,
         enablePrizeLeagues: stored.enablePrizeLeagues === true,
+        knockoutRealReseed: stored.knockoutRealReseed !== false,
       });
     }
 

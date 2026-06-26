@@ -16,6 +16,7 @@
 
 import crypto from 'crypto';
 import { LAUNCH_DATE, SPONSOR_ADDRESS, SPONSOR_DBA } from '../../src/config/legal.js';
+import { stageLockTimeUtc } from '../../src/utils/stageLock.js';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const PROD_ORIGIN = 'https://goaloracle.io';
@@ -580,6 +581,135 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
   return { subject, html, text };
 }
 
+// ─── Template: Knockout Lock Reminder ────────────────────────────
+// Group stage is done and the real Round-of-32 teams are now seeded into
+// every user's bracket (knockout-real-reseed). This nudges users to come
+// finalize their knockout winners before the R32 lock — while explicitly
+// reassuring anyone happy with their bracket that they DON'T have to touch
+// it: their original picks are saved and scoring unchanged (per-fixture
+// scoring is seeding-independent). Honest, low-pressure urgency.
+
+// Human-readable R32 lock date/time in ET, derived from the canonical
+// stageLock constant so it can't drift. Falls back to a static string.
+function r32LockText() {
+  try {
+    const ms = stageLockTimeUtc('roundOf32');
+    const date = new Date(ms).toLocaleString('en-US', {
+      timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric',
+    });
+    const time = new Date(ms).toLocaleString('en-US', {
+      timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit',
+    });
+    const daysLeft = Math.max(0, Math.ceil((ms - Date.now()) / 86400000));
+    return { date, time, daysLeft };
+  } catch {
+    return { date: 'Sunday, June 28', time: '2:55 PM', daysLeft: null };
+  }
+}
+
+function knockoutReminderTemplate({ user, ctx }) {
+  const name = user.displayName || user.username || null;
+  const { date: lockDate, time: lockTime, daysLeft } = r32LockText();
+  const subject = name
+    ? `${name}, your knockout picks lock ${lockDate}`
+    : `Your World Cup knockout picks lock ${lockDate}`;
+
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=knockout_lock_reminder`;
+  const unsubUrl = unsubscribeUrl(user.id);
+  const countdown = (typeof daysLeft === 'number' && daysLeft > 0)
+    ? `That's about ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} away.`
+    : '';
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <h1 style="margin:0 0 14px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">
+                The real teams are in your bracket.
+              </h1>
+              <p style="margin:0 0 12px;font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#FF3B30;">
+                Knockout picks lock ${escape(lockDate)}
+              </p>
+              <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                The group stage is done, and the teams that actually advanced are now seeded into your
+                Round of 32. Come pick your winners through to the Final — any team you correctly called
+                to the knockouts is yours to advance. Your picks lock <strong>${escape(lockDate)}</strong>${lockTime ? `, around <strong>${escape(lockTime)} ET</strong>` : ''}. ${escape(countdown)}
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:0 0 24px;">
+                <tr>
+                  <td style="background:#0a0a0f;border-radius:999px;">
+                    <a href="${ctaUrl}" style="display:inline-block;padding:18px 36px;color:#ffffff;text-decoration:none;font-weight:800;font-size:17px;letter-spacing:0.3px;border-radius:999px;background:linear-gradient(135deg,#FF3B30,#FFD66B);">
+                      Make my knockout picks →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 18px;">
+                <tr>
+                  <td style="padding:14px 16px;background:#eef7ff;border:1px solid #b8dcff;border-radius:8px;font-size:14px;color:#0a2540;line-height:1.55;">
+                    <strong>Happy with your bracket already?</strong> You don't have to change a thing — your
+                    original picks are saved and still scoring exactly as you submitted them. This is only if
+                    you'd like to adjust now that the real teams are set.
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 18px;">
+                <tr>
+                  <td style="padding:14px 16px;background:#f4f0ff;border:1px solid #d6c8ff;border-radius:8px;font-size:14px;color:#2a1a4a;line-height:1.55;">
+                    <strong>Playing with friends?</strong> Start a private league just for the knockout rounds —
+                    it comes pre-filled with the real Round of 32, so everyone picks winners from the same 32 teams.
+                    Fresh start, level field, pure knockout bragging rights.
+                    <br />
+                    <a href="${ctaUrl}&cta=knockout_league" style="display:inline-block;margin-top:8px;color:#5b2bd6;text-decoration:underline;font-weight:700;">Start a knockout league →</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;font-size:13px;color:#6e6e80;line-height:1.55;">
+                Top 3 on the Global Quick Picks Leaderboard at the end of the Final win <strong>$150 / $100 / $50 in USDC</strong>. Free entry, no purchase necessary.
+              </p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `${greeting(user).replace(/<[^>]+>/g, '')}
+
+THE REAL TEAMS ARE IN YOUR BRACKET.
+
+The group stage is done, and the teams that actually advanced are now seeded into your Round of 32. Come pick your winners through to the Final — any team you correctly called to the knockouts is yours to advance.
+
+Your knockout picks lock ${lockDate}${lockTime ? `, around ${lockTime} ET` : ''}. ${countdown}
+
+Make my knockout picks: ${ctaUrl}
+
+Happy with your bracket already? You don't have to change a thing — your original picks are saved and still scoring exactly as you submitted them. This is only if you'd like to adjust now that the real teams are set.
+
+Playing with friends? Start a private league just for the knockout rounds — it comes pre-filled with the real Round of 32, so everyone picks winners from the same 32 teams. Fresh start, level field, pure knockout bragging rights. Start one here: ${ctaUrl}&cta=knockout_league
+
+Top 3 on the Global Quick Picks Leaderboard at the end of the Final win $150 / $100 / $50 in USDC. Free entry, no purchase necessary.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 // ─── Registry ────────────────────────────────────────────────────
 
 export const TEMPLATES = {
@@ -612,6 +742,12 @@ export const TEMPLATES = {
     label: 'Daily Leaderboard Movement',
     description: 'Personalized daily digest sent to users who moved up or down a configurable number of places on the Global League after the day\'s games. Driven by the rank-digest cron; per-user movement is supplied via the scheduled-send payload.',
     build: rankDigestTemplate,
+  },
+  knockoutReminder: {
+    id: 'knockoutReminder',
+    label: 'Knockout Lock Reminder',
+    description: "Sent after the group stage, once the real Round-of-32 teams are seeded into brackets, to nudge users to finalize their knockout winners before the R32 lock (2026-06-28). Explicitly reassures users happy with their bracket that they don't need to change anything — original picks stay saved and scoring. Default eligibility: in the Global Quick Picks League, has email, not opted out — regardless of pick status.",
+    build: knockoutReminderTemplate,
   },
 };
 

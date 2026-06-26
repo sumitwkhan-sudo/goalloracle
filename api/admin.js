@@ -2073,8 +2073,10 @@ export default async function handler(req, res) {
           if (NOW - created > FOURTEEN_DAYS_MS) return { eligible: false };
           return { eligible: true };
         }
-        if (template === 'kickoffTomorrow') {
-          // No additional filter beyond email + opt-out.
+        if (template === 'kickoffTomorrow' || template === 'knockoutReminder') {
+          // No additional filter beyond email + opt-out — every Global
+          // Quick Picks member should get the heads-up that knockout picks
+          // are about to lock, whether their bracket is done or not.
           return { eligible: true };
         }
         if (template === 'midTournamentNudge') {

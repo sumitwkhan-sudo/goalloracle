@@ -1024,9 +1024,10 @@ export const DEFAULT_FEATURE_FLAGS = {
   enablePrizeLeagues: false,
   // Knockout-real-reseed: when ON, the bracket wizard reflects the REAL
   // advancing teams (per group as they finish) and restricts each user to
-  // advancing only teams they correctly predicted. Default OFF; founder flips
-  // it on. Sticky for the tournament once enabled.
-  knockoutRealReseed: false,
+  // advancing only teams they correctly predicted. Now LIVE for the
+  // tournament — read default-ON below (only an explicit `false` disables
+  // it). Sticky once enabled.
+  knockoutRealReseed: true,
 };
 
 // The real Round-of-32 (per-side, resolved as groups finish) for the
@@ -1048,6 +1049,7 @@ export async function fetchFeatureFlags() {
       quickPicksEnabled: data.quickPicksEnabled !== false,
       classicEnabled: data.classicEnabled === true,
       enablePrizeLeagues: data.enablePrizeLeagues === true,
+      knockoutRealReseed: data.knockoutRealReseed !== false,
     };
   } catch {
     return { ...DEFAULT_FEATURE_FLAGS };
@@ -1069,6 +1071,7 @@ export function subscribeToFeatureFlags(callback) {
       quickPicksEnabled: data.quickPicksEnabled !== false,
       classicEnabled: data.classicEnabled === true,
       enablePrizeLeagues: data.enablePrizeLeagues === true,
+      knockoutRealReseed: data.knockoutRealReseed !== false,
     });
   }, (err) => {
     console.warn('[featureFlags] subscription error (keeping last value):', err?.message || err);
