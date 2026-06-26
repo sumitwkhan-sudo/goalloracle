@@ -176,6 +176,18 @@ export default async function handler(req, res) {
     const repeatMs = rule.repeatEveryHours
       ? Math.max(6, Number(rule.repeatEveryHours)) * 3_600_000 : null;
 
+    // Safety for recurring rules: never outlive the stage they count down to.
+    // Once that stage has locked, stop — so a rule left without a timing
+    // window can't keep re-sending forever (fail closed).
+    if (repeatMs) {
+      let stageLockMs = null;
+      try { stageLockMs = stageLockTimeUtc(rule.stage || 'roundOf32'); } catch { stageLockMs = null; }
+      if (stageLockMs && now >= stageLockMs) {
+        summary.push({ ...out, skipped: 'recurring stopped: stage locked' });
+        continue;
+      }
+    }
+
     const sendsSnap = await db.collection('automationRuleSends').where('ruleId', '==', rule.id).get();
     const lastByRuleUser = {};
     sendsSnap.docs.forEach((d) => {
