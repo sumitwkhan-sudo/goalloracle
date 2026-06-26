@@ -526,6 +526,14 @@ export async function copySimplePrediction(userId, sourceLeagueId, targetLeagueI
   return { copied: 1, payload };
 }
 
+// Push the caller's own Global knockout bracket to every other Quick Picks
+// league they're in (server reads their membership + applies, lock-aware,
+// skipping classic + knockout-only leagues). Returns { applied:[{leagueId,
+// name}], count, skipped }.
+export async function applyGlobalKnockoutToMyLeagues() {
+  return await apiCall('leagues', 'POST', { action: 'applyGlobalKnockout' });
+}
+
 // Reset a user's simple prediction for a specific league. Server enforces
 // that no stage has locked yet; once any stage starts, reset returns 403
 // with the locked sections listed.

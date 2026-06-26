@@ -1,5 +1,6 @@
 import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { lockedSectionsInUpdate } from '../src/utils/stageLock.js';
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -163,6 +164,66 @@ export default async function handler(req, res) {
       // Respond immediately, update user doc in background
       res.status(200).json({ leagueId });
       db.collection('users').doc(userId).update({ leagues: FieldValue.arrayUnion(leagueId) }).catch(() => {});
+
+    // ─── APPLY GLOBAL KNOCKOUT TO MY OTHER LEAGUES ────────
+    // A user pushes their own Global Quick Picks KNOCKOUT bracket to every
+    // other Quick Picks league they're in, so a bracket edit doesn't have to
+    // be redone per league. Knockout-only leagues are skipped (their bracket
+    // is seeded from the real R32, so predicted-bracket picks don't map and
+    // would clobber real-team picks). Group/best-thirds are never touched —
+    // they're locked and excluded here, and the lock-aware merge below also
+    // preserves any already-locked knockout round on the target.
+    } else if (action === 'applyGlobalKnockout') {
+      const SEP = '__';
+      let globalSnap = await db.collection('simplePredictions').doc(`${userId}${SEP}global-simple`).get();
+      let globalDoc = globalSnap.exists ? globalSnap.data() : null;
+      if (!globalDoc) {
+        const legacy = await db.collection('simplePredictions').doc(userId).get();
+        if (legacy.exists) globalDoc = legacy.data();
+      }
+      const ko = globalDoc?.knockoutPredictions || null;
+      const hasKo = ko && Object.values(ko).some((a) => Array.isArray(a) && a.length > 0);
+      if (!hasKo) return res.status(400).json({ error: 'No global knockout picks to apply yet.' });
+
+      const userSnap = await db.collection('users').doc(userId).get();
+      const myLeagues = userSnap.exists && Array.isArray(userSnap.data().leagues)
+        ? userSnap.data().leagues : [];
+      const targets = myLeagues.filter((id) => id && id !== 'global-simple' && id !== 'global');
+
+      const applied = [];
+      const skipped = [];
+      for (const leagueId of targets) {
+        const lSnap = await db.collection('leagues').doc(leagueId).get();
+        if (!lSnap.exists) continue;
+        const league = lSnap.data();
+        if (league.predictionMode === 'classic') { skipped.push({ leagueId, reason: 'classic' }); continue; }
+        if (league.knockoutOnly === true) { skipped.push({ leagueId, reason: 'knockout_only' }); continue; }
+
+        const tgtRef = db.collection('simplePredictions').doc(`${userId}${SEP}${leagueId}`);
+        const tgtSnap = await tgtRef.get();
+        const oldDoc = tgtSnap.exists ? tgtSnap.data() : {};
+
+        // Lock-aware: don't overwrite a knockout round that has already locked
+        // on the target — preserve the target's existing locked round.
+        const partial = { knockoutPredictions: JSON.parse(JSON.stringify(ko)) };
+        const locked = lockedSectionsInUpdate(partial, oldDoc);
+        const oldKo = oldDoc.knockoutPredictions || {};
+        for (const sec of locked) {
+          if (!sec.startsWith('knockoutPredictions.')) continue;
+          const round = sec.split('.')[1];
+          if (round in oldKo) partial.knockoutPredictions[round] = oldKo[round];
+          else delete partial.knockoutPredictions[round];
+        }
+        const finalPicked = !!partial.knockoutPredictions?.final?.[0]?.winnerId;
+        await tgtRef.set({
+          userId, leagueId,
+          knockoutPredictions: partial.knockoutPredictions,
+          isComplete: finalPicked,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        applied.push({ leagueId, name: league.name || leagueId });
+      }
+      return res.status(200).json({ applied, count: applied.length, skipped });
 
     // ─── JOIN ─────────────────────────────────────────────
     } else if (action === 'join') {

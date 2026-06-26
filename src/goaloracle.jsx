@@ -1267,6 +1267,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             key={`simple-${league?.id}`}
             userId={userData?.id}
             league={league}
+            userLeagues={myLeagues}
             displayName={userData?.displayName}
             isAnonymous={isAnonymous}
             onRequireSignup={onRequireSignup}
@@ -5397,6 +5398,7 @@ const GoalOracle = () => {
           key={`simple-detail-${selLeague.id}`}
           league={selLeague}
           userData={uData}
+          myLeagues={leagues}
           authenticated={authenticated}
           isAnonymous={isAnonymous}
           onRequireSignup={requireSignup}
@@ -5444,6 +5446,7 @@ const GoalOracle = () => {
           key={`simple-${selLeague?.id || 'solo'}`}
           userId={uData?.id}
           league={selLeague}
+          userLeagues={leagues}
           isAnonymous={isAnonymous}
           onRequireSignup={requireSignup}
           onExit={() => nav('leagues')}

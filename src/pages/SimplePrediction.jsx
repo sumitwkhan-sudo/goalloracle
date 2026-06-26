@@ -33,12 +33,12 @@ import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions, predictedR32TeamSet } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
-import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, subscribeToFeatureFlags } from '../utils/db';
+import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
 
-export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded = false, isAnonymous = false, onRequireSignup = () => {} }) {
+export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded = false, isAnonymous = false, onRequireSignup = () => {}, userLeagues = [] }) {
   const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId, league?.id);
   // Bumping this key remounts the wizard so its frozen-initial hooks
   // rehydrate from the latest subscription data (used after copy / reset).
@@ -77,6 +77,7 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, o
       initialStep={initialStep}
       userId={userId}
       league={league}
+      userLeagues={userLeagues}
       onExit={onExit}
       onComplete={onComplete}
       onShareBracket={onShareBracket}
@@ -123,7 +124,7 @@ function pickResumeStep(initialData, explicitStep, league) {
   return 3;
 }
 
-function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded, isAnonymous = false, onRequireSignup = () => {}, saving, savedAt, error, save, saveNow, onRehydrate }) {
+function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, userLeagues = [], onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded, isAnonymous = false, onRequireSignup = () => {}, saving, savedAt, error, save, saveNow, onRehydrate }) {
   // Resume on the first incomplete step instead of always starting at
   // group rankings. Users with 1 pick left were being sent back to
   // Step 1 — they had to scroll past 12 already-correct group rankings
@@ -274,6 +275,36 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     return predictedR32TeamSet(groups.predictions, bestThird.picks);
   }, [reseedActive, knockoutOnly, realR32, groups.predictions, bestThird.picks]);
 
+  // ── Sync Global knockout edits to the user's other leagues ──────────
+  // While editing the GLOBAL bracket, offer to push the updated knockout picks
+  // to every other Quick Picks league the user is in (classic + knockout-only
+  // leagues are excluded server-side). They can still fine-tune each league on
+  // its own page afterwards.
+  const otherSyncableLeagues = useMemo(
+    () => (userLeagues || []).filter(
+      (l) => l && l.id !== GLOBAL_SIMPLE_ID && l.predictionMode !== 'classic' && !l.knockoutOnly,
+    ),
+    [userLeagues],
+  );
+  const canSyncLeagues = isGlobalSimple && otherSyncableLeagues.length > 0;
+  const [koTouched, setKoTouched] = useState(false);
+  const [syncState, setSyncState] = useState({ status: 'idle', count: 0 });
+  const handleSyncLeagues = useCallback(async () => {
+    setSyncState({ status: 'applying', count: 0 });
+    try {
+      // Flush the latest Global bracket first so the server copies the picks
+      // the user is looking at (auto-save is async — avoid a stale copy).
+      await saveNow({
+        knockoutPredictions: bracketState.knockoutPredictions,
+        isComplete: bracketState.isRoundComplete('final'),
+      });
+      const res = await applyGlobalKnockoutToMyLeagues();
+      setSyncState({ status: 'done', count: res?.count || 0 });
+    } catch {
+      setSyncState({ status: 'error', count: 0 });
+    }
+  }, [saveNow, bracketState]);
+
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
@@ -297,6 +328,12 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // already filled went blank.
   const pickWinnerWithFeedback = useCallback((matchId, winnerTeam) => {
     const result = bracketState.pickWinner(matchId, winnerTeam) || {};
+    // Editing the Global bracket → surface the "apply to my other leagues"
+    // prompt, and reset any prior "done" state so a fresh edit can re-apply.
+    if (canSyncLeagues) {
+      setKoTouched(true);
+      setSyncState((s) => (s.status === 'done' ? { status: 'idle', count: 0 } : s));
+    }
     if (bracketHintVisible) dismissBracketHint();
     if (result.cleared > 0) {
       if (cascadeToastTimer.current) clearTimeout(cascadeToastTimer.current);
@@ -304,7 +341,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
       cascadeToastTimer.current = setTimeout(() => setCascadeToast(null), 3500);
     }
     return result;
-  }, [bracketState, bracketHintVisible, dismissBracketHint]);
+  }, [bracketState, bracketHintVisible, dismissBracketHint, canSyncLeagues]);
 
   // Celebration trigger: detect the false → true edge on the two
   // milestone rounds (3rd-place + Final) and fire onCelebrate so the
@@ -894,6 +931,41 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               );
             })()}
           </div>
+
+          {canSyncLeagues && koTouched && (
+            <div className="bracket-sync-note">
+              {syncState.status === 'done' ? (
+                <span className="bracket-sync-done">
+                  <Check size={15} /> Applied to {syncState.count} {syncState.count === 1 ? 'league' : 'leagues'}.
+                  You can still fine-tune each one on its own league page.
+                </span>
+              ) : (
+                <>
+                  <span>
+                    <strong>Bracket updated.</strong> Apply these knockout picks to your{' '}
+                    {otherSyncableLeagues.length} other {otherSyncableLeagues.length === 1 ? 'league' : 'leagues'} too?
+                    You can still edit each one separately afterwards.
+                  </span>
+                  <span className="bracket-sync-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={handleSyncLeagues}
+                      disabled={syncState.status === 'applying'}
+                    >
+                      {syncState.status === 'applying' ? 'Applying…' : 'Apply to my leagues'}
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setKoTouched(false)}>
+                      Not now
+                    </button>
+                  </span>
+                  {syncState.status === 'error' && (
+                    <span className="bracket-sync-err">Couldn’t apply — try again.</span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {knockoutOnly && !reseedActive && (
             <div className="bracket-reseed-note">

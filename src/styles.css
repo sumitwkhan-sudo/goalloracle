@@ -11135,6 +11135,17 @@ ol.legal-list li { margin-bottom: 0.35rem; }
 .bracket-reseed-note strong { color: var(--primary); }
 .bracket-reseed-locked { opacity: 0.6; text-decoration: line-through; }
 
+/* "Apply Global knockout edits to my other leagues" prompt */
+.bracket-sync-note {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 0.85rem;
+  background: var(--surface-2, #f4f0ff); border: 1px solid #d6c8ff;
+  border-radius: 12px; padding: 0.75rem 0.95rem; margin: 0 0 1rem;
+  font-size: 0.84rem; line-height: 1.5; color: var(--text);
+}
+.bracket-sync-note .bracket-sync-actions { display: flex; gap: 0.4rem; margin-left: auto; }
+.bracket-sync-done { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--success, #1a7f37); }
+.bracket-sync-err { color: var(--danger, #c0322b); font-weight: 600; flex-basis: 100%; }
+
 /* Locked group step (group stage frozen) */
 .group-card.is-locked { opacity: 0.92; }
 .group-card.is-locked .group-row { cursor: default; }
