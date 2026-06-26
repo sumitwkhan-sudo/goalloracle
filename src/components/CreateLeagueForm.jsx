@@ -11,7 +11,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   AlertTriangle, CheckCircle, Key, Unlock, Lock, Eye, EyeOff,
-  RefreshCw, ChevronRight, Loader, Copy, Target,
+  RefreshCw, ChevronRight, Loader, Copy, Target, Trophy,
 } from 'lucide-react';
 import ModePicker from './simple/ModePicker';
 import HouseRulesInput from './HouseRulesInput';
@@ -162,6 +162,16 @@ export default function CreateLeagueForm({
   const cu = 'USDC';
   const tot = di.first + di.second + di.third;
 
+  // Knockout-only league: skips group ranking + best-thirds; the bracket is
+  // pre-filled with the real Round of 32 so members only pick knockout winners.
+  // Local state — it only needs to exist until submit. A Quick Picks variant,
+  // so it's force-hidden + cleared whenever the mode isn't 'simple'.
+  const [knockoutOnly, setKnockoutOnly] = useState(false);
+  const knockoutOnlyAvailable = createMode === 'simple' && featureFlags?.quickPicksEnabled !== false;
+  useEffect(() => {
+    if (!knockoutOnlyAvailable && knockoutOnly) setKnockoutOnly(false);
+  }, [knockoutOnlyAvailable, knockoutOnly]);
+
   // Prize-league capability is platform-wide config gated by the
   // enablePrizeLeagues superadmin flag. Off by default. When off the
   // entire "League Type" picker hides; user-created leagues are just
@@ -184,6 +194,7 @@ export default function CreateLeagueForm({
     setCreateBusy(false); setCreateErr('');
     setCreateMode('simple');
     setHouseRules('');
+    setKnockoutOnly(false);
   };
 
   const go = async () => {
@@ -210,6 +221,9 @@ export default function CreateLeagueForm({
         pointsSystem: createMode === 'simple' ? null : ps,
         predictionMode: createMode,
         matchScope: 'all',
+        // Knockout-only: server forces simple mode + the rounds scope and
+        // seeds the bracket from the real R32.
+        knockoutOnly: knockoutOnlyAvailable && knockoutOnly,
         // House rules only on private leagues; server rejects on public.
         houseRules: (vis === 'private' && trimmedRules) ? { content: trimmedRules } : null,
       };
@@ -261,6 +275,36 @@ export default function CreateLeagueForm({
           );
         })()}
         <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={(e) => setNm(e.target.value)} className="input-field" /></div>
+        {/* Knockout-only format — a Quick Picks variant that skips the group
+            stage. Only meaningful in 'simple' mode; hidden otherwise. */}
+        {knockoutOnlyAvailable && (
+          <div className="form-section">
+            <label>League Format</label>
+            <div className="type-selector">
+              <button
+                type="button"
+                className={`type-option ${!knockoutOnly ? 'active' : ''}`}
+                onClick={(e) => { e.preventDefault(); setKnockoutOnly(false); }}
+              >
+                <Target size={24} />
+                <div><h4>Full Tournament</h4><p>Rank groups, pick best-thirds, then the bracket</p></div>
+              </button>
+              <button
+                type="button"
+                className={`type-option ${knockoutOnly ? 'active' : ''}`}
+                onClick={(e) => { e.preventDefault(); setKnockoutOnly(true); }}
+              >
+                <Trophy size={24} />
+                <div><h4>Knockout Only</h4><p>Skip the groups — start from the real Round of 32 and pick winners</p></div>
+              </button>
+            </div>
+            {knockoutOnly && (
+              <p className="form-hint" style={{ marginTop: 8 }}>
+                Everyone starts from the same 32 teams that actually advanced. Round-of-32 picks lock when the knockouts kick off (Jun 28).
+              </p>
+            )}
+          </div>
+        )}
         {/* League Type selector: hidden when prize-leagues feature flag
             is off. With the flag off there's only one type (free), so
             the picker becomes pointless visual clutter — users go

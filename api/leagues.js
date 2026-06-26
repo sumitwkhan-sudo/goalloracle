@@ -30,11 +30,15 @@ export default async function handler(req, res) {
       if (claims.provider === 'anonymous') {
         return res.status(403).json({ error: 'Sign up to create a league.' });
       }
-      const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds, predictionMode, houseRules } = req.body;
+      const { name, type, visibility, passcode, entryFee, currency, prizeDistribution, pointsSystem, matchScope, selectedGroups, selectedRounds, predictionMode, houseRules, knockoutOnly } = req.body;
       if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
       if (name.trim().length > 60) return res.status(400).json({ error: 'Name too long (max 60 chars)' });
 
-      const mode = predictionMode === 'classic' ? 'classic' : 'simple';
+      // Knockout-only leagues skip group + best-thirds prediction and start
+      // from the real Round of 32. They're a Quick Picks variant, so force
+      // 'simple' mode regardless of the requested predictionMode.
+      const isKnockoutOnly = knockoutOnly === true;
+      const mode = isKnockoutOnly ? 'simple' : (predictionMode === 'classic' ? 'classic' : 'simple');
 
       // Prize-league feature flag — load on every create so the server
       // is always source-of-truth even if a client has a stale flag value.
@@ -130,9 +134,14 @@ export default async function handler(req, res) {
         currency: currency || 'USDC',
         prizeDistribution: prizeLeaguesEnabled ? (prizeDistribution || { first: 50, second: 30, third: 20 }) : null,
         pointsSystem: pointsSystem || { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 },
-        matchScope: matchScope || 'all',
+        matchScope: isKnockoutOnly ? 'rounds' : (matchScope || 'all'),
         selectedGroups: selectedGroups || null,
-        selectedRounds: selectedRounds || null,
+        selectedRounds: isKnockoutOnly
+          ? ['r32', 'r16', 'qf', 'sf', 'final']
+          : (selectedRounds || null),
+        // Knockout-only marker: the wizard skips groups/thirds and seeds the
+        // bracket from the real R32; scoring counts knockout rounds only.
+        knockoutOnly: isKnockoutOnly,
         predictionMode: mode,
         createdBy: userId,
         members: [userId],

@@ -142,7 +142,10 @@ export default async function handler(req, res) {
 
     // Quick Picks completion budget: 12 group rankings + 8 best-thirds +
     // 32 bracket winners (R32:16, R16:8, QF:4, SF:2, 3rd:1, Final:1).
-    const QP_TOTAL_PICKS = 12 + 8 + 32;
+    // Knockout-only leagues have no group/thirds steps — only the 32 bracket
+    // picks count toward completion, so the "N picks left" label is honest.
+    const knockoutOnly = leagueSnap.data().knockoutOnly === true;
+    const QP_TOTAL_PICKS = knockoutOnly ? 32 : (12 + 8 + 32);
     const BRACKET_ROUNDS = [['roundOf32', 16], ['roundOf16', 8], ['quarterFinals', 4], ['semiFinals', 2], ['thirdPlace', 1], ['final', 1]];
 
     const leaderboard = members.map(userId => {

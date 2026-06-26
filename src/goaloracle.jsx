@@ -3059,9 +3059,12 @@ const GoalOracle = () => {
       if (league.predictionMode === 'simple') {
         const rk = leagueRanks[league.id];
         if (!rk || typeof rk.myPicksLeft !== 'number') return null;
+        // Knockout-only leagues budget only the 32 bracket picks (no groups
+        // or best-thirds), matching the server's picksLeft denominator.
+        const totalRequired = league.knockoutOnly ? 32 : QP_TOTAL_REQUIRED;
         const remaining = rk.myPicksLeft;
-        const picked = Math.max(0, QP_TOTAL_REQUIRED - remaining);
-        const pct = Math.round((picked / QP_TOTAL_REQUIRED) * 100);
+        const picked = Math.max(0, totalRequired - remaining);
+        const pct = Math.round((picked / totalRequired) * 100);
         // Bulletproof "done" gate. The leaderboard endpoint has been the
         // source of recurring false-positive "All picks in" pills when
         // hasSubmitted gets set without an accompanying picks count, or
