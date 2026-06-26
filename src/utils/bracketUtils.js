@@ -120,9 +120,21 @@ export function getTeamByRef(groupPredictions, ref) {
  */
 export function deriveRoundOf32(groupPredictions, bestThirdPicks) {
   const flags = getTeamFlags();
-  const thirdSlots = Array.isArray(bestThirdPicks) && bestThirdPicks.length === 8
-    ? resolveThirdPlaceSlots(bestThirdPicks)
-    : null;
+  // resolveThirdPlaceSlots() throws on an unknown/malformed 8-group combo
+  // (no algorithmic fallback — by design). That's correct for the data
+  // layer, but it must NOT crash the bracket UI: a single bad/legacy picks
+  // doc would otherwise blank the whole wizard (it runs in a render-time
+  // useMemo with no error boundary below it). Degrade to null third slots
+  // (rendered as TBD) instead, so the user can still see and edit the rest
+  // of their bracket. Mirrors the "fewer than 8 picks" path.
+  let thirdSlots = null;
+  if (Array.isArray(bestThirdPicks) && bestThirdPicks.length === 8) {
+    try {
+      thirdSlots = resolveThirdPlaceSlots(bestThirdPicks);
+    } catch {
+      thirdSlots = null;
+    }
+  }
 
   return ROUND_OF_32_TEMPLATE.map(({ matchId, home, away }) => {
     const resolve = (ref) => {

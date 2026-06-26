@@ -9,6 +9,7 @@ import posthog from 'posthog-js';
 // so every surface picks it up.
 import '@fontsource-variable/manrope';
 import GoalOracle from './goaloracle';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // PostHog — initialise once at app boot. Every track() call in
 // src/utils/track.js also fires posthog.capture() so the prize-contest
@@ -38,7 +39,9 @@ if (POSTHOG_KEY && typeof window !== 'undefined') {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HelmetProvider>
-      <GoalOracle />
+      <ErrorBoundary>
+        <GoalOracle />
+      </ErrorBoundary>
       <Analytics />
       <SpeedInsights />
     </HelmetProvider>
