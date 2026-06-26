@@ -59,7 +59,6 @@ import QuickActionsTiles from './components/QuickActionsTiles';
 import FontPreview from './pages/FontPreview';
 import FirstPickPreview from './pages/FirstPickPreview';
 import GroupRedesignPreview from './pages/GroupRedesignPreview';
-import IssaGame from './pages/IssaGame';
 import Standings from './pages/Standings';
 import CreateLeagueForm from './components/CreateLeagueForm';
 import LiveStandingsDrawer, { LiveStandingsToggle } from './components/LiveStandingsDrawer';
@@ -113,7 +112,6 @@ const VIEW_META = {
   fontPreview: { title: 'GoalOracle', path: '/__typography-preview-xk29r', index: false },
   firstPickPreview: { title: 'GoalOracle', path: '/__first-pick-preview-q7m2x', index: false },
   groupRedesignPreview: { title: 'GoalOracle', path: '/__group-redesign-preview-v3k9q', index: false },
-  issaGame: { title: 'Issa Game — GoalOracle', path: '/issa-game', index: false },
 };
 
 function ViewMeta({ view }) {
@@ -161,7 +159,6 @@ const PATH_TO_VIEW = {
   '/__typography-preview-xk29r': 'fontPreview',
   '/__first-pick-preview-q7m2x': 'firstPickPreview',
   '/__group-redesign-preview-v3k9q': 'groupRedesignPreview',
-  '/issa-game': 'issaGame',
 };
 const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
 
@@ -5328,7 +5325,6 @@ const GoalOracle = () => {
       {view === 'fontPreview' && <FontPreview />}
       {view === 'firstPickPreview' && <FirstPickPreview />}
       {view === 'groupRedesignPreview' && <GroupRedesignPreview />}
-      {view === 'issaGame' && <IssaGame />}
       {view === 'landing' && <Landing />}
       {view === 'dashboard' && (
         // Render Dashboard directly. Child components already handle
