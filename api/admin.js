@@ -2278,6 +2278,10 @@ export default async function handler(req, res) {
       const r = await sendOutreachEmail({
         to: user.email,
         subject: subj, html, text,
+        // 1:1 operator messages send from the replyable support address (not
+        // the marketing hello@) so a user can just hit reply and reach us.
+        from: 'GoalOracle Support <support@goaloracle.io>',
+        replyTo: 'support@goaloracle.io',
         tags: [
           { name: 'userId', value: targetUserId },
           { name: 'template', value: 'custom' },
@@ -2475,6 +2479,12 @@ export default async function handler(req, res) {
       // fire). Defaults to groupStage for back-compat with pre-stage rules.
       const VALID_STAGES = new Set(['groupStage', 'roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final']);
       const stage = VALID_STAGES.has(rule.stage) ? rule.stage : 'groupStage';
+      // Optional gate: only fire once the named stage's games have all finished.
+      const requireStageComplete = VALID_STAGES.has(rule.requireStageComplete) ? rule.requireStageComplete : null;
+      // Optional recurrence: re-send every N hours (clamped >= 6 so a typo
+      // can't blast hourly; null = one-shot per user).
+      const repeatEveryHours = rule.repeatEveryHours == null || rule.repeatEveryHours === ''
+        ? null : Math.max(6, Math.min(720, Number(rule.repeatEveryHours) || 0));
 
       const clean = {
         name: String(rule.name || '').slice(0, 80) || `${rule.segment} → ${rule.template}`,
@@ -2482,6 +2492,8 @@ export default async function handler(req, res) {
         segment: rule.segment,
         template: rule.template,
         stage,
+        requireStageComplete,
+        repeatEveryHours,
         // Fire when within this many hours before the chosen stage's lock
         // (null = no timing gate, evaluate every run).
         hoursBeforeLock: rule.hoursBeforeLock == null ? null

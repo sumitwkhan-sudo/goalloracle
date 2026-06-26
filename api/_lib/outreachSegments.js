@@ -13,11 +13,30 @@
  *   started_incomplete    — has started a bracket somewhere but none isComplete
  *   global_incomplete     — global-simple bracket is not complete (started or not)
  *   completed_global      — global-simple bracket is complete
+ *   global_all            — everyone past the email + opt-out gate
+ *   inactive_since_groups — hasn't logged in since before the group stage began
  *
  * Every segment is implicitly filtered to: has an email on file AND has not
  * opted out (emailOptOut !== true AND unsubscribedFromReminders !== true).
  * The caller layers the recent-contact guardrail on top.
  */
+
+import { stageLockTimeUtc } from '../../src/utils/stageLock.js';
+
+// Firestore Timestamp / millis → ms, tolerant of both shapes.
+function tsToMs(ts) {
+  if (!ts) return null;
+  if (typeof ts === 'number') return ts;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts._seconds) return ts._seconds * 1000;
+  return null;
+}
+
+// The group stage's lock (≈ opener kickoff). Used as the "have they been back
+// since the tournament started?" cutoff for the inactive segment.
+const GROUP_STAGE_START_MS = (() => {
+  try { return stageLockTimeUtc('groupStage'); } catch { return 0; }
+})();
 
 export const SEGMENTS = {
   no_picks: {
@@ -44,6 +63,11 @@ export const SEGMENTS = {
     id: 'global_all',
     label: 'Everyone in the Global league',
     description: 'Every user with an email who has not opted out — regardless of pick status. Use for tournament-wide announcements (e.g. the knockout lock reminder).',
+  },
+  inactive_since_groups: {
+    id: 'inactive_since_groups',
+    label: 'Lapsed since group stage',
+    description: 'Has not logged in since before the group stage began. Pair with a recurring rule to re-engage them with a knockout countdown.',
   },
 };
 
@@ -126,6 +150,13 @@ export async function resolveSegment(db, segmentId) {
         // Everyone past the email + opt-out gate already applied above.
         inSegment = true;
         break;
+      case 'inactive_since_groups': {
+        // Last login predates the group stage opener (or never recorded) →
+        // they haven't been back since the tournament got going.
+        const lastLoginMs = tsToMs(user.lastLoginAt);
+        inSegment = !lastLoginMs || lastLoginMs < GROUP_STAGE_START_MS;
+        break;
+      }
       default:
         inSegment = false;
     }

@@ -600,25 +600,32 @@ function r32LockText() {
     const time = new Date(ms).toLocaleString('en-US', {
       timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit',
     });
-    const daysLeft = Math.max(0, Math.ceil((ms - Date.now()) / 86400000));
-    return { date, time, daysLeft };
+    const msLeft = ms - Date.now();
+    const daysLeft = Math.max(0, Math.ceil(msLeft / 86400000));
+    const hoursLeft = Math.max(0, Math.floor(msLeft / 3600000));
+    // Tightening countdown — drives more urgency on the recurring 12h sends as
+    // the lock approaches. Falls back gracefully when the lock has passed.
+    let countdown;
+    if (msLeft <= 0) countdown = 'Picks are locking now.';
+    else if (hoursLeft < 24) countdown = `Less than a day left — about ${hoursLeft} ${hoursLeft === 1 ? 'hour' : 'hours'}.`;
+    else countdown = `About ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left.`;
+    return { date, time, daysLeft, hoursLeft, countdown };
   } catch {
-    return { date: 'Sunday, June 28', time: '2:55 PM', daysLeft: null };
+    return { date: 'Sunday, June 28', time: '2:55 PM', daysLeft: null, hoursLeft: null, countdown: '' };
   }
 }
 
 function knockoutReminderTemplate({ user, ctx }) {
   const name = user.displayName || user.username || null;
-  const { date: lockDate, time: lockTime, daysLeft } = r32LockText();
+  const { date: lockDate, time: lockTime, countdown } = r32LockText();
   const subject = name
     ? `${name}, your knockout picks lock ${lockDate}`
     : `Your World Cup knockout picks lock ${lockDate}`;
 
   const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=knockout_lock_reminder`;
+  // Deep-link straight to the create-league form for the friends' knockout pool.
+  const leagueUrl = `${PROD_ORIGIN}/create?utm_source=email&utm_medium=lifecycle&utm_campaign=knockout_league`;
   const unsubUrl = unsubscribeUrl(user.id);
-  const countdown = (typeof daysLeft === 'number' && daysLeft > 0)
-    ? `That's about ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} away.`
-    : '';
 
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
@@ -672,7 +679,7 @@ function knockoutReminderTemplate({ user, ctx }) {
                     it comes pre-filled with the real Round of 32, so everyone picks winners from the same 32 teams.
                     Fresh start, level field, pure knockout bragging rights.
                     <br />
-                    <a href="${ctaUrl}&cta=knockout_league" style="display:inline-block;margin-top:8px;color:#5b2bd6;text-decoration:underline;font-weight:700;">Start a knockout league →</a>
+                    <a href="${leagueUrl}" style="display:inline-block;margin-top:8px;color:#5b2bd6;text-decoration:underline;font-weight:700;">Start a knockout league →</a>
                   </td>
                 </tr>
               </table>
@@ -700,7 +707,7 @@ Make my knockout picks: ${ctaUrl}
 
 Happy with your bracket already? You don't have to change a thing — your original picks are saved and still scoring exactly as you submitted them. This is only if you'd like to adjust now that the real teams are set.
 
-Playing with friends? Start a private league just for the knockout rounds — it comes pre-filled with the real Round of 32, so everyone picks winners from the same 32 teams. Fresh start, level field, pure knockout bragging rights. Start one here: ${ctaUrl}&cta=knockout_league
+Playing with friends? Start a private league just for the knockout rounds — it comes pre-filled with the real Round of 32, so everyone picks winners from the same 32 teams. Fresh start, level field, pure knockout bragging rights. Start one here: ${leagueUrl}
 
 Top 3 on the Global Quick Picks Leaderboard at the end of the Final win $150 / $100 / $50 in USDC. Free entry, no purchase necessary.
 
@@ -828,21 +835,24 @@ export function buildCustomEmail({ user, subject, body }) {
 
 // ─── Send ────────────────────────────────────────────────────────
 
-export async function sendOutreachEmail({ to, subject, html, text, tags = [] }) {
+export async function sendOutreachEmail({ to, subject, html, text, tags = [], from = null, replyTo = null }) {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {
     console.error('[outreach] RESEND_API_KEY not set, email dropped:', subject);
     return { sent: false, reason: 'no-resend-key' };
   }
-  // Same dual-from fallback as the operator alerts — prefer the verified
-  // goaloracle.io domain, fall back to resend.dev if DKIM isn't set up
-  // yet (so local/dev sends still work).
-  const senders = ['GoalOracle <hello@goaloracle.io>', 'GoalOracle <onboarding@resend.dev>'];
+  // Dual-from fallback — prefer a verified goaloracle.io address (DKIM signs
+  // for the whole domain, so support@ / hello@ both pass), fall back to
+  // resend.dev if DKIM isn't set up yet (so local/dev sends still work). A
+  // caller can override the primary From (e.g. support@ for 1:1 replies).
+  const primaryFrom = from || 'GoalOracle <hello@goaloracle.io>';
+  const senders = [primaryFrom, 'GoalOracle <onboarding@resend.dev>'];
   let sent = false;
   let lastError = null;
-  for (const from of senders) {
+  for (const sender of senders) {
     try {
-      const body = { from, to: [to], subject, html, text };
+      const body = { from: sender, to: [to], subject, html, text };
+      if (replyTo) body.reply_to = replyTo;
       // Resend tags: array of { name, value }. We send userId + template
       // so the webhook can route opened/clicked/bounced events back to
       // the right /outreachSent row. Resend echoes tags in webhook

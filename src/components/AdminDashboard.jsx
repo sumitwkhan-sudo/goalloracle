@@ -13,6 +13,7 @@ const AUTOMATION_SEGMENTS = [
   { id: 'global_incomplete', label: 'Global bracket incomplete' },
   { id: 'completed_global', label: 'Completed Global bracket' },
   { id: 'global_all', label: 'Everyone in the Global league' },
+  { id: 'inactive_since_groups', label: 'Lapsed since group stage' },
 ];
 
 // Which stage's lock the "hours before lock" window is measured against.
@@ -384,6 +385,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   };
   const newRuleDraft = () => setRuleDraft({
     name: '', segment: 'no_picks', template: 'noPicksReminder', stage: 'groupStage',
+    requireStageComplete: '', repeatEveryHours: '',
     hoursBeforeLock: '', cooldownDays: 3, maxPerRun: 200, enabled: false,
   });
   const editRuleDraft = (r) => setRuleDraft({ ...r, hoursBeforeLock: r.hoursBeforeLock ?? '' });
@@ -412,6 +414,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
         segment: ruleDraft.segment,
         template: ruleDraft.template,
         stage: ruleDraft.stage || 'groupStage',
+        requireStageComplete: ruleDraft.requireStageComplete || null,
+        repeatEveryHours: ruleDraft.repeatEveryHours === '' ? null : Number(ruleDraft.repeatEveryHours),
         hoursBeforeLock: ruleDraft.hoursBeforeLock === '' ? null : Number(ruleDraft.hoursBeforeLock),
         cooldownDays: Number(ruleDraft.cooldownDays) || 3,
         maxPerRun: Number(ruleDraft.maxPerRun) || 200,
@@ -434,6 +438,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     try {
       await adminSaveAutomationRule({
         name: r.name, segment: r.segment, template: r.template, stage: r.stage || 'groupStage',
+        requireStageComplete: r.requireStageComplete ?? null, repeatEveryHours: r.repeatEveryHours ?? null,
         hoursBeforeLock: r.hoursBeforeLock ?? null, cooldownDays: r.cooldownDays, maxPerRun: r.maxPerRun,
         enabled: !r.enabled,
       }, r.id);
@@ -2621,6 +2626,19 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   <select className="input-field" value={ruleDraft.stage || 'groupStage'} onChange={e => setRuleDraft({ ...ruleDraft, stage: e.target.value })} disabled={ruleBusy}>
                     {AUTOMATION_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
+                  <div className="admin-rule-row">
+                    <div>
+                      <label className="admin-custom-email-label">Only after games finish (blank = no gate)</label>
+                      <select className="input-field" value={ruleDraft.requireStageComplete || ''} onChange={e => setRuleDraft({ ...ruleDraft, requireStageComplete: e.target.value })} disabled={ruleBusy}>
+                        <option value="">— no gate —</option>
+                        {AUTOMATION_STAGES.map(s => <option key={s.id} value={s.id}>{s.label} games done</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="admin-custom-email-label">Repeat every N hours (blank = once)</label>
+                      <input className="input-field" type="number" min="6" max="720" value={ruleDraft.repeatEveryHours} onChange={e => setRuleDraft({ ...ruleDraft, repeatEveryHours: e.target.value })} placeholder="e.g. 12" disabled={ruleBusy} />
+                    </div>
+                  </div>
                   <div className="admin-rule-row">
                     <div>
                       <label className="admin-custom-email-label">Hours before lock (blank = any time)</label>

@@ -34,6 +34,24 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { buildEmail, sendOutreachEmail, TEMPLATES, firstNameOf, sleep, BATCH_DELAY_MS } from '../_lib/outreachEmail.js';
 import { resolveSegment, SEGMENTS } from '../_lib/outreachSegments.js';
 import { stageLockTimeUtc } from '../../src/utils/stageLock.js';
+import { resolveActualR32 } from '../_lib/bracketResolver.js';
+import WORLD_CUP_MATCHES from '../../src/data/matches.js';
+
+// matchId prefix for each knockout stage, used by the "stage games complete"
+// gate (a rule can fire only once every match of a stage has a final result).
+const STAGE_MATCH_PREFIX = {
+  roundOf32: 'r32-', roundOf16: 'r16-', quarterFinals: 'qf-',
+  semiFinals: 'sf-', thirdPlace: '3rd', final: 'final',
+};
+
+// Firestore Timestamp / millis → ms.
+function tsToMs(ts) {
+  if (!ts) return null;
+  if (typeof ts === 'number') return ts;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts._seconds) return ts._seconds * 1000;
+  return null;
+}
 
 // Hard ceiling across ALL rules in a single invocation — a backstop against
 // a misconfiguration sending more than this many emails in one tick.
@@ -63,6 +81,24 @@ async function loadLastSentByUser() {
     if (ms && (!last[x.userId] || ms > last[x.userId])) last[x.userId] = ms;
   });
   return last;
+}
+
+// True once every match of `stage` has a final result — lets a rule fire the
+// moment a stage's games actually finish (e.g. "when the last group game ends")
+// rather than on a fixed clock countdown.
+function stageGamesComplete(stage, resultsMap) {
+  if (!stage) return true;
+  if (stage === 'groupStage') {
+    try { return resolveActualR32(resultsMap || {}).allGroupsComplete; } catch { return false; }
+  }
+  const prefix = STAGE_MATCH_PREFIX[stage];
+  if (!prefix) return true; // unknown stage → don't gate
+  const ids = WORLD_CUP_MATCHES.filter((m) => m.id === prefix || m.id.startsWith(prefix)).map((m) => m.id);
+  if (ids.length === 0) return true;
+  return ids.every((id) => {
+    const r = resultsMap?.[id];
+    return !!(r && (r.winnerId || r.homeScore != null));
+  });
 }
 
 function timingAllows(rule, now) {
@@ -96,6 +132,14 @@ export default async function handler(req, res) {
   let globalBudget = GLOBAL_MAX_PER_RUN;
   const summary = [];
 
+  // Read match results once iff some rule gates on a stage's games finishing.
+  let resultsMap = null;
+  if (rulesSnap.docs.some((d) => d.data().requireStageComplete)) {
+    resultsMap = {};
+    const rs = await db.collection('matchResults').get();
+    rs.forEach((d) => { resultsMap[d.id] = d.data(); });
+  }
+
   for (const ruleDoc of rulesSnap.docs) {
     const rule = { id: ruleDoc.id, ...ruleDoc.data() };
     const out = { ruleId: rule.id, name: rule.name || rule.id, segment: rule.segment, template: rule.template };
@@ -109,6 +153,12 @@ export default async function handler(req, res) {
       summary.push({ ...out, skipped: 'outside timing window' });
       continue;
     }
+    // Stage-completion gate: fire only once the named stage's games have all
+    // finished (e.g. send "the moment the last group game ends").
+    if (rule.requireStageComplete && !stageGamesComplete(rule.requireStageComplete, resultsMap)) {
+      summary.push({ ...out, skipped: `${rule.requireStageComplete} games not complete` });
+      continue;
+    }
 
     // Resolve segment (shared with the dry-run preview).
     let userIds;
@@ -118,14 +168,26 @@ export default async function handler(req, res) {
     const cooldownMs = Math.max(1, Number(rule.cooldownDays) || 3) * 86400000;
     const cutoff = now - cooldownMs;
 
-    // Per-rule dedup: who has this exact rule already emailed (ever)? Stored
-    // as /automationRuleSends/{ruleId__userId}. Keeps a rule from re-hitting
-    // the same user even if their last contact ages past the cooldown.
-    const sendsSnap = await db.collection('automationRuleSends').where('ruleId', '==', rule.id).get();
-    const alreadyByRule = new Set(sendsSnap.docs.map((d) => d.data().userId).filter(Boolean));
+    // Recurring rules (repeatEveryHours) re-send to a user once their last
+    // send for THIS rule ages past the interval, and bypass the global
+    // any-template cooldown — their own interval governs cadence. One-shot
+    // rules (no repeat) keep the original "never re-send + respect global
+    // cooldown" behavior. Clamp to >= 6h so a typo can't blast hourly.
+    const repeatMs = rule.repeatEveryHours
+      ? Math.max(6, Number(rule.repeatEveryHours)) * 3_600_000 : null;
 
-    const eligible = userIds.filter((uid) =>
-      !alreadyByRule.has(uid) && !(lastSentByUser[uid] && lastSentByUser[uid] >= cutoff));
+    const sendsSnap = await db.collection('automationRuleSends').where('ruleId', '==', rule.id).get();
+    const lastByRuleUser = {};
+    sendsSnap.docs.forEach((d) => {
+      const x = d.data();
+      const ms = tsToMs(x.sentAt);
+      if (x.userId && ms && ms > (lastByRuleUser[x.userId] || 0)) lastByRuleUser[x.userId] = ms;
+    });
+
+    const eligible = userIds.filter((uid) => {
+      if (repeatMs) return (now - (lastByRuleUser[uid] || 0)) >= repeatMs;
+      return !lastByRuleUser[uid] && !(lastSentByUser[uid] && lastSentByUser[uid] >= cutoff);
+    });
 
     const cap = Math.max(1, Math.min(1000, Number(rule.maxPerRun) || 200));
     const targets = eligible.slice(0, Math.min(cap, globalBudget));
