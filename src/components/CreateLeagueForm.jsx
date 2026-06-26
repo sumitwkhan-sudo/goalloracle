@@ -13,6 +13,7 @@ import {
   AlertTriangle, CheckCircle, Key, Unlock, Lock, Eye, EyeOff,
   RefreshCw, ChevronRight, Loader, Copy, Target, Trophy,
 } from 'lucide-react';
+import { isStageLocked } from '../utils/stageLock';
 import ModePicker from './simple/ModePicker';
 import HouseRulesInput from './HouseRulesInput';
 import { copyPredictions, copySimplePrediction } from '../utils/db';
@@ -164,13 +165,21 @@ export default function CreateLeagueForm({
 
   // Knockout-only league: skips group ranking + best-thirds; the bracket is
   // pre-filled with the real Round of 32 so members only pick knockout winners.
-  // Local state — it only needs to exist until submit. A Quick Picks variant,
-  // so it's force-hidden + cleared whenever the mode isn't 'simple'.
-  const [knockoutOnly, setKnockoutOnly] = useState(false);
-  const knockoutOnlyAvailable = createMode === 'simple' && featureFlags?.quickPicksEnabled !== false;
+  // Local state — it only needs to exist until submit. A Quick Picks variant.
+  // Once the group stage has KICKED OFF, full-tournament prediction is
+  // impossible (the groups already played), so a new league can only be
+  // knockout-only: we default the flag ON and hide the format picker.
+  const groupStageLocked = isStageLocked('groupStage');
+  const simpleMode = createMode === 'simple' && featureFlags?.quickPicksEnabled !== false;
+  const [knockoutOnly, setKnockoutOnly] = useState(groupStageLocked);
+  // The Full-vs-Knockout picker only makes sense BEFORE the group stage locks.
+  const showFormatPicker = simpleMode && !groupStageLocked;
   useEffect(() => {
-    if (!knockoutOnlyAvailable && knockoutOnly) setKnockoutOnly(false);
-  }, [knockoutOnlyAvailable, knockoutOnly]);
+    // Force OFF in classic mode; force ON for simple-mode leagues created after
+    // the group stage has started.
+    if (!simpleMode && knockoutOnly) setKnockoutOnly(false);
+    else if (simpleMode && groupStageLocked && !knockoutOnly) setKnockoutOnly(true);
+  }, [simpleMode, groupStageLocked, knockoutOnly]);
 
   // Prize-league capability is platform-wide config gated by the
   // enablePrizeLeagues superadmin flag. Off by default. When off the
@@ -223,7 +232,7 @@ export default function CreateLeagueForm({
         matchScope: 'all',
         // Knockout-only: server forces simple mode + the rounds scope and
         // seeds the bracket from the real R32.
-        knockoutOnly: knockoutOnlyAvailable && knockoutOnly,
+        knockoutOnly: simpleMode && knockoutOnly,
         // House rules only on private leagues; server rejects on public.
         houseRules: (vis === 'private' && trimmedRules) ? { content: trimmedRules } : null,
       };
@@ -276,8 +285,9 @@ export default function CreateLeagueForm({
         })()}
         <div className="form-section"><label>League Name</label><input type="text" placeholder="e.g., Friends & Family 2026" value={nm} onChange={(e) => setNm(e.target.value)} className="input-field" /></div>
         {/* Knockout-only format — a Quick Picks variant that skips the group
-            stage. Only meaningful in 'simple' mode; hidden otherwise. */}
-        {knockoutOnlyAvailable && (
+            stage. The Full-vs-Knockout picker only shows before the group
+            stage locks; after kickoff a new league can only be knockout-only. */}
+        {showFormatPicker && (
           <div className="form-section">
             <label>League Format</label>
             <div className="type-selector">
@@ -303,6 +313,19 @@ export default function CreateLeagueForm({
                 Everyone starts from the same 32 teams that actually advanced. Round-of-32 picks lock when the knockouts kick off (Jun 28).
               </p>
             )}
+          </div>
+        )}
+        {simpleMode && groupStageLocked && (
+          <div className="form-section">
+            <label>League Format</label>
+            <div className="knockout-format-note">
+              <Trophy size={18} />
+              <span>
+                The group stage has kicked off, so new leagues run on the <strong>knockouts</strong> —
+                pre-filled with the real Round of 32. Everyone picks winners from the same 32 teams.
+                Round-of-32 picks lock Jun 28.
+              </span>
+            </div>
           </div>
         )}
         {/* League Type selector: hidden when prize-leagues feature flag

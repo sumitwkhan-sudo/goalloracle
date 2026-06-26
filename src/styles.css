@@ -3013,6 +3013,8 @@ button.invite-option:hover,
 .passcode-row { display: flex; gap: 0.5rem; align-items: center; }
 .passcode-input { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; }
 .form-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.35rem; line-height: 1.5; }
+.knockout-format-note { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.85rem 1rem; background: var(--surface-2, #f4f0ff); border: 1px solid #d6c8ff; border-radius: 10px; font-size: 0.85rem; line-height: 1.5; color: #2a1a4a; }
+.knockout-format-note svg { flex: 0 0 auto; margin-top: 1px; color: #5b2bd6; }
 .form-error-inline { display: flex; align-items: center; gap: 0.3rem; color: var(--danger); font-size: 0.78rem; margin-top: 0.35rem; }
 
 /* ---- PASSCODE JOIN (Browse) ---- */

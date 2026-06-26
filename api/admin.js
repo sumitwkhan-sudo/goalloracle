@@ -2470,12 +2470,19 @@ export default async function handler(req, res) {
 
       // Clamp the safety knobs to sane ranges so a typo can't, e.g., set a
       // 100000-recipient cap or a negative cooldown.
+      // Which stage's lock the timing window counts down to. Whitelisted so a
+      // typo can't point the cron at a nonexistent stage (it would then never
+      // fire). Defaults to groupStage for back-compat with pre-stage rules.
+      const VALID_STAGES = new Set(['groupStage', 'roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final']);
+      const stage = VALID_STAGES.has(rule.stage) ? rule.stage : 'groupStage';
+
       const clean = {
         name: String(rule.name || '').slice(0, 80) || `${rule.segment} → ${rule.template}`,
         enabled: rule.enabled === true, // explicit opt-in only
         segment: rule.segment,
         template: rule.template,
-        // Fire when within this many hours before the group-stage lock
+        stage,
+        // Fire when within this many hours before the chosen stage's lock
         // (null = no timing gate, evaluate every run).
         hoursBeforeLock: rule.hoursBeforeLock == null ? null
           : Math.max(0, Math.min(2160, Number(rule.hoursBeforeLock) || 0)),

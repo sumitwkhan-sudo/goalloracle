@@ -12,6 +12,19 @@ const AUTOMATION_SEGMENTS = [
   { id: 'started_incomplete', label: 'Started but incomplete' },
   { id: 'global_incomplete', label: 'Global bracket incomplete' },
   { id: 'completed_global', label: 'Completed Global bracket' },
+  { id: 'global_all', label: 'Everyone in the Global league' },
+];
+
+// Which stage's lock the "hours before lock" window is measured against.
+// Group stage is the back-compat default; later stages let a rule fire
+// relative to a knockout lock (e.g. the Round of 32 deadline).
+const AUTOMATION_STAGES = [
+  { id: 'groupStage', label: 'Group stage' },
+  { id: 'roundOf32', label: 'Round of 32' },
+  { id: 'roundOf16', label: 'Round of 16' },
+  { id: 'quarterFinals', label: 'Quarter-finals' },
+  { id: 'semiFinals', label: 'Semi-finals' },
+  { id: 'final', label: 'Final' },
 ];
 
 function _countryFlagFromCode(code) {
@@ -40,6 +53,10 @@ const OUTREACH_TEMPLATES = {
   midTournamentNudge: {
     label: 'Mid-Tournament Nudge',
     description: "Sent during the group stage to bring users back to check their standings. Eligibility filter: in the Global Quick Picks League, has email, not opted out, has at least one completed group ranking (we don't nag users who haven't started — No Picks Reminder is the right tool for that).",
+  },
+  knockoutReminder: {
+    label: 'Knockout Lock Reminder',
+    description: 'Nudges users to finalize their knockout picks before the Round of 32 locks (and pitches starting a private knockout league). Reassures anyone happy with their bracket that they need not change anything. Pair with stage "Round of 32". Eligibility: in the Global Quick Picks League, has email, not opted out — regardless of pick status.',
   },
 };
 
@@ -366,7 +383,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     catch (e) { console.warn('[automation] rules fetch failed:', e?.message || e); setAutomationRules([]); }
   };
   const newRuleDraft = () => setRuleDraft({
-    name: '', segment: 'no_picks', template: 'noPicksReminder',
+    name: '', segment: 'no_picks', template: 'noPicksReminder', stage: 'groupStage',
     hoursBeforeLock: '', cooldownDays: 3, maxPerRun: 200, enabled: false,
   });
   const editRuleDraft = (r) => setRuleDraft({ ...r, hoursBeforeLock: r.hoursBeforeLock ?? '' });
@@ -394,6 +411,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
         name: ruleDraft.name,
         segment: ruleDraft.segment,
         template: ruleDraft.template,
+        stage: ruleDraft.stage || 'groupStage',
         hoursBeforeLock: ruleDraft.hoursBeforeLock === '' ? null : Number(ruleDraft.hoursBeforeLock),
         cooldownDays: Number(ruleDraft.cooldownDays) || 3,
         maxPerRun: Number(ruleDraft.maxPerRun) || 200,
@@ -415,7 +433,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     if (!r.enabled && !window.confirm(`Enable "${r.name || r.id}"? It will AUTOMATICALLY send real emails to matching users on each run. Continue?`)) return;
     try {
       await adminSaveAutomationRule({
-        name: r.name, segment: r.segment, template: r.template,
+        name: r.name, segment: r.segment, template: r.template, stage: r.stage || 'groupStage',
         hoursBeforeLock: r.hoursBeforeLock ?? null, cooldownDays: r.cooldownDays, maxPerRun: r.maxPerRun,
         enabled: !r.enabled,
       }, r.id);
@@ -2598,6 +2616,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   <label className="admin-custom-email-label">Template</label>
                   <select className="input-field" value={ruleDraft.template} onChange={e => setRuleDraft({ ...ruleDraft, template: e.target.value })} disabled={ruleBusy}>
                     {Object.keys(OUTREACH_TEMPLATES).map(t => <option key={t} value={t}>{OUTREACH_TEMPLATES[t]?.label || t}</option>)}
+                  </select>
+                  <label className="admin-custom-email-label">Lock stage (the deadline “hours before lock” counts down to)</label>
+                  <select className="input-field" value={ruleDraft.stage || 'groupStage'} onChange={e => setRuleDraft({ ...ruleDraft, stage: e.target.value })} disabled={ruleBusy}>
+                    {AUTOMATION_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
                   <div className="admin-rule-row">
                     <div>

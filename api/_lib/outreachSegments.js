@@ -40,6 +40,11 @@ export const SEGMENTS = {
     label: 'Completed Global bracket',
     description: 'Global-simple bracket is complete.',
   },
+  global_all: {
+    id: 'global_all',
+    label: 'Everyone in the Global league',
+    description: 'Every user with an email who has not opted out — regardless of pick status. Use for tournament-wide announcements (e.g. the knockout lock reminder).',
+  },
 };
 
 function hasAnyPicks(d) {
@@ -116,6 +121,10 @@ export async function resolveSegment(db, segmentId) {
         break;
       case 'completed_global':
         inSegment = a.globalComplete;
+        break;
+      case 'global_all':
+        // Everyone past the email + opt-out gate already applied above.
+        inSegment = true;
         break;
       default:
         inSegment = false;
