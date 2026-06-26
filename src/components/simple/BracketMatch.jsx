@@ -15,12 +15,15 @@ function formatMatchDate(dateStr) {
   return `${MONTH_SHORT[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
 
-function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick, readOnly = false, homeAdvancePct, awayAdvancePct }) {
+function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick, readOnly = false, homeAdvancePct, awayAdvancePct, homeEarned = true, awayEarned = true }) {
   const homeSelected = winnerId && winnerId === homeTeam;
   const awaySelected = winnerId && winnerId === awayTeam;
 
-  const handlePick = (team) => {
+  const handlePick = (team, teamEarned) => {
     if (readOnly || isLocked || !team || !homeTeam || !awayTeam) return;
+    // Knockout-real-reseed: a real team the user never predicted to advance is
+    // locked — can't be advanced.
+    if (teamEarned === false) return;
     onPick && onPick(team);
   };
 
@@ -41,7 +44,8 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
   // without exposing pick affordances. No buttons, no hover arrow, no
   // lock icon (which is a different state). Just static cells highlighted
   // with the same winner/loser styling.
-  const Row = ({ isWinner, isLoser, isTBD, flag, team, withLockIcon }) => {
+  const Row = ({ isWinner, isLoser, isTBD, flag, team, withLockIcon, earned = true }) => {
+    const notEarned = earned === false && !!team;
     if (readOnly) {
       return (
         <div className={rowClass(isWinner, isLoser, isTBD)}>
@@ -55,17 +59,19 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
     return (
       <button
         type="button"
-        className={rowClass(isWinner, isLoser, isTBD)}
-        onClick={() => handlePick(team)}
-        disabled={isLocked || !homeTeam || !awayTeam}
+        className={`${rowClass(isWinner, isLoser, isTBD)}${notEarned ? ' not-earned' : ''}`}
+        onClick={() => handlePick(team, earned)}
+        disabled={isLocked || !homeTeam || !awayTeam || notEarned}
         aria-pressed={!!isWinner}
+        title={notEarned ? "You didn't pick this team to reach the knockouts" : undefined}
       >
         <span className="bracket-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
         <span className="bracket-row-name">{team || 'TBD'}</span>
         {isWinner && <span className="bracket-row-pill adv">ADV</span>}
         {isLoser && <span className="bracket-row-pill out">OUT</span>}
+        {notEarned && <Lock size={11} className="bracket-row-lock" />}
         {withLockIcon && isLocked && <Lock size={12} className="bracket-row-lock" />}
-        {!isWinner && !isLoser && !isLocked && homeTeam && awayTeam && (
+        {!isWinner && !isLoser && !isLocked && !notEarned && homeTeam && awayTeam && (
           <ChevronRight size={14} className="bracket-row-advance" aria-hidden="true" />
         )}
       </button>
@@ -81,8 +87,8 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
         </div>
       )}
       {label && <div className="bracket-match-label">{label}</div>}
-      <Row isWinner={homeSelected} isLoser={homeIsLoser} isTBD={!homeTeam} flag={homeFlag} team={homeTeam} withLockIcon />
-      <Row isWinner={awaySelected} isLoser={awayIsLoser} isTBD={!awayTeam} flag={awayFlag} team={awayTeam} />
+      <Row isWinner={homeSelected} isLoser={homeIsLoser} isTBD={!homeTeam} flag={homeFlag} team={homeTeam} earned={homeEarned} withLockIcon />
+      <Row isWinner={awaySelected} isLoser={awayIsLoser} isTBD={!awayTeam} flag={awayFlag} team={awayTeam} earned={awayEarned} />
       {(homeAdvancePct != null || awayAdvancePct != null) && homeTeam && awayTeam && (
         <div
           className="bracket-consensus"

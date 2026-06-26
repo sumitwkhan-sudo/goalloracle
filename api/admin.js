@@ -1521,7 +1521,7 @@ export default async function handler(req, res) {
       if (callerRole !== 'superadmin') {
         return res.status(403).json({ error: 'Only a superadmin can change feature flags' });
       }
-      const ALLOWED = new Set(['quickPicksEnabled', 'classicEnabled', 'enablePrizeLeagues']);
+      const ALLOWED = new Set(['quickPicksEnabled', 'classicEnabled', 'enablePrizeLeagues', 'knockoutRealReseed']);
       const { flag, value, reason } = req.body;
       if (!ALLOWED.has(flag)) return res.status(400).json({ error: `Unknown flag: ${flag}` });
       if (typeof value !== 'boolean') return res.status(400).json({ error: 'value must be boolean' });

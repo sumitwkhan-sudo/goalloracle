@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { resolveActualBracket, buildSimpleActuals, buildLiveGroupStandings } from './bracketResolver.js';
+import { resolveActualBracket, buildSimpleActuals, buildLiveGroupStandings, resolveActualR32 } from './bracketResolver.js';
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
@@ -291,5 +291,43 @@ describe('buildLiveGroupStandings (live/provisional group score input)', () => {
     // User predicted Mexico 1st in Group A → 3 pts against the live table.
     const preds = { A: { ranking: ['Mexico', 'South Africa', 'South Korea', 'Czechia'] } };
     expect(scoreGroupStage(preds, standings)).toBe(3);
+  });
+});
+
+describe('resolveActualR32 (per-side progressive reseed input)', () => {
+  test('empty results: 16 slots, nothing resolved', () => {
+    const out = resolveActualR32({});
+    expect(out.allGroupsComplete).toBe(false);
+    expect(out.groupsComplete).toEqual([]);
+    expect(Object.keys(out.r32)).toHaveLength(16);
+    expect(out.r32['r32-01']).toEqual({ home: null, away: null, homeReal: false, awayReal: false });
+  });
+
+  test('one finished group resolves ITS direct-position sides only; thirds stay pending', () => {
+    const results = {};
+    GROUP_MATCHES.filter((m) => (m.stage || '') === 'Group A').forEach((m) => { results[m.id] = makeResult(2, 1); });
+    const out = resolveActualR32(results);
+    expect(out.groupsComplete).toContain('A');
+    expect(out.allGroupsComplete).toBe(false);
+    // r32-01 home = A2 (Group A done → real); away = B2 (Group B not done → pending)
+    expect(out.r32['r32-01'].homeReal).toBe(true);
+    expect(out.r32['r32-01'].home).toBeTruthy();
+    expect(out.r32['r32-01'].awayReal).toBe(false);
+    expect(out.r32['r32-01'].away).toBeNull();
+    // r32-07 home = A1 (real); away = a third-place slot → pending until ALL groups done
+    expect(out.r32['r32-07'].homeReal).toBe(true);
+    expect(out.r32['r32-07'].awayReal).toBe(false);
+  });
+
+  test('all groups complete: every side resolves (incl. thirds via Annexe C)', () => {
+    const results = buildAllGroupsCompleteResults();
+    const out = resolveActualR32(results);
+    expect(out.allGroupsComplete).toBe(true);
+    for (const id of Object.keys(out.r32)) {
+      expect(out.r32[id].homeReal).toBe(true);
+      expect(out.r32[id].awayReal).toBe(true);
+      expect(out.r32[id].home).toBeTruthy();
+      expect(out.r32[id].away).toBeTruthy();
+    }
   });
 });

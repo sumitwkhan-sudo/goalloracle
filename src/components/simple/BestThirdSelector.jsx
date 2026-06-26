@@ -13,7 +13,7 @@ import { FIFA_THIRD_PLACE_CRITERIA } from '../../utils/fifaThirdPlaceRules';
 import { BEST_THIRD_REQUIRED } from '../../hooks/useBestThird';
 import { thirdPlaceStrength } from '../../utils/pedigree';
 
-export default function BestThirdSelector({ groupPredictions, flags, picks, isFull, onToggle, onSetPicks }) {
+export default function BestThirdSelector({ groupPredictions, flags, picks, isFull, onToggle, onSetPicks, readOnly = false }) {
   const [showGuide, setShowGuide] = useState(false);
   const [shakingGroup, setShakingGroup] = useState(null);
   const [showSwapHint, setShowSwapHint] = useState(false);
@@ -127,9 +127,9 @@ export default function BestThirdSelector({ groupPredictions, flags, picks, isFu
             >
               <button
                 type="button"
-                className={`best-third-card ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
-                onClick={() => onToggle(group)}
-                disabled={isDisabled}
+                className={`best-third-card ${isSelected ? 'selected' : ''} ${isDisabled || readOnly ? 'disabled' : ''}`}
+                onClick={() => { if (!readOnly) onToggle(group); }}
+                disabled={isDisabled || readOnly}
                 aria-pressed={isSelected}
               >
                 <span className="best-third-flag" aria-hidden="true">{flags[team] || '🏳️'}</span>

@@ -1022,7 +1022,22 @@ export const DEFAULT_FEATURE_FLAGS = {
   quickPicksEnabled: true,
   classicEnabled: false,
   enablePrizeLeagues: false,
+  // Knockout-real-reseed: when ON, the bracket wizard reflects the REAL
+  // advancing teams (per group as they finish) and restricts each user to
+  // advancing only teams they correctly predicted. Default OFF; founder flips
+  // it on. Sticky for the tournament once enabled.
+  knockoutRealReseed: false,
 };
+
+// The real Round-of-32 (per-side, resolved as groups finish) for the
+// knockout-real-reseed feature. See api/actual-bracket.js. Never throws.
+export async function fetchActualBracket() {
+  try {
+    return await apiCall('actual-bracket');
+  } catch {
+    return { allGroupsComplete: false, groupsComplete: [], r32: {} };
+  }
+}
 
 export async function fetchFeatureFlags() {
   try {

@@ -15,6 +15,8 @@ import {
   getTeamByRef,
   areGroupRankingsComplete,
   ROUND_OF_16_TEMPLATE,
+  predictedR32TeamSet,
+  mergeRealRoundOf32,
 } from './bracketUtils';
 import { resolveThirdPlaceSlots } from './fifaThirdPlaceRules';
 
@@ -196,3 +198,64 @@ describe('resolveThirdPlaceSlots', () => {
   });
 });
 
+
+// ─── Knockout-real-reseed ──────────────────────────────────────────
+describe('predictedR32TeamSet', () => {
+  it('returns all 32 predicted R32 teams', () => {
+    const set = predictedR32TeamSet(makeAllGroupPredictions(), ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']);
+    expect(set.size).toBe(32);
+    expect(set.has('A1')).toBe(true); // r32-07 home (Group A winner)
+    expect(set.has('B2')).toBe(true); // r32-01 away (Group B runner-up)
+  });
+  it('is empty for an unfinished bracket', () => {
+    expect(predictedR32TeamSet({}, []).size).toBe(0);
+  });
+});
+
+describe('mergeRealRoundOf32', () => {
+  const groups = makeAllGroupPredictions();
+  const thirds = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+  const predicted = deriveRoundOf32(groups, thirds);
+  const teamSet = predictedR32TeamSet(groups, thirds);
+  const slot = (merged, id) => merged.find((m) => m.matchId === id);
+
+  it('keeps the predicted team on an undecided side (always the user\'s own → earned)', () => {
+    const merged = mergeRealRoundOf32(predicted, {}, teamSet);
+    const r1 = slot(merged, 'r32-01');
+    expect(r1.home).toBe('A2');        // predicted A runner-up; no real result yet
+    expect(r1.homeReal).toBe(false);
+    expect(r1.homeEarned).toBe(true);
+  });
+
+  it('shows the real team on a decided side; earned ONLY if the user predicted it', () => {
+    const realR32 = {
+      // home decided, real team the user did NOT predict → locked
+      'r32-01': { home: 'Narnia', away: null, homeReal: true, awayReal: false },
+      // home decided, real team the user DID predict → earned/pickable
+      'r32-02': { home: 'C1', away: null, homeReal: true, awayReal: false },
+    };
+    const merged = mergeRealRoundOf32(predicted, realR32, teamSet);
+
+    const r1 = slot(merged, 'r32-01');
+    expect(r1.home).toBe('Narnia');
+    expect(r1.homeReal).toBe(true);
+    expect(r1.homeEarned).toBe(false); // not on their picks → can't advance it
+    expect(r1.away).toBe('B2');        // away undecided → predicted, own
+    expect(r1.awayReal).toBe(false);
+    expect(r1.awayEarned).toBe(true);
+
+    const r2 = slot(merged, 'r32-02');
+    expect(r2.home).toBe('C1');
+    expect(r2.homeReal).toBe(true);
+    expect(r2.homeEarned).toBe(true);  // predicted this team → earned
+  });
+
+  it('partial: a third-place side stays predicted until it resolves', () => {
+    // r32-03 away is a THIRD slot; with no real result it stays predicted.
+    const merged = mergeRealRoundOf32(predicted, {}, teamSet);
+    const r3 = slot(merged, 'r32-03');
+    expect(r3.awayReal).toBe(false);
+    expect(r3.away).toBe(predicted.find((m) => m.matchId === 'r32-03').away);
+    expect(r3.awayEarned).toBe(true);
+  });
+});

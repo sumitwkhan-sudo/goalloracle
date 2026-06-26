@@ -18,6 +18,7 @@ export default function GroupGrid({
   onReorder,
   onConfirm,
   onUnconfirm,
+  readOnly = false,
 }) {
   const pct = (touchedCount / GROUPS.length) * 100;
   return (
@@ -47,6 +48,7 @@ export default function GroupGrid({
             onReorder={(newRanking) => onReorder(g, newRanking)}
             onConfirm={onConfirm}
             onUnconfirm={onUnconfirm}
+            readOnly={readOnly}
           />
         ))}
       </div>
