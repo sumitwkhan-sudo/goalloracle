@@ -23,6 +23,7 @@ import {
   ROUND_TEMPLATE_BY_KEY,
   deriveRoundOf32,
   deriveNextRound,
+  mergeRealRoundOf32,
   flattenPicks,
   getDownstreamMatchIds,
   getRoundForMatchId,
@@ -36,7 +37,7 @@ import {
  * @param {Object} args.knockoutPredictions   initial/hydrated picks
  * @param {Function} args.onChange             called with new knockoutPredictions after every pick
  */
-export default function useBracketState({ groupPredictions, bestThirdPicks, knockoutPredictions, onChange }) {
+export default function useBracketState({ groupPredictions, bestThirdPicks, knockoutPredictions, onChange, realR32 = null, predictedTeamSet = null }) {
   const [picks, setPicks] = useState(() => normalize(knockoutPredictions));
   const hydratedRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -60,25 +61,39 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
   // Flat lookup by matchId for cascade math
   const flatPicks = useMemo(() => flattenPicks(picks), [picks]);
 
-  // Derive each round's match slots (with actual team names)
+  // Derive each round's match slots (with actual team names). When `realR32`
+  // is supplied (knockout-real-reseed), the R32 round shows real teams per
+  // side (earned-tagged) instead of the user's predicted teams.
+  //
+  // Picks are hydrated round-by-round with a MEMBERSHIP CHECK: a stored pick
+  // is kept only if its winner is one of that slot's two CURRENT teams — so an
+  // orphaned pick (its predicted team is no longer in the slot after reseed)
+  // is dropped and not cascaded downstream, and a kept pick's loserId is
+  // recomputed from the current slot. The validated picks (`prunedFlat`) feed
+  // the next round's derivation, so the prune cascades correctly.
   const bracket = useMemo(() => {
-    const r32 = deriveRoundOf32(groupPredictions, bestThirdPicks);
-    const hydrate = (round, template) => {
-      const derived = round === 'roundOf32'
-        ? r32
-        : deriveNextRound(flatPicks, template);
-      return derived.map((m) => {
-        const existing = flatPicks[m.matchId];
-        return {
-          ...m,
-          pick: existing ? { winnerId: existing.winnerId, loserId: existing.loserId } : null,
-        };
-      });
-    };
+    const predictedR32 = deriveRoundOf32(groupPredictions, bestThirdPicks);
+    const r32 = realR32
+      ? mergeRealRoundOf32(predictedR32, realR32, predictedTeamSet || new Set())
+      : predictedR32;
+    const prunedFlat = {};
     const out = {};
-    for (const r of ROUND_ORDER) out[r] = hydrate(r, ROUND_TEMPLATE_BY_KEY[r]);
+    for (const round of ROUND_ORDER) {
+      const template = ROUND_TEMPLATE_BY_KEY[round];
+      const derived = round === 'roundOf32' ? r32 : deriveNextRound(prunedFlat, template);
+      out[round] = derived.map((m) => {
+        const existing = flatPicks[m.matchId];
+        const valid = !!(existing && existing.winnerId
+          && (existing.winnerId === m.home || existing.winnerId === m.away));
+        if (!valid) return { ...m, pick: null };
+        // Recompute loserId from the current slot (stale after a reseed).
+        const loserId = existing.winnerId === m.home ? m.away : m.home;
+        prunedFlat[m.matchId] = { matchId: m.matchId, winnerId: existing.winnerId, loserId };
+        return { ...m, pick: { winnerId: existing.winnerId, loserId } };
+      });
+    }
     return out;
-  }, [groupPredictions, bestThirdPicks, flatPicks]);
+  }, [groupPredictions, bestThirdPicks, flatPicks, realR32, predictedTeamSet]);
 
   const pickWinner = useCallback((matchId, winnerTeam) => {
     const round = getRoundForMatchId(matchId);
@@ -87,6 +102,11 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
     const slot = roundSlots?.find((s) => s.matchId === matchId);
     if (!slot || !slot.home || !slot.away) return { cleared: 0 };
     if (winnerTeam !== slot.home && winnerTeam !== slot.away) return { cleared: 0 };
+    // Earned gate (knockout-real-reseed): a real team the user did NOT predict
+    // to advance is locked — they can't pick it. `*Earned` is only set on R32
+    // slots in reseed mode; it's undefined elsewhere (=> not blocked).
+    const earned = winnerTeam === slot.home ? slot.homeEarned : slot.awayEarned;
+    if (earned === false) return { cleared: 0 };
     const loser = winnerTeam === slot.home ? slot.away : slot.home;
 
     // If the user is *changing* a previously-set winner, count how many

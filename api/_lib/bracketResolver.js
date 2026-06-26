@@ -154,6 +154,31 @@ function isGroupComplete(standings, letter) {
   return teams.every((t) => t.played === 3);
 }
 
+// Annexe C routing of the best-8 thirds → { r32Id: teamName }. Requires ALL
+// groups complete (the 12 thirds must be ranked against each other). Returns
+// null if not all complete; throws on an Annexe C lookup miss. Shared by
+// resolveActualBracket + resolveActualR32 so the two never diverge.
+function computeTop8ByMatch(standings) {
+  const allComplete = GROUP_LETTERS.every((l) => isGroupComplete(standings, l));
+  if (!allComplete) return null;
+  const allGroups = buildAllGroupsForAnnexeC(standings);
+  const thirds = GROUP_LETTERS.map((l) => allGroups[l]?.[2]).filter(Boolean);
+  thirds.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+    return a.group.localeCompare(b.group);
+  });
+  const top8 = thirds.slice(0, 8);
+  const allocation = allocateThirdsToBracketsLocal(top8, allGroups);
+  const out = {};
+  for (const [mId, teamObj] of Object.entries(allocation)) {
+    const r32Id = M_TO_R32_ID[mId];
+    if (r32Id) out[r32Id] = teamObj.teamId;
+  }
+  return out;
+}
+
 function buildAllGroupsForAnnexeC(standings) {
   const allGroups = {};
   for (const letter of GROUP_LETTERS) {
@@ -241,23 +266,7 @@ export function resolveActualBracket(matchResults) {
   let top8ByMatch = null;
   if (allGroupsComplete) {
     try {
-      const allGroups = buildAllGroupsForAnnexeC(standings);
-      const thirds = GROUP_LETTERS
-        .map((l) => allGroups[l]?.[2])
-        .filter(Boolean);
-      thirds.sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-        return a.group.localeCompare(b.group);
-      });
-      const top8 = thirds.slice(0, 8);
-      const allocation = allocateThirdsToBracketsLocal(top8, allGroups);
-      top8ByMatch = {};
-      for (const [mId, teamObj] of Object.entries(allocation)) {
-        const r32Id = M_TO_R32_ID[mId];
-        if (r32Id) top8ByMatch[r32Id] = teamObj.teamId;
-      }
+      top8ByMatch = computeTop8ByMatch(standings);
     } catch (e) {
       errors.push(`Annexe C lookup failed: ${e.message}`);
     }
@@ -287,6 +296,33 @@ export function resolveActualBracket(matchResults) {
   }
 
   return { resolved, allGroupsComplete, errors };
+}
+
+// Per-side real Round-of-32 resolution for progressive reseeding (the
+// knockout-real-reseed feature). Each R32 slot's home/away resolves
+// INDEPENDENTLY: a direct-position side ("1st/2nd Group X") becomes real the
+// moment that group COMPLETES; a third-place side resolves only once ALL
+// groups complete (Annexe C). Unresolved sides come back null with *Real:false
+// so the client keeps the user's predicted team there.
+// Returns { allGroupsComplete, groupsComplete:[letters], r32: { matchId:
+// { home, away, homeReal, awayReal } } }. Reuses resolveR32Placeholder (which
+// already gates direct positions on isGroupComplete) so it can never show a
+// not-yet-final group leader.
+export function resolveActualR32(matchResults) {
+  const standings = buildGroupStandings(matchResults || {});
+  const groupsComplete = GROUP_LETTERS.filter((l) => isGroupComplete(standings, l));
+  const allGroupsComplete = groupsComplete.length === GROUP_LETTERS.length;
+  let top8ByMatch = null;
+  if (allGroupsComplete) {
+    try { top8ByMatch = computeTop8ByMatch(standings); } catch { top8ByMatch = null; }
+  }
+  const r32 = {};
+  for (const m of WORLD_CUP_MATCHES.filter((x) => x.id.startsWith('r32-'))) {
+    const home = resolveR32Placeholder(m.home, standings, top8ByMatch);
+    const away = resolveR32Placeholder(m.away, standings, top8ByMatch);
+    r32[m.id] = { home: home || null, away: away || null, homeReal: !!home, awayReal: !!away };
+  }
+  return { allGroupsComplete, groupsComplete, r32 };
 }
 
 // ─── Quick Picks scoring inputs ───

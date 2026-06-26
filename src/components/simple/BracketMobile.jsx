@@ -289,6 +289,8 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                         readOnly={readOnly}
                         homeAdvancePct={homePct}
                         awayAdvancePct={awayPct}
+                        homeEarned={s.homeEarned}
+                        awayEarned={s.awayEarned}
                       />
                     </div>
                   );

@@ -11120,3 +11120,21 @@ ol.legal-list li { margin-bottom: 0.35rem; }
 .rde-mover.down { color: #ef4444; }
 .rde-mover-rank { color: var(--text-dim); font-weight: 700; }
 @media (max-width: 640px) { .rde-grid { grid-template-columns: 1fr; } }
+
+/* Knockout-real-reseed: locked (non-earned) team rows + explainer note */
+.bracket-row.not-earned { opacity: 0.45; cursor: not-allowed; }
+.bracket-row.not-earned .bracket-row-name { text-decoration: line-through; text-decoration-thickness: 1px; }
+.bracket-row.not-earned .bracket-row-lock { margin-left: auto; color: var(--text-dim); }
+.bracket-reseed-note {
+  background: var(--primary-soft); border: 1px solid var(--primary);
+  border-radius: 12px; padding: 0.7rem 0.95rem; margin: 0 0 1rem;
+  font-size: 0.84rem; line-height: 1.55; color: var(--text);
+}
+.bracket-reseed-note strong { color: var(--primary); }
+.bracket-reseed-locked { opacity: 0.6; text-decoration: line-through; }
+
+/* Locked group step (group stage frozen) */
+.group-card.is-locked { opacity: 0.92; }
+.group-card.is-locked .group-row { cursor: default; }
+.group-row.is-locked .group-row-handle { color: var(--text-dim); }
+.group-card-lock { color: var(--text-dim); display: inline-flex; align-items: center; }

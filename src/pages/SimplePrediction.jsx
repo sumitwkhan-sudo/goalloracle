@@ -30,10 +30,10 @@ import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
 import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
-import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
+import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions, predictedR32TeamSet } from '../utils/bracketUtils';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
-import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus } from '../utils/db';
+import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, subscribeToFeatureFlags } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
@@ -220,10 +220,40 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     return true;
   });
 
+  // Group rankings + best-thirds freeze when the group stage locks (kickoff).
+  // The wizard must render those steps read-only then — otherwise a user can
+  // drag a locked group, the save is rejected, and it "reverts on refresh".
+  const groupStageLocked = isStageLocked('groupStage');
+
+  // ── Knockout-real-reseed (flag-gated) ───────────────────────────────
+  // When the founder enables `knockoutRealReseed`, the bracket reflects the
+  // REAL advancing teams (per group as they finish) and restricts the user to
+  // advancing only teams they correctly predicted. Off → predicted bracket as
+  // before. Re-fetches every 60s so a freshly-decided group appears.
+  const [reseedFlag, setReseedFlag] = useState(false);
+  useEffect(() => subscribeToFeatureFlags((f) => setReseedFlag(!!f?.knockoutRealReseed)), []);
+  const [realBracket, setRealBracket] = useState(null);
+  useEffect(() => {
+    if (!reseedFlag) { setRealBracket(null); return; }
+    let cancelled = false;
+    const load = async () => { const d = await fetchActualBracket(); if (!cancelled) setRealBracket(d); };
+    load();
+    const t = setInterval(load, 60000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [reseedFlag]);
+  const realR32 = reseedFlag ? (realBracket?.r32 || null) : null;
+  const reseedActive = !!realR32 && Object.values(realR32).some((s) => s && (s.homeReal || s.awayReal));
+  const predictedTeamSet = useMemo(
+    () => (reseedActive ? predictedR32TeamSet(groups.predictions, bestThird.picks) : null),
+    [reseedActive, groups.predictions, bestThird.picks],
+  );
+
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
     knockoutPredictions: frozenInitial?.knockoutPredictions,
+    realR32: reseedActive ? realR32 : null,
+    predictedTeamSet,
     onChange: (next) => {
       // Treat picking the Final winner as the user finishing their
       // bracket — leaderboards key off isComplete and we don't want
@@ -692,6 +722,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             onReorder={groups.setRanking}
             onConfirm={groups.confirm}
             onUnconfirm={groups.unconfirm}
+            readOnly={groupStageLocked}
           />
 
           <div className="simple-step-nav">
@@ -756,6 +787,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             isFull={bestThird.isFull}
             onToggle={bestThird.toggle}
             onSetPicks={bestThird.setAll}
+            readOnly={groupStageLocked}
           />
 
           <div className="simple-step-nav simple-step-nav-split">
@@ -825,6 +857,15 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               );
             })()}
           </div>
+
+          {reseedActive && (
+            <div className="bracket-reseed-note">
+              <strong>Your bracket now shows the real teams.</strong> Finished groups are locked to
+              the actual result — advance any team you correctly called to the knockouts; teams you
+              didn’t pick are <span className="bracket-reseed-locked">greyed out</span>. Third-place
+              slots fill once all groups finish; unfinished groups still show your prediction.
+            </div>
+          )}
 
           {layout === 'desktop' ? (
             <BracketDesktop

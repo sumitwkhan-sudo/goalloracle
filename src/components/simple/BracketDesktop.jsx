@@ -100,6 +100,8 @@ function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matc
                 readOnly={readOnly}
                 homeAdvancePct={cm ? cm[slot.home] : undefined}
                 awayAdvancePct={cm ? cm[slot.away] : undefined}
+                homeEarned={slot.homeEarned}
+                awayEarned={slot.awayEarned}
               />
             </div>
           );
@@ -312,5 +314,9 @@ function slotProps(bracket, matchId, consensus) {
     winnerId: slot.pick?.winnerId || null,
     homeAdvancePct: cm ? cm[slot.home] : undefined,
     awayAdvancePct: cm ? cm[slot.away] : undefined,
+    // Knockout-real-reseed: real teams not in the user's predicted pool are
+    // locked. Undefined on rounds without the merge → treated as earned.
+    homeEarned: slot.homeEarned,
+    awayEarned: slot.awayEarned,
   };
 }

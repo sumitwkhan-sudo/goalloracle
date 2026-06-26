@@ -148,6 +148,59 @@ export function deriveRoundOf32(groupPredictions, bestThirdPicks) {
 }
 
 /**
+ * The set of team names a user predicted would reach the Round of 32 (their
+ * group top-2 + their best-thirds). A real team is "earned" — i.e. the user
+ * may advance it once the bracket reseeds to real teams — iff it is in this
+ * set. (Knockout-real-reseed feature.)
+ *
+ * @returns {Set<string>}
+ */
+export function predictedR32TeamSet(groupPredictions, bestThirdPicks) {
+  const set = new Set();
+  for (const m of deriveRoundOf32(groupPredictions, bestThirdPicks)) {
+    if (m.home) set.add(m.home);
+    if (m.away) set.add(m.away);
+  }
+  return set;
+}
+
+/**
+ * Merge the REAL Round of 32 (resolved per side as groups finish) onto the
+ * user's PREDICTED R32, side by side. A side that is decided upstream
+ * (`homeReal`/`awayReal`) shows the real team and is "earned" only if the user
+ * predicted that team to advance; an undecided side keeps the user's predicted
+ * team (always their own → pickable). Mirrors deriveRoundOf32's slot shape and
+ * adds `homeReal/awayReal/homeEarned/awayEarned`. (Knockout-real-reseed.)
+ *
+ * @param {Array} predictedR32      deriveRoundOf32(...) output
+ * @param {Object} realR32          { matchId: { home, away, homeReal, awayReal } } | null
+ * @param {Set<string>} predictedTeamSet  predictedR32TeamSet(...)
+ */
+export function mergeRealRoundOf32(predictedR32, realR32, predictedTeamSet) {
+  const flags = getTeamFlags();
+  const earnedSet = predictedTeamSet || new Set();
+  return predictedR32.map((slot) => {
+    const real = (realR32 && realR32[slot.matchId]) || {};
+    const useRealHome = !!(real.homeReal && real.home);
+    const useRealAway = !!(real.awayReal && real.away);
+    const home = useRealHome ? real.home : slot.home;
+    const away = useRealAway ? real.away : slot.away;
+    return {
+      matchId: slot.matchId,
+      home: home || null,
+      away: away || null,
+      homeFlag: home ? flags[home] || '🏳️' : null,
+      awayFlag: away ? flags[away] || '🏳️' : null,
+      homeReal: useRealHome,
+      awayReal: useRealAway,
+      // Predicted (own) teams are always pickable; real teams only if earned.
+      homeEarned: useRealHome ? earnedSet.has(real.home) : true,
+      awayEarned: useRealAway ? earnedSet.has(real.away) : true,
+    };
+  });
+}
+
+/**
  * Cascade winners from the previous round into the next round's slots.
  *
  * @param {Object<string, {winnerId: string, loserId: string}>} picksByMatchId

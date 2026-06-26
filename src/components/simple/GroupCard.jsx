@@ -10,7 +10,7 @@ import React from 'react';
 import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Check } from 'lucide-react';
+import { GripVertical, Check, Lock } from 'lucide-react';
 import FifaTooltip from './FifaTooltip';
 
 const POSITION_META = [
@@ -51,7 +51,22 @@ function TeamRow({ team, flag, position }) {
   );
 }
 
-export default function GroupCard({ group, ranking, flags, touched, onReorder, onConfirm, onUnconfirm }) {
+// Static (non-draggable) row — used when the group stage is locked. A hook
+// (useSortable) can't be called conditionally, so locked groups render this
+// instead of the draggable TeamRow.
+function StaticRow({ team, flag, position }) {
+  const meta = POSITION_META[position];
+  return (
+    <div className={`group-row ${meta.className} is-locked`} aria-label={`${team} — ${meta.label}`}>
+      <span className="group-row-handle" aria-hidden="true"><Lock size={13} /></span>
+      <span className="group-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
+      <span className="group-row-name">{team}</span>
+      <span className={`group-row-badge ${meta.className}`}>{meta.label}</span>
+    </div>
+  );
+}
+
+export default function GroupCard({ group, ranking, flags, touched, onReorder, onConfirm, onUnconfirm, readOnly = false }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
@@ -68,24 +83,35 @@ export default function GroupCard({ group, ranking, flags, touched, onReorder, o
   };
 
   return (
-    <div className={`group-card ${touched ? 'touched' : ''}`} data-group={group} id={`group-card-${group}`}>
+    <div className={`group-card ${touched ? 'touched' : ''} ${readOnly ? 'is-locked' : ''}`} data-group={group} id={`group-card-${group}`}>
       <div className="group-card-header">
         <span className="group-card-title">Group {group}</span>
-        {touched && (
+        {readOnly ? (
+          <span className="group-card-lock" aria-label="Locked"><Lock size={13} /></span>
+        ) : touched && (
           <span className="group-card-check" aria-label="Ranked">
             <Check size={14} />
           </span>
         )}
       </div>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={ranking} strategy={verticalListSortingStrategy}>
-          <div className="group-card-rows">
-            {ranking.map((team, i) => (
-              <TeamRow key={team} team={team} flag={flags[team]} position={i} />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+      {readOnly ? (
+        <div className="group-card-rows">
+          {ranking.map((team, i) => (
+            <StaticRow key={team} team={team} flag={flags[team]} position={i} />
+          ))}
+        </div>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={ranking} strategy={verticalListSortingStrategy}>
+            <div className="group-card-rows">
+              {ranking.map((team, i) => (
+                <TeamRow key={team} team={team} flag={flags[team]} position={i} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+      {!readOnly && (
       <div className="group-card-confirm">
         {touched ? (
           <button
@@ -107,6 +133,7 @@ export default function GroupCard({ group, ranking, flags, touched, onReorder, o
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }

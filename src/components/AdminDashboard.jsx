@@ -186,9 +186,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     quickPicksEnabled: 'Bracket',
     classicEnabled: 'Classic Predictions',
     enablePrizeLeagues: 'Prize Leagues',
+    knockoutRealReseed: 'Knockout real-team reseed',
   };
+  const OPT_IN_FLAGS = new Set(['enablePrizeLeagues', 'knockoutRealReseed']);
   const isFlagOn = (flag) => (
-    flag === 'enablePrizeLeagues'
+    OPT_IN_FLAGS.has(flag)
       ? featureFlags[flag] === true       // opt-in: defaults OFF
       : featureFlags[flag] !== false       // legacy: defaults ON
   );
@@ -205,6 +207,13 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
           : 'Disable user-created Prize Leagues. Reason (optional, saved to audit log):';
         const raw = window.prompt(promptMsg, '');
         if (raw === null) { setFlagBusy(null); return; } // user cancelled
+        reason = raw.trim().slice(0, 280) || null;
+      } else if (flag === 'knockoutRealReseed') {
+        const promptMsg = next
+          ? 'Turn ON the knockout real-team reseed for the LIVE contest? Everyone\'s bracket will reflect real advancing teams (per group as they finish); users advance only teams they correctly predicted. Reason (saved to audit log):'
+          : 'Turn OFF the knockout real-team reseed? (Keep it ON once enabled mid-tournament — turning off mid-stream can orphan re-picks.) Reason:';
+        const raw = window.prompt(promptMsg, '');
+        if (raw === null) { setFlagBusy(null); return; }
         reason = raw.trim().slice(0, 280) || null;
       }
       await adminSetFeatureFlag(flag, next, reason);
@@ -3585,6 +3594,23 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               >
                 <span className="admin-flag-switch-knob" />
                 <span className="admin-flag-switch-label">{isFlagOn('enablePrizeLeagues') ? 'ON' : 'OFF'}</span>
+              </button>
+            </div>
+            <div className="admin-flag-row">
+              <div className="admin-flag-text">
+                <strong>Knockout real-team reseed</strong>
+                <span>Off by default. When ON, the bracket wizard shows the REAL advancing teams (per group as they finish) instead of each user&rsquo;s predicted teams, and restricts each user to advancing only teams they correctly predicted to reach the knockouts (others are locked). Scoring is unchanged (per-fixture). Turn ON in the window after the group stage finishes and before the Round of 32 locks; keep it ON once enabled. Reason is logged to the audit trail.</span>
+              </div>
+              <button
+                type="button"
+                className={`admin-flag-switch ${isFlagOn('knockoutRealReseed') ? 'is-on' : 'is-off'}`}
+                onClick={() => toggleFeatureFlag('knockoutRealReseed')}
+                disabled={flagBusy === 'knockoutRealReseed'}
+                aria-pressed={isFlagOn('knockoutRealReseed')}
+                aria-label="Toggle knockout real-team reseed"
+              >
+                <span className="admin-flag-switch-knob" />
+                <span className="admin-flag-switch-label">{isFlagOn('knockoutRealReseed') ? 'ON' : 'OFF'}</span>
               </button>
             </div>
             <p className="admin-flag-note">

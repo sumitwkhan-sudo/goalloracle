@@ -58,12 +58,28 @@ export default async function handler(req, res) {
       if (legacy.exists) mergedOld = legacy.data();
     }
 
+    // Resilient save: instead of 403-ing the WHOLE payload when a changed
+    // section has locked (which used to throw away the user's still-editable
+    // edits too — e.g. a stray locked-group drag killing their knockout
+    // edits), DROP just the locked sections and persist the rest. A locked
+    // section can't legitimately change anyway, so reverting it to the stored
+    // value is a no-op to data; the response reports what was dropped so the
+    // UI can note it.
     const locked = lockedSectionsInUpdate(partial, mergedOld);
+    const droppedSections = [];
     if (locked.length > 0) {
-      return res.status(403).json({
-        error: 'Some Quick Picks sections have already locked and cannot be changed.',
-        lockedSections: locked,
-      });
+      const oldKo = mergedOld?.knockoutPredictions || {};
+      for (const sec of locked) {
+        if (sec === 'groupPredictions' || sec === 'bestThirdPicks') {
+          delete partial[sec];
+          droppedSections.push(sec);
+        } else if (sec.startsWith('knockoutPredictions.') && partial.knockoutPredictions && typeof partial.knockoutPredictions === 'object') {
+          const round = sec.split('.')[1];
+          if (round in oldKo) partial.knockoutPredictions[round] = oldKo[round];
+          else delete partial.knockoutPredictions[round];
+          droppedSections.push(sec);
+        }
+      }
     }
 
     const writePayload = {
@@ -126,7 +142,7 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, droppedSections: droppedSections.length ? droppedSections : undefined });
   } catch (e) {
     console.error('[simple-predictions] error:', e);
     return res.status(500).json({ error: e.message });
