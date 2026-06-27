@@ -74,6 +74,19 @@ export function isStageLocked(stage, now = Date.now()) {
   return now >= stageLockTimeUtc(stage);
 }
 
+// Human countdown for a "locks in …" label. Single source of truth shared by
+// the dashboard nudge rows and the knockout lock-in CTA. Returns 'LOCKED' once
+// the deadline has passed, else the largest two units: 'Xd Xh' / 'Xh Xm' / 'Xm'.
+export function formatLockDelta(ms) {
+  if (ms <= 0) return 'LOCKED';
+  const d = Math.floor(ms / 86400000);
+  const h = Math.floor((ms % 86400000) / 3600000);
+  const mi = Math.floor((ms % 3600000) / 60000);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${mi}m`;
+  return `${mi}m`;
+}
+
 // Returns the section names of a Quick Picks payload that have changed
 // AND belong to a stage whose lock has already fired. Used by the server
 // endpoint to reject illegal mutations and by the UI to gate widgets.

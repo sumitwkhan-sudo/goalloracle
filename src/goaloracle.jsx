@@ -12,7 +12,7 @@ import { getPedigree } from './utils/pedigree';
 import { teamFlags } from './utils/flags';
 import { getRank as getFifaRank } from './data/fifaRankings';
 import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX } from './utils/scoringSimple';
-import { stageLockTimeUtc } from './utils/stageLock';
+import { stageLockTimeUtc, formatLockDelta } from './utils/stageLock';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
@@ -68,6 +68,7 @@ import BracketDesktop from './components/simple/BracketDesktop';
 import BracketMobile from './components/simple/BracketMobile';
 import useBracketState from './hooks/useBracketState';
 import useBracketLayout from './hooks/useBracketLayout';
+import KnockoutLockCTA from './components/KnockoutLockCTA';
 import './styles.css';
 
 // Per-view <Helmet> tags. Authenticated views are noindex; public views get
@@ -2718,6 +2719,15 @@ const GoalOracle = () => {
                   <button className="btn btn-secondary btn-lg" onClick={anonCtas.secondary.onClick}>{anonCtas.secondary.label}</button>
                 </div>
               )}
+              <KnockoutLockCTA
+                variant="hero"
+                hasPicks={!!quickPicks?.winner}
+                onAction={() => {
+                  track('enter_free_cta_clicked', { source: 'homepage_knockout_lockin', has_picks: !!quickPicks?.winner });
+                  if (isAnonymous && quickPicks?.winner != null) requireSignup('prizes');
+                  else startSimplePredicting();
+                }}
+              />
               <p className="hero-trust-strip">No purchase necessary &middot; Skill-based contest &middot; Powered by {PRIZE_DEFAULT_CURRENCY}</p>
               <p className="hero-community-line">Made by fans, for the fans &mdash; an independent, community-built World Cup game.</p>
               <p className="hero-rules-link">
@@ -5171,6 +5181,33 @@ const GoalOracle = () => {
         });
       }
     } catch { /* unknown stage — skip the deadline notice */ }
+
+    // 3) Knockout lock-in — the real Round of 32 is set; nudge users to make or
+    // review their knockout picks before R32 locks. Shown to anyone with a
+    // loaded Quick Picks doc (incomplete → finish; complete → review/re-pick,
+    // since real teams just changed) and self-clears once R32 has locked. Same
+    // stageLockTimeUtc source as the homepage/dashboard CTA so nothing diverges.
+    try {
+      const koLockMs = stageLockTimeUtc('roundOf32') - Date.now();
+      const remaining = typeof quickPicks?.bracketRemaining === 'number' ? quickPicks.bracketRemaining : null;
+      if (quickPicks && koLockMs > 0 && remaining !== null) {
+        out.push(remaining > 0
+          ? {
+            id: 'knockout-lock',
+            urgency: 'urgent',
+            text: 'Finish your knockout bracket',
+            sub: `Real teams are set · locks in ${formatLockDelta(koLockMs)}`,
+            onClick: () => goToQuickPicks('predictions'),
+          }
+          : {
+            id: 'knockout-lock',
+            urgency: 'urgent',
+            text: 'Lock in your knockout bracket',
+            sub: `Real teams are set — re-pick before ${formatLockDelta(koLockMs)}`,
+            onClick: () => goToQuickPicks('predictions'),
+          });
+      }
+    } catch { /* unknown stage — skip */ }
 
     return out;
   }, [authenticated, quickPicks, leagues, leagueRanks, goToQuickPicks, nav]);

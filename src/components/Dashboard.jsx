@@ -8,7 +8,7 @@ import WORLD_CUP_MATCHES from '../data/matches';
 // per user feedback; the imports stay available in src/utils/xp for
 // future use elsewhere.
 import { calculateStreak, getStreakBadge, calculateTotalPoints, calculatePoints, getMatchStatus } from '../utils/points';
-import { STAGES, STAGE_FIRST_KICKOFF_UTC, stageLockTimeUtc } from '../utils/stageLock';
+import { STAGES, STAGE_FIRST_KICKOFF_UTC, stageLockTimeUtc, formatLockDelta } from '../utils/stageLock';
 import { PRIZES } from '../config/legal';
 import { TOTAL_MAX } from '../utils/scoringSimple';
 import { getSimpleLeaderboard, getLeagueLeaderboard } from '../utils/db';
@@ -17,6 +17,7 @@ import AnimatedCounter from './AnimatedCounter';
 import InsightsCarousel from './simple/InsightsCarousel';
 import BracketInsightsRow from './BracketInsightsRow';
 import NewsFeed from './NewsFeed';
+import KnockoutLockCTA from './KnockoutLockCTA';
 
 const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
 
@@ -29,15 +30,8 @@ function matchKickoffMs(m) {
   return k.getTime();
 }
 
-function formatLockDelta(ms) {
-  if (ms <= 0) return 'LOCKED';
-  const d = Math.floor(ms / 86400000);
-  const h = Math.floor((ms % 86400000) / 3600000);
-  const mi = Math.floor((ms % 3600000) / 60000);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${mi}m`;
-  return `${mi}m`;
-}
+// formatLockDelta now lives in utils/stageLock (single source of truth, shared
+// with the knockout lock-in CTA) — imported above.
 
 // Total Quick Picks pieces a user can submit:
 // 12 group rankings + 8 best-thirds + 32 bracket winners = 52.
@@ -236,6 +230,13 @@ export default function Dashboard({
           pane and left a long vertical void on desktop. Insights now
           flow below as a 3-column row, eliminating that empty space. */}
       <div className="td-pane">
+        {quickPicks !== null && (
+          <KnockoutLockCTA
+            variant="dashboard"
+            hasPicks={quickPicks.winner != null}
+            onAction={() => nav('detail', simpleLeagues[0] || { id: 'global-simple', name: 'Global League', type: 'free', predictionMode: 'simple', isGlobal: true }, { tab: 'predictions' })}
+          />
+        )}
         {nextLock && featureFlags.classicEnabled !== false ? (
           <NextLockRow lock={nextLock} now={now} buffer={LOCK_BUFFER_MS} simpleLeagues={simpleLeagues} ml={ml} nav={nav} />
         ) : quickPicksIncomplete ? (
