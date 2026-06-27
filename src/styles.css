@@ -11137,6 +11137,21 @@ ol.legal-list li { margin-bottom: 0.35rem; }
 .wcs-c-adv { display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; }
 .wcs-adv-pill { font-family: var(--mono); font-size: 0.55rem; font-weight: 700; padding: 0.1rem 0.35rem; border-radius: 999px; background: rgba(0,200,83,0.18); color: var(--success, #00c853); letter-spacing: 0.06em; }
 .wcs-adv-you { font-family: var(--mono); font-size: 0.55rem; font-weight: 700; padding: 0.1rem 0.3rem; border-radius: 999px; background: rgba(0,212,255,0.16); color: var(--cyan); }
+
+/* Knockout bracket view (Results page) */
+.wcs-ko { display: flex; flex-direction: column; gap: 1.2rem; }
+.wcs-ko-round-head { font-weight: 800; font-size: 0.92rem; margin: 0 0 0.55rem; }
+.wcs-ko-matches { display: grid; grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); gap: 0.6rem; }
+.wcs-ko-match { position: relative; background: var(--surface, rgba(127,127,127,0.04)); border: 1px solid var(--border); border-radius: 12px; padding: 1.35rem 0.75rem 0.55rem; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.4rem; }
+.wcs-ko-match.wcs-match-islive { border-color: rgba(255,82,82,0.5); }
+.wcs-ko-meta { position: absolute; top: 0.4rem; left: 0.75rem; right: 0.75rem; display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-dim); font-family: var(--mono); }
+.wcs-ko-team { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.wcs-ko-match > .wcs-ko-team:last-child { justify-content: flex-end; }
+.wcs-ko-name { font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wcs-ko-team.is-tbd .wcs-ko-name { color: var(--text-dim); font-weight: 400; font-size: 0.74rem; }
+.wcs-ko-team.is-win .wcs-ko-name { color: var(--success, #00c853); font-weight: 800; }
+.wcs-ko-score { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; min-width: 50px; }
+.wcs-ko-pens { font-size: 0.58rem; color: var(--text-dim); font-family: var(--mono); }
 .wcs-pick-chip {
   display: inline-flex; align-items: center; justify-content: center; gap: 2px;
   min-width: 22px; height: 18px; padding: 0 5px; border-radius: 6px;

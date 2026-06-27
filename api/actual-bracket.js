@@ -16,7 +16,7 @@
  */
 
 import { db, applyCors } from './_lib/firebase.js';
-import { resolveActualR32, buildSimpleActuals } from './_lib/bracketResolver.js';
+import { resolveActualR32, buildSimpleActuals, resolveActualBracket } from './_lib/bracketResolver.js';
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -37,11 +37,19 @@ export default async function handler(req, res) {
       out.knockoutResults = {};
       out.advancingThirds = [];
     }
+    // Full resolved knockout bracket (every KO match whose teams are known) so
+    // the Results page can show the real matchups filling in across all rounds.
+    try {
+      const { resolved } = resolveActualBracket(results);
+      out.knockout = resolved || {};
+    } catch {
+      out.knockout = {};
+    }
     res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
     return res.status(200).json(out);
   } catch (e) {
     // Never break the wizard — fall back to "nothing resolved" so the client
     // shows the user's predicted bracket as before.
-    return res.status(200).json({ allGroupsComplete: false, groupsComplete: [], r32: {}, knockoutResults: {}, advancingThirds: [] });
+    return res.status(200).json({ allGroupsComplete: false, groupsComplete: [], r32: {}, knockoutResults: {}, advancingThirds: [], knockout: {} });
   }
 }
