@@ -20,9 +20,11 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Clock, Trophy, Award, Target, Eye } from 'lucide-react';
+import { Clock, Trophy, Award, Target, Eye, ChevronRight } from 'lucide-react';
 import { teamFlags } from '../utils/flags';
 import BracketInsightsRow from './BracketInsightsRow';
+import useKnockoutHitCount from '../hooks/useKnockoutHitCount';
+import { useKnockoutLock } from './KnockoutLockCTA';
 
 const KICKOFF_MS = Date.UTC(2026, 5, 11, 19, 0, 0);
 
@@ -56,9 +58,26 @@ export default function HomeHeroCard({
   onLeaguesClick, // () => void — clicking the Leagues stat (e.g. nav to /leagues)
   onUpsetClick,   // () => void — clicking the Biggest upset stat
   onConsensusClick, // () => void — clicking the Crowd alignment stat
+  leagues,        // [{ id, name, ... }] — the user's leagues
+  leagueRanks,    // { [leagueId]: { rank, total } }
+  onLeagueClick,  // (league) => void — open that league's leaderboard
 }) {
+  // The user's leagues + their rank in each (max 4), clickable through to the
+  // league's leaderboard. Global league surfaces first.
+  const leagueRows = (leagues || [])
+    .map((l) => ({ league: l, ...((leagueRanks && leagueRanks[l.id]) || {}) }))
+    .filter((r) => typeof r.rank === 'number')
+    .sort((a, b) => (a.league.id === 'global-simple' ? -1 : b.league.id === 'global-simple' ? 1 : 0))
+    .slice(0, 4);
   const countdown = useCountdown();
   const isPreTournament = !!countdown;
+
+  // Knockout reseed call-out: how many of the user's group-stage picks actually
+  // reached the real Round of 32, + a prominent "lock in" CTA. Only while the
+  // R32 lock is still ahead (the whole point is to re-pick before it locks).
+  const hitCount = useKnockoutHitCount(quickPicks);
+  const { locked: koLocked } = useKnockoutLock();
+  const showKnockoutCallout = !!hitCount && !koLocked;
 
   const winner = quickPicks?.winner;
   const runnerUp = quickPicks?.runnerUp;
@@ -133,6 +152,21 @@ export default function HomeHeroCard({
         )}
       </div>
 
+      {showKnockoutCallout && (
+        <div className="home-hero-ko" role="status">
+          <div className="home-hero-ko-stat">
+            <span className="home-hero-ko-num">{hitCount.hit}</span>
+            <span className="home-hero-ko-txt">of your group-stage picks made the knockouts</span>
+          </div>
+          <p className="home-hero-ko-sub">
+            The real Round&nbsp;of&nbsp;32 is set — re-pick your winners and lock in your bracket before it locks.
+          </p>
+          <button type="button" className="home-hero-ko-cta" onClick={onEdit}>
+            Lock in my knockout bracket <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {/* Edit-window hint — surfaces the round-by-round lock rule so
           users understand they're not stuck with first-pass picks once
           the tournament starts. Single line; intentionally subtle so
@@ -151,6 +185,26 @@ export default function HomeHeroCard({
         onConsensusClick={onConsensusClick}
         variant="home"
       />
+
+      {leagueRows.length > 0 && (
+        <div className="home-hero-leagues">
+          <span className="home-hero-leagues-label">Your league rankings</span>
+          {leagueRows.map(({ league, rank, total }) => (
+            <button
+              key={league.id}
+              type="button"
+              className="home-hero-league-row"
+              onClick={() => onLeagueClick && onLeagueClick(league)}
+            >
+              <span className="home-hero-league-name">{league.name || 'League'}</span>
+              <span className="home-hero-league-rank">
+                #{rank.toLocaleString()}{typeof total === 'number' && total > 0 ? <span className="home-hero-league-of"> of {total.toLocaleString()}</span> : null}
+              </span>
+              <ChevronRight size={13} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="home-hero-cta-row">
         {inProgress || !onView ? (

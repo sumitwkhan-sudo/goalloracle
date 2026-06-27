@@ -9961,6 +9961,52 @@ a.news-ticker-item:focus-visible {
   color: var(--home-text-dim);
   line-height: 1.45;
 }
+
+/* Prominent knockout call-out on the logged-in hero card (gold). */
+.home-hero-ko {
+  margin: 0.85rem 0 0; padding: 0.9rem 1rem; border-radius: 14px;
+  border: 1px solid rgba(255, 200, 40, 0.65);
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.14), rgba(255, 184, 0, 0.06));
+}
+.home-hero-ko-stat { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.home-hero-ko-num {
+  font-family: var(--mono); font-weight: 800; font-size: 1.9rem; line-height: 1;
+  color: #c98a00;
+}
+.home-hero-ko-txt { font-weight: 700; font-size: 0.95rem; color: var(--home-text); }
+.home-hero-ko-sub { margin: 0.35rem 0 0.7rem; font-size: 0.82rem; line-height: 1.45; color: var(--home-text-dim); }
+.home-hero-ko-cta {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.6rem 1.05rem; border: none; border-radius: 10px; cursor: pointer;
+  font-weight: 800; font-size: 0.92rem; color: #1a1206;
+  background: linear-gradient(135deg, #ffd700, #ffb800);
+  box-shadow: 0 6px 16px rgba(255, 184, 0, 0.3);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+.home-hero-ko-cta:hover { box-shadow: 0 8px 22px rgba(255, 184, 0, 0.42); }
+.home-hero-ko-cta:active { transform: translateY(1px); }
+
+/* Clickable per-league rankings list on the logged-in hero card. */
+.home-hero-leagues { margin: 0.7rem 0 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.home-hero-leagues-label {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.9px; text-transform: uppercase;
+  color: var(--home-text-dim); margin-bottom: 0.15rem;
+}
+.home-hero-league-row {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left; cursor: pointer;
+  padding: 0.5rem 0.7rem; border-radius: 9px;
+  border: 1px solid var(--home-border, rgba(0, 0, 0, 0.08));
+  background: rgba(0, 0, 0, 0.02);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.home-hero-league-row:hover { background: rgba(0, 0, 0, 0.05); border-color: rgba(0, 0, 0, 0.16); }
+.home-hero-league-name {
+  flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 0.85rem; color: var(--home-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.home-hero-league-rank { flex: 0 0 auto; font-family: var(--mono); font-weight: 800; font-size: 0.85rem; color: var(--home-text); }
+.home-hero-league-of { font-weight: 500; color: var(--home-text-dim); }
+.home-hero-league-row > svg { flex: 0 0 auto; color: var(--home-text-dim); }
 .home-hero-rank strong {
   font-family: var(--mono);
   font-size: var(--home-fs-large);

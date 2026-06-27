@@ -1567,6 +1567,10 @@ const GoalOracle = () => {
         winner: finalSlot?.winnerId || null,
         runnerUp: finalSlot?.loserId || null,
         knockoutPredictions: ko,
+        // Exposed so the home hero can compute "how many of your group-stage
+        // picks made the real knockouts" (predictedR32TeamSet ∩ real R32).
+        groupPredictions: groups,
+        bestThirdPicks: thirds,
       };
     };
     let unsub;
@@ -2641,6 +2645,9 @@ const GoalOracle = () => {
                 quickPicks={quickPicks}
                 rank={leagueRanks?.['global-simple']}
                 leagueCount={leagues?.length || 0}
+                leagues={leagues}
+                leagueRanks={leagueRanks}
+                onLeagueClick={(l) => nav('detail', l)}
                 consensus={globalConsensus}
                 onView={() => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
                 onEdit={startSimplePredicting}
@@ -2654,7 +2661,6 @@ const GoalOracle = () => {
                 onConsensusClick={() => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
               />
               <QuickActionsTiles
-                onDashboard={() => nav('dashboard')}
                 onMyLeagues={() => nav('leagues')}
                 onLeaderboard={goLeaderboardLanding}
                 onJoin={() => nav('browse')}
@@ -2723,9 +2729,10 @@ const GoalOracle = () => {
                 variant="hero"
                 hasPicks={!!quickPicks?.winner}
                 onAction={() => {
+                  // Logged-out homepage: prompt sign-in/sign-up first (this is the
+                  // anonymous-marketing landing — gate the knockout CTA behind login).
                   track('enter_free_cta_clicked', { source: 'homepage_knockout_lockin', has_picks: !!quickPicks?.winner });
-                  if (isAnonymous && quickPicks?.winner != null) requireSignup('prizes');
-                  else startSimplePredicting();
+                  login();
                 }}
               />
               <p className="hero-trust-strip">No purchase necessary &middot; Skill-based contest &middot; Powered by {PRIZE_DEFAULT_CURRENCY}</p>
@@ -5223,9 +5230,8 @@ const GoalOracle = () => {
           nav('detail', simpleLeague);
           setDetailTab('leaderboard');
         }}><TrendingUp size={14} /><span>Leaderboard</span></a>
-        <a className="nav-link" onClick={() => nav('standings')}><BarChart3 size={14} /><span>Standings</span></a>
+        <a className="nav-link" onClick={() => nav('standings')}><BarChart3 size={14} /><span>WC Results &amp; Fixtures</span></a>
         {authenticated && <>
-          <a className="nav-link" onClick={() => nav('dashboard')}><Trophy size={14} /><span>Dashboard</span></a>
           <a className="nav-link" onClick={() => nav('leagues')}><Users size={14} /><span>My Leagues</span></a>
           <a className="nav-link" onClick={() => { setBrowseFocusJoin(true); nav('browse'); }}><Key size={14} /><span>Join a league</span></a>
           {(role === 'superadmin' || role === 'admin') && <a className="nav-link" onClick={() => nav('admin')}><Shield size={14} /><span>Admin</span></a>}

@@ -57,6 +57,53 @@ describe('bracketResolver', () => {
     expect(r32Resolved.length).toBe(0);
   });
 
+  test('partial completion: only finished groups resolve, into the CORRECT R32 slots', () => {
+    // Finish groups A and B in full; leave the other 10 groups unplayed.
+    const teamsOf = (letter) => {
+      const set = new Set();
+      for (const m of GROUP_MATCHES.filter((g) => g.stage === `Group ${letter}`)) { set.add(m.home); set.add(m.away); }
+      return set;
+    };
+    const results = {};
+    for (const letter of ['A', 'B']) {
+      for (const m of GROUP_MATCHES.filter((g) => g.stage === `Group ${letter}`)) {
+        results[m.id] = makeResult(2, 1); // deterministic finish
+      }
+    }
+
+    const { r32, allGroupsComplete, groupsComplete } = resolveActualR32(results);
+    expect(allGroupsComplete).toBe(false);
+    expect(groupsComplete.sort()).toEqual(['A', 'B']);
+
+    const A = teamsOf('A');
+    const B = teamsOf('B');
+
+    // r32-01 = "2nd Group A" vs "2nd Group B" → BOTH real, each from its own group.
+    expect(r32['r32-01'].homeReal).toBe(true);
+    expect(r32['r32-01'].awayReal).toBe(true);
+    expect(A.has(r32['r32-01'].home)).toBe(true);
+    expect(B.has(r32['r32-01'].away)).toBe(true);
+
+    // r32-07 = "1st Group A" vs "3rd …" → home real (A done); away null (thirds
+    // need ALL groups complete).
+    expect(r32['r32-07'].homeReal).toBe(true);
+    expect(A.has(r32['r32-07'].home)).toBe(true);
+    expect(r32['r32-07'].awayReal).toBe(false);
+    expect(r32['r32-07'].away).toBe(null);
+
+    // r32-14 = "1st Group B" vs "3rd …" → home real (B), away null.
+    expect(r32['r32-14'].homeReal).toBe(true);
+    expect(B.has(r32['r32-14'].home)).toBe(true);
+    expect(r32['r32-14'].awayReal).toBe(false);
+
+    // r32-02 = "1st Group C" vs "2nd Group F" → both null (C + F unplayed).
+    expect(r32['r32-02'].homeReal).toBe(false);
+    expect(r32['r32-02'].awayReal).toBe(false);
+
+    // The 1st/2nd of A and B must NOT leak into any other group's slot.
+    expect(A.has(r32['r32-01'].away)).toBe(false); // away side is B's, not A's
+  });
+
   test('all groups complete: every R32 match has resolved home + away', () => {
     const results = buildAllGroupsCompleteResults();
     const out = resolveActualBracket(results);
