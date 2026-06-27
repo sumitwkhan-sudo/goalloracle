@@ -60,6 +60,10 @@ const OUTREACH_TEMPLATES = {
     label: 'Knockout Lock Reminder',
     description: 'Nudges users to finalize their knockout picks before the Round of 32 locks (and pitches starting a private knockout league). Reassures anyone happy with their bracket that they need not change anything. Pair with stage "Round of 32". Eligibility: in the Global Quick Picks League, has email, not opted out — regardless of pick status.',
   },
+  knockoutRepick: {
+    label: 'Knockout Re-pick (group-stage chaos)',
+    description: "One-off re-engagement blast for the final group-stage days: the real results have shredded everyone's pre-tournament bracket and the knockout bracket reseeds with the teams that actually advanced. Deep-links to the Global Quick Picks wizard. Eligibility: in the Global Quick Picks League, has email, not opted out, AND has NOT re-locked their knockout bracket since the real R32 teams were set (drops out once they re-save). Result-specific copy is hard-coded — verify against live standings before sending.",
+  },
 };
 
 const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify, featureFlags = DEFAULT_FEATURE_FLAGS }) => {

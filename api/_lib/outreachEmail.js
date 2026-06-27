@@ -717,6 +717,133 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
   return { subject, html, text };
 }
 
+// ─── Template: Knockout Re-pick (group-stage chaos) ──────────────
+// One-off re-engagement blast sent in the final group-stage days: the
+// real results have shredded everyone's pre-tournament bracket, and the
+// knockout bracket reseeds with the teams that actually advanced. Drives
+// users back to re-pick their knockout winners before the R32 lock.
+// Deep-links straight to the Global Quick Picks wizard (resumes at the
+// knockout step). Result-specific copy is intentionally hard-coded for
+// this campaign — the operator verifies it against live standings before
+// sending. Targeted at the global_ko_not_resubmitted audience via the
+// admin Outreach eligibility filter.
+
+function knockoutRepickTemplate({ user }) {
+  const subject = 'Germany lost. Your bracket needs you.';
+  const preheader = 'One group day left, then knockout brackets lock.';
+  const ctaUrl = `${PROD_ORIGIN}/quick-picks/global-simple?utm_source=email&utm_medium=campaign&utm_campaign=knockout_repick`;
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;font-size:1px;line-height:1px;color:#eef0f3;">${escape(preheader)}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <h1 style="margin:0 0 16px;font-size:27px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">
+                The group stage broke everyone&rsquo;s bracket. Including yours.
+              </h1>
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Be honest &mdash; when you locked in your picks before kickoff, did you have Ecuador beating Germany?
+              </p>
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Because that just happened. Must-win, backs against the wall, and the young Ecuadorians did it, 2&ndash;1. Their coach said something I&rsquo;m stealing for GoalOracle: <em>&ldquo;You&rsquo;re a process, not a result.&rdquo;</em>
+              </p>
+              <p style="margin:0 0 10px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                And that was just one day of chaos:
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;">
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; Australia bullied T&uuml;rkiye 2&ndash;0 &mdash; the trendy dark horse, gone.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; Canada hung SIX on Qatar&hellip; then lost to Switzerland anyway.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; South Africa reached the knockouts for the FIRST TIME.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; The most draws in a single day since 1958 &mdash; New Zealand, the lowest-ranked team in the field, clawing back twice on Iran.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;">&#9917;&nbsp; Messi (39) and Ronaldo (41) still scoring. The old kings aren&rsquo;t done.</td></tr>
+              </table>
+              <p style="margin:0 0 22px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Meanwhile Spain, France, Brazil, Portugal and the Netherlands are topping their groups and looking scary.
+              </p>
+              <p style="margin:0 0 12px;font-size:14px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#FF3B30;">
+                Here&rsquo;s why this matters now.
+              </p>
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                One final round of group games is left. When those whistles blow, the full 32-team knockout bracket gets set &mdash; and the bracket you picked weeks ago is about to be outdated. Some of your teams are out. Some snuck in the back door. The matchups are reshuffling.
+              </p>
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#0a0a0f;font-weight:700;">
+                &#128073; Once the last group games finish, you re-select and lock in your knockout bracket.
+              </p>
+              <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                This is your reset. Pick who&rsquo;s actually hot, who&rsquo;s quietly cruising, who&rsquo;s limping in wounded &mdash; and win the Global League. <strong>$150 / $100 / $50 in USDC</strong> for the top 3.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:0 0 26px;">
+                <tr>
+                  <td style="background:#0a0a0f;border-radius:999px;">
+                    <a href="${ctaUrl}" style="display:inline-block;padding:18px 34px;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;letter-spacing:0.3px;border-radius:999px;background:linear-gradient(135deg,#FF3B30,#FFD66B);">
+                      Re-pick my knockout bracket &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 4px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                The group stage humbled all of us. Now prove you learned from it.
+              </p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+        <p style="margin:14px 0 0;font-size:11px;color:#9999aa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">You&rsquo;re receiving this because you signed up for GoalOracle.</p>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `${greeting(user).replace(/<[^>]+>/g, '')}
+
+The group stage broke everyone's bracket. Including yours.
+
+Be honest -- when you locked in your picks before kickoff, did you have Ecuador beating Germany?
+
+Because that just happened. Must-win, backs against the wall, and the young Ecuadorians did it, 2-1. Their coach said something I'm stealing for GoalOracle: "You're a process, not a result."
+
+And that was just one day of chaos:
+- Australia bullied Turkiye 2-0 -- the trendy dark horse, gone.
+- Canada hung SIX on Qatar... then lost to Switzerland anyway.
+- South Africa reached the knockouts for the FIRST TIME.
+- The most draws in a single day since 1958 -- New Zealand, the lowest-ranked team in the field, clawing back twice on Iran.
+- Messi (39) and Ronaldo (41) still scoring. The old kings aren't done.
+
+Meanwhile Spain, France, Brazil, Portugal and the Netherlands are topping their groups and looking scary.
+
+HERE'S WHY THIS MATTERS NOW.
+
+One final round of group games is left. When those whistles blow, the full 32-team knockout bracket gets set -- and the bracket you picked weeks ago is about to be outdated. Some of your teams are out. Some snuck in the back door. The matchups are reshuffling.
+
+Once the last group games finish, you re-select and lock in your knockout bracket.
+
+This is your reset. Pick who's actually hot, who's quietly cruising, who's limping in wounded -- and win the Global League. $150 / $100 / $50 in USDC for the top 3.
+
+Re-pick my knockout bracket: ${ctaUrl}
+
+The group stage humbled all of us. Now prove you learned from it.
+
+Free skill-based prediction contest. No purchase necessary. Top 3 on the Global Quick Picks Leaderboard at the end of the World Cup 2026 Final receive cash prizes in USDC.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 // ─── Registry ────────────────────────────────────────────────────
 
 export const TEMPLATES = {
@@ -755,6 +882,12 @@ export const TEMPLATES = {
     label: 'Knockout Lock Reminder',
     description: "Sent after the group stage, once the real Round-of-32 teams are seeded into brackets, to nudge users to finalize their knockout winners before the R32 lock (2026-06-28). Explicitly reassures users happy with their bracket that they don't need to change anything — original picks stay saved and scoring. Default eligibility: in the Global Quick Picks League, has email, not opted out — regardless of pick status.",
     build: knockoutReminderTemplate,
+  },
+  knockoutRepick: {
+    id: 'knockoutRepick',
+    label: 'Knockout Re-pick (group-stage chaos)',
+    description: "One-off re-engagement blast for the final group-stage days: the real results have shredded everyone's pre-tournament bracket and the knockout bracket reseeds with the teams that actually advanced. Drives users back to re-pick their knockout winners before the R32 lock. Deep-links to the Global Quick Picks wizard. Default eligibility: in the Global Quick Picks League, has email, not opted out, AND has NOT re-locked their knockout bracket since the real R32 teams were set (drops out the moment they re-save). Result-specific copy is hard-coded — verify against live standings before sending.",
+    build: knockoutRepickTemplate,
   },
 };
 

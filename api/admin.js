@@ -2010,7 +2010,7 @@ export default async function handler(req, res) {
       //    both gate on groupsDone (no picks vs has picks); welcome +
       //    kickoffTomorrow don't care.
       const preds = {};
-      if (template === 'noPicksReminder' || template === 'midTournamentNudge') {
+      if (template === 'noPicksReminder' || template === 'midTournamentNudge' || template === 'knockoutRepick') {
         const compositeIds = userIds.map(uid => `${uid}__global-simple`);
         for (let i = 0; i < compositeIds.length; i += 30) {
           const slice = compositeIds.slice(i, i + 30);
@@ -2077,6 +2077,21 @@ export default async function handler(req, res) {
           // No additional filter beyond email + opt-out — every Global
           // Quick Picks member should get the heads-up that knockout picks
           // are about to lock, whether their bracket is done or not.
+          return { eligible: true };
+        }
+        if (template === 'knockoutRepick') {
+          // Only users who have NOT re-locked their knockout bracket since
+          // the real R32 teams were seeded. A save at/after the reseed
+          // cutoff means they already updated — skip them so the blast
+          // doesn't pester people who've acted. Mirrors the
+          // global_ko_not_resubmitted segment (outreachSegments.js).
+          const KNOCKOUT_REPICK_CUTOFF_MS = Date.UTC(2026, 5, 26, 0, 0, 0);
+          const p = preds[user.id];
+          const upd = p
+            ? (p.updatedAt?.toMillis?.() ?? (p.updatedAt?._seconds ? p.updatedAt._seconds * 1000 : null)
+               ?? p.submittedAt?.toMillis?.() ?? (p.submittedAt?._seconds ? p.submittedAt._seconds * 1000 : null))
+            : null;
+          if (upd != null && upd >= KNOCKOUT_REPICK_CUTOFF_MS) return { eligible: false };
           return { eligible: true };
         }
         if (template === 'midTournamentNudge') {
