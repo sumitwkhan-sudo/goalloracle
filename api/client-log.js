@@ -37,6 +37,11 @@ const ALLOWED_TAGS = new Set([
   'auth.customtoken.error',
   'auth.gis.exchange-start',
   'auth.gis.exchange-complete',
+  // App-wide ErrorBoundary (src/components/ErrorBoundary.jsx) posts the real
+  // render-crash stack here. Was missing from this whitelist, so every render
+  // error was silently 400'd and never reached the logs — defeating the
+  // boundary's whole diagnostic purpose. Allowed now so we capture the stack.
+  'react.render.error',
 ]);
 
 // Tags that also bump the daily /funnelHealth counter. An unauthenticated

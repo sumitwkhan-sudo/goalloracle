@@ -275,11 +275,33 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     return predictedR32TeamSet(groups.predictions, bestThird.picks);
   }, [reseedActive, knockoutOnly, realR32, groups.predictions, bestThird.picks]);
 
+  const bracketState = useBracketState({
+    groupPredictions: groups.predictions,
+    bestThirdPicks: bestThird.picks,
+    knockoutPredictions: frozenInitial?.knockoutPredictions,
+    realR32: reseedActive ? realR32 : null,
+    predictedTeamSet,
+    onChange: (next) => {
+      // Treat picking the Final winner as the user finishing their
+      // bracket — leaderboards key off isComplete and we don't want
+      // users to stay in "In progress" forever just because they
+      // skipped the 3rd-Place match.
+      const finalPick = next?.final?.[0];
+      const finalPicked = !!finalPick?.winnerId;
+      save({ knockoutPredictions: next, isComplete: finalPicked });
+    },
+  });
+
   // ── Sync Global knockout edits to the user's other leagues ──────────
   // While editing the GLOBAL bracket, offer to push the updated knockout picks
   // to every other Quick Picks league the user is in (classic + knockout-only
   // leagues are excluded server-side). They can still fine-tune each league on
   // its own page afterwards.
+  // IMPORTANT: this block must stay AFTER `bracketState` — handleSyncLeagues
+  // closes over it AND lists it in its dependency array, which React evaluates
+  // eagerly during render. Declared above bracketState it throws a TDZ
+  // "Cannot access 'bracketState' before initialization" on every render,
+  // which blanks/crashes the whole wizard.
   const otherSyncableLeagues = useMemo(
     () => (userLeagues || []).filter(
       (l) => l && l.id !== GLOBAL_SIMPLE_ID && l.predictionMode !== 'classic' && !l.knockoutOnly,
@@ -304,23 +326,6 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
       setSyncState({ status: 'error', count: 0 });
     }
   }, [saveNow, bracketState]);
-
-  const bracketState = useBracketState({
-    groupPredictions: groups.predictions,
-    bestThirdPicks: bestThird.picks,
-    knockoutPredictions: frozenInitial?.knockoutPredictions,
-    realR32: reseedActive ? realR32 : null,
-    predictedTeamSet,
-    onChange: (next) => {
-      // Treat picking the Final winner as the user finishing their
-      // bracket — leaderboards key off isComplete and we don't want
-      // users to stay in "In progress" forever just because they
-      // skipped the 3rd-Place match.
-      const finalPick = next?.final?.[0];
-      const finalPicked = !!finalPick?.winnerId;
-      save({ knockoutPredictions: next, isComplete: finalPicked });
-    },
-  });
 
   // Wrap pickWinner so the wizard can: (1) dismiss the first-visit hint
   // tooltip, (2) surface a toast when changing an upstream pick wipes
