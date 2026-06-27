@@ -11,7 +11,8 @@ import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
 import { teamFlags } from './utils/flags';
 import { getRank as getFifaRank } from './data/fifaRankings';
-import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX } from './utils/scoringSimple';
+import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX, scoreGroup, GROUP_STAGE_POINTS_PER_POSITION } from './utils/scoringSimple';
+import { computeLiveStandings } from './utils/liveStandings';
 import { stageLockTimeUtc, formatLockDelta } from './utils/stageLock';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
@@ -185,7 +186,7 @@ function parseRoute() {
 // Read-only modal that shows another user's Simple Mode picks (group rankings,
 // best-third picks, and knockout bracket winners) OR their Classic Mode
 // match-by-match predictions.
-function PicksViewer({ target, onClose, onEdit, onShare, isOwn = false }) {
+function PicksViewer({ target, onClose, onEdit, onShare, isOwn = false, results = {} }) {
   const isClassic = target?.mode === 'classic';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(!isClassic); // classic data comes pre-loaded via target
@@ -313,6 +314,7 @@ function PicksViewer({ target, onClose, onEdit, onShare, isOwn = false }) {
       data={data}
       loading={loading}
       err={err}
+      results={results}
       thirdPlace={thirdPlace}
       groupsLocal={GROUPS_LOCAL}
       roundOrder={roundOrder}
@@ -331,9 +333,14 @@ function PicksViewer({ target, onClose, onEdit, onShare, isOwn = false }) {
 // editing. Extracted into its own component so we can use hooks
 // (useBracketState, useBracketLayout) that the outer PicksViewer can't
 // call before the early classic-mode return.
-function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, groupsLocal, roundOrder, roundLabel, onEdit, onShare, isOwn }) {
+function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPlace, groupsLocal, roundOrder, roundLabel, onEdit, onShare, isOwn }) {
   const [tab, setTab] = useState('groups');
   const layout = useBracketLayout();
+
+  // Actual group standings (live, leaderboard-consistent — same util + ordering
+  // the scoring uses) so we can show, per group, which positions this user got
+  // right and the points each correct pick earned. Only completed groups score.
+  const actualStandings = useMemo(() => computeLiveStandings(results || {}), [results]);
 
   // Pick completeness — computed from the prediction doc itself, so this
   // works pre-tournament without any results data. Post-kickoff we'll
@@ -528,13 +535,32 @@ function PicksViewerBody({ target, onClose, data, loading, err, thirdPlace, grou
                     {groupsLocal.map(g => {
                       const ranking = data.groupPredictions?.[g]?.ranking || [];
                       if (ranking.length === 0) return null;
+                      // Score this group only once its 3 matches are all played
+                      // (mirrors the server's "completed groups only" rule).
+                      const actual = actualStandings[g];
+                      const groupDone = Array.isArray(actual) && actual.length === 4 && actual.every(t => t.played === 3);
+                      const actualNames = groupDone ? actual.map(t => t.name) : null;
+                      const groupPts = actualNames ? scoreGroup(ranking, actualNames) : null;
                       return (
                         <div key={g} className="picks-viewer-group">
-                          <div className="pv-group-title">Group {g}</div>
+                          <div className="pv-group-title">
+                            Group {g}
+                            {groupPts != null && (
+                              <span className={`pv-group-pts${groupPts > 0 ? ' pv-group-pts-pos' : ''}`}>{groupPts}/7 pts</span>
+                            )}
+                          </div>
                           <ol className="pv-group-list">
-                            {ranking.map((t, i) => (
-                              <li key={`${g}-${t || i}`}><span className="pv-rank">{i + 1}.</span> <span className="pv-flag">{_teamFlags[t] || ''}</span> <span className="pv-team">{t || '—'}</span></li>
-                            ))}
+                            {ranking.map((t, i) => {
+                              const correct = actualNames ? actualNames[i] === t : null;
+                              const posPts = GROUP_STAGE_POINTS_PER_POSITION[i + 1] || 0;
+                              return (
+                                <li key={`${g}-${t || i}`} className={correct === true ? 'pv-pick-right' : correct === false ? 'pv-pick-wrong' : ''}>
+                                  <span className="pv-rank">{i + 1}.</span> <span className="pv-flag">{_teamFlags[t] || ''}</span> <span className="pv-team">{t || '—'}</span>
+                                  {correct === true && <span className="pv-pick-badge pv-pick-badge-right"><CheckCircle size={12} aria-hidden="true" /> +{posPts}</span>}
+                                  {correct === false && <span className="pv-pick-badge pv-pick-badge-wrong"><X size={12} aria-hidden="true" /></span>}
+                                </li>
+                              );
+                            })}
                           </ol>
                         </div>
                       );
@@ -802,7 +828,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, isAnonymous = false, onRequireSignup = () => {}, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, isAnonymous = false, onRequireSignup = () => {}, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], results = {}, lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
   const [sTab, setSTab] = useState(initialTab);
   // No-login funnel 'save' prompt: when an anonymous visitor leaves the
   // predictions flow, surface the "keep your picks across devices" sign-up
@@ -1249,6 +1275,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
       {viewingPicks && (
         <PicksViewer
           target={viewingPicks}
+          results={results}
           isOwn={viewingPicks.userId === userData?.id}
           onEdit={viewingPicks.userId === userData?.id ? () => { setViewingPicks(null); setSTab('predictions'); } : undefined}
           onShare={viewingPicks.userId === userData?.id ? sharePublicBracketLink : undefined}
@@ -5438,6 +5465,7 @@ const GoalOracle = () => {
           league={selLeague}
           userData={uData}
           myLeagues={leagues}
+          results={results}
           authenticated={authenticated}
           isAnonymous={isAnonymous}
           onRequireSignup={requireSignup}
@@ -5667,6 +5695,7 @@ const GoalOracle = () => {
             leagueId: viewingOwnBracket.id,
             leagueName: viewingOwnBracket.name,
           }}
+          results={results}
           isOwn
           onEdit={() => {
             const league = viewingOwnBracket;

@@ -2134,7 +2134,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 /* Group rankings grid */
 .picks-viewer-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.6rem; }
 .picks-viewer-group { padding: 0.6rem 0.75rem; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; }
-.pv-group-title { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.4rem; }
+.pv-group-title { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem; }
+/* Per-group points earned + per-position right/wrong markers in the viewer. */
+.pv-group-pts { margin-left: auto; font-weight: 700; letter-spacing: 0; color: var(--text-dim); text-transform: none; }
+.pv-group-pts-pos { color: var(--success, #1a7f37); }
+.pv-group-list li.pv-pick-right .pv-team { font-weight: 700; color: var(--success, #1a7f37); }
+.pv-group-list li.pv-pick-wrong { opacity: 0.6; }
+.pv-pick-badge { margin-left: auto; display: inline-flex; align-items: center; gap: 0.15rem; font-family: var(--mono); font-size: 0.7rem; font-weight: 800; }
+.pv-pick-badge-right { color: var(--success, #1a7f37); }
+.pv-pick-badge-wrong { color: var(--text-dim); }
 .pv-group-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
 .pv-group-list li { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; }
 .pv-rank { font-family: var(--mono); color: var(--text-dim); min-width: 18px; }
