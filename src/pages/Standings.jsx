@@ -29,13 +29,31 @@ const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
 const KO_MATCHES = WORLD_CUP_MATCHES.filter((m) => m.isKnockout);
 const KO_LOOKUP = (() => { const o = {}; for (const m of KO_MATCHES) o[m.id] = m; return o; })();
 
-// Build the ACTUAL knockout bracket tree for the read-only bracket components.
-// Each R32 side resolves INDEPENDENTLY — a confirmed group winner/runner-up
-// shows even when its 3rd-place opponent isn't decided yet — via the per-side
-// `r32` payload (homeReal/awayReal). Later rounds use the both-sides-resolved
-// `knockout` map. pick.winnerId = the real winner, so decided matches render
-// ADV / OUT; undecided sides are null → TBD.
-function buildActualBracketTree(ab) {
+// Resolve a direct-position R32 placeholder ("1st/2nd Group X") against the
+// CURRENT live standings so the bracket previews the projected matchups before
+// groups officially finish (positions update as the final games play). Returns
+// undefined for a non-direct (3rd-place) placeholder, null if the group hasn't
+// started. `final` flags whether the group is mathematically done.
+function resolveDirectLive(placeholder, standings) {
+  const m1 = placeholder?.match(/^1st Group ([A-L])$/i);
+  const m2 = placeholder?.match(/^2nd Group ([A-L])$/i);
+  const letter = m1?.[1] || m2?.[1];
+  if (!letter) return undefined; // a "3rd …" slot — handled via the server payload
+  const rows = standings[letter];
+  if (!rows || rows.length < 4) return { team: null, final: false };
+  const row = rows[m1 ? 0 : 1];
+  if (!row || row.played === 0) return { team: null, final: false };
+  const groupDone = rows.every((t) => t.played === 3);
+  return { team: row.name, final: groupDone };
+}
+
+// Build the knockout bracket tree for the read-only bracket components. R32
+// direct positions come from the LIVE standings (so current group leaders show
+// immediately, updating as games finish); 3rd-place slots use the server's
+// confirmed payload (resolved only once all 12 groups are done). Later rounds
+// use the both-sides-resolved `knockout` map. pick.winnerId = the real winner,
+// so decided matches render ADV / OUT.
+function buildLiveBracketTree(standings, ab) {
   const r32 = ab?.r32 || {};
   const knockout = ab?.knockout || {};
   const koRes = ab?.knockoutResults || {};
@@ -46,9 +64,10 @@ function buildActualBracketTree(ab) {
     let home = null;
     let away = null;
     if (m.id.startsWith('r32-')) {
-      const s = r32[m.id] || {};
-      home = s.homeReal ? s.home : null;
-      away = s.awayReal ? s.away : null;
+      const dh = resolveDirectLive(m.home, standings);
+      home = dh !== undefined ? dh.team : (r32[m.id]?.homeReal ? r32[m.id].home : null);
+      const da = resolveDirectLive(m.away, standings);
+      away = da !== undefined ? da.team : (r32[m.id]?.awayReal ? r32[m.id].away : null);
     } else {
       const s = knockout[m.id] || {};
       home = s.home || null;
@@ -204,18 +223,17 @@ function ThirdsLadder({ standings, allComplete, compare, bestThirdPicks }) {
 // components). Teams fill in per-side as groups + earlier rounds decide;
 // decided matches show ADV / OUT. Desktop = full tree with connectors;
 // mobile = round-by-round.
-function KnockoutView({ actualBracket }) {
+function KnockoutView({ actualBracket, standings }) {
   const layout = useBracketLayout();
-  const tree = useMemo(() => buildActualBracketTree(actualBracket), [actualBracket]);
-  const r32 = actualBracket?.r32 || {};
-  const anyResolved = Object.values(r32).some((s) => s && (s.homeReal || s.awayReal));
+  const tree = useMemo(() => buildLiveBracketTree(standings, actualBracket), [standings, actualBracket]);
+  const anyTeams = tree.roundOf32.some((s) => s.home || s.away);
 
   return (
     <div className="wcs-ko">
-      {!anyResolved ? (
-        <div className="wcs-note">The knockouts haven’t been seeded yet — real teams drop in here as the group stage finishes.</div>
+      {!anyTeams ? (
+        <div className="wcs-note">The knockouts haven’t been seeded yet — teams drop in here as the group stage gets going.</div>
       ) : (
-        <p className="wcs-ko-hint">Teams fill in as groups finish. Third-place slots are confirmed once all 12 groups are done.</p>
+        <p className="wcs-ko-hint">Live projection from the current tables — 1st/2nd-place slots update as the final group games play; 3rd-place slots confirm once all 12 groups finish.</p>
       )}
       <div className="wcs-ko-bracket">
         {layout === 'desktop' ? (
@@ -419,7 +437,7 @@ export default function Standings({ results = {}, userId, authenticated = false,
           />
         </>
       ) : tab === 'knockouts' ? (
-        <KnockoutView actualBracket={actualBracket} />
+        <KnockoutView actualBracket={actualBracket} standings={standings} />
       ) : (
         <ResultsViewLive results={merged} />
       )}
