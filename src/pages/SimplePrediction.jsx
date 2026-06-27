@@ -32,10 +32,10 @@ import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import { predictedAdvancers } from '../utils/scoringSimple';
-import { computeLiveStandings, projectRealR32, eliminatedTeams } from '../utils/liveStandings';
+import { computeLiveStandings, projectRealR32, eliminatedTeams, mergeLiveScores } from '../utils/liveStandings';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
-import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
+import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, fetchLiveScores, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
@@ -269,12 +269,19 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // the global reseed flag) — that's its whole premise.
   const wantRealBracket = reseedFlag || knockoutOnly;
   const [realBracket, setRealBracket] = useState(null);
+  // In-progress scores feed (/api/live-scores). The freshest qualified-team
+  // picture lives here — a game's result reaches matchResults only once the
+  // poll-results cron reads FINISHED, so the wizard must merge this feed (the
+  // same way the Standings page does) or its bracket lags behind / shows the
+  // user's predicted teams. Poll only while we actually want the real bracket.
+  const [liveScores, setLiveScores] = useState({});
   useEffect(() => {
-    if (!wantRealBracket) { setRealBracket(null); return; }
+    if (!wantRealBracket) { setRealBracket(null); setLiveScores({}); return; }
     let cancelled = false;
-    const load = async () => { const d = await fetchActualBracket(); if (!cancelled) setRealBracket(d); };
-    load();
-    const t = setInterval(load, 60000);
+    const loadBracket = async () => { const d = await fetchActualBracket(); if (!cancelled) setRealBracket(d); };
+    const loadLive = async () => { const l = await fetchLiveScores(); if (!cancelled) setLiveScores(l || {}); };
+    loadBracket(); loadLive();
+    const t = setInterval(() => { loadBracket(); loadLive(); }, 60000);
     return () => { cancelled = true; clearInterval(t); };
   }, [wantRealBracket]);
   // Real R32 for the bracket. Project the direct 1st/2nd-place sides from the
@@ -282,9 +289,12 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // of waiting for the server to mark a slot real only once its whole group is
   // mathematically complete (which left the bracket showing predicted teams
   // through the final group matchday). 3rd-place sides still come from the
-  // server payload (Annexe C needs all groups done). Display/pick only —
-  // scoring runs server-side off the final results.
-  const liveStandings = useMemo(() => computeLiveStandings(results || {}), [results]);
+  // server payload (Annexe C needs all groups done). Standings come from the
+  // SAME merged source the Results page uses (matchResults + the live feed), so
+  // the wizard bracket matches it exactly. Display/pick only — scoring runs
+  // server-side off the final results.
+  const merged = useMemo(() => mergeLiveScores(results || {}, liveScores || {}), [results, liveScores]);
+  const liveStandings = useMemo(() => computeLiveStandings(merged), [merged]);
   const realR32 = useMemo(
     () => (wantRealBracket ? projectRealR32(liveStandings, realBracket?.r32 || {}) : null),
     [wantRealBracket, liveStandings, realBracket],
