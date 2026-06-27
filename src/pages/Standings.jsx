@@ -96,6 +96,64 @@ function GroupCard({ letter, rows, compare, pred, live = false }) {
   );
 }
 
+// ─── Best 3rd-placed teams ladder (top 8 of 12 advance) ─────────────
+// Ranks every group's 3rd-placed team against each other (points → GD → GF),
+// mirroring the cross-group order the bracket resolver uses for Annexe C. The
+// top 8 advance to the Round of 32; positions are provisional until all groups
+// finish. Optionally marks the groups the user picked as best-thirds (compare).
+function ThirdsLadder({ standings, allComplete, compare, bestThirdPicks }) {
+  const thirds = GROUP_LETTERS
+    .map((g) => { const row = standings[g]?.[2]; return row ? { ...row, group: g } : null; })
+    .filter((t) => t && t.played > 0);
+  if (thirds.length === 0) return null;
+  thirds.sort((a, b) => (b.pts - a.pts) || (b.gd - a.gd) || (b.gf - a.gf) || a.group.localeCompare(b.group));
+  const picks = compare && Array.isArray(bestThirdPicks) ? new Set(bestThirdPicks) : null;
+
+  return (
+    <div className="wcs-thirds">
+      <div className="wcs-thirds-head">
+        <Trophy size={14} aria-hidden="true" />
+        <span className="wcs-thirds-title">Best third-placed teams</span>
+        <span className="wcs-thirds-note">
+          Top 8 of 12 reach the Round of 32{allComplete ? '' : ' · provisional until groups finish'}
+        </span>
+      </div>
+      <div className="wcs-table wcs-thirds-table">
+        <div className="wcs-trow wcs-thead">
+          <span className="wcs-c-pos">#</span>
+          <span className="wcs-c-grp">Grp</span>
+          <span className="wcs-c-team">Team</span>
+          <span className="wcs-c-num">P</span>
+          <span className="wcs-c-num">GD</span>
+          <span className="wcs-c-num wcs-c-pts">Pts</span>
+          <span className="wcs-c-adv" aria-hidden="true" />
+        </div>
+        {thirds.map((t, i) => {
+          const adv = i < 8;
+          const youPicked = picks?.has(t.group);
+          return (
+            <div key={t.group} className={`wcs-trow ${adv ? 'wcs-q-top' : 'wcs-q-out'}`}>
+              <span className="wcs-c-pos"><span className="wcs-pos-bar" />{i + 1}</span>
+              <span className="wcs-c-grp">{t.group}</span>
+              <span className="wcs-c-team">
+                <span className="wcs-flag" aria-hidden="true">{flagOf(t.name)}</span>
+                <span className="wcs-team-name">{t.name}</span>
+              </span>
+              <span className="wcs-c-num">{t.played}</span>
+              <span className="wcs-c-num">{t.gd > 0 ? `+${t.gd}` : t.gd}</span>
+              <span className="wcs-c-num wcs-c-pts">{t.pts}</span>
+              <span className="wcs-c-adv">
+                {adv && <span className="wcs-adv-pill">ADV</span>}
+                {youPicked && <span className="wcs-adv-you" title="You picked this group's 3rd to advance">You</span>}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Match results view (grouped by date) ──────────────────────────
 export default function Standings({ results = {}, userId, authenticated = false, leagues = [], onSignIn }) {
   const [tab, setTab] = useState('standings'); // 'standings' | 'results'
@@ -247,6 +305,12 @@ export default function Standings({ results = {}, userId, authenticated = false,
               />
             ))}
           </div>
+          <ThirdsLadder
+            standings={standings}
+            allComplete={GROUP_LETTERS.every((g) => standings[g]?.length === 4 && standings[g].every((t) => t.played === 3))}
+            compare={compare && hasBracket}
+            bestThirdPicks={activeBracket && activeBracket !== 'loading' ? activeBracket.bestThirdPicks : null}
+          />
         </>
       ) : (
         <ResultsViewLive results={merged} />

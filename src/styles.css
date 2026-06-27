@@ -11125,6 +11125,18 @@ ol.legal-list li { margin-bottom: 0.35rem; }
 .wcs-q-third .wcs-pos-bar { background: #ffb020; }
 .wcs-q-out .wcs-pos-bar { background: transparent; }
 .wcs-correct { background: rgba(0,200,83,0.09); }
+
+/* Best 3rd-placed teams ladder */
+.wcs-thirds { margin-top: 1.1rem; background: var(--surface, rgba(127,127,127,0.04)); border: 1px solid var(--border); border-radius: 14px; padding: 0.4rem 0.5rem 0.6rem; }
+.wcs-thirds-head { display: flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.55rem; flex-wrap: wrap; }
+.wcs-thirds-head svg { color: #ffb020; }
+.wcs-thirds-title { font-weight: 800; font-size: 0.92rem; }
+.wcs-thirds-note { margin-left: auto; font-size: 0.7rem; color: var(--text-dim); }
+.wcs-thirds-table .wcs-trow { grid-template-columns: 26px 30px minmax(80px,1fr) 26px 34px 36px 66px; }
+.wcs-c-grp { text-align: center; font-family: var(--mono); font-weight: 700; color: var(--text-sec); }
+.wcs-c-adv { display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; }
+.wcs-adv-pill { font-family: var(--mono); font-size: 0.55rem; font-weight: 700; padding: 0.1rem 0.35rem; border-radius: 999px; background: rgba(0,200,83,0.18); color: var(--success, #00c853); letter-spacing: 0.06em; }
+.wcs-adv-you { font-family: var(--mono); font-size: 0.55rem; font-weight: 700; padding: 0.1rem 0.3rem; border-radius: 999px; background: rgba(0,212,255,0.16); color: var(--cyan); }
 .wcs-pick-chip {
   display: inline-flex; align-items: center; justify-content: center; gap: 2px;
   min-width: 22px; height: 18px; padding: 0 5px; border-radius: 6px;
