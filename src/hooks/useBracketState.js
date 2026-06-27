@@ -106,7 +106,9 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
     // to advance is locked — they can't pick it. `*Earned` is only set on R32
     // slots in reseed mode; it's undefined elsewhere (=> not blocked).
     const earned = winnerTeam === slot.home ? slot.homeEarned : slot.awayEarned;
-    if (earned === false) return { cleared: 0 };
+    // Signal the rejection (instead of a silent no-op) so the wizard can
+    // explain WHY — a hover title on web + a toast on mobile.
+    if (earned === false) return { cleared: 0, blocked: 'not-earned', team: winnerTeam };
     const loser = winnerTeam === slot.home ? slot.away : slot.home;
 
     // If the user is *changing* a previously-set winner, count how many

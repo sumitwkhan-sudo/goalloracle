@@ -19,11 +19,12 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
   const homeSelected = winnerId && winnerId === homeTeam;
   const awaySelected = winnerId && winnerId === awayTeam;
 
-  const handlePick = (team, teamEarned) => {
+  const handlePick = (team) => {
     if (readOnly || isLocked || !team || !homeTeam || !awayTeam) return;
-    // Knockout-real-reseed: a real team the user never predicted to advance is
-    // locked — can't be advanced.
-    if (teamEarned === false) return;
+    // A non-earned (locked) team is NOT short-circuited here: we let the tap
+    // reach onPick so the wizard can explain WHY it's locked (pickWinner
+    // rejects the pick and returns a 'blocked' signal → a toast on mobile,
+    // alongside the hover title on web). The row keeps its locked styling.
     onPick && onPick(team);
   };
 
@@ -60,10 +61,15 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
       <button
         type="button"
         className={`${rowClass(isWinner, isLoser, isTBD)}${notEarned ? ' not-earned' : ''}`}
-        onClick={() => handlePick(team, earned)}
-        disabled={isLocked || !homeTeam || !awayTeam || notEarned}
+        onClick={() => handlePick(team)}
+        // Locked (not-earned) rows stay tappable so we can explain why on tap;
+        // disabled only for genuinely un-pickable states (locked stage / TBD).
+        // Encode the locked reason in the accessible NAME (not aria-disabled,
+        // which would tell SR users it's inert and they'd never tap to hear it).
+        disabled={isLocked || !homeTeam || !awayTeam}
         aria-pressed={!!isWinner}
-        title={notEarned ? "You didn't pick this team to reach the knockouts" : undefined}
+        aria-label={notEarned ? `${team} — locked: you didn't pick this team to reach the knockouts` : undefined}
+        title={notEarned ? `You didn't pick ${team} to reach the knockouts` : undefined}
       >
         <span className="bracket-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
         <span className="bracket-row-name">{team || 'TBD'}</span>

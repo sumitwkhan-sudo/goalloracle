@@ -275,6 +275,22 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     return predictedR32TeamSet(groups.predictions, bestThird.picks);
   }, [reseedActive, knockoutOnly, realR32, groups.predictions, bestThird.picks]);
 
+  // How many of the teams the user predicted to reach the knockouts actually
+  // made it — i.e. how many of the real R32 teams are on their bracket (and so
+  // are advanceable). Null until the real bracket has resolved teams.
+  const reseedHitCount = useMemo(() => {
+    if (!reseedActive || knockoutOnly || !predictedTeamSet) return null;
+    const realTeams = new Set();
+    for (const s of Object.values(realR32 || {})) {
+      if (s?.homeReal && s.home) realTeams.add(s.home);
+      if (s?.awayReal && s.away) realTeams.add(s.away);
+    }
+    if (realTeams.size === 0) return null;
+    let hit = 0;
+    for (const t of realTeams) if (predictedTeamSet.has(t)) hit += 1;
+    return { hit, total: realTeams.size };
+  }, [reseedActive, knockoutOnly, realR32, predictedTeamSet]);
+
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
@@ -333,6 +349,16 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // already filled went blank.
   const pickWinnerWithFeedback = useCallback((matchId, winnerTeam) => {
     const result = bracketState.pickWinner(matchId, winnerTeam) || {};
+    // Locked team (a real knockout team the user never predicted to advance):
+    // explain why they can't pick it — works on mobile (tap → toast) alongside
+    // the hover title on web. Not a real edit, so don't trip the sync prompt.
+    if (result.blocked === 'not-earned') {
+      if (bracketHintVisible) dismissBracketHint();
+      if (cascadeToastTimer.current) clearTimeout(cascadeToastTimer.current);
+      setCascadeToast(`${result.team || 'That team'} isn’t on your bracket — you can only pick teams you predicted to reach the knockouts.`);
+      cascadeToastTimer.current = setTimeout(() => setCascadeToast(null), 4000);
+      return result;
+    }
     // Editing the Global bracket → surface the "apply to my other leagues"
     // prompt, and reset any prior "done" state so a fresh edit can re-apply.
     if (canSyncLeagues) {
@@ -990,6 +1016,14 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
 
           {reseedActive && !knockoutOnly && (
             <div className="bracket-reseed-note">
+              {reseedHitCount && (
+                <>
+                  <strong>{reseedHitCount.hit} of your picks made the knockouts.</strong>{' '}
+                  You called {reseedHitCount.hit} of the {reseedHitCount.total} teams now in the bracket — those
+                  are the ones you can advance.
+                  <br />
+                </>
+              )}
               <strong>Your bracket now shows the real teams.</strong> Finished groups are locked to
               the actual result — advance any team you correctly called to the knockouts; teams you
               didn’t pick are <span className="bracket-reseed-locked">greyed out</span>. Third-place
