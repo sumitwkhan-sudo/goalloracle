@@ -108,6 +108,10 @@ function pickResumeStep(initialData, explicitStep, league) {
   // the bracket (step 3).
   if (league?.knockoutOnly) return 3;
   if (explicitStep && explicitStep > 1) return explicitStep;
+  // Once the group stage has locked, group rankings + best-thirds are frozen
+  // (read-only) — the only thing left to edit is the knockout bracket. Land
+  // straight on it so "Edit picks" opens the knockouts, not a locked Step 1.
+  if (isStageLocked('groupStage')) return 3;
   if (!initialData) return 1;
   // Step 1: ranking incomplete → resume on Step 1.
   const groups = initialData.groupPredictions || {};
@@ -222,22 +226,35 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationChampion, setCelebrationChampion] = useState({ name: null, flag: null });
 
+  // Group rankings + best-thirds freeze when the group stage locks (kickoff).
+  // The wizard must render those steps read-only then — otherwise a user can
+  // drag a locked group, the save is rejected, and it "reverts on refresh".
+  const groupStageLocked = isStageLocked('groupStage');
+
+  // A participant who has no group predictions and arrives after the group
+  // stage has locked (e.g. a new "Enter free" entrant) can't make group or
+  // best-third picks — there's nothing for them to do there. Treat them like a
+  // knockout-only player: skip straight to the bracket, pre-filled with the
+  // real teams, every team pickable + scoring. Existing users who DID predict
+  // groups keep their group/best-third scoring and the predicted-teams
+  // knockout restriction (effectiveKnockoutOnly stays false for them).
+  const hasGroupPicks = Object.values(frozenInitial?.groupPredictions || {}).some(
+    (g) => Array.isArray(g?.ranking) && g.ranking.filter(Boolean).length > 0,
+  );
+  const effectiveKnockoutOnly = knockoutOnly || (groupStageLocked && !hasGroupPicks);
+
   // #6 — First-visit coach overlay. Only shows when a user hasn't dismissed
   // it yet AND they don't already have picks (so existing users in the
   // middle of editing their bracket don't get nagged). One-shot per browser.
   const [coachVisible, setCoachVisible] = useState(() => {
     if (hasSeenWizardTutorial()) return false;
     if (frozenInitial?.isComplete) return false;
-    // Knockout-only leagues have no group/thirds steps — the 3-step coach
-    // walkthrough would describe a flow the user never sees.
-    if (knockoutOnly) return false;
+    // No group/best-third steps to walk through for a knockout-only flow (a
+    // real knockout league OR a new post-group-lock entrant) — the 3-step
+    // coach would describe a flow the user never sees.
+    if (effectiveKnockoutOnly) return false;
     return true;
   });
-
-  // Group rankings + best-thirds freeze when the group stage locks (kickoff).
-  // The wizard must render those steps read-only then — otherwise a user can
-  // drag a locked group, the save is rejected, and it "reverts on refresh".
-  const groupStageLocked = isStageLocked('groupStage');
 
   // ── Knockout-real-reseed (flag-gated) ───────────────────────────────
   // When the founder enables `knockoutRealReseed`, the bracket reflects the
@@ -262,9 +279,12 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   const reseedActive = !!realR32 && Object.values(realR32).some((s) => s && (s.homeReal || s.awayReal));
   const predictedTeamSet = useMemo(() => {
     if (!reseedActive) return null;
-    // Knockout-only: every real R32 team is pickable (no group prediction to
-    // restrict the pool). Build the "earned" set from ALL resolved real teams.
-    if (knockoutOnly) {
+    // Knockout-only (incl. a new no-group-picks entrant): every real R32 team
+    // is pickable AND scores (there's no group prediction to restrict by).
+    // Build the "earned" set from ALL resolved real teams so nothing is marked
+    // "won't score" — matching the scorer, where an empty advancers set means
+    // no restriction.
+    if (effectiveKnockoutOnly) {
       const all = new Set();
       for (const s of Object.values(realR32 || {})) {
         if (s?.home) all.add(s.home);
@@ -277,13 +297,13 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     // the same direct, routing-free set the scorer uses (predictedAdvancers in
     // scoringSimple.js) so the UI marking and the points always agree.
     return predictedAdvancers(groups.predictions, bestThird.picks);
-  }, [reseedActive, knockoutOnly, realR32, groups.predictions, bestThird.picks]);
+  }, [reseedActive, effectiveKnockoutOnly, realR32, groups.predictions, bestThird.picks]);
 
   // How many of the teams the user predicted to reach the knockouts actually
   // made it — i.e. how many of the real R32 teams are on their bracket (and so
   // are advanceable). Null until the real bracket has resolved teams.
   const reseedHitCount = useMemo(() => {
-    if (!reseedActive || knockoutOnly || !predictedTeamSet) return null;
+    if (!reseedActive || effectiveKnockoutOnly || !predictedTeamSet) return null;
     const realTeams = new Set();
     for (const s of Object.values(realR32 || {})) {
       if (s?.homeReal && s.home) realTeams.add(s.home);
@@ -293,7 +313,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     let hit = 0;
     for (const t of realTeams) if (predictedTeamSet.has(t)) hit += 1;
     return { hit, total: realTeams.size };
-  }, [reseedActive, knockoutOnly, realR32, predictedTeamSet]);
+  }, [reseedActive, effectiveKnockoutOnly, realR32, predictedTeamSet]);
 
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
@@ -442,7 +462,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     // Unchanged sections that have already locked are a no-op server-side
     // (lockedSectionsInUpdate only flags *changed* locked sections), so this
     // is safe after a stage locks.
-    await saveNow(knockoutOnly
+    await saveNow(effectiveKnockoutOnly
       ? {
           // Knockout-only leagues have no group/thirds sections — persist only
           // the bracket so the doc never carries empty group data.
@@ -805,7 +825,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         </div>
       )}
 
-      {copyBanner !== 'prompt' && !knockoutOnly && (
+      {copyBanner !== 'prompt' && !effectiveKnockoutOnly && (
         <StepProgress current={step} completed={completedSteps} onStepClick={handleStepClick} />
       )}
 
@@ -932,7 +952,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         <section className="simple-step-section">
           <div className="simple-step-intro">
             <div className="simple-step-intro-head">
-              <h2>{knockoutOnly ? 'Knockout bracket' : 'Step 3 — Knockouts'}</h2>
+              <h2>{effectiveKnockoutOnly ? 'Knockout bracket' : 'Step 3 — Knockouts'}</h2>
               <span className="simple-bracket-save-pill" aria-live="polite">
                 {error ? (
                   <><AlertTriangle size={14} /> Save failed</>
@@ -945,7 +965,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
                 )}
               </span>
             </div>
-            <p>{knockoutOnly
+            <p>{effectiveKnockoutOnly
               ? 'Pick the winner of each match, from the real Round of 32 through to the Final. The bracket fills forward as you go.'
               : 'Pick the winner of each match. The bracket fills forward as you go.'}</p>
           </div>
@@ -961,7 +981,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               shouldn't have to scroll all the way down to find the
               Save & finish button. Reset stays at the bottom only. */}
           <div className="simple-step-nav simple-step-nav-top simple-step-nav-split">
-            {knockoutOnly ? <span /> : (
+            {effectiveKnockoutOnly ? <span /> : (
               <button type="button" className="btn btn-secondary" onClick={() => goToStep(2)}>
                 <ArrowLeft size={16} /> Back
               </button>
@@ -1019,7 +1039,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             </div>
           )}
 
-          {knockoutOnly && !reseedActive && (
+          {effectiveKnockoutOnly && !reseedActive && (
             <div className="bracket-reseed-note">
               <strong>Setting up the Round of 32…</strong> This league starts from the real bracket.
               As the group stage wraps up, the actual 32 teams drop in here — check back shortly if any
@@ -1027,7 +1047,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             </div>
           )}
 
-          {reseedActive && knockoutOnly && (
+          {reseedActive && effectiveKnockoutOnly && (
             <div className="bracket-reseed-note">
               <strong>Knockout league — pure bracket.</strong> Your bracket is pre-filled with the real
               Round of 32, the same 32 teams for everyone. Pick winners through to the Final. No group
@@ -1035,7 +1055,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             </div>
           )}
 
-          {reseedActive && !knockoutOnly && (
+          {reseedActive && !effectiveKnockoutOnly && (
             <div className="bracket-reseed-note">
               {reseedHitCount && (
                 <>
@@ -1109,7 +1129,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
           })()}
 
           <div className="simple-step-nav simple-step-nav-split">
-            {knockoutOnly ? <span /> : (
+            {effectiveKnockoutOnly ? <span /> : (
               <button type="button" className="btn btn-secondary" onClick={() => goToStep(2)}>
                 <ArrowLeft size={16} /> Back to best third
               </button>

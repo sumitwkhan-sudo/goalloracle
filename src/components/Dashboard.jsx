@@ -422,7 +422,13 @@ function FirstTimeBanner({ ml, nav }) {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
-  const diff = Math.max(0, stageLockTimeUtc('groupStage') - now);
+  // Once the group stage has locked, a new entrant can't make group or
+  // best-third picks — they go straight to the knockout bracket, pre-filled
+  // with the real teams. Count down to the R32 lock and describe the
+  // knockout-only flow instead of group ranking.
+  const groupLocked = stageLockTimeUtc('groupStage') <= now;
+  const deadlineMs = groupLocked ? stageLockTimeUtc('roundOf32') : stageLockTimeUtc('groupStage');
+  const diff = Math.max(0, deadlineMs - now);
   const days = Math.floor(diff / 86_400_000);
   const hours = Math.floor((diff % 86_400_000) / 3_600_000);
   const minutes = Math.floor((diff % 3_600_000) / 60_000);
@@ -443,20 +449,28 @@ function FirstTimeBanner({ ml, nav }) {
         </div>
         <div className="td-fp-countdown" aria-live="polite">
           <span aria-hidden="true">⏱</span>
-          <span>Locks in <b>{days}d {String(hours).padStart(2, '0')}h {String(minutes).padStart(2, '0')}m</b></span>
+          <span>{groupLocked ? 'Bracket locks' : 'Locks'} in <b>{days}d {String(hours).padStart(2, '0')}h {String(minutes).padStart(2, '0')}m</b></span>
         </div>
       </div>
       <div className="td-fp-steps">
-        <div className="td-fp-steps-title">Steps to enter</div>
-        <ol className="td-fp-list">
-          <li><span className="td-fp-num">1</span><span className="td-fp-step-title">Rank the 12 groups</span><span className="td-fp-step-time">~1 min</span></li>
-          <li><span className="td-fp-num">2</span><span className="td-fp-step-title">Pick the 8 best 3rd-places</span><span className="td-fp-step-time">~30 sec</span></li>
-          <li><span className="td-fp-num">3</span><span className="td-fp-step-title">Fill the bracket to the Final</span><span className="td-fp-step-time">~90 sec</span></li>
-        </ol>
+        <div className="td-fp-steps-title">{groupLocked ? 'How it works' : 'Steps to enter'}</div>
+        {groupLocked ? (
+          <ol className="td-fp-list">
+            <li><span className="td-fp-num">1</span><span className="td-fp-step-title">The real Round of 32 is pre-filled for you</span><span className="td-fp-step-time" /></li>
+            <li><span className="td-fp-num">2</span><span className="td-fp-step-title">Pick the winner of every knockout match</span><span className="td-fp-step-time">~2 min</span></li>
+            <li><span className="td-fp-num">3</span><span className="td-fp-step-title">Reach the Final and lock it in</span><span className="td-fp-step-time" /></li>
+          </ol>
+        ) : (
+          <ol className="td-fp-list">
+            <li><span className="td-fp-num">1</span><span className="td-fp-step-title">Rank the 12 groups</span><span className="td-fp-step-time">~1 min</span></li>
+            <li><span className="td-fp-num">2</span><span className="td-fp-step-title">Pick the 8 best 3rd-places</span><span className="td-fp-step-time">~30 sec</span></li>
+            <li><span className="td-fp-num">3</span><span className="td-fp-step-title">Fill the bracket to the Final</span><span className="td-fp-step-time">~90 sec</span></li>
+          </ol>
+        )}
       </div>
       <div className="td-fp-action">
         <button type="button" className="td-fp-cta" onClick={startWizard}>
-          Start predicting · ~3 min <ChevronRight size={14} />
+          {groupLocked ? 'Pick my knockout bracket' : 'Start predicting · ~3 min'} <ChevronRight size={14} />
         </button>
         <div className="td-fp-foot">Auto-saves as you go</div>
       </div>
