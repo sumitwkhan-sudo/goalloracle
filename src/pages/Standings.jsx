@@ -19,26 +19,52 @@ import { computeLiveStandings, GROUP_LETTERS, countGroupMatchesPlayed, mergeLive
 import { scoreGroup, GROUP_STAGE_MAX_PER_GROUP } from '../utils/scoringSimple';
 import { getSimplePrediction, fetchLiveScores, fetchActualBracket } from '../utils/db';
 import { GitBranch } from 'lucide-react';
+import BracketDesktop from '../components/simple/BracketDesktop';
+import BracketMobile from '../components/simple/BracketMobile';
+import useBracketLayout from '../hooks/useBracketLayout';
+import { getRoundForMatchId } from '../utils/bracketUtils';
 
 const flagOf = (name) => TEAM_COLORS[name]?.flag || '🏳️';
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
 const KO_MATCHES = WORLD_CUP_MATCHES.filter((m) => m.isKnockout);
+const KO_LOOKUP = (() => { const o = {}; for (const m of KO_MATCHES) o[m.id] = m; return o; })();
 
-// Knockout rounds in order, each with the matchIds it owns.
-const KO_ROUNDS = [
-  { label: 'Round of 32', test: (id) => id.startsWith('r32-') },
-  { label: 'Round of 16', test: (id) => id.startsWith('r16-') },
-  { label: 'Quarter-finals', test: (id) => id.startsWith('qf-') },
-  { label: 'Semi-finals', test: (id) => id.startsWith('sf-') },
-  { label: '3rd-place Playoff', test: (id) => id === '3rd' },
-  { label: 'Final', test: (id) => id === 'final' },
-];
-
-// Tidy the matches.js placeholder labels for unresolved sides
-// ("W R32-01" → "Winner R32-01", "L SF-01" → "Loser SF-01").
-function humanizePlaceholder(s) {
-  if (!s) return 'TBD';
-  return s.replace(/^W /, 'Winner ').replace(/^L /, 'Loser ');
+// Build the ACTUAL knockout bracket tree for the read-only bracket components.
+// Each R32 side resolves INDEPENDENTLY — a confirmed group winner/runner-up
+// shows even when its 3rd-place opponent isn't decided yet — via the per-side
+// `r32` payload (homeReal/awayReal). Later rounds use the both-sides-resolved
+// `knockout` map. pick.winnerId = the real winner, so decided matches render
+// ADV / OUT; undecided sides are null → TBD.
+function buildActualBracketTree(ab) {
+  const r32 = ab?.r32 || {};
+  const knockout = ab?.knockout || {};
+  const koRes = ab?.knockoutResults || {};
+  const out = { roundOf32: [], roundOf16: [], quarterFinals: [], semiFinals: [], thirdPlace: [], final: [] };
+  for (const m of KO_MATCHES) {
+    const round = getRoundForMatchId(m.id);
+    if (!round || !out[round]) continue;
+    let home = null;
+    let away = null;
+    if (m.id.startsWith('r32-')) {
+      const s = r32[m.id] || {};
+      home = s.homeReal ? s.home : null;
+      away = s.awayReal ? s.away : null;
+    } else {
+      const s = knockout[m.id] || {};
+      home = s.home || null;
+      away = s.away || null;
+    }
+    const winnerId = koRes[m.id]?.winnerId || null;
+    out[round].push({
+      matchId: m.id,
+      home,
+      away,
+      homeFlag: home ? flagOf(home) : null,
+      awayFlag: away ? flagOf(away) : null,
+      pick: winnerId ? { winnerId, loserId: winnerId === home ? away : home } : null,
+    });
+  }
+  return out;
 }
 
 // ─── A single group's standings card ───────────────────────────────
@@ -174,70 +200,44 @@ function ThirdsLadder({ standings, allComplete, compare, bestThirdPicks }) {
 }
 
 // ─── Knockout bracket view ─────────────────────────────────────────
-// Every knockout fixture by round. Resolved sides show the real team + flag as
-// groups finish / earlier rounds are decided; unresolved sides show the tidy
-// placeholder (e.g. "2nd Group A", "Winner R32-01"). Scores + winners fill in
-// (incl. penalty shootouts) as results are confirmed.
-function KnockoutView({ knockout = {}, results = {} }) {
-  const anyResolved = Object.keys(knockout).length > 0;
+// The REAL knockout bracket as a tree (reusing the read-only bracket
+// components). Teams fill in per-side as groups + earlier rounds decide;
+// decided matches show ADV / OUT. Desktop = full tree with connectors;
+// mobile = round-by-round.
+function KnockoutView({ actualBracket }) {
+  const layout = useBracketLayout();
+  const tree = useMemo(() => buildActualBracketTree(actualBracket), [actualBracket]);
+  const r32 = actualBracket?.r32 || {};
+  const anyResolved = Object.values(r32).some((s) => s && (s.homeReal || s.awayReal));
+
   return (
     <div className="wcs-ko">
-      {!anyResolved && (
+      {!anyResolved ? (
         <div className="wcs-note">The knockouts haven’t been seeded yet — real teams drop in here as the group stage finishes.</div>
+      ) : (
+        <p className="wcs-ko-hint">Teams fill in as groups finish. Third-place slots are confirmed once all 12 groups are done.</p>
       )}
-      {KO_ROUNDS.map((round) => {
-        const ms = KO_MATCHES.filter((m) => round.test(m.id))
-          .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-        if (ms.length === 0) return null;
-        return (
-          <div key={round.label} className="wcs-ko-round">
-            <div className="wcs-ko-round-head">{round.label}</div>
-            <div className="wcs-ko-matches">
-              {ms.map((m) => {
-                const resolved = knockout[m.id] || {};
-                const homeReal = !!resolved.home;
-                const awayReal = !!resolved.away;
-                const home = resolved.home || humanizePlaceholder(m.home);
-                const away = resolved.away || humanizePlaceholder(m.away);
-                const r = results[m.id];
-                const hasScore = r && typeof r.homeScore === 'number' && typeof r.awayScore === 'number';
-                const live = !!r?.live;
-                const done = hasScore && !live;
-                let hWin = false, aWin = false;
-                if (done) {
-                  if (r.homeScore > r.awayScore) hWin = true;
-                  else if (r.awayScore > r.homeScore) aWin = true;
-                  else { // level after 90/120 → penalties
-                    const ph = r.penHome || 0, pa = r.penAway || 0;
-                    if (ph > pa) hWin = true; else if (pa > ph) aWin = true;
-                  }
-                }
-                const dateLabel = new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                return (
-                  <div key={m.id} className={`wcs-ko-match ${live ? 'wcs-match-islive' : ''}`}>
-                    <div className="wcs-ko-meta"><span>{m.city}</span><span>{dateLabel}</span></div>
-                    <div className={`wcs-ko-team ${hWin ? 'is-win' : ''} ${homeReal ? '' : 'is-tbd'}`}>
-                      <span className="wcs-flag" aria-hidden="true">{homeReal ? flagOf(home) : '·'}</span>
-                      <span className="wcs-ko-name">{home}</span>
-                    </div>
-                    <div className="wcs-ko-score">
-                      {hasScore
-                        ? <span className={`wcs-score ${live ? 'wcs-score-live' : ''}`}>{r.homeScore}<span className="wcs-score-dash">–</span>{r.awayScore}</span>
-                        : <span className="wcs-match-time">{m.time}</span>}
-                      {done && (r.penHome || r.penAway) ? <span className="wcs-ko-pens">pens {r.penHome}-{r.penAway}</span> : null}
-                      <span className={`wcs-match-state ${live ? 'wcs-state-live' : ''}`}>{live ? (r.minute ? `${r.minute}'` : 'LIVE') : (done ? 'FT' : '')}</span>
-                    </div>
-                    <div className={`wcs-ko-team ${aWin ? 'is-win' : ''} ${awayReal ? '' : 'is-tbd'}`}>
-                      <span className="wcs-flag" aria-hidden="true">{awayReal ? flagOf(away) : '·'}</span>
-                      <span className="wcs-ko-name">{away}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      <div className="wcs-ko-bracket">
+        {layout === 'desktop' ? (
+          <BracketDesktop
+            bracket={tree}
+            pickWinner={() => {}}
+            isMatchLocked={() => false}
+            matchLookup={KO_LOOKUP}
+            readOnly
+          />
+        ) : (
+          <BracketMobile
+            bracket={tree}
+            pickWinner={() => {}}
+            isRoundComplete={() => true}
+            isRoundUnlocked={() => true}
+            isMatchLocked={() => false}
+            matchLookup={KO_LOOKUP}
+            readOnly
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -419,7 +419,7 @@ export default function Standings({ results = {}, userId, authenticated = false,
           />
         </>
       ) : tab === 'knockouts' ? (
-        <KnockoutView knockout={actualBracket?.knockout || {}} results={merged} />
+        <KnockoutView actualBracket={actualBracket} />
       ) : (
         <ResultsViewLive results={merged} />
       )}
