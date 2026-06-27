@@ -607,6 +607,33 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   const handleResetAll = useCallback(async () => {
     if (!userId || !league?.id) return;
     const leagueLabel = league.name || 'this league';
+
+    // Once the group stage has locked, group rankings + best-thirds are frozen
+    // — so "Reset my picks" must clear ONLY the knockout bracket (the part
+    // that's still editable). A full-doc reset would 403 server-side anyway
+    // (the DELETE path rejects once any stage is locked). Knockout-only leagues
+    // have no group/thirds, so they always take this path.
+    if (groupStageLocked || knockoutOnly) {
+      const ok = window.confirm(
+        `Reset your knockout bracket for "${leagueLabel}"?\n\n`
+        + `Your group rankings and best-thirds are locked and stay exactly as they are — only your knockout picks (Round of 32 through the Final) will be cleared.\n\n`
+        + `This can't be undone.`,
+      );
+      if (!ok) return;
+      setCopyBusy(true);
+      try {
+        bracketState.resetAll();
+        save({ knockoutPredictions: emptyKnockoutPredictions(), isComplete: false });
+      } catch (e) {
+        window.alert(e?.message || 'Reset failed');
+      } finally {
+        setCopyBusy(false);
+      }
+      return;
+    }
+
+    // Pre-tournament: nothing is locked yet, so a full reset (groups +
+    // best-thirds + knockout) via the server DELETE is allowed.
     const ok = window.confirm(
       `Reset ALL your picks for "${leagueLabel}"?\n\n`
       + `This will clear your group rankings, best-third selections, and full knockout bracket.\n\n`
@@ -623,7 +650,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     } finally {
       setCopyBusy(false);
     }
-  }, [userId, league?.id, league?.name, onRehydrate]);
+  }, [userId, league?.id, league?.name, onRehydrate, groupStageLocked, knockoutOnly, bracketState, save]);
 
   return (
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
