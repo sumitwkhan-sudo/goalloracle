@@ -1391,6 +1391,21 @@ const CITY_CODES = {
   'Miami': 'MIA', 'Monterrey': 'MTY', 'New York/NJ': 'NJ', 'Philadelphia': 'PHI',
   'San Francisco': 'SF', 'Seattle': 'SEA', 'Toronto': 'TOR', 'Vancouver': 'VAN',
 };
+
+// Stable wrapper for the inline <Landing> render function. Landing is defined
+// inside GoalOracle (it closes over dozens of in-scope values), so its function
+// identity changes on every GoalOracle render. Rendering it directly as
+// <Landing /> made React treat it as a brand-new component type each render and
+// REMOUNT the whole landing subtree — which showed up as the home page
+// "flashing" a few times on load, once per async source (quickPicks snapshot,
+// leagueRanks, consensus, real-bracket fetch) that streamed in. This wrapper
+// has a fixed module-level identity, so the subtree reconciles in place; it
+// invokes the latest Landing closure (held in a ref) so it still sees fresh
+// data + runs Landing's hooks in a stable order each render.
+function LandingView({ renderRef }) {
+  return renderRef.current();
+}
+
 const GoalOracle = () => {
   // Firebase Auth replaces Privy. `ready` flips to true after the first
   // onAuthStateChanged callback so gating logic doesn't render before we
@@ -3035,6 +3050,12 @@ const GoalOracle = () => {
       </div>
     );
   };
+
+  // Always points at the latest Landing closure so <LandingView> (stable
+  // identity) can render it in place without remounting on every re-render.
+  // See LandingView above for why this matters (home-page flash on load).
+  const landingRenderRef = useRef(Landing);
+  landingRenderRef.current = Landing;
 
 
 
@@ -5427,7 +5448,7 @@ const GoalOracle = () => {
       {view === 'fontPreview' && <FontPreview />}
       {view === 'firstPickPreview' && <FirstPickPreview />}
       {view === 'groupRedesignPreview' && <GroupRedesignPreview />}
-      {view === 'landing' && <Landing />}
+      {view === 'landing' && <LandingView renderRef={landingRenderRef} />}
       {view === 'dashboard' && (
         // Render Dashboard directly. Child components already handle
         // uData=null via optional chaining (uData?.id) and the parent
