@@ -17,10 +17,14 @@ import { getRoundForMatchId } from '../../utils/bracketUtils';
 
 // Read-only grading: the actual winner of a knockout match + the points a
 // correct pick earns that round. `actualKnockout` is { matchId: { winnerId } }.
-function gradeKo(actualKnockout, id) {
+// `pickScoreEligible` is false when the user's picked winner wasn't one of the
+// teams they predicted to reach the knockouts — a correct pick that scores 0.
+// `predictedSet` null (or absent) means no restriction → always eligible.
+function gradeKo(actualKnockout, id, winnerId = null, predictedSet = null) {
   return {
     actualWinnerId: (actualKnockout && actualKnockout[id]?.winnerId) || null,
     pointsIfRight: KNOCKOUT_POINTS_PER_PICK[getRoundForMatchId(id)] || 0,
+    pickScoreEligible: !predictedSet || !winnerId || predictedSet.has(winnerId),
   };
 }
 
@@ -73,7 +77,7 @@ function getMatchConsensus(consensus, matchId) {
   return null;
 }
 
-function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matchRefs, matchLookup, compact = true, hintMatchId, onDismissHint, readOnly = false, consensus, actualKnockout = null }) {
+function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matchRefs, matchLookup, compact = true, hintMatchId, onDismissHint, readOnly = false, consensus, actualKnockout = null, predictedSet = null }) {
   return (
     <div className="bracket-desktop-col">
       {title && <div className="bracket-desktop-col-title">{title}</div>}
@@ -113,7 +117,7 @@ function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matc
                 awayAdvancePct={cm ? cm[slot.away] : undefined}
                 homeEarned={slot.homeEarned}
                 awayEarned={slot.awayEarned}
-                {...gradeKo(actualKnockout, id)}
+                {...gradeKo(actualKnockout, id, slot.pick?.winnerId || null, predictedSet)}
               />
             </div>
           );
@@ -131,7 +135,7 @@ function findSlot(bracket, matchId) {
   return null;
 }
 
-export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus, actualKnockout = null }) {
+export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus, actualKnockout = null, predictedSet = null }) {
   const hintMatchId = !readOnly && showHint ? 'r32-01' : null;
   const containerRef = useRef(null);
   const matchRefs = useRef({});
@@ -193,6 +197,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           readOnly={readOnly}
           consensus={consensus}
           actualKnockout={actualKnockout}
+          predictedSet={predictedSet}
         />
         <MatchColumn
           title="Round of 16"
@@ -205,6 +210,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           readOnly={readOnly}
           consensus={consensus}
           actualKnockout={actualKnockout}
+          predictedSet={predictedSet}
         />
         <MatchColumn
           title="Quarterfinals"
@@ -217,6 +223,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           readOnly={readOnly}
           consensus={consensus}
           actualKnockout={actualKnockout}
+          predictedSet={predictedSet}
         />
 
         <div className="bracket-desktop-center">
@@ -226,7 +233,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
               <BracketMatch
                 matchId="sf-01"
                 {...slotProps(bracket, 'sf-01', consensus)}
-                {...gradeKo(actualKnockout, 'sf-01')}
+                {...gradeKo(actualKnockout, 'sf-01', slotProps(bracket, 'sf-01').winnerId, predictedSet)}
                 onPick={(team) => pickWinner('sf-01', team)}
                 isLocked={isMatchLocked ? isMatchLocked('sf-01') : false}
                 size="compact"
@@ -241,7 +248,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
               <BracketMatch
                 matchId="final"
                 {...slotProps(bracket, 'final', consensus)}
-                {...gradeKo(actualKnockout, 'final')}
+                {...gradeKo(actualKnockout, 'final', slotProps(bracket, 'final').winnerId, predictedSet)}
                 onPick={(team) => pickWinner('final', team)}
                 isLocked={isMatchLocked ? isMatchLocked('final') : false}
                 size="compact"
@@ -255,7 +262,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
               <BracketMatch
                 matchId="sf-02"
                 {...slotProps(bracket, 'sf-02', consensus)}
-                {...gradeKo(actualKnockout, 'sf-02')}
+                {...gradeKo(actualKnockout, 'sf-02', slotProps(bracket, 'sf-02').winnerId, predictedSet)}
                 onPick={(team) => pickWinner('sf-02', team)}
                 isLocked={isMatchLocked ? isMatchLocked('sf-02') : false}
                 size="compact"
@@ -270,7 +277,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
               <BracketMatch
                 matchId="3rd"
                 {...slotProps(bracket, '3rd', consensus)}
-                {...gradeKo(actualKnockout, '3rd')}
+                {...gradeKo(actualKnockout, '3rd', slotProps(bracket, '3rd').winnerId, predictedSet)}
                 onPick={(team) => pickWinner('3rd', team)}
                 isLocked={isMatchLocked ? isMatchLocked('3rd') : false}
                 size="compact"
@@ -294,6 +301,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           readOnly={readOnly}
           consensus={consensus}
           actualKnockout={actualKnockout}
+          predictedSet={predictedSet}
         />
         <MatchColumn
           title="Round of 16"
@@ -306,6 +314,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           readOnly={readOnly}
           consensus={consensus}
           actualKnockout={actualKnockout}
+          predictedSet={predictedSet}
         />
         <MatchColumn
           title="Round of 32"
@@ -318,6 +327,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           readOnly={readOnly}
           consensus={consensus}
           actualKnockout={actualKnockout}
+          predictedSet={predictedSet}
         />
       </div>
     </div>

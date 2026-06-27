@@ -11,7 +11,7 @@ import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
 import { teamFlags } from './utils/flags';
 import { getRank as getFifaRank } from './data/fifaRankings';
-import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX, scoreGroup, GROUP_STAGE_POINTS_PER_POSITION, scoreKnockouts, BEST_THIRD_POINTS_PER_PICK } from './utils/scoringSimple';
+import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX, scoreGroup, GROUP_STAGE_POINTS_PER_POSITION, scoreKnockouts, BEST_THIRD_POINTS_PER_PICK, predictedAdvancers } from './utils/scoringSimple';
 import { computeLiveStandings } from './utils/liveStandings';
 import { stageLockTimeUtc, formatLockDelta } from './utils/stageLock';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
@@ -401,6 +401,14 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
   const hasGroups = groupsLocal.some((g) => (data?.groupPredictions?.[g]?.ranking || []).length > 0);
   const hasKnockout = roundOrder.some((r) => (data?.knockoutPredictions?.[r] || []).length > 0);
 
+  // Teams this user predicted to reach the knockouts — the only teams that
+  // earn knockout points. Null (= no restriction) when there are no group
+  // predictions (knockout-only leagues), matching calculateSimpleScore.
+  const predictedSet = useMemo(() => {
+    const s = predictedAdvancers(data?.groupPredictions, data?.bestThirdPicks);
+    return s.size > 0 ? s : null;
+  }, [data]);
+
   return (
     <div className="picks-viewer-backdrop" onClick={onClose}>
       <div className="picks-viewer-modal" onClick={(e) => e.stopPropagation()}>
@@ -621,12 +629,12 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
               <div className="picks-viewer-section pv-bracket-section">
                 {(() => {
                   if (!hasKnockout || !knockoutResults || Object.keys(knockoutResults).length === 0) return null;
-                  const koPts = scoreKnockouts(data.knockoutPredictions, knockoutResults);
+                  const koPts = scoreKnockouts(data.knockoutPredictions, knockoutResults, predictedSet);
                   return (
                     <div className="pv-ko-summary">
                       <CheckCircle size={14} aria-hidden="true" />
                       <span><strong>{koPts}</strong> knockout point{koPts === 1 ? '' : 's'} so far</span>
-                      <span className="pv-ko-summary-hint">✓ = correct winner · points show on each pick</span>
+                      <span className="pv-ko-summary-hint">✓ = correct winner · only teams predicted to reach the knockouts score</span>
                     </div>
                   );
                 })()}
@@ -639,6 +647,7 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
                     isMatchLocked={() => false}
                     matchLookup={matchLookup}
                     actualKnockout={knockoutResults}
+                    predictedSet={predictedSet}
                     readOnly
                   />
                 ) : (
@@ -650,6 +659,7 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
                     isMatchLocked={() => false}
                     matchLookup={matchLookup}
                     actualKnockout={knockoutResults}
+                    predictedSet={predictedSet}
                     readOnly
                   />
                 )}

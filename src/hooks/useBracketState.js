@@ -80,7 +80,20 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
     const out = {};
     for (const round of ROUND_ORDER) {
       const template = ROUND_TEMPLATE_BY_KEY[round];
-      const derived = round === 'roundOf32' ? r32 : deriveNextRound(prunedFlat, template);
+      const derivedRaw = round === 'roundOf32' ? r32 : deriveNextRound(prunedFlat, template);
+      // Score-eligibility marking: R32 is already tagged by mergeRealRoundOf32.
+      // Extend the same "won't score" flag to LATER rounds so a team the user
+      // didn't predict to advance stays marked all the way through the bracket
+      // (the scoring restriction applies to every round, not just R32). Only
+      // when a predicted-team set is supplied (reseed mode); otherwise leave
+      // earned undefined (= treated as scoring) so nothing is marked.
+      const derived = (predictedTeamSet && round !== 'roundOf32')
+        ? derivedRaw.map((m) => ({
+            ...m,
+            homeEarned: m.home ? predictedTeamSet.has(m.home) : true,
+            awayEarned: m.away ? predictedTeamSet.has(m.away) : true,
+          }))
+        : derivedRaw;
       out[round] = derived.map((m) => {
         const existing = flatPicks[m.matchId];
         const valid = !!(existing && existing.winnerId
@@ -102,13 +115,12 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
     const slot = roundSlots?.find((s) => s.matchId === matchId);
     if (!slot || !slot.home || !slot.away) return { cleared: 0 };
     if (winnerTeam !== slot.home && winnerTeam !== slot.away) return { cleared: 0 };
-    // Earned gate (knockout-real-reseed): a real team the user did NOT predict
-    // to advance is locked — they can't pick it. `*Earned` is only set on R32
-    // slots in reseed mode; it's undefined elsewhere (=> not blocked).
-    const earned = winnerTeam === slot.home ? slot.homeEarned : slot.awayEarned;
-    // Signal the rejection (instead of a silent no-op) so the wizard can
-    // explain WHY — a hover title on web + a toast on mobile.
-    if (earned === false) return { cleared: 0, blocked: 'not-earned', team: winnerTeam };
+    // No input gate: any real team in the slot can be advanced (the user can
+    // re-pick freely from the actual bracket). Whether a pick *scores* is
+    // decided at scoring time — only teams the user originally predicted to
+    // reach the knockouts earn points (see predictedAdvancers in
+    // scoringSimple.js). The `*Earned` flags now drive a "won't score" marker
+    // in the UI, not a block.
     const loser = winnerTeam === slot.home ? slot.away : slot.home;
 
     // If the user is *changing* a previously-set winner, count how many

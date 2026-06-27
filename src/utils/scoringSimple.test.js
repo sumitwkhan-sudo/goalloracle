@@ -6,6 +6,7 @@ import {
   scoreKnockoutRound,
   scoreKnockouts,
   calculateSimpleScore,
+  predictedAdvancers,
   GROUP_STAGE_POINTS_PER_POSITION,
   GROUP_STAGE_MAX,
   BEST_THIRD_MAX,
@@ -108,6 +109,46 @@ describe('scoreKnockoutRound', () => {
   it('unknown round key returns 0', () => {
     expect(scoreKnockoutRound([{ matchId: 'm0', winnerId: 't0' }], { m0: { winnerId: 't0' } }, 'finals')).toBe(0);
   });
+
+  it('restrictTo: a correct winner not in the set scores 0', () => {
+    const picks = [{ matchId: 'm0', winnerId: 'A' }, { matchId: 'm1', winnerId: 'B' }];
+    const results = { m0: { winnerId: 'A' }, m1: { winnerId: 'B' } };
+    // Only 'A' was predicted to advance → only that correct pick scores.
+    expect(scoreKnockoutRound(picks, results, 'roundOf32', new Set(['A']))).toBe(2);
+    // Both predicted → both score.
+    expect(scoreKnockoutRound(picks, results, 'roundOf32', new Set(['A', 'B']))).toBe(4);
+    // null → unrestricted (every correct pick scores).
+    expect(scoreKnockoutRound(picks, results, 'roundOf32', null)).toBe(4);
+  });
+});
+
+describe('predictedAdvancers', () => {
+  const groupPredictions = {
+    A: { ranking: ['A1', 'A2', 'A3', 'A4'] },
+    B: { ranking: ['B1', 'B2', 'B3', 'B4'] },
+    C: { ranking: ['C1', 'C2', 'C3', 'C4'] },
+  };
+
+  it('includes every group 1st + 2nd and only the picked thirds', () => {
+    const set = predictedAdvancers(groupPredictions, ['A', 'C']);
+    // 1st/2nd of all groups present.
+    expect(set.has('A1')).toBe(true);
+    expect(set.has('A2')).toBe(true);
+    expect(set.has('B1')).toBe(true);
+    expect(set.has('B2')).toBe(true);
+    // Picked thirds present.
+    expect(set.has('A3')).toBe(true);
+    expect(set.has('C3')).toBe(true);
+    // Unpicked third (B) absent; 4th-place never advances.
+    expect(set.has('B3')).toBe(false);
+    expect(set.has('A4')).toBe(false);
+    expect(set.size).toBe(8); // 6 (1st/2nd ×3) + 2 picked thirds
+  });
+
+  it('is empty for no group predictions (knockout-only)', () => {
+    expect(predictedAdvancers(undefined, undefined).size).toBe(0);
+    expect(predictedAdvancers({}, []).size).toBe(0);
+  });
 });
 
 describe('scoreKnockouts', () => {
@@ -137,39 +178,81 @@ describe('scoreKnockouts', () => {
 });
 
 describe('calculateSimpleScore', () => {
-  it('a perfect submission scores 209 / 209', () => {
-    const groups = ['A','B','C','D','E','F','G','H','I','J','K','L'];
-    const groupPredictions = Object.fromEntries(groups.map((g) => [g, { ranking: ['t1', 't2', 't3', 't4'] }]));
-    const groupStandings = Object.fromEntries(groups.map((g) => [g, ['t1', 't2', 't3', 't4']]));
-
+  // Build a coherent perfect bracket: every knockout winner is a team the user
+  // predicted to advance (1st/2nd of every group + their 8 best-thirds), so the
+  // predicted-advancers restriction never trims a correct pick.
+  const GROUPS_12 = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  function perfectFixture() {
+    const groupPredictions = Object.fromEntries(GROUPS_12.map((g) => [g, { ranking: [`${g}1`, `${g}2`, `${g}3`, `${g}4`] }]));
+    const groupStandings = Object.fromEntries(GROUPS_12.map((g) => [g, [`${g}1`, `${g}2`, `${g}3`, `${g}4`]]));
     const bestThirdPicks = ['A','B','C','D','E','F','G','H'];
     const advancingThirds = ['A','B','C','D','E','F','G','H'];
-
-    const mk = (n, prefix) => Array.from({ length: n }, (_, i) => ({ matchId: `${prefix}${i}`, winnerId: `t${prefix}${i}` }));
-    const actual = (n, prefix) => Object.fromEntries(
-      Array.from({ length: n }, (_, i) => [`${prefix}${i}`, { winnerId: `t${prefix}${i}` }]),
-    );
+    // 32 distinct winners, all inside predictedAdvancers (24 group 1st/2nd + 8
+    // picked thirds A3..H3).
+    const koWinners = [
+      'A1','A2','B1','B2','C1','C2','D1','D2','E1','E2','F1','F2','G1','G2','H1','H2', // R32 (16)
+      'I1','I2','J1','J2','K1','K2','L1','L2',                                         // R16 (8)
+      'A3','B3','C3','D3',                                                             // QF (4)
+      'E3','F3',                                                                       // SF (2)
+      'G3',                                                                            // 3rd (1)
+      'H3',                                                                            // Final (1)
+    ];
+    let idx = 0;
+    const round = (n, prefix) => Array.from({ length: n }, (_, i) => ({ matchId: `${prefix}${i}`, winnerId: koWinners[idx++] }));
     const knockoutPredictions = {
-      roundOf32: mk(16, 'a'),
-      roundOf16: mk(8, 'b'),
-      quarterFinals: mk(4, 'c'),
-      semiFinals: mk(2, 'd'),
-      thirdPlace: mk(1, 'e'),
-      final: mk(1, 'f'),
+      roundOf32: round(16, 'a'),
+      roundOf16: round(8, 'b'),
+      quarterFinals: round(4, 'c'),
+      semiFinals: round(2, 'd'),
+      thirdPlace: round(1, 'e'),
+      final: round(1, 'f'),
     };
-    const knockoutResults = {
-      ...actual(16, 'a'), ...actual(8, 'b'), ...actual(4, 'c'),
-      ...actual(2, 'd'), ...actual(1, 'e'), ...actual(1, 'f'),
-    };
+    const knockoutResults = {};
+    for (const r of Object.values(knockoutPredictions)) for (const p of r) knockoutResults[p.matchId] = { winnerId: p.winnerId };
+    return { groupPredictions, groupStandings, bestThirdPicks, advancingThirds, knockoutPredictions, knockoutResults };
+  }
 
+  it('a perfect submission scores 209 / 209', () => {
+    const f = perfectFixture();
     const result = calculateSimpleScore(
-      { groupPredictions, bestThirdPicks, knockoutPredictions },
-      { groupStandings, advancingThirds, knockoutResults },
+      { groupPredictions: f.groupPredictions, bestThirdPicks: f.bestThirdPicks, knockoutPredictions: f.knockoutPredictions },
+      { groupStandings: f.groupStandings, advancingThirds: f.advancingThirds, knockoutResults: f.knockoutResults },
     );
     expect(result.totalScore).toBe(209);
     expect(result.maxPossible).toBe(209);
     expect(result.totalAccuracy).toBe(1);
     expect(result.breakdown).toEqual({ groupScore: 84, bestThirdScore: 16, knockoutScore: 109 });
+  });
+
+  it('a CORRECT knockout pick of a team the user did NOT predict to advance scores 0', () => {
+    const f = perfectFixture();
+    // Swap one R32 winner to a team that actually won but was never predicted
+    // to reach the knockouts (not a 1st/2nd or picked-third anywhere).
+    f.knockoutPredictions.roundOf32[0] = { matchId: 'a0', winnerId: 'Outsider' };
+    f.knockoutResults['a0'] = { winnerId: 'Outsider' };
+    const result = calculateSimpleScore(
+      { groupPredictions: f.groupPredictions, bestThirdPicks: f.bestThirdPicks, knockoutPredictions: f.knockoutPredictions },
+      { groupStandings: f.groupStandings, advancingThirds: f.advancingThirds, knockoutResults: f.knockoutResults },
+    );
+    // Group + best-thirds untouched (84 + 16). Knockout loses exactly the 2 pts
+    // for that R32 match — the correct-but-unpredicted winner scores nothing.
+    expect(result.breakdown).toEqual({ groupScore: 84, bestThirdScore: 16, knockoutScore: 107 });
+  });
+
+  it('knockout-only (no group predictions) is unrestricted — every correct pick scores', () => {
+    const f = perfectFixture();
+    // A knockout-only league has no group/best-third predictions, so there is
+    // no predicted-advancers set → no restriction. Use winners that would NOT
+    // be in any predicted set to prove the filter is off.
+    const koPred = {
+      roundOf32: Array.from({ length: 16 }, (_, i) => ({ matchId: `a${i}`, winnerId: `Real${i}` })),
+    };
+    const koRes = Object.fromEntries(Object.values(koPred).flat().map((p) => [p.matchId, { winnerId: p.winnerId }]));
+    const result = calculateSimpleScore(
+      { knockoutPredictions: koPred },
+      { knockoutResults: koRes },
+    );
+    expect(result.breakdown.knockoutScore).toBe(32); // 16 × 2, none trimmed
   });
 
   it('partial submission (only group stage) totals out of 84', () => {

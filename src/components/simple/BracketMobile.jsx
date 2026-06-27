@@ -73,7 +73,7 @@ function centerMatchInView(matchId) {
   window.scrollBy({ top: delta, left: 0, behavior: reduce ? 'auto' : 'smooth' });
 }
 
-export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus, actualKnockout = null }) {
+export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus, actualKnockout = null, predictedSet = null }) {
   const firstIncomplete = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r)) || 'roundOf32';
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
@@ -294,6 +294,7 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                         awayEarned={s.awayEarned}
                         actualWinnerId={(actualKnockout && actualKnockout[s.matchId]?.winnerId) || null}
                         pointsIfRight={KNOCKOUT_POINTS_PER_PICK[roundKey] || 0}
+                        pickScoreEligible={!predictedSet || !s.pick?.winnerId || predictedSet.has(s.pick.winnerId)}
                       />
                     </div>
                   );

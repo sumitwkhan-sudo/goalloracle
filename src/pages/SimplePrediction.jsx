@@ -30,7 +30,8 @@ import useGroupPredictions from '../hooks/useGroupPredictions';
 import useBestThird, { BEST_THIRD_REQUIRED } from '../hooks/useBestThird';
 import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
-import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions, predictedR32TeamSet } from '../utils/bracketUtils';
+import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
+import { predictedAdvancers } from '../utils/scoringSimple';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
 import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
@@ -271,8 +272,11 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
       }
       return all;
     }
-    // Global reseed: only teams the user predicted to advance are pickable.
-    return predictedR32TeamSet(groups.predictions, bestThird.picks);
+    // Global reseed: the teams the user predicted to advance — these are the
+    // ones that will SCORE. Others are pickable but marked "won't score". Use
+    // the same direct, routing-free set the scorer uses (predictedAdvancers in
+    // scoringSimple.js) so the UI marking and the points always agree.
+    return predictedAdvancers(groups.predictions, bestThird.picks);
   }, [reseedActive, knockoutOnly, realR32, groups.predictions, bestThird.picks]);
 
   // How many of the teams the user predicted to reach the knockouts actually
@@ -349,16 +353,6 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // already filled went blank.
   const pickWinnerWithFeedback = useCallback((matchId, winnerTeam) => {
     const result = bracketState.pickWinner(matchId, winnerTeam) || {};
-    // Locked team (a real knockout team the user never predicted to advance):
-    // explain why they can't pick it — works on mobile (tap → toast) alongside
-    // the hover title on web. Not a real edit, so don't trip the sync prompt.
-    if (result.blocked === 'not-earned') {
-      if (bracketHintVisible) dismissBracketHint();
-      if (cascadeToastTimer.current) clearTimeout(cascadeToastTimer.current);
-      setCascadeToast(`${result.team || 'That team'} isn’t on your bracket — you can only pick teams you predicted to reach the knockouts.`);
-      cascadeToastTimer.current = setTimeout(() => setCascadeToast(null), 4000);
-      return result;
-    }
     // Editing the Global bracket → surface the "apply to my other leagues"
     // prompt, and reset any prior "done" state so a fresh edit can re-apply.
     if (canSyncLeagues) {
@@ -1047,18 +1041,20 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
                 <>
                   <strong>{reseedHitCount.hit} of your picks made the knockouts.</strong>{' '}
                   You called {reseedHitCount.hit} of the {reseedHitCount.total} teams now in the bracket — those
-                  are the ones you can advance.
+                  are the ones that <strong>earn points</strong>.
                   <br />
                 </>
               )}
-              <strong>Your bracket now shows the real teams.</strong> Finished groups are locked to
-              the actual result — advance any team you correctly called to the knockouts; teams you
-              didn’t pick are <span className="bracket-reseed-locked">greyed out</span>. Third-place
-              slots fill once all groups finish; unfinished groups still show your prediction.
+              <strong>Your bracket now shows the real teams.</strong> Pick winners through to the
+              Final — and reset and re-pick as many times as you like before the bracket locks. You
+              can advance <strong>any</strong> team in the bracket, but you only score knockout points
+              for teams you originally predicted to reach the knockouts (your group + best-third picks).
+              Teams you didn’t pick are tagged <span className="bracket-reseed-locked">won’t score</span> —
+              still pickable, just worth 0 points. Third-place slots fill once all groups finish.
               <br />
-              <strong>Happy with your picks?</strong> You don’t have to change a thing — your original
-              bracket is saved and still scoring exactly as you submitted it. This just lets you
-              re-pick winners now that the real teams are set.
+              <strong>Happy with your picks?</strong> You don’t have to change a thing — your group and
+              best-third picks are locked and still scoring, and your knockout picks stay exactly as you
+              left them. This just lets you re-pick winners now that the real teams are set.
             </div>
           )}
 

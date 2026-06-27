@@ -90,7 +90,7 @@ export function getScoringBullets() {
       },
       {
         label: `Knockout bracket points available: ${f.knockoutMax}`,
-        detail: `Per correct winner: ${f.knockoutRounds.map((r) => `${r.label} ${r.perPick}`).join(', ')} pts.`,
+        detail: `Per correct winner: ${f.knockoutRounds.map((r) => `${r.label} ${r.perPick}`).join(', ')} pts. Knockout points count only for teams you predicted to reach the knockouts (your group + best-third picks).`,
       },
       {
         label: `Total points available: ${f.totalMax}`,

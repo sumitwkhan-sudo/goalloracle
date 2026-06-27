@@ -6419,6 +6419,8 @@ button.invite-option:hover,
 .bracket-row.pick-right .bracket-row-name { color: #00C853; font-weight: 700; }
 .bracket-row.pick-wrong { opacity: 0.7; }
 .bracket-row-lock { color: var(--text-dim); }
+/* Correct winner the user never predicted to advance: won the match, scores 0. */
+.bracket-row-pill.noscore { background: rgba(255,184,0,0.16); color: #FFB800; }
 
 /* Crowd consensus bar — appears below each picked match showing the
    relative split of users who picked each team to advance. Only
@@ -11227,17 +11229,30 @@ ol.legal-list li { margin-bottom: 0.35rem; }
 .rde-mover-rank { color: var(--text-dim); font-weight: 700; }
 @media (max-width: 640px) { .rde-grid { grid-template-columns: 1fr; } }
 
-/* Knockout-real-reseed: locked (non-earned) team rows + explainer note */
-.bracket-row.not-earned { opacity: 0.45; cursor: not-allowed; }
-.bracket-row.not-earned .bracket-row-name { text-decoration: line-through; text-decoration-thickness: 1px; }
-.bracket-row.not-earned .bracket-row-lock { margin-left: auto; color: var(--text-dim); }
+/* Knockout-real-reseed: a real team the user didn't predict to reach the
+   knockouts — still pickable, just marked "won't score" (earns 0 points). */
+.bracket-row.not-earned { opacity: 0.78; }
+.bracket-row.not-earned .bracket-row-name { color: var(--text-dim); }
+.bracket-row-noscore {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 0.18rem;
+  font-family: var(--mono); font-size: 0.54rem; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+  padding: 0.1rem 0.36rem; border-radius: 999px;
+  background: rgba(255,184,0,0.14); color: #FFB800;
+}
+.bracket-row-noscore svg { flex: none; }
 .bracket-reseed-note {
   background: var(--primary-soft); border: 1px solid var(--primary);
   border-radius: 12px; padding: 0.7rem 0.95rem; margin: 0 0 1rem;
   font-size: 0.84rem; line-height: 1.55; color: var(--text);
 }
 .bracket-reseed-note strong { color: var(--primary); }
-.bracket-reseed-locked { opacity: 0.6; text-decoration: line-through; }
+/* Inline "won't score" tag used in the reseed explainer banner. */
+.bracket-reseed-locked {
+  font-weight: 700; color: #FFB800;
+  background: rgba(255,184,0,0.14); padding: 0.04rem 0.32rem; border-radius: 5px;
+  white-space: nowrap;
+}
 
 /* "Apply Global knockout edits to my other leagues" prompt */
 .bracket-sync-note {

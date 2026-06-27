@@ -35,4 +35,18 @@ describe('BracketMatch read-only grading', () => {
     expect(html).toContain('ADV');
     expect(html).toContain('OUT');
   });
+
+  it('a CORRECT pick the user never predicted to advance shows 0 pts, not +points', () => {
+    const html = renderToStaticMarkup(
+      <BracketMatch
+        {...base}
+        winnerId="Brazil"
+        actualWinnerId="Brazil"
+        pointsIfRight={2}
+        pickScoreEligible={false}
+      />,
+    );
+    expect(html).toContain('0 pts');
+    expect(html).not.toContain('+2');
+  });
 });

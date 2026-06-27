@@ -91,14 +91,47 @@ export function scoreBestThird(picks, actualAdvancing) {
 }
 
 /**
+ * The set of teams a user predicted would reach the knockouts — the only
+ * teams that can earn knockout points. Derived DIRECTLY from group rankings
+ * + best-third picks (each group's 1st + 2nd, plus the 3rd of each picked
+ * best-third group), so it needs no Annexe-C routing and never throws.
+ *
+ * @param {Object} groupPredictions  { A: { ranking: [t1,t2,t3,t4] }, ... }
+ * @param {string[]} bestThirdPicks  group letters whose 3rd-place team advances
+ * @returns {Set<string>}            predicted advancing team names
+ */
+export function predictedAdvancers(groupPredictions, bestThirdPicks) {
+  const set = new Set();
+  for (const g of GROUPS) {
+    const ranking = groupPredictions?.[g]?.ranking;
+    if (!Array.isArray(ranking)) continue;
+    if (ranking[0]) set.add(ranking[0]); // group winner
+    if (ranking[1]) set.add(ranking[1]); // group runner-up
+  }
+  if (Array.isArray(bestThirdPicks)) {
+    for (const g of bestThirdPicks) {
+      const ranking = groupPredictions?.[g]?.ranking;
+      if (Array.isArray(ranking) && ranking[2]) set.add(ranking[2]); // 3rd place
+    }
+  }
+  return set;
+}
+
+/**
  * Score a single round of knockouts. Each correct winner earns
  * `KNOCKOUT_POINTS_PER_PICK[roundKey]` so later rounds are worth more.
+ *
+ * When `restrictTo` is a non-null Set, a correct pick only scores if the
+ * winning team is in that set — i.e. the user originally predicted that team
+ * to reach the knockouts. Pass `null` to score every correct pick (used for
+ * knockout-only leagues, which have no group predictions to restrict by).
  *
  * @param {Array<{matchId,winnerId}>} predictedRound
  * @param {Object<string,{winnerId:string}>} actualResultsByMatchId
  * @param {string} roundKey  e.g. 'roundOf32', 'final'
+ * @param {Set<string>|null} restrictTo  teams eligible to score, or null = all
  */
-export function scoreKnockoutRound(predictedRound, actualResultsByMatchId, roundKey) {
+export function scoreKnockoutRound(predictedRound, actualResultsByMatchId, roundKey, restrictTo = null) {
   if (!Array.isArray(predictedRound)) return 0;
   const perPick = KNOCKOUT_POINTS_PER_PICK[roundKey] || 0;
   if (!perPick) return 0;
@@ -106,18 +139,25 @@ export function scoreKnockoutRound(predictedRound, actualResultsByMatchId, round
   for (const pick of predictedRound) {
     if (!pick || !pick.winnerId) continue;
     const actual = actualResultsByMatchId?.[pick.matchId];
-    if (actual && actual.winnerId && actual.winnerId === pick.winnerId) pts += perPick;
+    if (!actual || !actual.winnerId || actual.winnerId !== pick.winnerId) continue;
+    // Only teams the user predicted to reach the knockouts earn points.
+    if (restrictTo && !restrictTo.has(pick.winnerId)) continue;
+    pts += perPick;
   }
   return pts;
 }
 
 /**
  * Score all knockout rounds that have been submitted *and* have results.
+ *
+ * @param {Object} knockoutPredictions
+ * @param {Object} actualResultsByMatchId
+ * @param {Set<string>|null} restrictTo  teams eligible to score, or null = all
  */
-export function scoreKnockouts(knockoutPredictions, actualResultsByMatchId) {
+export function scoreKnockouts(knockoutPredictions, actualResultsByMatchId, restrictTo = null) {
   let pts = 0;
   for (const round of ROUND_ORDER) {
-    pts += scoreKnockoutRound(knockoutPredictions?.[round], actualResultsByMatchId, round);
+    pts += scoreKnockoutRound(knockoutPredictions?.[round], actualResultsByMatchId, round, restrictTo);
   }
   return pts;
 }
@@ -155,8 +195,14 @@ export function calculateSimpleScore(simplePrediction, actuals) {
   const bestThirdScore = sections.bestThirdSubmitted
     ? scoreBestThird(simplePrediction.bestThirdPicks, actuals?.advancingThirds)
     : 0;
+  // Knockout points only count for teams the user originally predicted to
+  // reach the knockouts (their group 1st/2nd + best-thirds). An empty set —
+  // i.e. no group predictions, as in a knockout-only league — means no
+  // restriction, so every correct pick scores.
+  const advancers = predictedAdvancers(simplePrediction?.groupPredictions, simplePrediction?.bestThirdPicks);
+  const knockoutRestrict = advancers.size > 0 ? advancers : null;
   const knockoutScore = sections.knockoutSubmitted
-    ? scoreKnockouts(simplePrediction.knockoutPredictions, actuals?.knockoutResults)
+    ? scoreKnockouts(simplePrediction.knockoutPredictions, actuals?.knockoutResults, knockoutRestrict)
     : 0;
 
   const totalScore = groupScore + bestThirdScore + knockoutScore;
