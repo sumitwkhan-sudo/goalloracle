@@ -10,6 +10,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Award } from 'lucide-react';
 import BracketMatch from './BracketMatch';
 import BracketHintTooltip from './BracketHintTooltip';
+import { KNOCKOUT_POINTS_PER_PICK } from '../../utils/scoringSimple';
 import { ROUND_ORDER } from '../../utils/bracketUtils';
 
 const ROUND_LABEL = {
@@ -72,7 +73,7 @@ function centerMatchInView(matchId) {
   window.scrollBy({ top: delta, left: 0, behavior: reduce ? 'auto' : 'smooth' });
 }
 
-export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus }) {
+export default function BracketMobile({ bracket, pickWinner, isRoundComplete, isRoundUnlocked, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus, actualKnockout = null }) {
   const firstIncomplete = ROUND_ORDER.find((r) => isRoundUnlocked(r) && !isRoundComplete(r)) || 'roundOf32';
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
@@ -291,6 +292,8 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
                         awayAdvancePct={awayPct}
                         homeEarned={s.homeEarned}
                         awayEarned={s.awayEarned}
+                        actualWinnerId={(actualKnockout && actualKnockout[s.matchId]?.winnerId) || null}
+                        pointsIfRight={KNOCKOUT_POINTS_PER_PICK[roundKey] || 0}
                       />
                     </div>
                   );

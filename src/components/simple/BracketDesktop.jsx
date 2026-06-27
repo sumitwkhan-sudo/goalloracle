@@ -12,6 +12,17 @@
 import React, { useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
 import BracketMatch from './BracketMatch';
 import BracketHintTooltip from './BracketHintTooltip';
+import { KNOCKOUT_POINTS_PER_PICK } from '../../utils/scoringSimple';
+import { getRoundForMatchId } from '../../utils/bracketUtils';
+
+// Read-only grading: the actual winner of a knockout match + the points a
+// correct pick earns that round. `actualKnockout` is { matchId: { winnerId } }.
+function gradeKo(actualKnockout, id) {
+  return {
+    actualWinnerId: (actualKnockout && actualKnockout[id]?.winnerId) || null,
+    pointsIfRight: KNOCKOUT_POINTS_PER_PICK[getRoundForMatchId(id)] || 0,
+  };
+}
 
 // R32 ids are listed in BRACKET-FLOW ORDER, not numerical order, so that
 // each pair of R32 matches sits adjacent in the column and visually feeds
@@ -62,7 +73,7 @@ function getMatchConsensus(consensus, matchId) {
   return null;
 }
 
-function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matchRefs, matchLookup, compact = true, hintMatchId, onDismissHint, readOnly = false, consensus }) {
+function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matchRefs, matchLookup, compact = true, hintMatchId, onDismissHint, readOnly = false, consensus, actualKnockout = null }) {
   return (
     <div className="bracket-desktop-col">
       {title && <div className="bracket-desktop-col-title">{title}</div>}
@@ -102,6 +113,7 @@ function MatchColumn({ title, matchIds, bracket, pickWinner, isMatchLocked, matc
                 awayAdvancePct={cm ? cm[slot.away] : undefined}
                 homeEarned={slot.homeEarned}
                 awayEarned={slot.awayEarned}
+                {...gradeKo(actualKnockout, id)}
               />
             </div>
           );
@@ -119,7 +131,7 @@ function findSlot(bracket, matchId) {
   return null;
 }
 
-export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus }) {
+export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, matchLookup, showHint, onDismissHint, readOnly = false, consensus, actualKnockout = null }) {
   const hintMatchId = !readOnly && showHint ? 'r32-01' : null;
   const containerRef = useRef(null);
   const matchRefs = useRef({});
@@ -180,6 +192,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           onDismissHint={onDismissHint}
           readOnly={readOnly}
           consensus={consensus}
+          actualKnockout={actualKnockout}
         />
         <MatchColumn
           title="Round of 16"
@@ -191,6 +204,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           matchLookup={matchLookup}
           readOnly={readOnly}
           consensus={consensus}
+          actualKnockout={actualKnockout}
         />
         <MatchColumn
           title="Quarterfinals"
@@ -202,6 +216,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           matchLookup={matchLookup}
           readOnly={readOnly}
           consensus={consensus}
+          actualKnockout={actualKnockout}
         />
 
         <div className="bracket-desktop-center">
@@ -211,6 +226,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
               <BracketMatch
                 matchId="sf-01"
                 {...slotProps(bracket, 'sf-01', consensus)}
+                {...gradeKo(actualKnockout, 'sf-01')}
                 onPick={(team) => pickWinner('sf-01', team)}
                 isLocked={isMatchLocked ? isMatchLocked('sf-01') : false}
                 size="compact"
@@ -225,6 +241,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
               <BracketMatch
                 matchId="final"
                 {...slotProps(bracket, 'final', consensus)}
+                {...gradeKo(actualKnockout, 'final')}
                 onPick={(team) => pickWinner('final', team)}
                 isLocked={isMatchLocked ? isMatchLocked('final') : false}
                 size="compact"
@@ -238,6 +255,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
               <BracketMatch
                 matchId="sf-02"
                 {...slotProps(bracket, 'sf-02', consensus)}
+                {...gradeKo(actualKnockout, 'sf-02')}
                 onPick={(team) => pickWinner('sf-02', team)}
                 isLocked={isMatchLocked ? isMatchLocked('sf-02') : false}
                 size="compact"
@@ -252,6 +270,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
               <BracketMatch
                 matchId="3rd"
                 {...slotProps(bracket, '3rd', consensus)}
+                {...gradeKo(actualKnockout, '3rd')}
                 onPick={(team) => pickWinner('3rd', team)}
                 isLocked={isMatchLocked ? isMatchLocked('3rd') : false}
                 size="compact"
@@ -274,6 +293,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           matchLookup={matchLookup}
           readOnly={readOnly}
           consensus={consensus}
+          actualKnockout={actualKnockout}
         />
         <MatchColumn
           title="Round of 16"
@@ -285,6 +305,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           matchLookup={matchLookup}
           readOnly={readOnly}
           consensus={consensus}
+          actualKnockout={actualKnockout}
         />
         <MatchColumn
           title="Round of 32"
@@ -296,6 +317,7 @@ export default function BracketDesktop({ bracket, pickWinner, isMatchLocked, mat
           matchLookup={matchLookup}
           readOnly={readOnly}
           consensus={consensus}
+          actualKnockout={actualKnockout}
         />
       </div>
     </div>

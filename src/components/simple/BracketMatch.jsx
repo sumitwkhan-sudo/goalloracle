@@ -15,7 +15,7 @@ function formatMatchDate(dateStr) {
   return `${MONTH_SHORT[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
 
-function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick, readOnly = false, homeAdvancePct, awayAdvancePct, homeEarned = true, awayEarned = true }) {
+function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerId, onPick, isLocked, size = 'full', label, city, date, needsPick, readOnly = false, homeAdvancePct, awayAdvancePct, homeEarned = true, awayEarned = true, actualWinnerId = null, pointsIfRight = 0 }) {
   const homeSelected = winnerId && winnerId === homeTeam;
   const awaySelected = winnerId && winnerId === awayTeam;
 
@@ -48,12 +48,23 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
   const Row = ({ isWinner, isLoser, isTBD, flag, team, withLockIcon, earned = true }) => {
     const notEarned = earned === false && !!team;
     if (readOnly) {
+      // When the real result is in, mark the user's advanced pick right/wrong:
+      // ✓ +points if their team actually won this match, ✗ if it didn't.
+      const graded = isWinner && actualWinnerId != null && !!team;
+      const rightPick = graded && team === actualWinnerId;
+      const wrongPick = graded && team !== actualWinnerId;
+      // The real winner showing on the OTHER (loser) row — flag it so it's clear
+      // who actually went through when the user's pick was wrong.
+      const isActualOnLoserRow = isLoser && actualWinnerId != null && team === actualWinnerId;
       return (
-        <div className={rowClass(isWinner, isLoser, isTBD)}>
+        <div className={`${rowClass(isWinner, isLoser, isTBD)}${rightPick ? ' pick-right' : ''}${wrongPick ? ' pick-wrong' : ''}`}>
           <span className="bracket-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
           <span className="bracket-row-name">{team || 'TBD'}</span>
-          {isWinner && <span className="bracket-row-pill adv">ADV</span>}
-          {isLoser && <span className="bracket-row-pill out">OUT</span>}
+          {rightPick && <span className="bracket-row-pill correct">✓ +{pointsIfRight}</span>}
+          {wrongPick && <span className="bracket-row-pill missed">✗</span>}
+          {isActualOnLoserRow && <span className="bracket-row-pill adv">WON</span>}
+          {isWinner && actualWinnerId == null && <span className="bracket-row-pill adv">ADV</span>}
+          {isLoser && actualWinnerId == null && <span className="bracket-row-pill out">OUT</span>}
         </div>
       );
     }

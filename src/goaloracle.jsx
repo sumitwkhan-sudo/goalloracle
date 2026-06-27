@@ -11,7 +11,7 @@ import { getCode } from './utils/countryCodes';
 import { getPedigree } from './utils/pedigree';
 import { teamFlags } from './utils/flags';
 import { getRank as getFifaRank } from './data/fifaRankings';
-import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX, scoreGroup, GROUP_STAGE_POINTS_PER_POSITION } from './utils/scoringSimple';
+import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX, scoreGroup, GROUP_STAGE_POINTS_PER_POSITION, scoreKnockouts, BEST_THIRD_POINTS_PER_PICK } from './utils/scoringSimple';
 import { computeLiveStandings } from './utils/liveStandings';
 import { stageLockTimeUtc, formatLockDelta } from './utils/stageLock';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
@@ -342,6 +342,20 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
   // right and the points each correct pick earned. Only completed groups score.
   const actualStandings = useMemo(() => computeLiveStandings(results || {}), [results]);
 
+  // Actual knockout winners + advancing thirds (server-resolved) so the viewer
+  // can grade the bracket + best-thirds the same way the leaderboard does.
+  const [actualBracket, setActualBracket] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    import('./utils/db')
+      .then(({ fetchActualBracket }) => fetchActualBracket())
+      .then((d) => { if (!cancelled) setActualBracket(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const knockoutResults = actualBracket?.knockoutResults || null;
+  const advancingThirds = actualBracket?.advancingThirds || null;
+
   // Pick completeness — computed from the prediction doc itself, so this
   // works pre-tournament without any results data. Post-kickoff we'll
   // also surface running scores in the same card via calculateSimpleScore.
@@ -578,8 +592,11 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
                       {data.bestThirdPicks.map(g => {
                         const team = data.groupPredictions?.[g]?.ranking?.[2] || null;
                         const flag = team ? teamFlags[team] : '';
+                        // Correct iff Group g's 3rd actually advanced (Annexe C),
+                        // known only once all groups finish. +2 pts each.
+                        const correct = advancingThirds ? advancingThirds.includes(g) : null;
                         return (
-                          <span key={g} className="pv-chip pv-chip-third">
+                          <span key={g} className={`pv-chip pv-chip-third${correct === true ? ' pv-chip-right' : correct === false ? ' pv-chip-wrong' : ''}`}>
                             <span className="pv-chip-group">{g}</span>
                             {team ? (
                               <>
@@ -589,6 +606,8 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
                             ) : (
                               <span className="pv-chip-team pv-chip-team-empty">— rank Group {g} to see</span>
                             )}
+                            {correct === true && <span className="pv-chip-badge">✓ +{BEST_THIRD_POINTS_PER_PICK}</span>}
+                            {correct === false && <span className="pv-chip-badge pv-chip-badge-wrong">✗</span>}
                           </span>
                         );
                       })}
@@ -600,6 +619,17 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
 
             {tab === 'bracket' && (
               <div className="picks-viewer-section pv-bracket-section">
+                {(() => {
+                  if (!hasKnockout || !knockoutResults || Object.keys(knockoutResults).length === 0) return null;
+                  const koPts = scoreKnockouts(data.knockoutPredictions, knockoutResults);
+                  return (
+                    <div className="pv-ko-summary">
+                      <CheckCircle size={14} aria-hidden="true" />
+                      <span><strong>{koPts}</strong> knockout point{koPts === 1 ? '' : 's'} so far</span>
+                      <span className="pv-ko-summary-hint">✓ = correct winner · points show on each pick</span>
+                    </div>
+                  );
+                })()}
                 {!hasKnockout ? (
                   <span className="picks-viewer-muted">No knockout picks yet.</span>
                 ) : layout === 'desktop' ? (
@@ -608,6 +638,7 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
                     pickWinner={() => {}}
                     isMatchLocked={() => false}
                     matchLookup={matchLookup}
+                    actualKnockout={knockoutResults}
                     readOnly
                   />
                 ) : (
@@ -618,6 +649,7 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
                     isRoundUnlocked={bracketState.isRoundUnlocked}
                     isMatchLocked={() => false}
                     matchLookup={matchLookup}
+                    actualKnockout={knockoutResults}
                     readOnly
                   />
                 )}
