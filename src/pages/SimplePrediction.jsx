@@ -32,7 +32,7 @@ import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import { predictedAdvancers } from '../utils/scoringSimple';
-import { computeLiveStandings, projectRealR32 } from '../utils/liveStandings';
+import { computeLiveStandings, projectRealR32, eliminatedTeams } from '../utils/liveStandings';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
 import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
@@ -290,6 +290,14 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     [wantRealBracket, liveStandings, realBracket],
   );
   const reseedActive = !!realR32 && Object.values(realR32).some((s) => s && (s.homeReal || s.awayReal));
+  // Teams mathematically out of the R32 — blanked from any still-unresolved
+  // slot so an eliminated predicted pick (e.g. a best-third that didn't advance)
+  // doesn't keep showing while its third-place slot waits on all groups to
+  // finish. Only meaningful while reseeding from real teams.
+  const eliminatedSet = useMemo(
+    () => (wantRealBracket ? eliminatedTeams(liveStandings) : null),
+    [wantRealBracket, liveStandings],
+  );
   const predictedTeamSet = useMemo(() => {
     if (!reseedActive) return null;
     // Knockout-only (incl. a new no-group-picks entrant): every real R32 team
@@ -334,6 +342,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     knockoutPredictions: frozenInitial?.knockoutPredictions,
     realR32: reseedActive ? realR32 : null,
     predictedTeamSet,
+    eliminatedSet: reseedActive ? eliminatedSet : null,
     onChange: (next) => {
       // Treat picking the Final winner as the user finishing their
       // bracket — leaderboards key off isComplete and we don't want

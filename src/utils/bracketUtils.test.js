@@ -258,4 +258,19 @@ describe('mergeRealRoundOf32', () => {
     expect(r3.away).toBe(predicted.find((m) => m.matchId === 'r32-03').away);
     expect(r3.awayEarned).toBe(true);
   });
+
+  it('blanks an eliminated predicted team on an undecided side, but never a resolved real side', () => {
+    const realR32 = { 'r32-02': { home: 'C1', away: null, homeReal: true, awayReal: false } };
+    const eliminated = new Set(['A2']); // r32-01's predicted home team is out
+    const merged = mergeRealRoundOf32(predicted, realR32, teamSet, eliminated);
+
+    const r1 = slot(merged, 'r32-01');
+    expect(r1.home).toBeNull();   // eliminated predicted team → TBD, not lingering
+    expect(r1.homeReal).toBe(false);
+    expect(r1.away).toBe('B2');   // non-eliminated undecided side kept
+
+    const r2 = slot(merged, 'r32-02');
+    expect(r2.home).toBe('C1');   // resolved real side untouched by elimination
+    expect(r2.homeReal).toBe(true);
+  });
 });

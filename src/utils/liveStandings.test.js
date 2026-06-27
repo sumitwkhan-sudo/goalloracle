@@ -4,7 +4,7 @@
  * so the on-screen standings agree with what the live score is graded against.
  */
 import { describe, test, expect } from 'vitest';
-import { computeLiveStandings, countGroupMatchesPlayed, mergeLiveScores, GROUP_LETTERS, projectRealR32 } from './liveStandings.js';
+import { computeLiveStandings, countGroupMatchesPlayed, mergeLiveScores, GROUP_LETTERS, projectRealR32, eliminatedTeams } from './liveStandings.js';
 import WORLD_CUP_MATCHES from '../data/matches';
 
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
@@ -98,5 +98,38 @@ describe('projectRealR32', () => {
     expect(r32['r32-03'].awayReal).toBe(true);
     // The direct "1st Group E" side stays unresolved until Group E starts.
     expect(r32['r32-03'].homeReal).toBe(false);
+  });
+});
+
+describe('eliminatedTeams', () => {
+  const team = (name, group, pts, gd, gf, played = 3) => ({ name, group, pts, gd, gf, played });
+  const grp = (l, thirdPts) => [
+    team(`${l}1`, l, 9, 5, 8), team(`${l}2`, l, 6, 2, 5),
+    team(`${l}3`, l, thirdPts, 0, 2), team(`${l}4`, l, 0, -7, 0),
+  ];
+
+  test('a complete group: 4th is out, top-2 are not; a lone 3rd is not (might still advance)', () => {
+    const out = eliminatedTeams({ A: grp('A', 3) });
+    expect(out.has('A4')).toBe(true);
+    expect(out.has('A1')).toBe(false);
+    expect(out.has('A2')).toBe(false);
+    expect(out.has('A3')).toBe(false); // only 1 third so far — can't be ruled out
+  });
+
+  test('with 9 complete groups, the 9th-best third is out but the top-8 thirds are kept', () => {
+    const standings = {};
+    ['A','B','C','D','E','F','G','H','I'].forEach((l, i) => { standings[l] = grp(l, 9 - i); });
+    const out = eliminatedTeams(standings); // thirds pts A=9..I=1 → I3 is 9th-best
+    expect(out.has('I3')).toBe(true);
+    expect(out.has('A3')).toBe(false);
+    expect(out.has('H3')).toBe(false); // 8th-best — still advancing
+  });
+
+  test('never eliminates teams from an unfinished group', () => {
+    const unfinished = [
+      team('A1', 'A', 3, 1, 2, 1), team('A2', 'A', 1, 0, 1, 1),
+      team('A3', 'A', 1, 0, 1, 1), team('A4', 'A', 0, -1, 0, 1),
+    ];
+    expect(eliminatedTeams({ A: unfinished }).size).toBe(0);
   });
 });

@@ -187,16 +187,22 @@ export function predictedR32TeamSet(groupPredictions, bestThirdPicks) {
  * @param {Array} predictedR32      deriveRoundOf32(...) output
  * @param {Object} realR32          { matchId: { home, away, homeReal, awayReal } } | null
  * @param {Set<string>} predictedTeamSet  predictedR32TeamSet(...)
+ * @param {Set<string>} [eliminatedSet]  teams mathematically out of the R32. An
+ *   UNRESOLVED side falls back to the user's predicted team — but if that team
+ *   is eliminated we blank it to null (TBD) instead, so a knocked-out pick (e.g.
+ *   a best-third that didn't advance) doesn't linger in its still-unresolved
+ *   slot. Resolved (real) sides are never touched.
  */
-export function mergeRealRoundOf32(predictedR32, realR32, predictedTeamSet) {
+export function mergeRealRoundOf32(predictedR32, realR32, predictedTeamSet, eliminatedSet = null) {
   const flags = getTeamFlags();
   const earnedSet = predictedTeamSet || new Set();
+  const isOut = (team) => !!(team && eliminatedSet && eliminatedSet.has(team));
   return predictedR32.map((slot) => {
     const real = (realR32 && realR32[slot.matchId]) || {};
     const useRealHome = !!(real.homeReal && real.home);
     const useRealAway = !!(real.awayReal && real.away);
-    const home = useRealHome ? real.home : slot.home;
-    const away = useRealAway ? real.away : slot.away;
+    const home = useRealHome ? real.home : (isOut(slot.home) ? null : slot.home);
+    const away = useRealAway ? real.away : (isOut(slot.away) ? null : slot.away);
     return {
       matchId: slot.matchId,
       home: home || null,
