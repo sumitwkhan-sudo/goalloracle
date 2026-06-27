@@ -14,6 +14,7 @@ const AUTOMATION_SEGMENTS = [
   { id: 'completed_global', label: 'Completed Global bracket' },
   { id: 'global_all', label: 'Everyone in the Global league' },
   { id: 'inactive_since_groups', label: 'Lapsed since group stage' },
+  { id: 'global_ko_not_resubmitted', label: 'Global — not re-locked knockout bracket' },
 ];
 
 // Which stage's lock the "hours before lock" window is measured against.

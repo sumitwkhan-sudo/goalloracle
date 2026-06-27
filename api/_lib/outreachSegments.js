@@ -38,6 +38,13 @@ const GROUP_STAGE_START_MS = (() => {
   try { return stageLockTimeUtc('groupStage'); } catch { return 0; }
 })();
 
+// When the real Round-of-32 teams became available (the knockout-real-reseed
+// window opened ~2026-06-26). A Global bracket whose last save predates this
+// has NOT been re-locked against the real teams; a save at/after it counts as
+// "re-locked" and drops the user out of the not-resubmitted segment. Adjust if
+// the reseed timing shifts.
+const KNOCKOUT_REPICK_CUTOFF_MS = Date.UTC(2026, 5, 26, 0, 0, 0);
+
 export const SEGMENTS = {
   no_picks: {
     id: 'no_picks',
@@ -68,6 +75,11 @@ export const SEGMENTS = {
     id: 'inactive_since_groups',
     label: 'Lapsed since group stage',
     description: 'Has not logged in since before the group stage began. Pair with a recurring rule to re-engage them with a knockout countdown.',
+  },
+  global_ko_not_resubmitted: {
+    id: 'global_ko_not_resubmitted',
+    label: 'Global — not re-locked knockout bracket',
+    description: 'Competing in the Global league but has NOT saved/updated their knockout bracket since the real Round-of-32 teams were set. Drops out the moment they re-lock — so recurring reminders never hit someone who has already updated.',
   },
 };
 
@@ -103,6 +115,7 @@ export async function resolveSegment(db, segmentId) {
   const agg = {};
   const ensure = (uid) => (agg[uid] || (agg[uid] = {
     startedAny: false, completeAny: false, globalHasPicks: false, globalComplete: false,
+    globalUpdatedAtMs: null,
   }));
   predsSnap.docs.forEach((doc) => {
     const id = doc.id;
@@ -121,6 +134,11 @@ export async function resolveSegment(db, segmentId) {
     if (leagueId === 'global-simple') {
       if (picks) a.globalHasPicks = true;
       if (complete) a.globalComplete = true;
+      // Last save time — post-group-lock the only editable section is the
+      // knockout bracket, so a save after the reseed cutoff means they re-locked
+      // their knockout picks against the real teams.
+      const upd = tsToMs(data.updatedAt) || tsToMs(data.submittedAt);
+      if (upd && (a.globalUpdatedAtMs == null || upd > a.globalUpdatedAtMs)) a.globalUpdatedAtMs = upd;
     }
   });
 
@@ -130,7 +148,7 @@ export async function resolveSegment(db, segmentId) {
     const user = { id: d.id, ...d.data() };
     scanned += 1;
     if (!user.email || isOptedOut(user)) return;
-    const a = agg[user.id] || { startedAny: false, completeAny: false, globalHasPicks: false, globalComplete: false };
+    const a = agg[user.id] || { startedAny: false, completeAny: false, globalHasPicks: false, globalComplete: false, globalUpdatedAtMs: null };
 
     let inSegment = false;
     switch (segmentId) {
@@ -157,6 +175,14 @@ export async function resolveSegment(db, segmentId) {
         inSegment = !lastLoginMs || lastLoginMs < GROUP_STAGE_START_MS;
         break;
       }
+      case 'global_ko_not_resubmitted':
+        // Competing in Global (has a Global bracket) AND hasn't saved it since
+        // the real R32 teams were set — i.e. hasn't re-locked their knockout
+        // picks. The instant they re-save (globalUpdatedAtMs >= cutoff) they
+        // drop out, so a recurring reminder stops once they've updated.
+        inSegment = a.globalHasPicks
+          && (a.globalUpdatedAtMs == null || a.globalUpdatedAtMs < KNOCKOUT_REPICK_CUTOFF_MS);
+        break;
       default:
         inSegment = false;
     }

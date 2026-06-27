@@ -20,15 +20,14 @@ describe('KnockoutLockCTA', () => {
   it('renders the hero variant (no picks) with the live R32 countdown', () => {
     state.lockMs = Date.now() + 20 * 3600000; // 20h out
     const html = renderToStaticMarkup(<KnockoutLockCTA variant="hero" hasPicks={false} onAction={() => {}} />);
-    expect(html).toContain('Round of 32 locks in');
-    expect(html).toContain('Start my bracket');
+    expect(html).toContain('locks in');
+    expect(html).toContain('Lock in your World Cup knockout bracket');
   });
 
-  it('reassures have-picks users their bracket is still scoring (dashboard)', () => {
+  it('uses the "updated bracket" copy for have-picks users (dashboard)', () => {
     state.lockMs = Date.now() + 10 * 3600000;
     const html = renderToStaticMarkup(<KnockoutLockCTA variant="dashboard" hasPicks onAction={() => {}} />);
-    expect(html).toContain('still scoring');
-    expect(html).toContain('Review my bracket');
+    expect(html).toContain('Lock in your updated knockout bracket');
   });
 
   it('renders nothing once the Round of 32 has locked', () => {

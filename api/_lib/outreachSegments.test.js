@@ -65,6 +65,21 @@ describe('resolveSegment (B2d)', () => {
     expect(userIds.sort()).toEqual(['done']);
   });
 
+  test('global_ko_not_resubmitted: in Global + not saved since the reseed cutoff', async () => {
+    const CUTOFF = Date.UTC(2026, 5, 26, 0, 0, 0); // mirrors KNOCKOUT_REPICK_CUTOFF_MS
+    const u = [
+      { id: 'stale', email: 's@x.com' },     // bracket last saved BEFORE cutoff → email them
+      { id: 'relocked', email: 'r@x.com' },   // re-saved AFTER cutoff → excluded
+      { id: 'nopick', email: 'n@x.com' },     // competing? no Global picks → excluded
+    ];
+    const p = [
+      { ...started('stale__global-simple', 'stale'), updatedAt: CUTOFF - 86400000 },
+      { ...started('relocked__global-simple', 'relocked'), updatedAt: CUTOFF + 3600000 },
+    ];
+    const { userIds } = await resolveSegment(makeDb({ users: u, preds: p }), 'global_ko_not_resubmitted');
+    expect(userIds.sort()).toEqual(['stale']);
+  });
+
   test('opted-out + no-email users never appear in any segment', async () => {
     for (const seg of Object.keys(SEGMENTS)) {
       const { userIds } = await resolveSegment(makeDb({ users, preds }), seg);
