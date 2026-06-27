@@ -1342,6 +1342,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             onComplete={handleComplete}
             onShareBracket={openShareBracket}
             onCelebrate={onCelebrate}
+            results={results}
             embedded
           />
         ) : (
@@ -5581,6 +5582,7 @@ const GoalOracle = () => {
           onRequireSignup={requireSignup}
           onExit={() => nav('leagues')}
           onCelebrate={celebrate}
+          results={results}
         />
       )}
       {view === 'standings' && <Standings results={results} userId={uData?.id} authenticated={authenticated} leagues={leagues} onSignIn={login} />}

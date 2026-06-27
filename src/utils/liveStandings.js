@@ -119,3 +119,50 @@ export function isGroupComplete(standings, letter) {
   const rows = standings?.[letter];
   return Array.isArray(rows) && rows.length === 4 && rows.every((t) => t.played === 3);
 }
+
+const R32_MATCHES = WORLD_CUP_MATCHES.filter((m) => m.id && m.id.startsWith('r32-'));
+
+// Resolve a direct-position R32 placeholder ("1st/2nd Group X") against the
+// CURRENT live standings so the bracket previews the projected matchups before
+// groups officially finish (positions update as the final games play). Returns
+// `undefined` for a non-direct (3rd-place) placeholder — those resolve via the
+// server payload (Annexe C needs all groups done). `null` team if the group
+// hasn't started; `final` flags whether the group is mathematically complete.
+export function projectDirectSlot(placeholder, standings) {
+  const m1 = placeholder?.match(/^1st Group ([A-L])$/i);
+  const m2 = placeholder?.match(/^2nd Group ([A-L])$/i);
+  const letter = m1?.[1] || m2?.[1];
+  if (!letter) return undefined; // a "3rd …" slot — handled via the server payload
+  const rows = standings[letter];
+  if (!rows || rows.length < 4) return { team: null, final: false };
+  const row = rows[m1 ? 0 : 1];
+  if (!row || row.played === 0) return { team: null, final: false };
+  return { team: row.name, final: rows.every((t) => t.played === 3) };
+}
+
+// Build a real-R32 map in the shape the wizard reseed consumes
+// ({ matchId: { home, away, homeReal, awayReal } }), projecting the direct
+// 1st/2nd-place sides from live `standings` so qualified-so-far teams show
+// immediately (updating as games finish), and taking the 3rd-place sides from
+// the server payload `serverR32` (confirmed only once all 12 groups complete).
+// A side is `*Real: true` once its team is known — so the wizard treats it as a
+// real (pickable, score-marked) team. Pure: same inputs → same output.
+export function projectRealR32(standings, serverR32 = {}) {
+  const out = {};
+  for (const m of R32_MATCHES) {
+    const dh = projectDirectSlot(m.home, standings);
+    const da = projectDirectSlot(m.away, standings);
+    const srv = serverR32?.[m.id] || {};
+    // Direct side: from live standings. 3rd-place side (dh/da === undefined):
+    // from the server's confirmed payload.
+    const home = dh !== undefined ? dh.team : (srv.homeReal ? srv.home : null);
+    const away = da !== undefined ? da.team : (srv.awayReal ? srv.away : null);
+    out[m.id] = {
+      home: home || null,
+      away: away || null,
+      homeReal: !!home,
+      awayReal: !!away,
+    };
+  }
+  return out;
+}

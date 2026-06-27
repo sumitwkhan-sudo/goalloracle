@@ -4,7 +4,7 @@
  * so the on-screen standings agree with what the live score is graded against.
  */
 import { describe, test, expect } from 'vitest';
-import { computeLiveStandings, countGroupMatchesPlayed, mergeLiveScores, GROUP_LETTERS } from './liveStandings.js';
+import { computeLiveStandings, countGroupMatchesPlayed, mergeLiveScores, GROUP_LETTERS, projectRealR32 } from './liveStandings.js';
 import WORLD_CUP_MATCHES from '../data/matches';
 
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
@@ -67,5 +67,36 @@ describe('mergeLiveScores', () => {
     const m = mergeLiveScores({}, { gs05: { status: 'IN_PLAY' }, gs06: { homeScore: 'x', awayScore: 1 } });
     expect(m.gs05).toBeUndefined();
     expect(m.gs06).toBeUndefined();
+  });
+});
+
+describe('projectRealR32', () => {
+  test('empty standings: no side is real yet', () => {
+    const r32 = projectRealR32(computeLiveStandings({}), {});
+    expect(Object.values(r32).every((s) => s.homeReal === false && s.awayReal === false)).toBe(true);
+    expect(r32['r32-01'].home).toBeNull();
+  });
+
+  test('a group leader projects into its direct R32 slot immediately', () => {
+    // r32-02 home is "1st Group C". A single decisive Group C result makes a
+    // clear leader, which should appear (real) without the group being complete.
+    const c = GROUP_MATCHES.filter((m) => (m.stage || '') === 'Group C');
+    const standings = computeLiveStandings({ [c[0].id]: r(3, 0) });
+    const leaderC = standings.C[0].name;
+    const r32 = projectRealR32(standings, {});
+    expect(r32['r32-02'].home).toBe(leaderC);
+    expect(r32['r32-02'].homeReal).toBe(true);
+  });
+
+  test('3rd-place sides come from the server payload, not live standings', () => {
+    // r32-03 away is a "3rd …" slot — unresolvable from standings; the server
+    // resolves it once all groups finish (Annexe C).
+    const standings = computeLiveStandings({});
+    const server = { 'r32-03': { home: null, away: 'Brazil', homeReal: false, awayReal: true } };
+    const r32 = projectRealR32(standings, server);
+    expect(r32['r32-03'].away).toBe('Brazil');
+    expect(r32['r32-03'].awayReal).toBe(true);
+    // The direct "1st Group E" side stays unresolved until Group E starts.
+    expect(r32['r32-03'].homeReal).toBe(false);
   });
 });

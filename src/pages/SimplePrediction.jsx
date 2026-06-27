@@ -32,6 +32,7 @@ import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import { predictedAdvancers } from '../utils/scoringSimple';
+import { computeLiveStandings, projectRealR32 } from '../utils/liveStandings';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
 import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
@@ -39,7 +40,7 @@ import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSi
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
 
-export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded = false, isAnonymous = false, onRequireSignup = () => {}, userLeagues = [] }) {
+export default function SimplePrediction({ userId, league, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded = false, isAnonymous = false, onRequireSignup = () => {}, userLeagues = [], results = {} }) {
   const { data, loading, saving, savedAt, error, save, saveNow } = useSimplePrediction(userId, league?.id);
   // Bumping this key remounts the wizard so its frozen-initial hooks
   // rehydrate from the latest subscription data (used after copy / reset).
@@ -79,6 +80,7 @@ export default function SimplePrediction({ userId, league, onExit, onComplete, o
       userId={userId}
       league={league}
       userLeagues={userLeagues}
+      results={results}
       onExit={onExit}
       onComplete={onComplete}
       onShareBracket={onShareBracket}
@@ -129,7 +131,7 @@ function pickResumeStep(initialData, explicitStep, league) {
   return 3;
 }
 
-function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, userLeagues = [], onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded, isAnonymous = false, onRequireSignup = () => {}, saving, savedAt, error, save, saveNow, onRehydrate }) {
+function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, userLeagues = [], results = {}, onExit, onComplete, onShareBracket, onCelebrate, displayName, embedded, isAnonymous = false, onRequireSignup = () => {}, saving, savedAt, error, save, saveNow, onRehydrate }) {
   // Resume on the first incomplete step instead of always starting at
   // group rankings. Users with 1 pick left were being sent back to
   // Step 1 — they had to scroll past 12 already-correct group rankings
@@ -275,7 +277,18 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     const t = setInterval(load, 60000);
     return () => { cancelled = true; clearInterval(t); };
   }, [wantRealBracket]);
-  const realR32 = wantRealBracket ? (realBracket?.r32 || null) : null;
+  // Real R32 for the bracket. Project the direct 1st/2nd-place sides from the
+  // CURRENT live standings so qualified-so-far teams show immediately — instead
+  // of waiting for the server to mark a slot real only once its whole group is
+  // mathematically complete (which left the bracket showing predicted teams
+  // through the final group matchday). 3rd-place sides still come from the
+  // server payload (Annexe C needs all groups done). Display/pick only —
+  // scoring runs server-side off the final results.
+  const liveStandings = useMemo(() => computeLiveStandings(results || {}), [results]);
+  const realR32 = useMemo(
+    () => (wantRealBracket ? projectRealR32(liveStandings, realBracket?.r32 || {}) : null),
+    [wantRealBracket, liveStandings, realBracket],
+  );
   const reseedActive = !!realR32 && Object.values(realR32).some((s) => s && (s.homeReal || s.awayReal));
   const predictedTeamSet = useMemo(() => {
     if (!reseedActive) return null;
@@ -1051,7 +1064,8 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             <div className="bracket-reseed-note">
               <strong>Knockout league — pure bracket.</strong> Your bracket is pre-filled with the real
               Round of 32, the same 32 teams for everyone. Pick winners through to the Final. No group
-              picks, no head start — just who you’ve got lifting the trophy.
+              picks, no head start — just who you’ve got lifting the trophy. Teams update as the last
+              group games finish.
             </div>
           )}
 
@@ -1070,7 +1084,8 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               can advance <strong>any</strong> team in the bracket, but you only score knockout points
               for teams you originally predicted to reach the knockouts (your group + best-third picks).
               Teams you didn’t pick are tagged <span className="bracket-reseed-locked">won’t score</span> —
-              still pickable, just worth 0 points. Third-place slots fill once all groups finish.
+              still pickable, just worth 0 points. Teams update as the last group games finish, and
+              third-place slots fill once all groups are done.
               <br />
               <strong>Happy with your picks?</strong> You don’t have to change a thing — your group and
               best-third picks are locked and still scoring, and your knockout picks stay exactly as you

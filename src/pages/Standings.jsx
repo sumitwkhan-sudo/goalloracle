@@ -15,7 +15,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { BarChart3, ListChecks, GitCompareArrows, Trophy, Check, ChevronDown, RefreshCw } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import TEAM_COLORS from '../data/teamColors';
-import { computeLiveStandings, GROUP_LETTERS, countGroupMatchesPlayed, mergeLiveScores } from '../utils/liveStandings';
+import { computeLiveStandings, GROUP_LETTERS, countGroupMatchesPlayed, mergeLiveScores, projectDirectSlot } from '../utils/liveStandings';
 import { scoreGroup, GROUP_STAGE_MAX_PER_GROUP } from '../utils/scoringSimple';
 import { getSimplePrediction, fetchLiveScores, fetchActualBracket } from '../utils/db';
 import { GitBranch } from 'lucide-react';
@@ -29,23 +29,9 @@ const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
 const KO_MATCHES = WORLD_CUP_MATCHES.filter((m) => m.isKnockout);
 const KO_LOOKUP = (() => { const o = {}; for (const m of KO_MATCHES) o[m.id] = m; return o; })();
 
-// Resolve a direct-position R32 placeholder ("1st/2nd Group X") against the
-// CURRENT live standings so the bracket previews the projected matchups before
-// groups officially finish (positions update as the final games play). Returns
-// undefined for a non-direct (3rd-place) placeholder, null if the group hasn't
-// started. `final` flags whether the group is mathematically done.
-function resolveDirectLive(placeholder, standings) {
-  const m1 = placeholder?.match(/^1st Group ([A-L])$/i);
-  const m2 = placeholder?.match(/^2nd Group ([A-L])$/i);
-  const letter = m1?.[1] || m2?.[1];
-  if (!letter) return undefined; // a "3rd …" slot — handled via the server payload
-  const rows = standings[letter];
-  if (!rows || rows.length < 4) return { team: null, final: false };
-  const row = rows[m1 ? 0 : 1];
-  if (!row || row.played === 0) return { team: null, final: false };
-  const groupDone = rows.every((t) => t.played === 3);
-  return { team: row.name, final: groupDone };
-}
+// Direct-position R32 projection lives in utils/liveStandings (projectDirectSlot),
+// shared with the Quick Picks wizard so the Standings preview and the wizard
+// bracket resolve qualified teams identically.
 
 // Build the knockout bracket tree for the read-only bracket components. R32
 // direct positions come from the LIVE standings (so current group leaders show
@@ -64,9 +50,9 @@ function buildLiveBracketTree(standings, ab) {
     let home = null;
     let away = null;
     if (m.id.startsWith('r32-')) {
-      const dh = resolveDirectLive(m.home, standings);
+      const dh = projectDirectSlot(m.home, standings);
       home = dh !== undefined ? dh.team : (r32[m.id]?.homeReal ? r32[m.id].home : null);
-      const da = resolveDirectLive(m.away, standings);
+      const da = projectDirectSlot(m.away, standings);
       away = da !== undefined ? da.team : (r32[m.id]?.awayReal ? r32[m.id].away : null);
     } else {
       const s = knockout[m.id] || {};
