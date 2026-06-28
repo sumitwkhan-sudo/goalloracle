@@ -66,7 +66,7 @@ const OUTREACH_TEMPLATES = {
   },
 };
 
-const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify, featureFlags = DEFAULT_FEATURE_FLAGS }) => {
+const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, notify, featureFlags = DEFAULT_FEATURE_FLAGS, onViewAsUser }) => {
   const [tab, setTab] = useState('results');
   const [users, setUsers] = useState([]);
   // User segmentation panel (read-only, lazy-loaded on demand).
@@ -1783,7 +1783,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       <td>
                         <span className="admin-user-cell-name">
                           {flagCode && <span className="admin-user-flag" title={flagCode}>{_countryFlagFromCode(flagCode)}</span>}
-                          <span className="admin-user-row-handle">{u.displayName || u.id.slice(0, 12)}</span>
+                          {onViewAsUser
+                            ? <button type="button" className="admin-user-row-handle admin-user-viewas" title="View the site as this user (read-only)" onClick={() => onViewAsUser(u)}>{u.displayName || u.id.slice(0, 12)}</button>
+                            : <span className="admin-user-row-handle">{u.displayName || u.id.slice(0, 12)}</span>}
                           {referrals > 0 && <span className="admin-user-ref-pill" title={`${referrals} sign-up${referrals === 1 ? '' : 's'} attributed`}><strong>{referrals}</strong> inv</span>}
                         </span>
                         {u.referredBy && <span className="admin-user-via" title={`referredBy: ${u.referredBy}`}>via {referrer?.displayName || `${u.referredBy.slice(0, 8)}…`}</span>}

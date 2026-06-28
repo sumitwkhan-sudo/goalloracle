@@ -2658,6 +2658,22 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .notification.error svg { color: var(--danger, #ff3b5c); }
 @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
+/* ---- VIEW-AS (admin read-only impersonation) ---- */
+.view-as-bar {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600;
+  background: #2a1a00; color: #ffdb00;
+  border-bottom: 1px solid #5a3d00;
+}
+.view-as-bar svg { flex-shrink: 0; }
+.view-as-bar strong { color: #fff; }
+.view-as-bar button {
+  margin-left: auto; padding: 0.3rem 0.85rem;
+  background: #ffdb00; color: #2a1a00; border: none; border-radius: 6px;
+  font-family: var(--font); font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.view-as-bar button:hover { background: #ffe640; }
+
 /* ---- NAME EDITING ---- */
 .dropdown-name-row { display: flex; align-items: center; justify-content: space-between; }
 .edit-name-btn { background: none; border: none; cursor: pointer; font-size: 0.8rem; padding: 0.1rem; opacity: 0.5; transition: opacity 0.2s; }
@@ -3482,6 +3498,12 @@ button.invite-option:hover,
   font-size: 0.82rem; font-weight: 600; min-width: 0;
 }
 .admin-user-row-handle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 42vw; }
+button.admin-user-viewas {
+  background: none; border: none; padding: 0; margin: 0;
+  font: inherit; color: var(--primary); cursor: pointer;
+  text-align: left; text-decoration: none; display: inline-block;
+}
+button.admin-user-viewas:hover { text-decoration: underline; }
 .admin-user-row-controls {
   display: inline-flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
 }

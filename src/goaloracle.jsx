@@ -1601,6 +1601,18 @@ const GoalOracle = () => {
   // every QP league).
   const [quickPicks, setQuickPicks] = useState(null);
 
+  // ── Admin "view as user" (read-only) ────────────────────────────────
+  // A superadmin can click a username in Admin → Users to browse the site
+  // as that user sees it. We stay authenticated as the admin and only
+  // repoint the HOME READ subscriptions (quickPicks / leagues / ranks) to
+  // the target's id — every WRITE still uses uData.id, so the admin can
+  // never modify the viewed user's data (worst case they'd edit their own).
+  // Write CTAs are additionally disabled and a banner makes the mode obvious.
+  const [viewAsUser, setViewAsUser] = useState(null);
+  const isViewingAs = !!(viewAsUser && uData?.id && viewAsUser.id !== uData.id);
+  const viewUid = isViewingAs ? viewAsUser.id : uData?.id;
+  const exitViewAs = useCallback(() => setViewAsUser(null), []);
+
   // Global consensus (champion / runner-up / 3rd-place distributions).
   // Used by HomeHeroCard insights to compute "crowd alignment" — how
   // many other players agree with the user's champion pick. Cached
@@ -1621,7 +1633,7 @@ const GoalOracle = () => {
   // submitting the last pick didn't move the dashboard's "1 pick left"
   // pill until the user reloaded. onSnapshot updates within ~100ms.
   useEffect(() => {
-    if (!uData?.id) { setQuickPicks(null); return; }
+    if (!viewUid) { setQuickPicks(null); return; }
     const computeFromDoc = (docData) => {
       const groups = docData?.groupPredictions || {};
       const thirds = Array.isArray(docData?.bestThirdPicks) ? docData.bestThirdPicks : [];
@@ -1661,12 +1673,12 @@ const GoalOracle = () => {
     let unsub;
     (async () => {
       const { subscribeToSimplePrediction } = await import('./utils/db');
-      unsub = subscribeToSimplePrediction(uData.id, 'global-simple', (docData) => {
+      unsub = subscribeToSimplePrediction(viewUid, 'global-simple', (docData) => {
         setQuickPicks(computeFromDoc(docData));
       });
     })();
     return () => { if (typeof unsub === 'function') unsub(); };
-  }, [uData?.id]);
+  }, [viewUid]);
 
   // Fetch per-league rank + picks-progress for every personal league.
   // Lives at App level (not inside Dashboard) so the leagues page can show
@@ -1678,7 +1690,7 @@ const GoalOracle = () => {
   // "Refresh" control on the leagues page can force a re-pull when the
   // user wants to verify their status against a stale-looking pill.
   const fetchLeagueRanks = useCallback(async ({ force = false } = {}) => {
-    if (!uData?.id || leagues.length === 0) return;
+    if (!viewUid || leagues.length === 0) return;
     const DEFAULT_PS = { correctResult: 3, correctScore: 5, penaltyBonus: 2, extraTimeBonus: 1 };
     for (const league of leagues.slice(0, 20)) {
       if (!force && leagueRanks[league.id]) continue;
@@ -1686,7 +1698,7 @@ const GoalOracle = () => {
         if (league.predictionMode === 'simple') {
           const data = await getSimpleLeaderboard(league.id);
           const lb = data.leaderboard || [];
-          const myIdx = lb.findIndex(e => e.userId === uData.id);
+          const myIdx = lb.findIndex(e => e.userId === viewUid);
           const myEntry = myIdx >= 0 ? lb[myIdx] : null;
           setLeagueRanks(prev => ({
             ...prev,
@@ -1703,8 +1715,8 @@ const GoalOracle = () => {
           const { leaderboard: bu } = await getLeagueLeaderboard(league.id);
           const entries = Object.entries(bu).map(([uid, pr]) => ({ userId: uid, ...calculateTotalPoints(pr, results, league.pointsSystem || DEFAULT_PS) }));
           const sorted = sortLeaderboard(entries);
-          const myIdx = sorted.findIndex(e => e.userId === uData.id);
-          const myPreds = bu[uData.id] || {};
+          const myIdx = sorted.findIndex(e => e.userId === viewUid);
+          const myPreds = bu[viewUid] || {};
           const myPredCount = Object.values(myPreds).filter(p => p?.result).length;
           setLeagueRanks(prev => ({ ...prev, [league.id]: { rank: myIdx + 1, total: sorted.length, leaderPts: sorted[0]?.totalPoints || 0, myPts: sorted[myIdx]?.totalPoints || 0, myPredCount, fetchedAt: Date.now() } }));
         }
@@ -1714,7 +1726,7 @@ const GoalOracle = () => {
     // current value to decide whether to skip a league; including it
     // would re-create the callback on every fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uData?.id, leagues, results]);
+  }, [viewUid, leagues, results]);
 
   useEffect(() => {
     fetchLeagueRanks();
@@ -1727,7 +1739,7 @@ const GoalOracle = () => {
   // submitting the last pick in the wizard didn't propagate to the
   // dashboard or the leagues page until a manual refresh.
   useEffect(() => {
-    if (!uData?.id || leagues.length === 0) return;
+    if (!viewUid || leagues.length === 0) return;
     let cancelled = false;
     const unsubs = [];
     const QP_TOTAL = 12 + 8 + 32;
@@ -1756,7 +1768,7 @@ const GoalOracle = () => {
       if (cancelled) return;
       for (const league of leagues.slice(0, 20)) {
         if (league.predictionMode !== 'simple') continue;
-        const unsub = subscribeToSimplePrediction(uData.id, league.id, (doc) => {
+        const unsub = subscribeToSimplePrediction(viewUid, league.id, (doc) => {
           if (cancelled) return;
           const computed = computeFromDoc(doc);
           // Seed rank/total = null if the leaderboard fetch hasn't run yet —
@@ -1783,7 +1795,7 @@ const GoalOracle = () => {
       cancelled = true;
       unsubs.forEach(u => u && u());
     };
-  }, [uData?.id, leagues]);
+  }, [viewUid, leagues]);
 
   const notify = useCallback((msg, type = 'success') => { setNotif({ msg, type }); setTimeout(() => setNotif(null), 3000); }, []);
   const loadAllLeagues = useCallback(() => { fetchAllLeagues().then(setAllLeagues).catch(() => {}); }, []);
@@ -2188,7 +2200,7 @@ const GoalOracle = () => {
 
     return () => { unsub(); clearInterval(refresh); };
   }, [isTransientGoogleUser, processFirebaseUser]);
-  useEffect(() => { if (!uData?.id) return; return subscribeToUserLeagues(uData.id, setLeagues); }, [uData?.id]);
+  useEffect(() => { if (!viewUid) return; return subscribeToUserLeagues(viewUid, setLeagues); }, [viewUid]);
   useEffect(loadAllLeagues, [loadAllLeagues]);
 
   // No auto-redirect to /dashboard on sign-in. The home page (authed
@@ -2726,7 +2738,7 @@ const GoalOracle = () => {
             <div className="hero-stadium-overlay hero-stadium-overlay-authed"></div>
             <div className="home-shell">
               <HomeHeroCard
-                displayName={uData?.displayName}
+                displayName={isViewingAs ? viewAsUser.displayName : uData?.displayName}
                 quickPicks={quickPicks}
                 rank={leagueRanks?.['global-simple']}
                 leagueCount={leagues?.length || 0}
@@ -2735,8 +2747,12 @@ const GoalOracle = () => {
                 onLeagueClick={(l) => nav('detail', l)}
                 consensus={globalConsensus}
                 onView={() => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })}
-                onEdit={startSimplePredicting}
-                onShare={handleShareOwnBracket}
+                // View-as is read-only: "edit" opens the read-only bracket
+                // viewer instead of the editing wizard, and share is disabled.
+                onEdit={isViewingAs
+                  ? () => setViewingOwnBracket({ id: 'global-simple', name: 'Global League', predictionMode: 'simple' })
+                  : startSimplePredicting}
+                onShare={isViewingAs ? null : handleShareOwnBracket}
                 onLeaguesClick={() => nav('leagues')}
                 // Biggest upset + Crowd alignment both deep-link to the
                 // user's own bracket view — that's where they can see
@@ -5421,6 +5437,13 @@ const GoalOracle = () => {
         }} />
       ))}</div>}
       <Nav />
+      {isViewingAs && (
+        <div className="view-as-bar" role="status">
+          <Eye size={15} />
+          <span>Viewing as <strong>{viewAsUser.displayName || viewAsUser.email || 'user'}</strong> — read only</span>
+          <button type="button" onClick={exitViewAs}>Exit</button>
+        </div>
+      )}
       <NewsTicker />
       <ViewMeta view={view} />
       {/* Global contest-eligibility banner. Visible to authenticated
@@ -5613,7 +5636,7 @@ const GoalOracle = () => {
         />
       )}
       {view === 'feedback' && <Feedback key="feedback" />}
-      {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} featureFlags={featureFlags} />}
+      {view === 'admin' && (role === 'superadmin' || role === 'admin') && <AdminDashboard userData={uData} platformStats={stats} matchResults={results} allLeagues={allLeagues} notify={notify} featureFlags={featureFlags} onViewAsUser={role === 'superadmin' ? ((u) => { setViewAsUser(u); nav('landing'); }) : undefined} />}
       {showLogin && !authenticated && (
         <LoginScreen
           onClose={() => { setShowLogin(false); setGoogleRecoveryNotice(null); }}
@@ -5752,22 +5775,24 @@ const GoalOracle = () => {
           leagues route to the detail page from the row handler
           instead, since a Classic "bracket" is per-match, not a
           single tree. */}
-      {viewingOwnBracket && uData?.id && viewingOwnBracket.predictionMode === 'simple' && (
+      {viewingOwnBracket && viewUid && viewingOwnBracket.predictionMode === 'simple' && (
         <PicksViewer
           target={{
-            userId: uData.id,
-            displayName: uData.displayName || 'You',
+            userId: viewUid,
+            displayName: isViewingAs ? (viewAsUser.displayName || 'User') : (uData.displayName || 'You'),
             leagueId: viewingOwnBracket.id,
             leagueName: viewingOwnBracket.name,
           }}
           results={results}
-          isOwn
-          onEdit={() => {
+          // Read-only when viewing as another user: PicksViewer hides the
+          // Edit/Share affordances unless isOwn, so the admin can't act.
+          isOwn={!isViewingAs}
+          onEdit={isViewingAs ? undefined : () => {
             const league = viewingOwnBracket;
             setViewingOwnBracket(null);
             nav('simplePredict', league);
           }}
-          onShare={() => {
+          onShare={isViewingAs ? undefined : () => {
             // Capture the viewed league BEFORE closing the viewer so
             // we share whatever bracket the user is looking at. Then
             // close the viewer first — otherwise the share modal opens
