@@ -12,7 +12,7 @@ import { getPedigree } from './utils/pedigree';
 import { teamFlags } from './utils/flags';
 import { getRank as getFifaRank } from './data/fifaRankings';
 import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX, scoreGroup, GROUP_STAGE_POINTS_PER_POSITION, scoreKnockouts, BEST_THIRD_POINTS_PER_PICK, predictedAdvancers } from './utils/scoringSimple';
-import { computeLiveStandings } from './utils/liveStandings';
+import { computeLiveStandings, projectRealR32, mergeLiveScores } from './utils/liveStandings';
 import { stageLockTimeUtc, formatLockDelta } from './utils/stageLock';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
@@ -337,24 +337,51 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
   const [tab, setTab] = useState('groups');
   const layout = useBracketLayout();
 
-  // Actual group standings (live, leaderboard-consistent — same util + ordering
-  // the scoring uses) so we can show, per group, which positions this user got
-  // right and the points each correct pick earned. Only completed groups score.
-  const actualStandings = useMemo(() => computeLiveStandings(results || {}), [results]);
-
   // Actual knockout winners + advancing thirds (server-resolved) so the viewer
   // can grade the bracket + best-thirds the same way the leaderboard does.
+  // We also fetch the in-progress live-scores feed so the R32 projection below
+  // matches the EXACT teams the user sees in their own wizard — a final group
+  // game reaches matchResults only once poll-results reads FINISHED, so without
+  // merging the live feed the viewer's standings could lag the wizard's.
   const [actualBracket, setActualBracket] = useState(null);
+  const [liveScores, setLiveScores] = useState({});
   useEffect(() => {
     let cancelled = false;
     import('./utils/db')
-      .then(({ fetchActualBracket }) => fetchActualBracket())
-      .then((d) => { if (!cancelled) setActualBracket(d); })
+      .then(({ fetchActualBracket, fetchLiveScores }) => Promise.all([
+        fetchActualBracket().catch(() => null),
+        fetchLiveScores().catch(() => ({})),
+      ]))
+      .then(([b, l]) => { if (!cancelled) { setActualBracket(b); setLiveScores(l || {}); } })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
   const knockoutResults = actualBracket?.knockoutResults || null;
   const advancingThirds = actualBracket?.advancingThirds || null;
+
+  // Actual group standings (live, leaderboard-consistent — same util + ordering
+  // the scoring uses) so we can show, per group, which positions this user got
+  // right and the points each correct pick earned. Only completed groups score.
+  // Merge the live feed so it matches the wizard's standings exactly.
+  const actualStandings = useMemo(
+    () => computeLiveStandings(mergeLiveScores(results || {}, liveScores || {})),
+    [results, liveScores],
+  );
+
+  // Project the REAL Round of 32 (qualified-so-far teams) the same way the
+  // wizard does, so the viewer shows actual countries — not the user's predicted
+  // teams, and not bare TBD placeholders for a no-group-picks entrant. Direct
+  // 1st/2nd sides come from live standings; 3rd-place sides from the server
+  // payload. Null (= keep the predicted bracket) until at least one side is real
+  // — i.e. pre-tournament views are unchanged.
+  const realR32 = useMemo(
+    () => projectRealR32(actualStandings, actualBracket?.r32 || {}),
+    [actualStandings, actualBracket],
+  );
+  const reseedActive = useMemo(
+    () => Object.values(realR32 || {}).some((s) => s && (s.homeReal || s.awayReal)),
+    [realR32],
+  );
 
   // Pick completeness — computed from the prediction doc itself, so this
   // works pre-tournament without any results data. Post-kickoff we'll
@@ -387,20 +414,6 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
     return out;
   }, []);
 
-  // Compute the bracket structure from the viewed user's stored picks
-  // using the same hook the owner uses while editing — all the
-  // round-of-32 seed math + best-third routing happens for free. We
-  // pass a no-op onChange because we'll only read bracketState.bracket.
-  const bracketState = useBracketState({
-    groupPredictions: data?.groupPredictions,
-    bestThirdPicks: data?.bestThirdPicks,
-    knockoutPredictions: data?.knockoutPredictions,
-    onChange: () => {},
-  });
-
-  const hasGroups = groupsLocal.some((g) => (data?.groupPredictions?.[g]?.ranking || []).length > 0);
-  const hasKnockout = roundOrder.some((r) => (data?.knockoutPredictions?.[r] || []).length > 0);
-
   // Teams this user predicted to reach the knockouts — the only teams that
   // earn knockout points. Null (= no restriction) when there are no group
   // predictions (knockout-only leagues), matching calculateSimpleScore.
@@ -408,6 +421,39 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
     const s = predictedAdvancers(data?.groupPredictions, data?.bestThirdPicks);
     return s.size > 0 ? s : null;
   }, [data]);
+
+  // Bracket "won't score" marking set — mirrors the wizard's predictedTeamSet:
+  // a no-group-picks (knockout-only) entrant has no restriction, so mark every
+  // real team as earned; otherwise use the user's predicted advancers.
+  const bracketMarkSet = useMemo(() => {
+    if (!reseedActive) return null;
+    if (predictedSet) return predictedSet;
+    const all = new Set();
+    for (const s of Object.values(realR32 || {})) {
+      if (s?.home) all.add(s.home);
+      if (s?.away) all.add(s.away);
+    }
+    return all;
+  }, [reseedActive, predictedSet, realR32]);
+
+  // Compute the bracket structure from the viewed user's stored picks
+  // using the same hook the owner uses while editing — all the
+  // round-of-32 seed math + best-third routing happens for free. We
+  // pass a no-op onChange because we'll only read bracketState.bracket.
+  // Once any R32 side resolves to a real team, drive the bracket from the
+  // REAL teams (matching the wizard) so the viewer shows actual countries +
+  // TBD-with-descriptor for undecided sides — never the user's predicted teams.
+  const bracketState = useBracketState({
+    groupPredictions: data?.groupPredictions,
+    bestThirdPicks: data?.bestThirdPicks,
+    knockoutPredictions: data?.knockoutPredictions,
+    realR32: reseedActive ? realR32 : null,
+    predictedTeamSet: bracketMarkSet,
+    onChange: () => {},
+  });
+
+  const hasGroups = groupsLocal.some((g) => (data?.groupPredictions?.[g]?.ranking || []).length > 0);
+  const hasKnockout = roundOrder.some((r) => (data?.knockoutPredictions?.[r] || []).length > 0);
 
   return (
     <div className="picks-viewer-backdrop" onClick={onClose}>
