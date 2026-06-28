@@ -46,6 +46,8 @@ const TEAM_COLORS = {
   'Sweden':        { primary: '#006AA7', secondary: '#FECC02', flag: '🇸🇪', accent: '#FFFFFF' },
   'Iraq':          { primary: '#007A3D', secondary: '#FFFFFF', flag: '🇮🇶', accent: '#CE1126' },
   'DR Congo':      { primary: '#007FFF', secondary: '#CE1126', flag: '🇨🇩', accent: '#F7D618' },
+  'Egypt':         { primary: '#CE1126', secondary: '#000000', flag: '🇪🇬', accent: '#C09300' },
+  'Ivory Coast':   { primary: '#F77F00', secondary: '#009E60', flag: '🇨🇮', accent: '#FFFFFF' },
 };
 
 export default TEAM_COLORS;

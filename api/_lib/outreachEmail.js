@@ -729,8 +729,9 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
 // admin Outreach eligibility filter.
 
 function knockoutRepickTemplate({ user }) {
-  const subject = 'Germany lost. Your bracket needs you.';
-  const preheader = 'One group day left, then knockout brackets lock.';
+  const subject = 'The Round of 32 is set — and your bracket isn’t.';
+  const preheader = 'Pick your winners now — even if you skipped the group stage. The bracket locks today.';
+  const { date: lockDate, countdown } = r32LockText();
   const ctaUrl = `${PROD_ORIGIN}/quick-picks/global-simple?utm_source=email&utm_medium=campaign&utm_campaign=knockout_repick`;
   const unsubUrl = unsubscribeUrl(user.id);
 
@@ -752,50 +753,64 @@ function knockoutRepickTemplate({ user }) {
             <td style="padding:32px 28px 8px;">
               <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
               <h1 style="margin:0 0 16px;font-size:27px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">
-                The group stage broke everyone&rsquo;s bracket. Including yours.
+                The group stage is done. Did your bracket survive it?
               </h1>
               <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                Be honest &mdash; when you locked in your picks before kickoff, did you have Ecuador beating Germany?
-              </p>
-              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                Because that just happened. Must-win, backs against the wall, and the young Ecuadorians did it, 2&ndash;1. Their coach said something I&rsquo;m stealing for GoalOracle: <em>&ldquo;You&rsquo;re a process, not a result.&rdquo;</em>
+                Probably not &mdash; almost nobody&rsquo;s did. The 32 teams that actually made the knockouts are
+                locked in now, and the bracket you filled out before kickoff is officially history.
               </p>
               <p style="margin:0 0 10px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                And that was just one day of chaos:
+                A quick recap of the carnage:
               </p>
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;">
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; Australia bullied T&uuml;rkiye 2&ndash;0 &mdash; the trendy dark horse, gone.</td></tr>
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; Canada hung SIX on Qatar&hellip; then lost to Switzerland anyway.</td></tr>
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; South Africa reached the knockouts for the FIRST TIME.</td></tr>
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; The most draws in a single day since 1958 &mdash; New Zealand, the lowest-ranked team in the field, clawing back twice on Iran.</td></tr>
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;">&#9917;&nbsp; Messi (39) and Ronaldo (41) still scoring. The old kings aren&rsquo;t done.</td></tr>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 22px;">
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; Germany&rsquo;s out &mdash; Ecuador knocked the giants on their backs.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; A trendy dark horse bullied out before the knockouts even began.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; A debutant reached the Round of 32 for the FIRST TIME in its history.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;">&#9917;&nbsp; Messi and Ronaldo, somehow, still scoring. The old kings aren&rsquo;t done.</td></tr>
               </table>
-              <p style="margin:0 0 22px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                Meanwhile Spain, France, Brazil, Portugal and the Netherlands are topping their groups and looking scary.
-              </p>
+
               <p style="margin:0 0 12px;font-size:14px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#FF3B30;">
-                Here&rsquo;s why this matters now.
+                Here&rsquo;s the good part.
               </p>
-              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                One final round of group games is left. When those whistles blow, the full 32-team knockout bracket gets set &mdash; and the bracket you picked weeks ago is about to be outdated. Some of your teams are out. Some snuck in the back door. The matchups are reshuffling.
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                The bracket has reset to the <strong>real</strong> 32 teams &mdash; and you&rsquo;ve got a clean shot at the
+                whole knockout run. Whether you played the group stage or not, you can pick from here.
               </p>
-              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#0a0a0f;font-weight:700;">
-                &#128073; Once the last group games finish, you re-select and lock in your knockout bracket.
-              </p>
-              <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                This is your reset. Pick who&rsquo;s actually hot, who&rsquo;s quietly cruising, who&rsquo;s limping in wounded &mdash; and win the Global League. <strong>$150 / $100 / $50 in USDC</strong> for the top 3.
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 12px;">
+                <tr>
+                  <td style="padding:14px 16px;background:#eef7ff;border:1px solid #b8dcff;border-radius:8px;font-size:14px;color:#0a2540;line-height:1.55;">
+                    <strong>Played the group stage?</strong> Your bracket&rsquo;s been refreshed with the teams that
+                    actually advanced. Re-pick your winners all the way to the Final.
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 22px;">
+                <tr>
+                  <td style="padding:14px 16px;background:#f0fff4;border:1px solid #b8e6c4;border-radius:8px;font-size:14px;color:#0a3520;line-height:1.55;">
+                    <strong>Missed the group stage? Doesn&rsquo;t matter now.</strong> Jump straight into the knockout
+                    bracket, pick winners from the real 32 teams, and you&rsquo;re in the running &mdash; same prize, same
+                    leaderboard. No catching up required.
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 22px;font-size:16px;line-height:1.6;color:#3c3c43;">
+                Top 3 on the Global Leaderboard at the end of the Final win <strong>$150 / $100 / $50 in USDC</strong>.
+                But the bracket <strong>locks ${escape(lockDate)}</strong>${countdown ? ` &mdash; ${escape(countdown.toLowerCase())}` : ''} Once it
+                locks, that&rsquo;s your bracket for the entire knockout run.
               </p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:0 0 26px;">
                 <tr>
                   <td style="background:#0a0a0f;border-radius:999px;">
                     <a href="${ctaUrl}" style="display:inline-block;padding:18px 34px;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;letter-spacing:0.3px;border-radius:999px;background:linear-gradient(135deg,#FF3B30,#FFD66B);">
-                      Re-pick my knockout bracket &rarr;
+                      Pick my knockout bracket &rarr;
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0 0 4px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                The group stage humbled all of us. Now prove you learned from it.
+                Two minutes. No card, no fees. The group stage humbled all of us &mdash; now prove you learned from it.
               </p>
             </td>
           </tr>
@@ -809,32 +824,28 @@ function knockoutRepickTemplate({ user }) {
 
   const text = `${greeting(user).replace(/<[^>]+>/g, '')}
 
-The group stage broke everyone's bracket. Including yours.
+The group stage is done. Did your bracket survive it?
 
-Be honest -- when you locked in your picks before kickoff, did you have Ecuador beating Germany?
+Probably not -- almost nobody's did. The 32 teams that actually made the knockouts are locked in now, and the bracket you filled out before kickoff is officially history.
 
-Because that just happened. Must-win, backs against the wall, and the young Ecuadorians did it, 2-1. Their coach said something I'm stealing for GoalOracle: "You're a process, not a result."
+A quick recap of the carnage:
+- Germany's out -- Ecuador knocked the giants on their backs.
+- A trendy dark horse bullied out before the knockouts even began.
+- A debutant reached the Round of 32 for the FIRST TIME in its history.
+- Messi and Ronaldo, somehow, still scoring. The old kings aren't done.
 
-And that was just one day of chaos:
-- Australia bullied Turkiye 2-0 -- the trendy dark horse, gone.
-- Canada hung SIX on Qatar... then lost to Switzerland anyway.
-- South Africa reached the knockouts for the FIRST TIME.
-- The most draws in a single day since 1958 -- New Zealand, the lowest-ranked team in the field, clawing back twice on Iran.
-- Messi (39) and Ronaldo (41) still scoring. The old kings aren't done.
+HERE'S THE GOOD PART.
 
-Meanwhile Spain, France, Brazil, Portugal and the Netherlands are topping their groups and looking scary.
+The bracket has reset to the REAL 32 teams -- and you've got a clean shot at the whole knockout run. Whether you played the group stage or not, you can pick from here.
 
-HERE'S WHY THIS MATTERS NOW.
+- Played the group stage? Your bracket's been refreshed with the teams that actually advanced. Re-pick your winners all the way to the Final.
+- Missed the group stage? Doesn't matter now. Jump straight into the knockout bracket, pick winners from the real 32 teams, and you're in the running -- same prize, same leaderboard. No catching up required.
 
-One final round of group games is left. When those whistles blow, the full 32-team knockout bracket gets set -- and the bracket you picked weeks ago is about to be outdated. Some of your teams are out. Some snuck in the back door. The matchups are reshuffling.
+Top 3 on the Global Leaderboard at the end of the Final win $150 / $100 / $50 in USDC. But the bracket locks ${lockDate}${countdown ? ` -- ${countdown.toLowerCase()}` : ''} Once it locks, that's your bracket for the entire knockout run.
 
-Once the last group games finish, you re-select and lock in your knockout bracket.
+Pick my knockout bracket: ${ctaUrl}
 
-This is your reset. Pick who's actually hot, who's quietly cruising, who's limping in wounded -- and win the Global League. $150 / $100 / $50 in USDC for the top 3.
-
-Re-pick my knockout bracket: ${ctaUrl}
-
-The group stage humbled all of us. Now prove you learned from it.
+Two minutes. No card, no fees. The group stage humbled all of us -- now prove you learned from it.
 
 Free skill-based prediction contest. No purchase necessary. Top 3 on the Global Quick Picks Leaderboard at the end of the World Cup 2026 Final receive cash prizes in USDC.
 
@@ -885,8 +896,8 @@ export const TEMPLATES = {
   },
   knockoutRepick: {
     id: 'knockoutRepick',
-    label: 'Knockout Re-pick (group-stage chaos)',
-    description: "One-off re-engagement blast for the final group-stage days: the real results have shredded everyone's pre-tournament bracket and the knockout bracket reseeds with the teams that actually advanced. Drives users back to re-pick their knockout winners before the R32 lock. Deep-links to the Global Quick Picks wizard. Default eligibility: in the Global Quick Picks League, has email, not opted out, AND has NOT re-locked their knockout bracket since the real R32 teams were set (drops out the moment they re-save). Result-specific copy is hard-coded — verify against live standings before sending.",
+    label: 'Knockout Re-pick (Round of 32 set)',
+    description: "Re-engagement blast once the group stage is done and the real Round of 32 is set: drives users back to pick their knockout bracket before the R32 lock. Two paths — re-pick (played the group stage → bracket refreshed with the real teams) AND newcomers (skipped the group stage → jump straight into the knockout bracket, same prize/leaderboard). Deep-links to the Global Quick Picks wizard. Default eligibility: in the Global Quick Picks League, has email, not opted out, AND has NOT re-locked their knockout bracket since the real R32 teams were set. A couple of result-specific lines (Germany out, etc.) are hard-coded — verify against the final standings before sending.",
     build: knockoutRepickTemplate,
   },
 };
