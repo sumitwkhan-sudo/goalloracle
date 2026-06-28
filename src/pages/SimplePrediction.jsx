@@ -35,7 +35,7 @@ import { predictedAdvancers } from '../utils/scoringSimple';
 import { computeLiveStandings, projectRealR32, mergeLiveScores } from '../utils/liveStandings';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
-import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, fetchLiveScores, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
+import { copySimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, fetchLiveScores, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
 const GLOBAL_SIMPLE_ID = 'global-simple';
@@ -258,16 +258,17 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     return true;
   });
 
-  // ── Knockout-real-reseed (flag-gated) ───────────────────────────────
-  // When the founder enables `knockoutRealReseed`, the bracket reflects the
-  // REAL advancing teams (per group as they finish) and restricts the user to
-  // advancing only teams they correctly predicted. Off → predicted bracket as
-  // before. Re-fetches every 60s so a freshly-decided group appears.
+  // ── Real knockout bracket (real teams + TBD) ────────────────────────
+  // The knockout bracket reflects REALITY whenever the group stage is locked
+  // (the tournament is underway), for a knockout-only league, or when the
+  // founder force-enables it via the `knockoutRealReseed` flag pre-launch.
+  // Crucially this is NOT gated on the flag during the tournament — otherwise,
+  // with the flag off, the Results/Standings page (which projects real teams
+  // flag-independently) shows the real bracket while the wizard falls back to
+  // the user's stale predicted teams. Re-fetches every 60s.
   const [reseedFlag, setReseedFlag] = useState(false);
   useEffect(() => subscribeToFeatureFlags((f) => setReseedFlag(!!f?.knockoutRealReseed)), []);
-  // A knockout-only league ALWAYS seeds from the real bracket (independent of
-  // the global reseed flag) — that's its whole premise.
-  const wantRealBracket = reseedFlag || knockoutOnly;
+  const realTeamsMode = reseedFlag || knockoutOnly || groupStageLocked;
   const [realBracket, setRealBracket] = useState(null);
   // In-progress scores feed (/api/live-scores). The freshest qualified-team
   // picture lives here — a game's result reaches matchResults only once the
@@ -276,14 +277,14 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // user's predicted teams. Poll only while we actually want the real bracket.
   const [liveScores, setLiveScores] = useState({});
   useEffect(() => {
-    if (!wantRealBracket) { setRealBracket(null); setLiveScores({}); return; }
+    if (!realTeamsMode) { setRealBracket(null); setLiveScores({}); return; }
     let cancelled = false;
     const loadBracket = async () => { const d = await fetchActualBracket(); if (!cancelled) setRealBracket(d); };
     const loadLive = async () => { const l = await fetchLiveScores(); if (!cancelled) setLiveScores(l || {}); };
     loadBracket(); loadLive();
     const t = setInterval(() => { loadBracket(); loadLive(); }, 60000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [wantRealBracket]);
+  }, [realTeamsMode]);
   // Real R32 for the bracket. Project the direct 1st/2nd-place sides from the
   // CURRENT live standings so qualified-so-far teams show immediately — instead
   // of waiting for the server to mark a slot real only once its whole group is
@@ -296,12 +297,12 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   const merged = useMemo(() => mergeLiveScores(results || {}, liveScores || {}), [results, liveScores]);
   const liveStandings = useMemo(() => computeLiveStandings(merged), [merged]);
   const realR32 = useMemo(
-    () => (wantRealBracket ? projectRealR32(liveStandings, realBracket?.r32 || {}) : null),
-    [wantRealBracket, liveStandings, realBracket],
+    () => (realTeamsMode ? projectRealR32(liveStandings, realBracket?.r32 || {}) : null),
+    [realTeamsMode, liveStandings, realBracket],
   );
   const reseedActive = !!realR32 && Object.values(realR32).some((s) => s && (s.homeReal || s.awayReal));
   const predictedTeamSet = useMemo(() => {
-    if (!reseedActive) return null;
+    if (!realTeamsMode) return null;
     // Knockout-only (incl. a new no-group-picks entrant): every real R32 team
     // is pickable AND scores (there's no group prediction to restrict by).
     // Build the "earned" set from ALL resolved real teams so nothing is marked
@@ -320,7 +321,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     // the same direct, routing-free set the scorer uses (predictedAdvancers in
     // scoringSimple.js) so the UI marking and the points always agree.
     return predictedAdvancers(groups.predictions, bestThird.picks);
-  }, [reseedActive, effectiveKnockoutOnly, realR32, groups.predictions, bestThird.picks]);
+  }, [realTeamsMode, effectiveKnockoutOnly, realR32, groups.predictions, bestThird.picks]);
 
   // How many of the teams the user predicted to reach the knockouts actually
   // made it — i.e. how many of the real R32 teams are on their bracket (and so
@@ -342,7 +343,11 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
     knockoutPredictions: frozenInitial?.knockoutPredictions,
-    realR32: reseedActive ? realR32 : null,
+    // Once realTeamsMode, ALWAYS drive the bracket from real teams (decided) +
+    // TBD (undecided) — never the user's predicted teams. Even before any side
+    // resolves, an empty projection yields an all-TBD bracket rather than the
+    // stale predicted one.
+    realR32: realTeamsMode ? realR32 : null,
     predictedTeamSet,
     onChange: (next) => {
       // Treat picking the Final winner as the user finishing their
@@ -645,47 +650,22 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
   // popup): { title, message, confirmLabel, onConfirm } | null.
   const [confirmDialog, setConfirmDialog] = useState(null);
 
+  // "Reset my picks" clears ONLY the knockout bracket (Round of 32 → Final).
+  // Group rankings + best-third picks are never touched — they're a separate,
+  // already-scored part of the prediction and most users only want to redo
+  // their knockout winners. (Post-group-lock the server would reject a group
+  // edit anyway; pre-tournament the user can still edit groups directly.)
   const handleResetAll = useCallback(() => {
     if (!userId || !league?.id) return;
-    const leagueLabel = league.name || 'this league';
-
-    // Once the group stage has locked, group rankings + best-thirds are frozen
-    // — so "Reset my picks" must clear ONLY the knockout bracket (the part
-    // that's still editable). A full-doc reset would 403 server-side anyway
-    // (the DELETE path rejects once any stage is locked). Knockout-only leagues
-    // have no group/thirds, so they always take this path.
-    if (groupStageLocked || knockoutOnly) {
-      setConfirmDialog({
-        title: 'Reset your knockout bracket?',
-        message: 'Your group rankings and best-thirds are locked and stay exactly as they are — only your knockout picks (Round of 32 through the Final) will be cleared. This can’t be undone.',
-        confirmLabel: 'Reset bracket',
-        onConfirm: () => {
-          setCopyBusy(true);
-          try {
-            bracketState.resetAll();
-            save({ knockoutPredictions: emptyKnockoutPredictions(), isComplete: false });
-          } catch (e) {
-            window.alert(e?.message || 'Reset failed');
-          } finally {
-            setCopyBusy(false);
-          }
-        },
-      });
-      return;
-    }
-
-    // Pre-tournament: nothing is locked yet, so a full reset (groups +
-    // best-thirds + knockout) via the server DELETE is allowed.
     setConfirmDialog({
-      title: `Reset all your picks for "${leagueLabel}"?`,
-      message: 'This will clear your group rankings, best-third selections, and full knockout bracket. This can’t be undone.',
-      confirmLabel: 'Reset everything',
-      onConfirm: async () => {
+      title: 'Reset your knockout bracket?',
+      message: 'This clears only your knockout picks (Round of 32 through the Final). Your group rankings and best-third picks stay exactly as they are. This can’t be undone.',
+      confirmLabel: 'Reset bracket',
+      onConfirm: () => {
         setCopyBusy(true);
         try {
-          await resetSimplePrediction(userId, league.id);
-          setCopyBanner('prompt');
-          setTimeout(() => onRehydrate && onRehydrate(), 400);
+          bracketState.resetAll();
+          save({ knockoutPredictions: emptyKnockoutPredictions(), isComplete: false });
         } catch (e) {
           window.alert(e?.message || 'Reset failed');
         } finally {
@@ -693,7 +673,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         }
       },
     });
-  }, [userId, league?.id, league?.name, onRehydrate, groupStageLocked, knockoutOnly, bracketState, save]);
+  }, [userId, league?.id, bracketState, save]);
 
   return (
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
