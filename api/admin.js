@@ -2176,7 +2176,7 @@ export default async function handler(req, res) {
       if (requested.length > 1000) {
         return res.status(400).json({ error: 'Batch too large (max 1000 per call)' });
       }
-      const { buildEmail, sendOutreachEmail, TEMPLATES, sleep, BATCH_DELAY_MS, firstNameOf } = await import('./_lib/outreachEmail.js');
+      const { buildEmail, sendOutreachBatch, RESEND_BATCH_SIZE, TEMPLATES, firstNameOf } = await import('./_lib/outreachEmail.js');
       if (!TEMPLATES[template]) return res.status(400).json({ error: `Unknown template: ${template}` });
 
       // ── Per-batch shared template context (B2c) — computed once and
@@ -2207,52 +2207,65 @@ export default async function handler(req, res) {
       }
 
       const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
-      for (const uid of requested) {
+      const noteError = (uid, error) => { results.failed++; if (results.errors.length < 25) results.errors.push({ uid, error }); };
+
+      // 1) Batch-fetch every candidate user doc (getAll in chunks) — one read
+      //    round-trip per ~300 users instead of 900 sequential gets.
+      const uniqueIds = Array.from(new Set(requested));
+      const userDocs = {};
+      for (let i = 0; i < uniqueIds.length; i += 300) {
+        const refs = uniqueIds.slice(i, i + 300).map((id) => db.collection('users').doc(id));
+        const snaps = await db.getAll(...refs);
+        for (const s of snaps) if (s.exists) userDocs[s.id] = { id: s.id, ...s.data() };
+      }
+
+      // 2) Build a personalized email per eligible recipient (skip no-email /
+      //    opted-out). CPU-only — fast.
+      const toSend = []; // { uid, to, subject, html, text }
+      for (const uid of uniqueIds) {
+        const user = userDocs[uid];
+        if (!user || !user.email || user.emailOptOut === true) { results.skipped++; continue; }
         try {
-          const userSnap = await db.collection('users').doc(uid).get();
-          if (!userSnap.exists) { results.skipped++; continue; }
-          const user = { id: userSnap.id, ...userSnap.data() };
-          if (!user.email || user.emailOptOut === true) { results.skipped++; continue; }
-
-          const ctx = {
-            ...batchCtx,
-            firstName: firstNameOf(user),
-            rank: rankByUser[uid],
-          };
+          const ctx = { ...batchCtx, firstName: firstNameOf(user), rank: rankByUser[uid] };
           const { subject, html, text } = buildEmail(template, { user, ctx });
-          const r = await sendOutreachEmail({
-            to: user.email,
-            subject, html, text,
-            // Tags echoed back in Resend webhook payloads so
-            // /api/webhooks/resend can stamp open/click/bounce on the
-            // matching /outreachSent doc.
-            tags: [
-              { name: 'userId', value: uid },
-              { name: 'template', value: template },
-            ],
-          });
-
-          // Audit log — one doc per (user, template) lifetime, last
-          // sent timestamp updated on every send.
-          await db.collection('outreachSent').doc(`${uid}__${template}`).set({
-            userId: uid,
-            template,
-            sentAt: FieldValue.serverTimestamp(),
-            sent: r.sent,
-            error: r.error || null,
-            sentBy: userId,
-          }, { merge: true });
-
-          if (r.sent) results.sent++;
-          else { results.failed++; results.errors.push({ uid, error: r.error || 'unknown' }); }
-
-          // Throttle so Resend rate-limit doesn't trip.
-          await sleep(BATCH_DELAY_MS);
+          toSend.push({ uid, to: user.email, subject, html, text });
         } catch (e) {
-          results.failed++;
-          results.errors.push({ uid, error: e?.message || 'crash' });
+          noteError(uid, e?.message || 'build-failed');
         }
       }
+
+      // 3) Send via Resend's BATCH endpoint (100/call) — a 900-recipient blast
+      //    is ~9 API calls instead of 900 sequential sends, so the whole thing
+      //    finishes well inside the serverless time limit.
+      const sentStatus = {}; // uid -> { sent, error }
+      for (let i = 0; i < toSend.length; i += RESEND_BATCH_SIZE) {
+        const chunk = toSend.slice(i, i + RESEND_BATCH_SIZE);
+        const r = await sendOutreachBatch(chunk.map((e) => ({
+          to: e.to, subject: e.subject, html: e.html, text: e.text,
+          // Tags echo back in Resend webhooks so /api/webhooks/resend can stamp
+          // open/click/bounce. sendOutreachBatch drops them + retries if the
+          // batch endpoint rejects tags, so the send always goes out.
+          tags: [{ name: 'userId', value: e.uid }, { name: 'template', value: template }],
+        })));
+        chunk.forEach((e, j) => { sentStatus[e.uid] = r.results[j] || { sent: false, error: r.error || 'unknown' }; });
+      }
+
+      // 4) Write per-user audit rows in Firestore batches (≤500/commit) so the
+      //    email history + recent-contact guardrail (B1) stay accurate without
+      //    900 sequential writes.
+      let writeBatch = db.batch();
+      let pending = 0;
+      for (const e of toSend) {
+        const st = sentStatus[e.uid] || { sent: false, error: 'unknown' };
+        writeBatch.set(db.collection('outreachSent').doc(`${e.uid}__${template}`), {
+          userId: e.uid, template, sentAt: FieldValue.serverTimestamp(),
+          sent: st.sent, error: st.error || null, sentBy: userId,
+        }, { merge: true });
+        if (st.sent) results.sent++;
+        else noteError(e.uid, st.error || 'unknown');
+        if (++pending >= 450) { await writeBatch.commit(); writeBatch = db.batch(); pending = 0; }
+      }
+      if (pending > 0) await writeBatch.commit();
 
       // Operator audit-trail entry — separate from per-user log so the
       // operator can see "I sent the no-picks reminder to 47 users at

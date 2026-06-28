@@ -1015,3 +1015,56 @@ export async function sendOutreachEmail({ to, subject, html, text, tags = [], fr
 // Sleep helper for batch throttling.
 export function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 export const BATCH_DELAY_MS = SEND_DELAY_MS;
+
+const RESEND_BATCH_ENDPOINT = 'https://api.resend.com/emails/batch';
+// Max emails per Resend batch call.
+export const RESEND_BATCH_SIZE = 100;
+
+// Send up to 100 personalized emails in ONE Resend API call (the /emails/batch
+// endpoint). This is how a mass send (e.g. 900 recipients) completes inside the
+// serverless time limit: 9 batch calls instead of 900 sequential sends.
+//
+// `emails`: array of { to, subject, html, text, tags? } (≤ 100). Returns
+// { ok, error, results: [{ sent, error }] } aligned to the input order so the
+// caller can write per-user audit rows.
+//
+// Resend's batch endpoint historically rejected `tags` (used for webhook
+// open/click routing). We send WITH tags when present, but if the call comes
+// back 422 we retry the same batch WITHOUT tags so the send still goes out —
+// the per-user /outreachSent audit row (written by the caller) preserves send
+// history either way; only webhook open/click enrichment needs the tags.
+export async function sendOutreachBatch(emails, { from = null } = {}) {
+  const list = Array.isArray(emails) ? emails : [];
+  const fail = (error) => ({ ok: false, error, results: list.map(() => ({ sent: false, error })) });
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) return fail('no-resend-key');
+  if (list.length === 0) return { ok: true, error: null, results: [] };
+
+  const sender = from || 'GoalOracle <hello@goaloracle.io>';
+  const toBody = (withTags) => list.map((e) => {
+    const o = { from: sender, to: [e.to], subject: e.subject, html: e.html, text: e.text };
+    if (withTags && Array.isArray(e.tags) && e.tags.length > 0) o.tags = e.tags;
+    return o;
+  });
+
+  const post = async (withTags) => {
+    const r = await fetch(RESEND_BATCH_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
+      body: JSON.stringify(toBody(withTags)),
+    });
+    return r;
+  };
+
+  try {
+    let r = await post(true);
+    // Tags unsupported on the batch endpoint → retry once without them.
+    if (r.status === 422 && list.some((e) => Array.isArray(e.tags) && e.tags.length > 0)) {
+      r = await post(false);
+    }
+    if (r.ok) return { ok: true, error: null, results: list.map(() => ({ sent: true, error: null })) };
+    return fail(`HTTP ${r.status}`);
+  } catch (e) {
+    return fail(e.message);
+  }
+}

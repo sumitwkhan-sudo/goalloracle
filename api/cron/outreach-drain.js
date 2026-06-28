@@ -29,10 +29,9 @@ import { db, verifyAuth } from '../_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import {
   buildEmail,
-  sendOutreachEmail,
+  sendOutreachBatch,
+  RESEND_BATCH_SIZE,
   TEMPLATES,
-  sleep,
-  BATCH_DELAY_MS,
 } from '../_lib/outreachEmail.js';
 
 async function isAuthorized(req) {
@@ -99,48 +98,63 @@ async function runScheduledSend(claimed) {
   }
 
   const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
-  const list = Array.isArray(userIds) ? userIds : [];
-  for (const uid of list) {
-    try {
-      const userSnap = await db.collection('users').doc(uid).get();
-      if (!userSnap.exists) { results.skipped++; continue; }
-      const user = { id: userSnap.id, ...userSnap.data() };
-      if (!user.email || user.emailOptOut === true) { results.skipped++; continue; }
+  const list = Array.from(new Set(Array.isArray(userIds) ? userIds : []));
+  const noteError = (uid, error) => { results.failed++; if (results.errors.length < 25) results.errors.push({ uid, error }); };
 
-      // Per-user context for personalized templates (e.g. rankDigest carries
-      // each user's movement). Absent for the standard templates → ctx {} →
-      // unchanged behavior.
+  // Batch-fetch users (getAll in chunks) so a large scheduled send doesn't do
+  // hundreds of sequential reads.
+  const userDocs = {};
+  for (let i = 0; i < list.length; i += 300) {
+    const refs = list.slice(i, i + 300).map((uid) => db.collection('users').doc(uid));
+    const snaps = await db.getAll(...refs);
+    for (const s of snaps) if (s.exists) userDocs[s.id] = { id: s.id, ...s.data() };
+  }
+
+  // Build a personalized email per eligible recipient (per-user ctx from
+  // userPayloads, e.g. rankDigest movement; absent → ctx {} → unchanged).
+  const toSend = [];
+  for (const uid of list) {
+    const user = userDocs[uid];
+    if (!user || !user.email || user.emailOptOut === true) { results.skipped++; continue; }
+    try {
       const ctx = (userPayloads && userPayloads[uid]) || {};
       const { subject, html, text } = buildEmail(template, { user, ctx });
-      const r = await sendOutreachEmail({
-        to: user.email,
-        subject, html, text,
-        tags: [
-          { name: 'userId', value: uid },
-          { name: 'template', value: template },
-          { name: 'scheduledId', value: id },
-        ],
-      });
-
-      await db.collection('outreachSent').doc(`${uid}__${template}`).set({
-        userId: uid,
-        template,
-        sentAt: FieldValue.serverTimestamp(),
-        sent: r.sent,
-        error: r.error || null,
-        sentBy: scheduledBy,
-        viaScheduledId: id,
-      }, { merge: true });
-
-      if (r.sent) results.sent++;
-      else { results.failed++; results.errors.push({ uid, error: r.error || 'unknown' }); }
-
-      await sleep(BATCH_DELAY_MS);
+      toSend.push({ uid, to: user.email, subject, html, text });
     } catch (e) {
-      results.failed++;
-      results.errors.push({ uid, error: e?.message || 'crash' });
+      noteError(uid, e?.message || 'build-failed');
     }
   }
+
+  // Send via Resend's batch endpoint (100/call) so even a 1000-recipient
+  // scheduled send completes inside the cron's time budget.
+  const sentStatus = {};
+  for (let i = 0; i < toSend.length; i += RESEND_BATCH_SIZE) {
+    const chunk = toSend.slice(i, i + RESEND_BATCH_SIZE);
+    const r = await sendOutreachBatch(chunk.map((e) => ({
+      to: e.to, subject: e.subject, html: e.html, text: e.text,
+      tags: [
+        { name: 'userId', value: e.uid },
+        { name: 'template', value: template },
+        { name: 'scheduledId', value: id },
+      ],
+    })));
+    chunk.forEach((e, j) => { sentStatus[e.uid] = r.results[j] || { sent: false, error: r.error || 'unknown' }; });
+  }
+
+  // Per-user audit rows in Firestore batches (≤500/commit).
+  let writeBatch = db.batch();
+  let pending = 0;
+  for (const e of toSend) {
+    const st = sentStatus[e.uid] || { sent: false, error: 'unknown' };
+    writeBatch.set(db.collection('outreachSent').doc(`${e.uid}__${template}`), {
+      userId: e.uid, template, sentAt: FieldValue.serverTimestamp(),
+      sent: st.sent, error: st.error || null, sentBy: scheduledBy, viaScheduledId: id,
+    }, { merge: true });
+    if (st.sent) results.sent++;
+    else noteError(e.uid, st.error || 'unknown');
+    if (++pending >= 450) { await writeBatch.commit(); writeBatch = db.batch(); pending = 0; }
+  }
+  if (pending > 0) await writeBatch.commit();
 
   await ref.update({
     status: results.sent > 0 ? 'done' : 'failed',
