@@ -140,30 +140,6 @@ export function projectDirectSlot(placeholder, standings) {
   return { team: row.name, final: rows.every((t) => t.played === 3) };
 }
 
-// Teams that are MATHEMATICALLY eliminated from the Round of 32 — used to blank
-// an eliminated predicted team out of an unresolved bracket slot (so e.g. a
-// best-third pick that didn't make it stops showing once its group finishes,
-// rather than lingering until all groups complete). A team is out iff:
-//   - its group is complete (all 4 rows played === 3) AND it finished 4th, OR
-//   - it finished 3rd in a complete group and ranks 9th-or-worse among the 3rd-
-//     placed teams of ALL complete groups (pts → gd → gf → group). With ≥8
-//     strictly-better, already-final thirds ahead of it, it can't make the best
-//     8 even with groups still to play — so this never blanks a third that could
-//     still advance (those stay shown until the server resolves Annexe C).
-export function eliminatedTeams(standings) {
-  const out = new Set();
-  const completeThirds = [];
-  for (const letter of GROUP_LETTERS) {
-    const rows = standings?.[letter];
-    if (!Array.isArray(rows) || rows.length < 4 || !rows.every((t) => t.played === 3)) continue;
-    out.add(rows[3].name);        // 4th — eliminated
-    completeThirds.push(rows[2]); // 3rd — candidate for the best-8
-  }
-  completeThirds.sort((a, b) => (b.pts - a.pts) || (b.gd - a.gd) || (b.gf - a.gf) || a.group.localeCompare(b.group));
-  completeThirds.slice(8).forEach((t) => out.add(t.name)); // 9th-best third onward — out
-  return out;
-}
-
 // Build a real-R32 map in the shape the wizard reseed consumes
 // ({ matchId: { home, away, homeReal, awayReal } }), projecting the direct
 // 1st/2nd-place sides from live `standings` so qualified-so-far teams show

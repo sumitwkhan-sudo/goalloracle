@@ -50,3 +50,25 @@ describe('BracketMatch read-only grading', () => {
     expect(html).not.toContain('+2');
   });
 });
+
+describe('BracketMatch TBD descriptor + match number', () => {
+  it('shows the qualifier descriptor + FIFA match number for an undecided side', () => {
+    // r32-03: home "1st Group E", away "3rd ABCDF", match number M75.
+    const html = renderToStaticMarkup(
+      <BracketMatch matchId="r32-03" homeTeam="Spain" awayTeam={null} homeFlag="" awayFlag=""
+        onPick={() => {}} isLocked={false} city="Boston" date="2026-06-29" />,
+    );
+    expect(html).toContain('Spain');                  // decided side → real team
+    expect(html).toContain('3rd place (A/B/C/D/F)');   // undecided side → descriptor
+    expect(html).toContain('M75');                     // FIFA match number on the card
+    expect(html).not.toContain('>TBD<');               // no bare TBD when a descriptor exists
+  });
+
+  it('labels an undecided R16 side with its feeder match number', () => {
+    const html = renderToStaticMarkup(
+      <BracketMatch matchId="r16-01" homeTeam={null} awayTeam={null} onPick={() => {}} isLocked={false} />,
+    );
+    // r16-01 is fed by the winners of r32-03 (M75) and r32-06.
+    expect(html).toContain('Winner of M75');
+  });
+});

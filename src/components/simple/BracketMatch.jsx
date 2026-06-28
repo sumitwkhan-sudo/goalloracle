@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { Lock, ChevronRight, Ban } from 'lucide-react';
+import { koMatchNumber, koSlotLabel } from '../../utils/bracketUtils';
 
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatMatchDate(dateStr) {
@@ -39,12 +40,21 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
   const homeIsLoser = winnerId && !homeSelected;
   const awayIsLoser = winnerId && !awaySelected;
   const formattedDate = formatMatchDate(date);
+  // Static (matchId-derived) display helpers: the FIFA match number (M73–M104)
+  // and the per-side qualifier descriptor shown in an undecided slot instead of
+  // a bare "TBD" (e.g. "2nd Group A", "Winner of M73").
+  const matchNum = koMatchNumber(matchId);
+  const slotLabels = koSlotLabel(matchId);
 
   // Read-only render — used by PicksViewer to show another user's bracket
   // without exposing pick affordances. No buttons, no hover arrow, no
   // lock icon (which is a different state). Just static cells highlighted
   // with the same winner/loser styling.
-  const Row = ({ isWinner, isLoser, isTBD, flag, team, withLockIcon, earned = true }) => {
+  const Row = ({ isWinner, isLoser, isTBD, flag, team, withLockIcon, earned = true, slotLabel }) => {
+    // An undecided side shows its qualifier descriptor (which team will fill it)
+    // instead of a bare "TBD", so slots are distinguishable and the user knows
+    // who's coming. Once the real team resolves, `team` is set and shown.
+    const tbdText = slotLabel || 'TBD';
     // "Won't score": a real knockout team the user did NOT predict to reach the
     // knockouts. Still fully pickable — it just earns 0 points.
     const noScore = earned === false && !!team;
@@ -63,7 +73,7 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
       return (
         <div className={`${rowClass(isWinner, isLoser, isTBD)}${rightPick && !rightButZero ? ' pick-right' : ''}${wrongPick ? ' pick-wrong' : ''}`}>
           <span className="bracket-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
-          <span className="bracket-row-name">{team || 'TBD'}</span>
+          <span className={`bracket-row-name${!team ? ' bracket-row-name-tbd' : ''}`}>{team || tbdText}</span>
           {rightPick && !rightButZero && <span className="bracket-row-pill correct">✓ +{pointsIfRight}</span>}
           {rightButZero && <span className="bracket-row-pill noscore" title="Not one of your predicted teams — scores 0">✓ 0 pts</span>}
           {wrongPick && <span className="bracket-row-pill missed">✗</span>}
@@ -84,7 +94,7 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
         title={noScore ? `You didn't pick ${team} to reach the knockouts — you can still advance it, but it won't score` : undefined}
       >
         <span className="bracket-row-flag" aria-hidden="true">{flag || '🏳️'}</span>
-        <span className="bracket-row-name">{team || 'TBD'}</span>
+        <span className={`bracket-row-name${!team ? ' bracket-row-name-tbd' : ''}`}>{team || tbdText}</span>
         {isWinner && <span className="bracket-row-pill adv">ADV</span>}
         {isLoser && <span className="bracket-row-pill out">OUT</span>}
         {noScore && (
@@ -102,15 +112,16 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
 
   return (
     <div className={`bracket-match size-${size}${needsPick && !readOnly ? ' needs-pick' : ''}${readOnly ? ' readonly' : ''}`} data-match-id={matchId}>
-      {(city || formattedDate) && (
+      {(city || formattedDate || matchNum) && (
         <div className="bracket-match-meta">
+          {matchNum && <span className="bracket-match-num">M{matchNum}</span>}
           {city && <span className="bracket-match-city">{city}</span>}
           {formattedDate && <span className="bracket-match-date">{formattedDate}</span>}
         </div>
       )}
       {label && <div className="bracket-match-label">{label}</div>}
-      <Row isWinner={homeSelected} isLoser={homeIsLoser} isTBD={!homeTeam} flag={homeFlag} team={homeTeam} earned={homeEarned} withLockIcon />
-      <Row isWinner={awaySelected} isLoser={awayIsLoser} isTBD={!awayTeam} flag={awayFlag} team={awayTeam} earned={awayEarned} />
+      <Row isWinner={homeSelected} isLoser={homeIsLoser} isTBD={!homeTeam} flag={homeFlag} team={homeTeam} earned={homeEarned} slotLabel={slotLabels.home} withLockIcon />
+      <Row isWinner={awaySelected} isLoser={awayIsLoser} isTBD={!awayTeam} flag={awayFlag} team={awayTeam} earned={awayEarned} slotLabel={slotLabels.away} />
       {(homeAdvancePct != null || awayAdvancePct != null) && homeTeam && awayTeam && (
         <div
           className="bracket-consensus"

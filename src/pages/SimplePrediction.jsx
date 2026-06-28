@@ -32,7 +32,7 @@ import useBracketState from '../hooks/useBracketState';
 import useBracketLayout from '../hooks/useBracketLayout';
 import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions } from '../utils/bracketUtils';
 import { predictedAdvancers } from '../utils/scoringSimple';
-import { computeLiveStandings, projectRealR32, eliminatedTeams, mergeLiveScores } from '../utils/liveStandings';
+import { computeLiveStandings, projectRealR32, mergeLiveScores } from '../utils/liveStandings';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
 import { copySimplePrediction, resetSimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, fetchLiveScores, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
@@ -300,14 +300,6 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     [wantRealBracket, liveStandings, realBracket],
   );
   const reseedActive = !!realR32 && Object.values(realR32).some((s) => s && (s.homeReal || s.awayReal));
-  // Teams mathematically out of the R32 — blanked from any still-unresolved
-  // slot so an eliminated predicted pick (e.g. a best-third that didn't advance)
-  // doesn't keep showing while its third-place slot waits on all groups to
-  // finish. Only meaningful while reseeding from real teams.
-  const eliminatedSet = useMemo(
-    () => (wantRealBracket ? eliminatedTeams(liveStandings) : null),
-    [wantRealBracket, liveStandings],
-  );
   const predictedTeamSet = useMemo(() => {
     if (!reseedActive) return null;
     // Knockout-only (incl. a new no-group-picks entrant): every real R32 team
@@ -352,7 +344,6 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     knockoutPredictions: frozenInitial?.knockoutPredictions,
     realR32: reseedActive ? realR32 : null,
     predictedTeamSet,
-    eliminatedSet: reseedActive ? eliminatedSet : null,
     onChange: (next) => {
       // Treat picking the Final winner as the user finishing their
       // bracket — leaderboards key off isComplete and we don't want
@@ -650,7 +641,11 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     await handleCopyFromGlobal();
   }, [hasAnyPicks, handleCopyFromGlobal]);
 
-  const handleResetAll = useCallback(async () => {
+  // Reset confirmation runs through an in-page dialog (not a browser confirm()
+  // popup): { title, message, confirmLabel, onConfirm } | null.
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
+  const handleResetAll = useCallback(() => {
     if (!userId || !league?.id) return;
     const leagueLabel = league.name || 'this league';
 
@@ -660,46 +655,66 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     // (the DELETE path rejects once any stage is locked). Knockout-only leagues
     // have no group/thirds, so they always take this path.
     if (groupStageLocked || knockoutOnly) {
-      const ok = window.confirm(
-        `Reset your knockout bracket for "${leagueLabel}"?\n\n`
-        + `Your group rankings and best-thirds are locked and stay exactly as they are — only your knockout picks (Round of 32 through the Final) will be cleared.\n\n`
-        + `This can't be undone.`,
-      );
-      if (!ok) return;
-      setCopyBusy(true);
-      try {
-        bracketState.resetAll();
-        save({ knockoutPredictions: emptyKnockoutPredictions(), isComplete: false });
-      } catch (e) {
-        window.alert(e?.message || 'Reset failed');
-      } finally {
-        setCopyBusy(false);
-      }
+      setConfirmDialog({
+        title: 'Reset your knockout bracket?',
+        message: 'Your group rankings and best-thirds are locked and stay exactly as they are — only your knockout picks (Round of 32 through the Final) will be cleared. This can’t be undone.',
+        confirmLabel: 'Reset bracket',
+        onConfirm: () => {
+          setCopyBusy(true);
+          try {
+            bracketState.resetAll();
+            save({ knockoutPredictions: emptyKnockoutPredictions(), isComplete: false });
+          } catch (e) {
+            window.alert(e?.message || 'Reset failed');
+          } finally {
+            setCopyBusy(false);
+          }
+        },
+      });
       return;
     }
 
     // Pre-tournament: nothing is locked yet, so a full reset (groups +
     // best-thirds + knockout) via the server DELETE is allowed.
-    const ok = window.confirm(
-      `Reset ALL your picks for "${leagueLabel}"?\n\n`
-      + `This will clear your group rankings, best-third selections, and full knockout bracket.\n\n`
-      + `This can't be undone.`,
-    );
-    if (!ok) return;
-    setCopyBusy(true);
-    try {
-      await resetSimplePrediction(userId, league.id);
-      setCopyBanner('prompt');
-      setTimeout(() => onRehydrate && onRehydrate(), 400);
-    } catch (e) {
-      window.alert(e?.message || 'Reset failed');
-    } finally {
-      setCopyBusy(false);
-    }
+    setConfirmDialog({
+      title: `Reset all your picks for "${leagueLabel}"?`,
+      message: 'This will clear your group rankings, best-third selections, and full knockout bracket. This can’t be undone.',
+      confirmLabel: 'Reset everything',
+      onConfirm: async () => {
+        setCopyBusy(true);
+        try {
+          await resetSimplePrediction(userId, league.id);
+          setCopyBanner('prompt');
+          setTimeout(() => onRehydrate && onRehydrate(), 400);
+        } catch (e) {
+          window.alert(e?.message || 'Reset failed');
+        } finally {
+          setCopyBusy(false);
+        }
+      },
+    });
   }, [userId, league?.id, league?.name, onRehydrate, groupStageLocked, knockoutOnly, bracketState, save]);
 
   return (
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
+      {confirmDialog && (
+        <div className="modal-overlay" onClick={() => setConfirmDialog(null)} role="dialog" aria-modal="true" aria-label={confirmDialog.title}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h2 className="confirm-dialog-title">{confirmDialog.title}</h2>
+            <p className="confirm-dialog-msg">{confirmDialog.message}</p>
+            <div className="confirm-dialog-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setConfirmDialog(null)}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => { const fn = confirmDialog.onConfirm; setConfirmDialog(null); if (fn) fn(); }}
+              >
+                {confirmDialog.confirmLabel || 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {!embedded && (
         <div className="simple-page-header">
           <button type="button" className="btn-back-sm btn-back-sm-named" onClick={guardedExit} aria-label="Back to leagues">
@@ -1169,12 +1184,15 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
               </button>
             )}
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="button" className="btn btn-ghost" onClick={() => {
-                if (window.confirm('Reset all knockout predictions?')) {
+              <button type="button" className="btn btn-ghost" onClick={() => setConfirmDialog({
+                title: 'Reset your knockout bracket?',
+                message: 'This clears every knockout pick (Round of 32 through the Final). This can’t be undone.',
+                confirmLabel: 'Reset bracket',
+                onConfirm: () => {
                   bracketState.resetAll();
                   save({ knockoutPredictions: emptyKnockoutPredictions() });
-                }
-              }}>
+                },
+              })}>
                 Reset bracket
               </button>
               {(() => {

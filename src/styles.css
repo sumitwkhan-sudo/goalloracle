@@ -2763,6 +2763,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem;
 }
 
+/* In-page confirm dialog (replaces native window.confirm for reset). */
+.confirm-dialog {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); width: 100%; max-width: 420px;
+  padding: 1.25rem 1.25rem 1rem; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.confirm-dialog-title { font-size: 1.1rem; margin: 0 0 0.5rem; color: var(--text); }
+.confirm-dialog-msg { font-size: 0.88rem; color: var(--text-sec); line-height: 1.5; margin: 0 0 1.1rem; }
+.confirm-dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+.btn-danger {
+  background: #E5484D; color: #fff; border: 1px solid #E5484D;
+}
+.btn-danger:hover { background: #cf3b40; border-color: #cf3b40; }
+
 /* ─── Invite-friends modal — three-option picker ────────────────── */
 .invite-modal {
   background: var(--bg-card);
@@ -6091,6 +6105,10 @@ button.invite-option:hover,
 }
 .bracket-match-city { text-transform: uppercase; letter-spacing: 0.08em; }
 .bracket-match-date { opacity: 0.7; }
+/* FIFA match number (M73–M104) — a stable per-match identifier. */
+.bracket-match-num { font-weight: 700; color: var(--primary); letter-spacing: 0.03em; }
+/* Qualifier descriptor shown in an undecided slot ("2nd Group A", "Winner of M73"). */
+.bracket-row-name-tbd { font-style: italic; opacity: 0.85; }
 .bracket-match.size-compact .bracket-match-meta { padding: 0.15rem 0.45rem; font-size: 0.5rem; }
 .bracket-match-label {
   font-family: var(--mono); font-size: 0.6rem; text-transform: uppercase;

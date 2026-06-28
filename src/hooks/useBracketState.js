@@ -37,7 +37,7 @@ import {
  * @param {Object} args.knockoutPredictions   initial/hydrated picks
  * @param {Function} args.onChange             called with new knockoutPredictions after every pick
  */
-export default function useBracketState({ groupPredictions, bestThirdPicks, knockoutPredictions, onChange, realR32 = null, predictedTeamSet = null, eliminatedSet = null }) {
+export default function useBracketState({ groupPredictions, bestThirdPicks, knockoutPredictions, onChange, realR32 = null, predictedTeamSet = null }) {
   const [picks, setPicks] = useState(() => normalize(knockoutPredictions));
   const hydratedRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -74,7 +74,7 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
   const bracket = useMemo(() => {
     const predictedR32 = deriveRoundOf32(groupPredictions, bestThirdPicks);
     const r32 = realR32
-      ? mergeRealRoundOf32(predictedR32, realR32, predictedTeamSet || new Set(), eliminatedSet)
+      ? mergeRealRoundOf32(predictedR32, realR32, predictedTeamSet || new Set())
       : predictedR32;
     const prunedFlat = {};
     const out = {};
@@ -106,7 +106,7 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
       });
     }
     return out;
-  }, [groupPredictions, bestThirdPicks, flatPicks, realR32, predictedTeamSet, eliminatedSet]);
+  }, [groupPredictions, bestThirdPicks, flatPicks, realR32, predictedTeamSet]);
 
   const pickWinner = useCallback((matchId, winnerTeam) => {
     const round = getRoundForMatchId(matchId);

@@ -17,6 +17,8 @@ import {
   ROUND_OF_16_TEMPLATE,
   predictedR32TeamSet,
   mergeRealRoundOf32,
+  koMatchNumber,
+  koSlotLabel,
 } from './bracketUtils';
 import { resolveThirdPlaceSlots } from './fifaThirdPlaceRules';
 
@@ -219,19 +221,20 @@ describe('mergeRealRoundOf32', () => {
   const teamSet = predictedR32TeamSet(groups, thirds);
   const slot = (merged, id) => merged.find((m) => m.matchId === id);
 
-  it('keeps the predicted team on an undecided side (always the user\'s own → earned)', () => {
+  it('an undecided side goes to null (TBD), never the predicted team', () => {
     const merged = mergeRealRoundOf32(predicted, {}, teamSet);
     const r1 = slot(merged, 'r32-01');
-    expect(r1.home).toBe('A2');        // predicted A runner-up; no real result yet
+    expect(r1.home).toBeNull();        // no real result yet → TBD, not "A2"
     expect(r1.homeReal).toBe(false);
-    expect(r1.homeEarned).toBe(true);
+    expect(r1.away).toBeNull();
+    expect(r1.awayReal).toBe(false);
   });
 
   it('shows the real team on a decided side; earned ONLY if the user predicted it', () => {
     const realR32 = {
-      // home decided, real team the user did NOT predict → locked
+      // home decided, real team the user did NOT predict → won't score
       'r32-01': { home: 'Narnia', away: null, homeReal: true, awayReal: false },
-      // home decided, real team the user DID predict → earned/pickable
+      // home decided, real team the user DID predict → earned/scores
       'r32-02': { home: 'C1', away: null, homeReal: true, awayReal: false },
     };
     const merged = mergeRealRoundOf32(predicted, realR32, teamSet);
@@ -239,10 +242,9 @@ describe('mergeRealRoundOf32', () => {
     const r1 = slot(merged, 'r32-01');
     expect(r1.home).toBe('Narnia');
     expect(r1.homeReal).toBe(true);
-    expect(r1.homeEarned).toBe(false); // not on their picks → can't advance it
-    expect(r1.away).toBe('B2');        // away undecided → predicted, own
+    expect(r1.homeEarned).toBe(false); // not on their picks → won't score
+    expect(r1.away).toBeNull();        // away undecided → TBD, not predicted
     expect(r1.awayReal).toBe(false);
-    expect(r1.awayEarned).toBe(true);
 
     const r2 = slot(merged, 'r32-02');
     expect(r2.home).toBe('C1');
@@ -250,27 +252,32 @@ describe('mergeRealRoundOf32', () => {
     expect(r2.homeEarned).toBe(true);  // predicted this team → earned
   });
 
-  it('partial: a third-place side stays predicted until it resolves', () => {
-    // r32-03 away is a THIRD slot; with no real result it stays predicted.
+  it('a third-place side stays TBD (null) until it resolves', () => {
+    // r32-03 away is a THIRD slot; with no real result it is TBD, not predicted.
     const merged = mergeRealRoundOf32(predicted, {}, teamSet);
     const r3 = slot(merged, 'r32-03');
     expect(r3.awayReal).toBe(false);
-    expect(r3.away).toBe(predicted.find((m) => m.matchId === 'r32-03').away);
-    expect(r3.awayEarned).toBe(true);
+    expect(r3.away).toBeNull();
+  });
+});
+
+describe('koMatchNumber + koSlotLabel', () => {
+  it('numbers the 32 knockout fixtures M73–M104 by round', () => {
+    expect(koMatchNumber('r32-01')).toBe(73);
+    // R32 = 73–88, R16 = 89–96, QF = 97–100, SF = 101–102, 3rd/final = 103/104.
+    expect(koMatchNumber('3rd')).toBe(103);
+    expect(koMatchNumber('final')).toBe(104);
+    const nums = ['r32-01','r16-01','qf-01','sf-01','3rd','final'].map(koMatchNumber);
+    expect(nums.every((n) => n >= 73 && n <= 104)).toBe(true);
+    expect(koMatchNumber('gs01')).toBeNull(); // group match → no KO number
   });
 
-  it('blanks an eliminated predicted team on an undecided side, but never a resolved real side', () => {
-    const realR32 = { 'r32-02': { home: 'C1', away: null, homeReal: true, awayReal: false } };
-    const eliminated = new Set(['A2']); // r32-01's predicted home team is out
-    const merged = mergeRealRoundOf32(predicted, realR32, teamSet, eliminated);
-
-    const r1 = slot(merged, 'r32-01');
-    expect(r1.home).toBeNull();   // eliminated predicted team → TBD, not lingering
-    expect(r1.homeReal).toBe(false);
-    expect(r1.away).toBe('B2');   // non-eliminated undecided side kept
-
-    const r2 = slot(merged, 'r32-02');
-    expect(r2.home).toBe('C1');   // resolved real side untouched by elimination
-    expect(r2.homeReal).toBe(true);
+  it('humanizes slot placeholders (group position, 3rd place, feeder→match number)', () => {
+    expect(koSlotLabel('r32-01').home).toBe('2nd Group A');
+    expect(koSlotLabel('r32-03').home).toBe('1st Group E');
+    expect(koSlotLabel('r32-03').away).toBe('3rd place (A/B/C/D/F)');
+    // R16 feeder "W R32-03" → "Winner of M<num of r32-03>".
+    expect(koSlotLabel('r16-01').home).toBe(`Winner of M${koMatchNumber('r32-03')}`);
+    expect(koSlotLabel('3rd').home).toBe(`Loser of M${koMatchNumber('sf-01')}`);
   });
 });

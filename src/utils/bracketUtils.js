@@ -82,6 +82,56 @@ export const ROUND_TEMPLATE_BY_KEY = {
   final: FINAL_TEMPLATE,
 };
 
+// ─── Knockout match numbers + slot descriptors (display only) ─────────
+// FIFA numbers matches chronologically; the 32 knockout fixtures are M73–M104
+// (72 group matches precede them). matches.js carries no number field, so we
+// derive it by kickoff order — the `id` order is bracket-structure order, not
+// chronological (e.g. r32-10 kicks off before r32-09).
+const _KO_MATCH_NUMBER = (() => {
+  const ko = WORLD_CUP_MATCHES.filter((m) => m.isKnockout);
+  ko.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`) || a.id.localeCompare(b.id));
+  const out = {};
+  ko.forEach((m, i) => { out[m.id] = 73 + i; });
+  return out;
+})();
+
+// FIFA match number (73–104) for a knockout matchId, or null.
+export function koMatchNumber(matchId) {
+  return _KO_MATCH_NUMBER[matchId] || null;
+}
+
+// Humanize a matches.js slot placeholder for an UNDECIDED slot side:
+//   "1st Group A" / "2nd Group A"  → kept (which qualifier fills it)
+//   "3rd ABCDF"                    → "3rd place (A/B/C/D/F)"
+//   "W R32-03" / "L SF-01"         → "Winner of M75" / "Loser of M101"
+function humanizeSlot(ph) {
+  if (!ph || typeof ph !== 'string') return null;
+  let mm = ph.match(/^(1st|2nd) Group ([A-L])$/i);
+  if (mm) return `${mm[1]} Group ${mm[2].toUpperCase()}`;
+  mm = ph.match(/^3rd ([A-L]+)$/i);
+  if (mm) return `3rd place (${mm[1].toUpperCase().split('').join('/')})`;
+  mm = ph.match(/^([WL])\s+(\S+)$/);
+  if (mm) {
+    const num = koMatchNumber(mm[2].toLowerCase());
+    const word = mm[1].toUpperCase() === 'W' ? 'Winner' : 'Loser';
+    return num ? `${word} of M${num}` : `${word} of ${mm[2]}`;
+  }
+  return ph;
+}
+const _KO_SLOT_LABEL = (() => {
+  const out = {};
+  for (const m of WORLD_CUP_MATCHES) {
+    if (m.isKnockout) out[m.id] = { home: humanizeSlot(m.home), away: humanizeSlot(m.away) };
+  }
+  return out;
+})();
+
+// { home, away } human descriptors for a knockout matchId's two sides — shown
+// in place of a bare "TBD" when that side's real team isn't decided yet.
+export function koSlotLabel(matchId) {
+  return _KO_SLOT_LABEL[matchId] || { home: null, away: null };
+}
+
 // ─── Team flags, derived from fixture data ────────────────────────────
 let _teamFlagCache = null;
 export function getTeamFlags() {
@@ -180,29 +230,26 @@ export function predictedR32TeamSet(groupPredictions, bestThirdPicks) {
  * Merge the REAL Round of 32 (resolved per side as groups finish) onto the
  * user's PREDICTED R32, side by side. A side that is decided upstream
  * (`homeReal`/`awayReal`) shows the real team and is "earned" only if the user
- * predicted that team to advance; an undecided side keeps the user's predicted
- * team (always their own → pickable). Mirrors deriveRoundOf32's slot shape and
- * adds `homeReal/awayReal/homeEarned/awayEarned`. (Knockout-real-reseed.)
+ * predicted that team to advance; an UNDECIDED side goes to null (TBD) — the
+ * bracket reflects reality, so a side whose real qualifier isn't known yet shows
+ * a TBD placeholder (the wizard renders its descriptor + match number) rather
+ * than the user's group-based prediction. Mirrors deriveRoundOf32's slot shape
+ * and adds `homeReal/awayReal/homeEarned/awayEarned`. (Knockout-real-reseed.)
  *
  * @param {Array} predictedR32      deriveRoundOf32(...) output
  * @param {Object} realR32          { matchId: { home, away, homeReal, awayReal } } | null
  * @param {Set<string>} predictedTeamSet  predictedR32TeamSet(...)
- * @param {Set<string>} [eliminatedSet]  teams mathematically out of the R32. An
- *   UNRESOLVED side falls back to the user's predicted team — but if that team
- *   is eliminated we blank it to null (TBD) instead, so a knocked-out pick (e.g.
- *   a best-third that didn't advance) doesn't linger in its still-unresolved
- *   slot. Resolved (real) sides are never touched.
  */
-export function mergeRealRoundOf32(predictedR32, realR32, predictedTeamSet, eliminatedSet = null) {
+export function mergeRealRoundOf32(predictedR32, realR32, predictedTeamSet) {
   const flags = getTeamFlags();
   const earnedSet = predictedTeamSet || new Set();
-  const isOut = (team) => !!(team && eliminatedSet && eliminatedSet.has(team));
   return predictedR32.map((slot) => {
     const real = (realR32 && realR32[slot.matchId]) || {};
     const useRealHome = !!(real.homeReal && real.home);
     const useRealAway = !!(real.awayReal && real.away);
-    const home = useRealHome ? real.home : (isOut(slot.home) ? null : slot.home);
-    const away = useRealAway ? real.away : (isOut(slot.away) ? null : slot.away);
+    // Decided → real team; undecided → null (TBD), never the predicted team.
+    const home = useRealHome ? real.home : null;
+    const away = useRealAway ? real.away : null;
     return {
       matchId: slot.matchId,
       home: home || null,
