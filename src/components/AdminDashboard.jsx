@@ -62,7 +62,7 @@ const OUTREACH_TEMPLATES = {
   },
   knockoutRepick: {
     label: 'Knockout Re-pick (Round of 32 set)',
-    description: "Re-engagement blast once the group stage is done and the real Round of 32 is set. Two paths — re-pick for users who played the group stage (bracket refreshed with the real teams) AND newcomers who skipped it (jump straight into the knockout bracket, same prize/leaderboard). Deep-links to the Global Quick Picks wizard. Eligibility: in the Global Quick Picks League, has email, not opted out, AND has NOT re-locked their knockout bracket since the real R32 teams were set. A couple of result-specific lines (Germany out, etc.) are hard-coded — verify against the final standings before sending.",
+    description: "Re-engagement blast once the group stage is done and the real Round of 32 is set. Two paths — re-pick for users who played the group stage (bracket refreshed with the real teams) AND newcomers who skipped it (jump straight into the knockout bracket, same prize/leaderboard). Deep-links to the Global Quick Picks wizard. Eligibility: in the Global Quick Picks League, has email, not opted out, AND has NOT re-locked their knockout bracket since the real R32 teams were set. Copy is now generic (no specific team-result claims) — safe to send without per-result verification.",
   },
 };
 

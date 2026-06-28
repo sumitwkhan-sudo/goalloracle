@@ -760,13 +760,12 @@ function knockoutRepickTemplate({ user }) {
                 locked in now, and the bracket you filled out before kickoff is officially history.
               </p>
               <p style="margin:0 0 10px;font-size:16px;line-height:1.6;color:#3c3c43;">
-                A quick recap of the carnage:
+                A quick recap of the chaos:
               </p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 22px;">
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; Germany&rsquo;s out &mdash; Ecuador knocked the giants on their backs.</td></tr>
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; A trendy dark horse bullied out before the knockouts even began.</td></tr>
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; A debutant reached the Round of 32 for the FIRST TIME in its history.</td></tr>
-                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;">&#9917;&nbsp; Messi and Ronaldo, somehow, still scoring. The old kings aren&rsquo;t done.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; Giants wobbled, underdogs bit back &mdash; the group stage went off-script.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;border-bottom:1px solid #f0f0f3;">&#9917;&nbsp; The 32 teams that advanced? Plenty weren&rsquo;t the ones most people picked.</td></tr>
+                <tr><td style="padding:6px 0;font-size:15.5px;line-height:1.5;color:#3c3c43;">&#9917;&nbsp; If your bracket came through clean, you&rsquo;re a rare breed.</td></tr>
               </table>
 
               <p style="margin:0 0 12px;font-size:14px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#FF3B30;">
@@ -828,11 +827,10 @@ The group stage is done. Did your bracket survive it?
 
 Probably not -- almost nobody's did. The 32 teams that actually made the knockouts are locked in now, and the bracket you filled out before kickoff is officially history.
 
-A quick recap of the carnage:
-- Germany's out -- Ecuador knocked the giants on their backs.
-- A trendy dark horse bullied out before the knockouts even began.
-- A debutant reached the Round of 32 for the FIRST TIME in its history.
-- Messi and Ronaldo, somehow, still scoring. The old kings aren't done.
+A quick recap of the chaos:
+- Giants wobbled, underdogs bit back -- the group stage went off-script.
+- The 32 teams that advanced? Plenty weren't the ones most people picked.
+- If your bracket came through clean, you're a rare breed.
 
 HERE'S THE GOOD PART.
 
@@ -897,7 +895,7 @@ export const TEMPLATES = {
   knockoutRepick: {
     id: 'knockoutRepick',
     label: 'Knockout Re-pick (Round of 32 set)',
-    description: "Re-engagement blast once the group stage is done and the real Round of 32 is set: drives users back to pick their knockout bracket before the R32 lock. Two paths — re-pick (played the group stage → bracket refreshed with the real teams) AND newcomers (skipped the group stage → jump straight into the knockout bracket, same prize/leaderboard). Deep-links to the Global Quick Picks wizard. Default eligibility: in the Global Quick Picks League, has email, not opted out, AND has NOT re-locked their knockout bracket since the real R32 teams were set. A couple of result-specific lines (Germany out, etc.) are hard-coded — verify against the final standings before sending.",
+    description: "Re-engagement blast once the group stage is done and the real Round of 32 is set: drives users back to pick their knockout bracket before the R32 lock. Two paths — re-pick (played the group stage → bracket refreshed with the real teams) AND newcomers (skipped the group stage → jump straight into the knockout bracket, same prize/leaderboard). Deep-links to the Global Quick Picks wizard. Default eligibility: in the Global Quick Picks League, has email, not opted out, AND has NOT re-locked their knockout bracket since the real R32 teams were set. Copy is now generic (no specific team-result claims) — safe to send without per-result verification.",
     build: knockoutRepickTemplate,
   },
 };
