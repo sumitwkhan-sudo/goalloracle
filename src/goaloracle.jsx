@@ -198,8 +198,14 @@ function PicksViewer({ target, onClose, onEdit, onShare, isOwn = false, results 
     (async () => {
       setLoading(true);
       try {
-        const { getSimplePrediction } = await import('./utils/db');
-        const p = await getSimplePrediction(target.userId, target.leagueId || 'global-simple');
+        const dbmod = await import('./utils/db');
+        // Warm the GLOBAL caches (actual bracket + live scores) in parallel
+        // with this user's prediction fetch — PicksViewerBody reads the same
+        // cached promises, so the two phases overlap instead of waterfalling,
+        // and clicking through multiple users reuses one global fetch.
+        dbmod.fetchActualBracketCached?.();
+        dbmod.fetchLiveScoresCached?.();
+        const p = await dbmod.getSimplePrediction(target.userId, target.leagueId || 'global-simple');
         if (!cancelled) setData(p);
       } catch (e) {
         if (!cancelled) setErr(e?.message || 'Could not load picks');
@@ -348,9 +354,9 @@ function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPl
   useEffect(() => {
     let cancelled = false;
     import('./utils/db')
-      .then(({ fetchActualBracket, fetchLiveScores }) => Promise.all([
-        fetchActualBracket().catch(() => null),
-        fetchLiveScores().catch(() => ({})),
+      .then(({ fetchActualBracketCached, fetchLiveScoresCached }) => Promise.all([
+        fetchActualBracketCached().catch(() => null),
+        fetchLiveScoresCached().catch(() => ({})),
       ]))
       .then(([b, l]) => { if (!cancelled) { setActualBracket(b); setLiveScores(l || {}); } })
       .catch(() => {});

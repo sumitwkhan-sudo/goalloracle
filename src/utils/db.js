@@ -240,16 +240,34 @@ export async function updateUserProfile(userId, updates) {
   if (updates.walletAddress !== undefined) apiPayload.walletAddress = updates.walletAddress;
   if (updates.displayName && updates.displayName.trim()) apiPayload.displayName = updates.displayName.trim();
   if (updates.usernameSet === true) apiPayload.usernameSet = true;
-  if (Object.keys(apiPayload).length > 0) {
-    await apiCall('user', 'POST', apiPayload);
-  }
 
   const safeUpdates = { updatedAt: serverTimestamp() };
   if (updates.email) safeUpdates.email = updates.email;
   if (updates.onboardingComplete === true) safeUpdates.onboardingComplete = true;
   if (typeof updates.country === 'string' && updates.country.trim()) safeUpdates.country = updates.country.trim().toUpperCase();
-  if (Object.keys(safeUpdates).length > 1) {
-    await updateDoc(userRef, safeUpdates);
+
+  // Run the validated API write (displayName/usernameSet/wallet) and the
+  // direct Firestore write (country/onboarding/email) CONCURRENTLY — they
+  // touch disjoint fields with no ordering dependency. This collapses the
+  // old three-sequential-round-trip signup save (API → Firestore → read-back)
+  // into a single wall-clock round-trip.
+  const hasApi = Object.keys(apiPayload).length > 0;
+  const hasFs = Object.keys(safeUpdates).length > 1;
+  const [apiResp] = await Promise.all([
+    hasApi ? apiCall('user', 'POST', apiPayload) : Promise.resolve(null),
+    hasFs ? updateDoc(userRef, safeUpdates) : Promise.resolve(null),
+  ]);
+
+  // /api/user already returns the freshly-written user doc — reuse it instead
+  // of a third read-back round-trip, merging in the fields we wrote straight
+  // to Firestore (which the API doesn't echo) so the result matches what's
+  // persisted. Only fall back to a read when no API write happened.
+  if (apiResp?.user) {
+    const merged = { ...apiResp.user };
+    if (safeUpdates.email) merged.email = safeUpdates.email;
+    if (safeUpdates.onboardingComplete === true) merged.onboardingComplete = true;
+    if (safeUpdates.country) merged.country = safeUpdates.country;
+    return merged;
   }
   const fresh = await getDoc(userRef);
   return { id: fresh.id, ...fresh.data() };
@@ -635,6 +653,31 @@ export async function fetchLiveScores() {
   } catch {
     return {};
   }
+}
+
+// ── Short-lived caches for the GLOBAL knockout data (actual bracket + live
+// scores). These payloads are identical for every user, so when an admin
+// clicks through many users' picks — or a leaderboard renders several
+// brackets — we should fetch them once, not once per open. Promise-cached
+// (so concurrent callers share one in-flight request) with a small TTL that
+// matches the endpoints' own edge cache. The wizard intentionally keeps using
+// the uncached fetchers because it polls for freshness during live games.
+let _abCache = { p: null, at: 0 };
+export function fetchActualBracketCached(ttlMs = 60000) {
+  const now = Date.now();
+  if (_abCache.p && now - _abCache.at < ttlMs) return _abCache.p;
+  const p = fetchActualBracket().catch((e) => { if (_abCache.p === p) _abCache = { p: null, at: 0 }; throw e; });
+  _abCache = { p, at: now };
+  return p;
+}
+
+let _lsCache = { p: null, at: 0 };
+export function fetchLiveScoresCached(ttlMs = 30000) {
+  const now = Date.now();
+  if (_lsCache.p && now - _lsCache.at < ttlMs) return _lsCache.p;
+  const p = fetchLiveScores().catch((e) => { if (_lsCache.p === p) _lsCache = { p: null, at: 0 }; throw e; });
+  _lsCache = { p, at: now };
+  return p;
 }
 
 export async function updateMatchResult(matchId, result, adminId) {
