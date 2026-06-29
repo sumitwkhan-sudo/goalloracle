@@ -83,15 +83,24 @@ export const ROUND_TEMPLATE_BY_KEY = {
 };
 
 // ─── Knockout match numbers + slot descriptors (display only) ─────────
-// FIFA numbers matches chronologically; the 32 knockout fixtures are M73–M104
-// (72 group matches precede them). matches.js carries no number field, so we
-// derive it by kickoff order — the `id` order is bracket-structure order, not
-// chronological (e.g. r32-10 kicks off before r32-09).
+// The 32 knockout fixtures are FIFA matches M73–M104 (72 group matches precede
+// them). FIFA numbers them in BRACKET-STRUCTURE order — not kickoff order:
+//   r32-01..r32-16 → M73..M88, r16-01..r16-08 → M89..M96,
+//   qf-01..qf-04 → M97..M100, sf-01/sf-02 → M101/M102, 3rd → M103, final → M104.
+// (e.g. M89 is r16-01 — the July 4 Philadelphia game — even though r16-02 in
+// Houston kicks off earlier that day.) Derived from the round templates so the
+// id→number mapping stays in lockstep with the bracket definition above.
 const _KO_MATCH_NUMBER = (() => {
-  const ko = WORLD_CUP_MATCHES.filter((m) => m.isKnockout);
-  ko.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`) || a.id.localeCompare(b.id));
+  const order = [
+    ...ROUND_OF_32_TEMPLATE,
+    ...ROUND_OF_16_TEMPLATE,
+    ...QUARTER_FINAL_TEMPLATE,
+    ...SEMI_FINAL_TEMPLATE,
+    ...THIRD_PLACE_TEMPLATE,
+    ...FINAL_TEMPLATE,
+  ];
   const out = {};
-  ko.forEach((m, i) => { out[m.id] = 73 + i; });
+  order.forEach((m, i) => { out[m.matchId] = 73 + i; });
   return out;
 })();
 

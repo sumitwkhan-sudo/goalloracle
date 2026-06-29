@@ -262,13 +262,22 @@ describe('mergeRealRoundOf32', () => {
 });
 
 describe('koMatchNumber + koSlotLabel', () => {
-  it('numbers the 32 knockout fixtures M73–M104 by round', () => {
-    expect(koMatchNumber('r32-01')).toBe(73);
+  it('numbers the 32 knockout fixtures M73–M104 in FIFA bracket-id order', () => {
+    // FIFA numbers by bracket structure, NOT kickoff time:
     // R32 = 73–88, R16 = 89–96, QF = 97–100, SF = 101–102, 3rd/final = 103/104.
+    expect(koMatchNumber('r32-01')).toBe(73);
+    expect(koMatchNumber('r32-16')).toBe(88);
+    // M89 is r16-01 (the July 4 Philadelphia game) — NOT the earlier-kickoff
+    // Houston r16-02, which is M90. Regression guard for the mislabel.
+    expect(koMatchNumber('r16-01')).toBe(89);
+    expect(koMatchNumber('r16-02')).toBe(90);
+    expect(koMatchNumber('r16-08')).toBe(96);
+    expect(koMatchNumber('qf-01')).toBe(97);
+    expect(koMatchNumber('qf-04')).toBe(100);
+    expect(koMatchNumber('sf-01')).toBe(101);
+    expect(koMatchNumber('sf-02')).toBe(102);
     expect(koMatchNumber('3rd')).toBe(103);
     expect(koMatchNumber('final')).toBe(104);
-    const nums = ['r32-01','r16-01','qf-01','sf-01','3rd','final'].map(koMatchNumber);
-    expect(nums.every((n) => n >= 73 && n <= 104)).toBe(true);
     expect(koMatchNumber('gs01')).toBeNull(); // group match → no KO number
   });
 

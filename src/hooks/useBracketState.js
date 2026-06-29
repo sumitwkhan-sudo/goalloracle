@@ -37,7 +37,7 @@ import {
  * @param {Object} args.knockoutPredictions   initial/hydrated picks
  * @param {Function} args.onChange             called with new knockoutPredictions after every pick
  */
-export default function useBracketState({ groupPredictions, bestThirdPicks, knockoutPredictions, onChange, realR32 = null, predictedTeamSet = null }) {
+export default function useBracketState({ groupPredictions, bestThirdPicks, knockoutPredictions, onChange, realR32 = null, predictedTeamSet = null, actualWinners = null }) {
   const [picks, setPicks] = useState(() => normalize(knockoutPredictions));
   const hydratedRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -98,15 +98,30 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
         const existing = flatPicks[m.matchId];
         const valid = !!(existing && existing.winnerId
           && (existing.winnerId === m.home || existing.winnerId === m.away));
-        if (!valid) return { ...m, pick: null };
-        // Recompute loserId from the current slot (stale after a reseed).
-        const loserId = existing.winnerId === m.home ? m.away : m.home;
-        prunedFlat[m.matchId] = { matchId: m.matchId, winnerId: existing.winnerId, loserId };
-        return { ...m, pick: { winnerId: existing.winnerId, loserId } };
+        if (valid) {
+          // Recompute loserId from the current slot (stale after a reseed).
+          const loserId = existing.winnerId === m.home ? m.away : m.home;
+          prunedFlat[m.matchId] = { matchId: m.matchId, winnerId: existing.winnerId, loserId };
+          return { ...m, pick: { winnerId: existing.winnerId, loserId } };
+        }
+        // No valid user pick. If this match has already been PLAYED (its real
+        // winner is known — which only happens once it's locked), auto-advance
+        // the actual winner so the bracket reflects reality and downstream
+        // rounds stay pickable. This is a PHANTOM advance: it's injected into
+        // the derived bracket for display + cascade only, NEVER written to the
+        // user's stored picks — so it earns the user no points (they didn't
+        // pick it). A real user pick always takes precedence (handled above).
+        const autoWinner = actualWinners && actualWinners[m.matchId];
+        if (autoWinner && (autoWinner === m.home || autoWinner === m.away)) {
+          const loserId = autoWinner === m.home ? m.away : m.home;
+          prunedFlat[m.matchId] = { matchId: m.matchId, winnerId: autoWinner, loserId };
+          return { ...m, pick: { winnerId: autoWinner, loserId }, autoAdvanced: true };
+        }
+        return { ...m, pick: null };
       });
     }
     return out;
-  }, [groupPredictions, bestThirdPicks, flatPicks, realR32, predictedTeamSet]);
+  }, [groupPredictions, bestThirdPicks, flatPicks, realR32, predictedTeamSet, actualWinners]);
 
   const pickWinner = useCallback((matchId, winnerTeam) => {
     const round = getRoundForMatchId(matchId);

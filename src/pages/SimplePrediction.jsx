@@ -341,6 +341,24 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     return { hit, total: realTeams.size };
   }, [reseedActive, effectiveKnockoutOnly, realR32, predictedTeamSet]);
 
+  // Real knockout winners for games that have already been PLAYED (locked).
+  // Map { matchId: winnerTeamName } from the server bracket payload. Used to
+  // auto-advance the actual winner into the next round when the user has no
+  // pick for a locked game — so the bracket reflects reality and stays
+  // pickable downstream. Display only: phantom advances are never saved and
+  // earn no points (see useBracketState). Empty until a KO game finishes.
+  const actualWinners = useMemo(() => {
+    if (!realTeamsMode) return null;
+    const kr = realBracket?.knockoutResults;
+    if (!kr || typeof kr !== 'object') return null;
+    const out = {};
+    for (const [matchId, v] of Object.entries(kr)) {
+      const w = v?.winnerId;
+      if (w) out[matchId] = w;
+    }
+    return Object.keys(out).length ? out : null;
+  }, [realTeamsMode, realBracket]);
+
   const bracketState = useBracketState({
     groupPredictions: groups.predictions,
     bestThirdPicks: bestThird.picks,
@@ -351,6 +369,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     // stale predicted one.
     realR32: realTeamsMode ? realR32 : null,
     predictedTeamSet,
+    actualWinners,
     onChange: (next) => {
       // Treat picking the Final winner as the user finishing their
       // bracket — leaderboards key off isComplete and we don't want
