@@ -9100,31 +9100,46 @@ body.light .lsd-head,
   }
 }
 
-/* ── Mobile collapse — drop status column, compress prediction ────── */
+/* ── Mobile collapse — DENSE single-line rows ─────────────────────────
+   Each player fits on ONE line: rank · name · champ/runner-up flags · score
+   · chevron. Predictions collapse to flags only (team names + rarity badge
+   hidden) and the score stays inline (never wraps), so the board packs many
+   more players per screen. Tap any row for the full pick detail. */
 @media (max-width: 720px) {
   .ll-row, .ll-colheader {
-    grid-template-columns: 44px 1fr auto 14px;
-    gap: 0.45rem;
-    padding: 0.55rem 0.7rem;
-    min-height: 56px; /* keep touch target */
+    grid-template-columns: auto minmax(0, 1fr) auto auto 12px;
+    gap: 0.5rem;
+    padding: 0.4rem 0.7rem;
+    min-height: 0;
   }
-  /* With the live column, slot it in next to the score on the top row. */
+  /* Group-stage live column slots in just before the score, still one line. */
   .ll-row.ll-with-live, .ll-colheader.ll-with-live {
-    grid-template-columns: 44px 1fr auto auto 14px;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto 12px;
   }
-  .ll-cell-live { font-size: 0.8rem; }
+  .ll-cell-live { font-size: 0.78rem; }
   .ll-cell-status { display: none; }
+  .ll-cell-rank { gap: 0.25rem; white-space: nowrap; }
+  /* Prediction inline (not its own line) — flags only. */
   .ll-cell-pred {
-    grid-column: 1 / -1;
-    padding-left: calc(44px + 0.45rem);
-    margin-top: 3px;
+    grid-column: auto;
+    justify-content: flex-end;
+    padding-left: 0;
+    margin-top: 0;
   }
-  .ll-cell-pred .ll-pred { font-size: 0.74rem; }
-  .ll-pred-flag { font-size: 0.88rem; }
+  .ll-cell-pred .ll-pred { flex-wrap: nowrap; gap: 0.3rem; font-size: 0.72rem; }
+  .ll-cell-pred .ll-pred-team { gap: 0.15rem; }
+  .ll-cell-pred .ll-pred-name { display: none; }   /* flags only */
+  .ll-cell-pred .ll-pred-rare { display: none; }   /* drop rarity badge on the dense row */
+  .ll-pred-flag { font-size: 1rem; }
+  /* Score on a single line — "82 pts" never breaks; accuracy sits beside it. */
   .ll-cell-pts { font-size: 0.82rem; }
+  .ll-pts-wrap { flex-direction: row; align-items: baseline; gap: 0.3rem; }
+  .ll-pts-num, .ll-pts-acc { white-space: nowrap; }
+  /* You-row action buttons drop to their own line below the dense row. */
   .ll-cell-actions {
-    padding-left: calc(44px + 0.45rem);
-    margin-top: 0.3rem;
+    grid-column: 1 / -1;
+    padding-left: 0;
+    margin-top: 0.4rem;
   }
   .ll-cell-chev { color: var(--text-dim); }
 }

@@ -1294,13 +1294,25 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             return;
           }
           const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://goaloracle.io';
-          const params = new URLSearchParams();
-          if (userData?.id) params.set('ref', userData.id);
-          if (!isGlobal && league?.id) {
-            params.set('join', league.id);
-            if (isPrivate && leaguePasscodeValue) params.set('p', leaguePasscodeValue);
+          let url;
+          if (isGlobal && league?.id) {
+            // "Share leaderboard": deep-link straight to THIS leaderboard
+            // (/league/:id → the league detail/leaderboard view), not the home
+            // page. ?ref preserves signup attribution. Everyone is already in
+            // the global league, so there's no join param to add.
+            const refQs = userData?.id ? `?ref=${encodeURIComponent(userData.id)}` : '';
+            url = `${origin}/league/${encodeURIComponent(league.id)}${refQs}`;
+          } else {
+            // Private/public invite: land on home with an auto-join param so the
+            // recipient joins the league (with passcode for private) on open.
+            const params = new URLSearchParams();
+            if (userData?.id) params.set('ref', userData.id);
+            if (!isGlobal && league?.id) {
+              params.set('join', league.id);
+              if (isPrivate && leaguePasscodeValue) params.set('p', leaguePasscodeValue);
+            }
+            url = `${origin}/?${params.toString()}`;
           }
-          const url = `${origin}/?${params.toString()}`;
           try {
             await navigator.clipboard.writeText(url);
             if (notify) {
