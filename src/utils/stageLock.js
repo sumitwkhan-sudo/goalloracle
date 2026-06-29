@@ -113,7 +113,28 @@ export function lockedSectionsInUpdate(partial, oldDoc, now = Date.now()) {
     for (const round of rounds) {
       if (!Object.prototype.hasOwnProperty.call(nextKo, round)) continue;
       if (sectionEqual(nextKo[round], oldKo[round])) continue;
-      if (isStageLocked(round, now)) locked.push(`knockoutPredictions.${round}`);
+
+      // Per-GAME lock: only the individual matches whose own kickoff has
+      // passed (5-min buffer) are frozen — the rest of the round stays
+      // editable. Flag each changed-and-locked match separately so the
+      // server reverts just that pick, not the whole round.
+      const o = knockoutPickMap(oldKo[round]);
+      const n = knockoutPickMap(nextKo[round]);
+      const ids = new Set([...Object.keys(o.map), ...Object.keys(n.map)]);
+      for (const id of ids) {
+        if (o.map[id] === n.map[id]) continue; // unchanged pick
+        if (isMatchKickoffLocked(id, now)) locked.push(`knockoutPredictions.${round}.${id}`);
+      }
+
+      // Entries without a matchId can't be checked per-game; fall back to the
+      // whole-round stage lock so they can't be used to dodge the per-game
+      // check. (Real prediction docs always carry matchId; this guards legacy
+      // shapes only.)
+      if ((o.noId.length || n.noId.length)
+        && JSON.stringify(o.noId) !== JSON.stringify(n.noId)
+        && isStageLocked(round, now)) {
+        locked.push(`knockoutPredictions.${round}`);
+      }
     }
   }
 
@@ -181,4 +202,36 @@ export function isMatchStageLocked(matchId, now = Date.now()) {
   const stage = stageForMatchId(matchId);
   if (!stage) return false;
   return isStageLocked(stage, now);
+}
+
+// ── Per-match (game-by-game) lock ──────────────────────────────────────────
+// Knockout predictions lock on a per-GAME basis: each match's pick freezes 5
+// minutes before THAT match kicks off, independent of the rest of its round.
+// So once the first R32 game starts, only that game is locked — every other
+// knockout game stays editable until its own kickoff.
+const MATCH_BY_ID = Object.fromEntries(WORLD_CUP_MATCHES.map((m) => [m.id, m]));
+
+export function matchKickoffLockTimeUtc(matchId) {
+  const m = MATCH_BY_ID[matchId];
+  if (!m) return Infinity; // unknown id → never kickoff-locked
+  return kickoffUtcMs(m) - LOCK_BUFFER_MS;
+}
+
+export function isMatchKickoffLocked(matchId, now = Date.now()) {
+  return now >= matchKickoffLockTimeUtc(matchId);
+}
+
+// Map a knockout round's pick array to { matchId: winnerId } plus any entries
+// that lack a matchId (legacy/edge — can't be checked per-game).
+function knockoutPickMap(arr) {
+  const map = {};
+  const noId = [];
+  if (Array.isArray(arr)) {
+    for (const p of arr) {
+      if (!p) continue;
+      if (p.matchId) map[p.matchId] = p.winnerId ?? null;
+      else noId.push(p.winnerId ?? null);
+    }
+  }
+  return { map, noId };
 }

@@ -111,12 +111,14 @@ function BracketMatch({ matchId, homeTeam, awayTeam, homeFlag, awayFlag, winnerI
   };
 
   return (
-    <div className={`bracket-match size-${size}${needsPick && !readOnly ? ' needs-pick' : ''}${readOnly ? ' readonly' : ''}`} data-match-id={matchId}>
-      {(city || formattedDate || matchNum) && (
+    <div className={`bracket-match size-${size}${needsPick && !readOnly ? ' needs-pick' : ''}${readOnly ? ' readonly' : ''}${isLocked && !readOnly ? ' match-locked' : ''}`} data-match-id={matchId}>
+      {(city || formattedDate || matchNum || (isLocked && !readOnly)) && (
         <div className="bracket-match-meta">
           {matchNum && <span className="bracket-match-num">M{matchNum}</span>}
           {city && <span className="bracket-match-city">{city}</span>}
-          {formattedDate && <span className="bracket-match-date">{formattedDate}</span>}
+          {isLocked && !readOnly
+            ? <span className="bracket-match-lock-badge"><Lock size={9} aria-hidden="true" /> Locked</span>
+            : formattedDate && <span className="bracket-match-date">{formattedDate}</span>}
         </div>
       )}
       {label && <div className="bracket-match-label">{label}</div>}

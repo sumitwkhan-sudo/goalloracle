@@ -34,7 +34,7 @@ import { GROUPS, ROUND_ORDER, areGroupRankingsComplete, emptyKnockoutPredictions
 import { predictedAdvancers } from '../utils/scoringSimple';
 import { computeLiveStandings, projectRealR32, mergeLiveScores } from '../utils/liveStandings';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { isMatchStageLocked, isStageLocked } from '../utils/stageLock';
+import { isMatchKickoffLocked, isStageLocked } from '../utils/stageLock';
 import { copySimplePrediction, getSimplePrediction, getSimpleConsensus, fetchActualBracket, fetchLiveScores, subscribeToFeatureFlags, applyGlobalKnockoutToMyLeagues } from '../utils/db';
 
 const SAVED_INDICATOR_MS = 2000;
@@ -220,10 +220,12 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     return out;
   }, []);
 
-  // Stage-based lock: every match in a stage freezes simultaneously when the
-  // first match of that stage kicks off (5-min buffer). Lets users keep
-  // editing later-stage picks even after earlier stages have started.
-  const isMatchLocked = useCallback((matchId) => isMatchStageLocked(matchId), []);
+  // Per-GAME lock: each knockout match freezes 5 minutes before ITS OWN
+  // kickoff, independent of the rest of its round. So once the first R32 game
+  // starts, only that game locks — every other knockout game stays editable
+  // until its own kickoff. Locked match cells render a lock icon + disabled
+  // rows (see BracketMatch). Server enforces the same per-match rule.
+  const isMatchLocked = useCallback((matchId) => isMatchKickoffLocked(matchId), []);
 
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationChampion, setCelebrationChampion] = useState({ name: null, flag: null });
@@ -659,13 +661,18 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
     if (!userId || !league?.id) return;
     setConfirmDialog({
       title: 'Reset your knockout bracket?',
-      message: 'This clears only your knockout picks (Round of 32 through the Final). Your group rankings and best-third picks stay exactly as they are. This can’t be undone.',
+      message: 'This clears your knockout picks for games that haven’t kicked off yet. Picks for games that have already started stay locked in. Your group rankings and best-third picks are untouched. This can’t be undone.',
       confirmLabel: 'Reset bracket',
       onConfirm: () => {
         setCopyBusy(true);
         try {
-          bracketState.resetAll();
-          save({ knockoutPredictions: emptyKnockoutPredictions(), isComplete: false });
+          // Keep picks for already-kicked-off (locked) games; clear the rest.
+          const kept = emptyKnockoutPredictions();
+          for (const r of ROUND_ORDER) {
+            kept[r] = (bracketState.knockoutPredictions?.[r] || []).filter((p) => p && p.matchId && isMatchLocked(p.matchId));
+          }
+          bracketState.resetUnlocked(isMatchLocked);
+          save({ knockoutPredictions: kept, isComplete: false });
         } catch (e) {
           window.alert(e?.message || 'Reset failed');
         } finally {
@@ -673,7 +680,7 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
         }
       },
     });
-  }, [userId, league?.id, bracketState, save]);
+  }, [userId, league?.id, bracketState, save, isMatchLocked]);
 
   return (
     <div className={`simple-page${embedded ? ' simple-page-embedded' : ''}`}>
@@ -1166,11 +1173,15 @@ function SimplePredictionWizard({ initialData, initialStep = 1, userId, league, 
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="button" className="btn btn-ghost" onClick={() => setConfirmDialog({
                 title: 'Reset your knockout bracket?',
-                message: 'This clears every knockout pick (Round of 32 through the Final). This can’t be undone.',
+                message: 'This clears your knockout picks for games that haven’t kicked off yet. Picks for games that have already started stay locked in. This can’t be undone.',
                 confirmLabel: 'Reset bracket',
                 onConfirm: () => {
-                  bracketState.resetAll();
-                  save({ knockoutPredictions: emptyKnockoutPredictions() });
+                  const kept = emptyKnockoutPredictions();
+                  for (const r of ROUND_ORDER) {
+                    kept[r] = (bracketState.knockoutPredictions?.[r] || []).filter((p) => p && p.matchId && isMatchLocked(p.matchId));
+                  }
+                  bracketState.resetUnlocked(isMatchLocked);
+                  save({ knockoutPredictions: kept });
                 },
               })}>
                 Reset bracket

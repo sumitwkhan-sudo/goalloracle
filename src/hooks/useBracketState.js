@@ -179,6 +179,21 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
     setPicks(emptyKnockoutPredictions());
   }, []);
 
+  // Clear only picks for matches that AREN'T locked yet, keeping any pick whose
+  // game has already kicked off (per-game lock). Mirrors the server's per-match
+  // revert so the client doesn't briefly drop a locked pick on reset. `isLocked`
+  // is a (matchId) => boolean predicate.
+  const resetUnlocked = useCallback((isLocked) => {
+    dirtyRef.current = true;
+    setPicks((prev) => {
+      const next = emptyKnockoutPredictions();
+      for (const r of ROUND_ORDER) {
+        next[r] = (prev[r] || []).filter((p) => p && p.matchId && isLocked && isLocked(p.matchId));
+      }
+      return next;
+    });
+  }, []);
+
   const isRoundComplete = useCallback((roundKey) => {
     const slots = bracket[roundKey] || [];
     if (slots.length === 0) return false;
@@ -199,6 +214,7 @@ export default function useBracketState({ groupPredictions, bestThirdPicks, knoc
     pickWinner,
     resetMatch,
     resetAll,
+    resetUnlocked,
     isRoundComplete,
     isRoundUnlocked,
     picksByMatchId: flatPicks,

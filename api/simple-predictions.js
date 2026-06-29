@@ -74,9 +74,29 @@ export default async function handler(req, res) {
           delete partial[sec];
           droppedSections.push(sec);
         } else if (sec.startsWith('knockoutPredictions.') && partial.knockoutPredictions && typeof partial.knockoutPredictions === 'object') {
-          const round = sec.split('.')[1];
-          if (round in oldKo) partial.knockoutPredictions[round] = oldKo[round];
-          else delete partial.knockoutPredictions[round];
+          const parts = sec.split('.');
+          const round = parts[1];
+          const matchId = parts[2]; // present for per-game locks; absent for legacy whole-round
+          if (matchId) {
+            // Revert just this one locked match's pick to its stored value
+            // (or remove it if it didn't exist), leaving the rest of the
+            // round — the still-editable games — exactly as the user saved.
+            const arr = Array.isArray(partial.knockoutPredictions[round]) ? partial.knockoutPredictions[round] : null;
+            if (arr) {
+              const oldArr = Array.isArray(oldKo[round]) ? oldKo[round] : [];
+              const oldEntry = oldArr.find((p) => p && p.matchId === matchId);
+              const idx = arr.findIndex((p) => p && p.matchId === matchId);
+              if (oldEntry) {
+                if (idx >= 0) arr[idx] = oldEntry; else arr.push(oldEntry);
+              } else if (idx >= 0) {
+                arr.splice(idx, 1);
+              }
+            }
+          } else if (round in oldKo) {
+            partial.knockoutPredictions[round] = oldKo[round];
+          } else {
+            delete partial.knockoutPredictions[round];
+          }
           droppedSections.push(sec);
         }
       }

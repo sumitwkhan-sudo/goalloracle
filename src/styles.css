@@ -6442,6 +6442,14 @@ button.admin-user-viewas:hover { text-decoration: underline; }
   color: var(--text-sec);
 }
 .bracket-row.locked { opacity: 0.7; }
+/* A game whose kickoff has passed — its pick is frozen (per-game lock). */
+.bracket-match.match-locked { opacity: 0.92; }
+.bracket-match-lock-badge {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.bracket-match-lock-badge svg { color: var(--text-dim); }
 .bracket-row-flag { font-size: 1rem; line-height: 1; }
 .bracket-row-name {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

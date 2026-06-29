@@ -8,6 +8,8 @@ import {
   stageLockState,
   stageForMatchId,
   isMatchStageLocked,
+  isMatchKickoffLocked,
+  matchKickoffLockTimeUtc,
 } from './stageLock';
 
 const FIVE_MIN_MS = 5 * 60 * 1000;
@@ -216,6 +218,80 @@ describe('stageLock — lockedSectionsInUpdate (server enforcement)', () => {
       'knockoutPredictions.semiFinals',
       'knockoutPredictions.thirdPlace',
     ]);
+  });
+});
+
+describe('stageLock — per-game (kickoff) lock', () => {
+  // From matches.js: r32-01 kicks off 2026-06-28 15:00 ET (19:00 UTC),
+  // r32-05 kicks off 2026-06-30 13:00 ET (17:00 UTC).
+  const R32_01_KICKOFF = Date.UTC(2026, 5, 28, 19, 0, 0);
+  const R32_05_KICKOFF = Date.UTC(2026, 5, 30, 17, 0, 0);
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  test('lock time is 5 minutes before that match kickoff', () => {
+    expect(matchKickoffLockTimeUtc('r32-01')).toBe(R32_01_KICKOFF - FIVE_MIN_MS);
+    expect(matchKickoffLockTimeUtc('r32-05')).toBe(R32_05_KICKOFF - FIVE_MIN_MS);
+  });
+
+  test('unknown match id is never kickoff-locked', () => {
+    expect(matchKickoffLockTimeUtc('garbage')).toBe(Infinity);
+    expect(isMatchKickoffLocked('garbage')).toBe(false);
+  });
+
+  test('once first R32 game starts, only that game is locked — others stay open', () => {
+    vi.setSystemTime(R32_01_KICKOFF + 60 * 1000);
+    expect(isMatchKickoffLocked('r32-01')).toBe(true);
+    expect(isMatchKickoffLocked('r32-05')).toBe(false);
+  });
+
+  test('each game locks 5 min before its own kickoff — not at 6 min', () => {
+    vi.setSystemTime(R32_05_KICKOFF - 6 * 60 * 1000);
+    expect(isMatchKickoffLocked('r32-05')).toBe(false);
+    vi.setSystemTime(R32_05_KICKOFF - 5 * 60 * 1000);
+    expect(isMatchKickoffLocked('r32-05')).toBe(true);
+  });
+
+  // The real prediction shape carries matchId on every pick → per-game.
+  const koDoc = (picks) => ({
+    knockoutPredictions: {
+      roundOf32: picks,
+      roundOf16: [], quarterFinals: [], semiFinals: [], thirdPlace: [], final: [],
+    },
+  });
+
+  test('changing a NOT-yet-kicked-off R32 game after the first game starts is allowed', () => {
+    vi.setSystemTime(R32_01_KICKOFF + 60 * 1000);
+    const old = koDoc([
+      { matchId: 'r32-01', winnerId: 'Canada' },
+      { matchId: 'r32-05', winnerId: 'Brazil' },
+    ]);
+    const partial = koDoc([
+      { matchId: 'r32-01', winnerId: 'Canada' },        // unchanged (locked)
+      { matchId: 'r32-05', winnerId: 'Argentina' },     // changed, not yet locked
+    ]);
+    expect(lockedSectionsInUpdate(partial, old)).toEqual([]);
+  });
+
+  test('changing the in-progress (locked) R32 game flags only that match', () => {
+    vi.setSystemTime(R32_01_KICKOFF + 60 * 1000);
+    const old = koDoc([
+      { matchId: 'r32-01', winnerId: 'Canada' },
+      { matchId: 'r32-05', winnerId: 'Brazil' },
+    ]);
+    const partial = koDoc([
+      { matchId: 'r32-01', winnerId: 'South Africa' },  // changed, LOCKED
+      { matchId: 'r32-05', winnerId: 'Argentina' },     // changed, unlocked
+    ]);
+    expect(lockedSectionsInUpdate(partial, old)).toEqual(['knockoutPredictions.roundOf32.r32-01']);
+  });
+
+  test('re-saving the locked game with the SAME winner is not flagged', () => {
+    vi.setSystemTime(R32_01_KICKOFF + 60 * 1000);
+    const old = koDoc([{ matchId: 'r32-01', winnerId: 'Canada' }]);
+    const partial = koDoc([{ matchId: 'r32-01', winnerId: 'Canada' }]);
+    expect(lockedSectionsInUpdate(partial, old)).toEqual([]);
   });
 });
 
