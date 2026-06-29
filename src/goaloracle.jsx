@@ -13,7 +13,7 @@ import { teamFlags } from './utils/flags';
 import { getRank as getFifaRank } from './data/fifaRankings';
 import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX, scoreGroup, GROUP_STAGE_POINTS_PER_POSITION, scoreKnockouts, BEST_THIRD_POINTS_PER_PICK, predictedAdvancers } from './utils/scoringSimple';
 import { computeLiveStandings, projectRealR32, mergeLiveScores } from './utils/liveStandings';
-import { stageLockTimeUtc, formatLockDelta } from './utils/stageLock';
+import { stageLockTimeUtc, formatLockDelta, isStageLocked } from './utils/stageLock';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
@@ -1333,11 +1333,18 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
           if (rRank && rRank > 16) upsetCount += 1;
           return { ...e, delta: simDeltas[e.userId], uniqueness, upsetCount };
         });
+        // The green "LIVE" column is GROUP-STAGE-ONLY provisional points, shown
+        // for real-time feedback WHILE groups are being played. Once the group
+        // stage is over (R32 locked) those points are baked into the official
+        // total — so a separate, necessarily-lower group-only number next to the
+        // total just reads as "live score is wrong." Hide it once the group
+        // stage ends; the blue total is the real score.
+        const showLiveGroupScore = simGroupStageStarted && !isStageLocked('roundOf32');
         return (
           <LeagueLeaderboardLayout
             league={league}
             rows={rows}
-            showLiveScore={simGroupStageStarted}
+            showLiveScore={showLiveGroupScore}
             currentUserId={userData?.id}
             scope={lbScope}
             onScopeChange={setLbScope}
