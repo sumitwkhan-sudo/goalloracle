@@ -10,6 +10,7 @@ import {
   isMatchStageLocked,
   isMatchKickoffLocked,
   matchKickoffLockTimeUtc,
+  dropLockedKnockoutAdditions,
 } from './stageLock';
 
 const FIVE_MIN_MS = 5 * 60 * 1000;
@@ -292,6 +293,45 @@ describe('stageLock — per-game (kickoff) lock', () => {
     const old = koDoc([{ matchId: 'r32-01', winnerId: 'Canada' }]);
     const partial = koDoc([{ matchId: 'r32-01', winnerId: 'Canada' }]);
     expect(lockedSectionsInUpdate(partial, old)).toEqual([]);
+  });
+});
+
+describe('stageLock — dropLockedKnockoutAdditions (no points for missed/auto-advanced games)', () => {
+  const R32_01_KICKOFF = Date.UTC(2026, 5, 28, 19, 0, 0);
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  test('drops a NEW pick added for an already-kicked-off match (the auto-advance case)', () => {
+    vi.setSystemTime(R32_01_KICKOFF + 60 * 1000);
+    // User never picked r32-01; client now sends the real winner (Canada) —
+    // exactly what the bracket UI auto-advances into the unpicked locked slot.
+    const partial = {
+      knockoutPredictions: {
+        roundOf32: [{ matchId: 'r32-01', winnerId: 'Canada' }, { matchId: 'r32-05', winnerId: 'Brazil' }],
+      },
+    };
+    const oldDoc = { knockoutPredictions: { roundOf32: [] } };
+    const dropped = dropLockedKnockoutAdditions(partial, oldDoc);
+    expect(dropped).toEqual(['roundOf32.r32-01']);
+    // r32-01 stripped (can't score); the not-yet-started r32-05 pick survives.
+    expect(partial.knockoutPredictions.roundOf32).toEqual([{ matchId: 'r32-05', winnerId: 'Brazil' }]);
+  });
+
+  test('keeps a pick the user had stored BEFORE kickoff (legit, still scores)', () => {
+    vi.setSystemTime(R32_01_KICKOFF + 60 * 1000);
+    const partial = { knockoutPredictions: { roundOf32: [{ matchId: 'r32-01', winnerId: 'Canada' }] } };
+    const oldDoc = { knockoutPredictions: { roundOf32: [{ matchId: 'r32-01', winnerId: 'Canada' }] } };
+    const dropped = dropLockedKnockoutAdditions(partial, oldDoc);
+    expect(dropped).toEqual([]);
+    expect(partial.knockoutPredictions.roundOf32).toEqual([{ matchId: 'r32-01', winnerId: 'Canada' }]);
+  });
+
+  test('never touches picks for matches that have not kicked off', () => {
+    vi.setSystemTime(R32_01_KICKOFF - 60 * 60 * 1000); // before any KO game
+    const partial = { knockoutPredictions: { roundOf32: [{ matchId: 'r32-01', winnerId: 'Canada' }] } };
+    const dropped = dropLockedKnockoutAdditions(partial, null);
+    expect(dropped).toEqual([]);
+    expect(partial.knockoutPredictions.roundOf32).toEqual([{ matchId: 'r32-01', winnerId: 'Canada' }]);
   });
 });
 

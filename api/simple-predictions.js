@@ -14,7 +14,7 @@
  */
 
 import { db, applyCors, verifyAuth } from './_lib/firebase.js';
-import { lockedSectionsInUpdate } from '../src/utils/stageLock.js';
+import { lockedSectionsInUpdate, dropLockedKnockoutAdditions } from '../src/utils/stageLock.js';
 import { computeIsComplete, wasComplete } from './_lib/quickPicksComplete.js';
 import { getGeoFromRequest } from './_lib/security.js';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -100,6 +100,15 @@ export default async function handler(req, res) {
           droppedSections.push(sec);
         }
       }
+    }
+
+    // HARD points-integrity rule (independent of the diff revert above): never
+    // persist a knockout pick newly added for a match that has already kicked
+    // off — including the real winner the bracket UI auto-advances into a slot
+    // the user never picked. Guarantees a missed knockout game can't score.
+    const droppedLockedAdds = dropLockedKnockoutAdditions(partial, mergedOld);
+    if (droppedLockedAdds.length) {
+      for (const k of droppedLockedAdds) droppedSections.push(`knockoutPredictions.${k}`);
     }
 
     const writePayload = {

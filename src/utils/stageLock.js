@@ -141,6 +141,37 @@ export function lockedSectionsInUpdate(partial, oldDoc, now = Date.now()) {
   return locked;
 }
 
+// HARD POINTS-INTEGRITY RULE — a knockout pick for a match that has ALREADY
+// kicked off can only persist if the user had it stored BEFORE kickoff. This
+// drops any pick NEWLY added for an already-started match — including the real
+// winner the bracket UI auto-advances into a slot the user never picked (that
+// advance is display-only). So a user can never earn points for a knockout
+// game they missed. Pre-kickoff picks are untouched here; changing/removing a
+// frozen pick is handled by lockedSectionsInUpdate's per-match revert. This
+// stand-alone pass guarantees the auto-advance case independently of the diff
+// logic above (defense in depth, robust to future refactors). Mutates
+// `partial.knockoutPredictions` in place; returns the dropped "round.matchId"s.
+export function dropLockedKnockoutAdditions(partial, oldDoc, now = Date.now()) {
+  if (!partial || !partial.knockoutPredictions || typeof partial.knockoutPredictions !== 'object') return [];
+  const oldKo = (oldDoc && oldDoc.knockoutPredictions) || {};
+  const rounds = ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final'];
+  const dropped = [];
+  for (const round of rounds) {
+    const arr = partial.knockoutPredictions[round];
+    if (!Array.isArray(arr)) continue;
+    const oldArr = Array.isArray(oldKo[round]) ? oldKo[round] : [];
+    const hadPickFor = new Set(oldArr.filter((p) => p && p.matchId).map((p) => p.matchId));
+    partial.knockoutPredictions[round] = arr.filter((p) => {
+      if (!p || !p.matchId) return true;                    // can't evaluate → leave to other checks
+      if (!isMatchKickoffLocked(p.matchId, now)) return true; // not started → fine
+      if (hadPickFor.has(p.matchId)) return true;           // pre-kickoff pick → keep (revert handles edits)
+      dropped.push(`${round}.${p.matchId}`);                // NEW pick on a started match → never persist
+      return false;
+    });
+  }
+  return dropped;
+}
+
 function sectionEqual(a, b) {
   // Treat undefined/null/empty-array/empty-object as "no change against
   // a missing section" so the very first save (where old[section] is
