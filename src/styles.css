@@ -9128,13 +9128,15 @@ body.light .lsd-head,
   }
   .ll-cell-pred .ll-pred { flex-wrap: nowrap; gap: 0.3rem; font-size: 0.72rem; }
   .ll-cell-pred .ll-pred-team { gap: 0.15rem; }
-  .ll-cell-pred .ll-pred-name { display: none; }   /* flags only */
-  .ll-cell-pred .ll-pred-rare { display: none; }   /* drop rarity badge on the dense row */
+  .ll-cell-pred .ll-pred-name { display: none; }     /* flags only */
+  .ll-cell-pred .ll-pred-rare { display: none; }     /* drop rarity badge on the dense row */
+  .ll-cell-pred .ll-pred-team-second { display: none; } /* champion flag only — no runner-up */
   .ll-pred-flag { font-size: 1rem; }
-  /* Score on a single line — "82 pts" never breaks; accuracy sits beside it. */
+  /* Score on a single line — just the points; accuracy hidden on mobile to
+     give usernames more room. "82 pts" never breaks. */
   .ll-cell-pts { font-size: 0.82rem; }
-  .ll-pts-wrap { flex-direction: row; align-items: baseline; gap: 0.3rem; }
-  .ll-pts-num, .ll-pts-acc { white-space: nowrap; }
+  .ll-pts-acc { display: none; }
+  .ll-pts-num { white-space: nowrap; }
   /* You-row action buttons drop to their own line below the dense row. */
   .ll-cell-actions {
     grid-column: 1 / -1;
