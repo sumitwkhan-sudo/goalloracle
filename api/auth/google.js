@@ -12,10 +12,7 @@ import {
   checkIpAllowsNewAccount,
   recordFingerprintForUser,
   recordIpForUser,
-  getMaskedEmailForFingerprint,
   getMaskedEmailForIp,
-  getFullEmailForFingerprint,
-  getFullEmailForIp,
   isAntiSybilBypassEmail,
   findUserByDedupeKey,
   isValidVisitorId,
@@ -59,31 +56,29 @@ export default async function handler(req, res) {
       // per-device + per-IP single-account checks. Lets the operator keep
       // multiple test accounts on their own laptop / phone during QA.
       const bypass = await isAntiSybilBypassEmail(db, email);
-      const fpCheck = bypass ? { allowed: true } : await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
-      if (!fpCheck.allowed) {
-        const [maskedEmail, existingEmail] = await Promise.all([
-          getMaskedEmailForFingerprint(db, deviceFingerprint),
-          getFullEmailForFingerprint(db, deviceFingerprint),
-        ]);
-        return res.status(429).json({
-          error: 'device_account_exists',
-          message: "Looks like you've already got an account from this device.",
-          maskedEmail,
-          existingEmail,
-          supportEmail: SUPPORT_EMAIL,
-        });
+      // Device-fingerprint signal is LOG-ONLY — it no longer blocks signup. The
+      // open-source fingerprint collides across same-model phones, so a hard
+      // block here was rejecting legitimate first-time users. The per-IP rate
+      // limit + cap below still stop bursty farming from one network. We keep
+      // computing it purely for observability.
+      if (!bypass) {
+        try {
+          const fpCheck = await checkFingerprintAllowsNewAccount(db, deviceFingerprint);
+          if (!fpCheck.allowed) {
+            console.warn(`[anti-sybil] fingerprint collision (non-blocking): ${fpCheck.count} accounts share this device fingerprint; allowing new signup`);
+          }
+        } catch { /* a monitoring read must never block a signup */ }
       }
       const ipUniqueCheck = bypass ? { allowed: true } : await checkIpAllowsNewAccount(db, ip);
       if (!ipUniqueCheck.allowed) {
-        const [maskedEmail, existingEmail] = await Promise.all([
-          getMaskedEmailForIp(db, ip),
-          getFullEmailForIp(db, ip),
-        ]);
+        // Mask only — never reveal another account's full email to a new user
+        // (the existing account belongs to a different person by construction,
+        // since this only fires for a brand-new signup email).
+        const maskedEmail = await getMaskedEmailForIp(db, ip);
         return res.status(429).json({
           error: 'ip_account_exists',
           message: "Looks like you've already got an account from this network.",
           maskedEmail,
-          existingEmail,
           supportEmail: SUPPORT_EMAIL,
         });
       }

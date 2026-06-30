@@ -213,7 +213,7 @@ export default function LoginScreen({ onClose, onSignedIn, recoveryNotice }) {
               </p>
             </div>
 
-            {(blocked.existingEmail || blocked.maskedEmail) && (
+            {blocked.maskedEmail && (
               <div className="login-blocked-email" style={{
                 padding: '12px 14px',
                 borderRadius: 8,
@@ -222,35 +222,21 @@ export default function LoginScreen({ onClose, onSignedIn, recoveryNotice }) {
                 marginBottom: 14,
                 fontSize: 14,
               }}>
-                {/* Surface the FULL email when the server provides it so the
-                    user can sign back in immediately. The masked address is
-                    kept as a fallback for older deploys / unknown shapes. */}
-                Existing account: <strong>{blocked.existingEmail || blocked.maskedEmail}</strong>
-                {blocked.existingEmail && (
-                  <div style={{ marginTop: 8 }}>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={() => {
-                        setEmail(blocked.existingEmail);
-                        setBlocked(null);
-                        setStep('email');
-                      }}
-                    >
-                      Sign in as {blocked.existingEmail}
-                    </button>
-                  </div>
-                )}
+                {/* Masked hint only — the existing account on this network may
+                    belong to someone else (shared/CGNAT IP), so we never reveal
+                    a full address or offer to "sign in as" it. */}
+                There's already an account on this network ending in{' '}
+                <strong>{blocked.maskedEmail}</strong>.
               </div>
             )}
 
             <p className="login-modal-desc" style={{ fontSize: 13 }}>
-              Sign in with that email to continue. Still having trouble?{' '}
-              Email{' '}
+              If that's you, sign in with your email. If you're new and on a
+              shared network, email{' '}
               <a href={`mailto:${blocked.supportEmail}`} style={{ color: 'var(--accent, #f60)' }}>
                 {blocked.supportEmail}
               </a>{' '}
-              and we'll help you out.
+              and we'll get you in.
             </p>
 
             <button
