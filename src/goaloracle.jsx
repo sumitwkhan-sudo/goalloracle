@@ -19,7 +19,7 @@ import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
 import TEAM_COLORS from './data/teamColors';
 import { resolveBracket, calcGroupStandings, rankThirdPlaced, groupPredictionsComplete } from './utils/bracket';
-import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, lookupLeagueByPasscode, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, migrateAnonPicks, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, fetchAdminLeaguesEnriched, DEFAULT_FEATURE_FLAGS } from './utils/db';
+import { createOrUpdateUser, updateUserProfile, getUserRole, createLeague, joinLeague, lookupLeagueByPasscode, deleteLeague, leaveLeague, subscribeToUserLeagues, fetchAllLeagues, saveBatchPredictions, subscribeToUserPredictions, subscribeToMatchResults, fetchPlatformStats, getLeagueLeaderboard, getSimpleLeaderboard, getSimpleConsensus, migrateAnonPicks, copyPredictions, copySimplePrediction, resetClassicPredictions, setAuthToken, resetFirebaseAuth, submitFeedback, captureReferralFromUrl, consumePendingJoin, fetchFeatureFlags, subscribeToFeatureFlags, setContestConsent, setPrizeIneligible, fetchAdminLeaguesEnriched, deleteMyAccount, DEFAULT_FEATURE_FLAGS } from './utils/db';
 import { validateUsername } from './utils/profanity';
 import { getWalletBalances, formatBalance } from './utils/wallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -4316,8 +4316,29 @@ const GoalOracle = () => {
     const [walletInput, setWalletInput] = useState('');
     const [walletConfirmed, setWalletConfirmed] = useState(false);
     const [walletSaving, setWalletSaving] = useState(false);
+    // Self-serve account deletion — modal lives OUTSIDE the {open && …} block
+    // so closing the dropdown doesn't unmount an in-flight delete.
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const [deleteInput, setDeleteInput] = useState('');
+    const [deleting, setDeleting] = useState(false);
     const walletAddr = walletAddress;
     const isValidEvm = /^0x[a-fA-F0-9]{40}$/.test(walletInput.trim());
+
+    const handleDeleteAccount = async () => {
+      if (deleteInput.trim() !== 'DELETE' || deleting) return;
+      setDeleting(true);
+      try {
+        await deleteMyAccount();
+        track('account_deleted', {});
+        setDeleteOpen(false);
+        notify('Your account has been permanently deleted.');
+        logout();
+        nav('landing');
+      } catch (e) {
+        notify(e?.message || 'Could not delete your account — try again or email support.', 'error');
+        setDeleting(false);
+      }
+    };
 
     const startEditWallet = () => {
       setWalletInput(walletAddr || '');
@@ -4572,8 +4593,57 @@ const GoalOracle = () => {
               <LogOut size={16} />
               <span>Log Out</span>
             </button>
+            <button
+              type="button"
+              className="dropdown-item dropdown-item-danger"
+              onClick={e => { e.stopPropagation(); setOpen(false); setDeleteInput(''); setDeleteOpen(true); }}
+            >
+              <Trash2 size={16} />
+              <span>Delete account</span>
+            </button>
           </div>
         </>}
+        {deleteOpen && (
+          <div className="modal-overlay" onClick={() => !deleting && setDeleteOpen(false)} role="dialog" aria-modal="true" aria-label="Delete account">
+            <div className="confirm-dialog delete-account-dialog" onClick={(e) => e.stopPropagation()}>
+              <h2 className="confirm-dialog-title"><AlertTriangle size={18} style={{ verticalAlign: '-3px', marginRight: 6, color: 'var(--danger)' }} />Delete your account?</h2>
+              <p className="confirm-dialog-msg">
+                This <strong>permanently deletes</strong> your GoalOracle account. It cannot be undone.
+              </p>
+              <ul className="delete-account-list">
+                <li>All your predictions (group picks and bracket) are erased.</li>
+                <li>You&rsquo;re removed from every league and leaderboard.</li>
+                <li>You lose any prize eligibility for this tournament.</li>
+                <li>Leagues you created keep running for their members — without you.</li>
+              </ul>
+              <label className="delete-account-label" htmlFor="delete-account-confirm">
+                Type <strong>DELETE</strong> to confirm
+              </label>
+              <input
+                id="delete-account-confirm"
+                type="text"
+                className="delete-account-input"
+                value={deleteInput}
+                onChange={(e) => setDeleteInput(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+                autoCapitalize="characters"
+                disabled={deleting}
+              />
+              <div className="confirm-dialog-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleDeleteAccount}
+                  disabled={deleteInput.trim() !== 'DELETE' || deleting}
+                >
+                  {deleting ? 'Deleting…' : 'Delete my account'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

@@ -79,6 +79,7 @@ async function ensureGlobalLeague() {
 export default async function handler(req, res) {
   applyCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).json({});
+  if (req.method === 'DELETE') return handleSelfDelete(req, res);
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const claims = await verifyAuth(req);
@@ -329,6 +330,58 @@ export default async function handler(req, res) {
     return res.status(200).json({ user: { id: fresh.id, ...fresh.data() } });
   } catch (e) {
     console.error('[user] Error:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ── Self-serve account deletion ─────────────────────────────────────────────
+// DELETE /api/user — permanently delete YOUR OWN account. Same wipe routine
+// the superadmin console uses (api/_lib/deleteUserAccount.js): user doc, all
+// predictions, league memberships, sybil records, Firebase Auth record.
+// Guards:
+//  - must be authenticated (you can only delete yourself — the UID comes from
+//    the verified token, never the body)
+//  - body must carry confirm: 'DELETE' (the client only sends it after the
+//    user types the word — a stray API call can't nuke an account)
+//  - superadmins can't self-delete (operator-lockout protection; demote first)
+// Deletion is logged to /adminLogs (action 'self_delete_account') so the
+// operator can see churn and answer "where did my account go?" emails.
+async function handleSelfDelete(req, res) {
+  const claims = await verifyAuth(req);
+  if (!claims) return res.status(401).json({ error: 'Unauthorized' });
+  const userId = claims.userId || claims.sub;
+  if (!userId) return res.status(500).json({ error: 'No user ID in auth claims' });
+
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    if (body.confirm !== 'DELETE') {
+      return res.status(400).json({ error: 'Missing confirmation' });
+    }
+
+    const snap = await db.collection('users').doc(userId).get();
+    if (!snap.exists) return res.status(404).json({ error: 'Account not found' });
+    const user = snap.data();
+    if (user.role === 'superadmin') {
+      return res.status(403).json({ error: 'Superadmin accounts cannot self-delete. Demote the role first.' });
+    }
+
+    const { deleteUserAccount } = await import('./_lib/deleteUserAccount.js');
+    const { admin } = await import('./_lib/firebase.js');
+    const deleted = await deleteUserAccount(db, admin, userId);
+
+    await db.collection('adminLogs').add({
+      action: 'self_delete_account',
+      targetUserId: userId,
+      targetEmail: user.email || null,
+      targetDisplayName: user.displayName || null,
+      adminId: userId,
+      timestamp: FieldValue.serverTimestamp(),
+      deleted,
+    });
+
+    return res.status(200).json({ success: true, deleted });
+  } catch (e) {
+    console.error('[user] self-delete error:', e.message);
     return res.status(500).json({ error: e.message });
   }
 }
