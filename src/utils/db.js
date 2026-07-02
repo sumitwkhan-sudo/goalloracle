@@ -63,6 +63,35 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   }
 }
 
+// Plain GET for PUBLIC endpoints (no Authorization header). Shared CDN caches
+// won't serve requests that carry an Authorization header, so routing public,
+// edge-cached endpoints (leaderboard ticker, live scores, actual bracket,
+// consensus) through apiCall meant every logged-in client's calls bypassed the
+// edge and hit the origin — each origin hit doing Firestore reads. These
+// endpoints require no auth and return identical bodies for everyone, so
+// fetching them anonymously lets one cached response serve all users.
+async function publicApiGet(endpoint) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 55000);
+  try {
+    const res = await fetch(`/api/${endpoint}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`API ${endpoint} returned ${res.status}: non-JSON response`);
+    }
+    if (!res.ok) throw new Error(data.error || `API request failed (${res.status})`);
+    return data;
+  } catch (e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') throw new Error(`API ${endpoint} timed out after 55s`);
+    throw e;
+  }
+}
+
 // ---- Match lock logic (same as server) ----
 const LOCK_BUFFER_MS = 5 * 60 * 1000;
 const matchKickoffUTC = {};
@@ -511,6 +540,7 @@ export async function saveSimplePrediction(userId, leagueId, partial) {
   if (partial.knockoutPredictions !== undefined) body.partial.knockoutPredictions = partial.knockoutPredictions;
   if (partial.isComplete !== undefined) body.partial.isComplete = partial.isComplete;
   await apiCall('simple-predictions', 'POST', body);
+  markLeaderboardFresh();
   // Funnel: count the first prediction submit per browser. trackOnce gates
   // on localStorage so subsequent saves don't spam the event.
   try {
@@ -549,7 +579,9 @@ export async function copySimplePrediction(userId, sourceLeagueId, targetLeagueI
 // skipping classic + knockout-only leagues). Returns { applied:[{leagueId,
 // name}], count, skipped }.
 export async function applyGlobalKnockoutToMyLeagues() {
-  return await apiCall('leagues', 'POST', { action: 'applyGlobalKnockout' });
+  const out = await apiCall('leagues', 'POST', { action: 'applyGlobalKnockout' });
+  markLeaderboardFresh();
+  return out;
 }
 
 // Reset a user's simple prediction for a specific league. Server enforces
@@ -558,26 +590,48 @@ export async function applyGlobalKnockoutToMyLeagues() {
 export async function resetSimplePrediction(userId, leagueId) {
   if (!userId || !leagueId) return;
   await apiCall('simple-predictions', 'DELETE', { leagueId });
+  markLeaderboardFresh();
 }
 
 // No-login funnel (item C, phase iv): at sign-up, migrate the anonymous UID's
 // Global bracket to the new real account UID. Caller is authed as the new
 // account; anonIdToken proves control of the anon session.
 export async function migrateAnonPicks(anonIdToken) {
-  return await apiCall('migrate-anon-picks', 'POST', { anonIdToken });
+  const out = await apiCall('migrate-anon-picks', 'POST', { anonIdToken });
+  markLeaderboardFresh();
+  return out;
+}
+
+// ── Leaderboard freshness window ─────────────────────────────────────────
+// The board is edge-cached (s-maxage 60 + SWR 300). A user who JUST saved
+// picks must see them immediately, so for a few minutes after this browser
+// writes picks we cache-bust (unique _ts param + auth header → guaranteed
+// origin hit). Outside that window the cached board is perfectly fine — and
+// the difference is enormous in Firestore reads: every origin hit reads
+// ~3 docs PER LEAGUE MEMBER (users + predictions + scores), and global-simple
+// holds every user. Busting on EVERY authed view (the old behavior) made each
+// leaderboard visit a full-collection read and was the dominant line item on
+// the GCP bill. localStorage (not memory) so the window survives the reload
+// that often follows a submit.
+const LB_FRESH_KEY = 'goaloracle_lb_fresh_until';
+const LB_FRESH_WINDOW_MS = 3 * 60 * 1000;
+function markLeaderboardFresh() {
+  try { localStorage.setItem(LB_FRESH_KEY, String(Date.now() + LB_FRESH_WINDOW_MS)); } catch {}
+}
+function leaderboardNeedsFresh() {
+  try { return Date.now() < Number(localStorage.getItem(LB_FRESH_KEY) || 0); } catch { return false; }
 }
 
 export async function getSimpleLeaderboard(leagueId) {
-  // Logged-in viewers must see their own just-submitted picks immediately.
-  // The board is edge-cached (s-maxage 60 + SWR 300) for the anonymous hero
-  // ticker — the hot path — but that public cache was being served to authed
-  // viewers too, so a user who just copied/submitted could see a stale "—"
-  // for minutes while a different viewer (fresh edge) saw their picks. Bust
-  // the CDN cache for authed callers with a unique param so the URL never
-  // matches a cached entry; anonymous calls keep the cache.
-  const bust = _authToken ? `&_ts=${Date.now()}` : '';
-  const data = await apiCall(`simple-leaderboard?leagueId=${encodeURIComponent(leagueId)}${bust}`);
-  return data;
+  if (_authToken && leaderboardNeedsFresh()) {
+    // Recently saved in this browser → force an origin read so the user sees
+    // their own just-submitted picks (server also sends private,no-store on
+    // authed requests as defense-in-depth).
+    return await apiCall(`simple-leaderboard?leagueId=${encodeURIComponent(leagueId)}&_ts=${Date.now()}`);
+  }
+  // Steady state: anonymous fetch → served from the shared 60s edge cache,
+  // zero Firestore reads for the overwhelming majority of views.
+  return await publicApiGet(`simple-leaderboard?leagueId=${encodeURIComponent(leagueId)}`);
 }
 
 // In-memory cache for crowd consensus. The endpoint already sets a
@@ -591,7 +645,7 @@ export async function getSimpleConsensus(leagueId) {
   const now = Date.now();
   const cached = _consensusCache.get(leagueId);
   if (cached && (now - cached.ts) < CONSENSUS_TTL_MS) return cached.promise;
-  const promise = apiCall(`simple-consensus?leagueId=${encodeURIComponent(leagueId)}`)
+  const promise = publicApiGet(`simple-consensus?leagueId=${encodeURIComponent(leagueId)}`)
     .catch((e) => {
       // Drop the cache entry on failure so the next caller retries.
       _consensusCache.delete(leagueId);
@@ -648,7 +702,10 @@ export function subscribeToLiveScores(callback) {
 // Firestore rule for /liveMatchScores. Never throws — returns {} on failure.
 export async function fetchLiveScores() {
   try {
-    const data = await apiCall('live-scores');
+    // Anonymous fetch — /api/live-scores is public + edge-cached (s-maxage 20);
+    // carrying the auth header made every logged-in client's 60s poll bypass
+    // the shared cache and re-read the collection at the origin.
+    const data = await publicApiGet('live-scores');
     return data?.live || {};
   } catch {
     return {};
@@ -1085,7 +1142,9 @@ export const DEFAULT_FEATURE_FLAGS = {
 // knockout-real-reseed feature. See api/actual-bracket.js. Never throws.
 export async function fetchActualBracket() {
   try {
-    return await apiCall('actual-bracket');
+    // Anonymous fetch — /api/actual-bracket is public + edge-cached (s-maxage
+    // 60); the auth header was defeating the shared cache (see publicApiGet).
+    return await publicApiGet('actual-bracket');
   } catch {
     return { allGroupsComplete: false, groupsComplete: [], r32: {} };
   }
