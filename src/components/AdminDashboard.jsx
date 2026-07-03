@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -135,6 +135,8 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [ruleBusy, setRuleBusy] = useState(false);
   // Copy-to-Global audit log (superadmin tab). null = not yet fetched.
   const [globalLog, setGlobalLog] = useState(null);
+  // Account-deletion audit log (superadmin tab). null = not yet fetched.
+  const [deletionLog, setDeletionLog] = useState(null);
   // Bracket-health tab (superadmin): finished brackets stuck "not submitted".
   const [bracketHealth, setBracketHealth] = useState(null); // null = not fetched
   const [bracketHealthBusy, setBracketHealthBusy] = useState(false);
@@ -538,6 +540,22 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   useEffect(() => {
     if (tab !== 'globalLog') return;
     reloadGlobalSubmitLog();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tab]);
+
+  // Account-deletion audit log — loaded on tab open + manual refresh.
+  const reloadDeletionLog = async () => {
+    try {
+      const { rows } = await fetchAdminDeletionLog(100);
+      setDeletionLog(rows);
+    } catch (e) {
+      console.warn('[admin] deletionLog fetch failed:', e?.message || e);
+      setDeletionLog([]);
+    }
+  };
+  useEffect(() => {
+    if (tab !== 'deletions') return;
+    reloadDeletionLog();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [tab]);
 
@@ -1390,6 +1408,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     { id: 'oracle', icon: '🔮', label: 'Oracle Status' },
     { id: 'contract', icon: '📜', label: 'Smart Contract' },
     ...(isSuperadmin ? [{ id: 'globalLog', icon: '🔁', label: 'Global Submits' }] : []),
+    ...(isSuperadmin ? [{ id: 'deletions', icon: '🗑️', label: 'Deletions' }] : []),
     ...(isSuperadmin ? [{ id: 'bracketHealth', icon: '🩺', label: 'Bracket Health' }] : []),
     ...(isSuperadmin ? [{ id: 'funnelHealth', icon: '🚦', label: 'Funnel Health' }] : []),
     { id: 'settings', icon: '⚙️', label: 'Settings' },
@@ -3107,6 +3126,61 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
         </div>
         );
       })()}
+
+      {/* ═══════ TAB: DELETIONS ═══════ */}
+      {tab === 'deletions' && (
+        <div className="admin-panel">
+          <div className="admin-outreach-runs">
+            <div className="admin-outreach-runs-head">
+              <h3>Account deletions</h3>
+              <button type="button" className="btn btn-ghost btn-xs" onClick={reloadDeletionLog}>
+                <RefreshCw size={11} /> Refresh
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Every permanently deleted account — self-serve (user typed DELETE) and admin-initiated.
+              The row snapshots the name/email at deletion time since the user doc is gone. Newest 100.
+            </p>
+
+            {deletionLog === null && <div className="admin-empty">Loading deletion log…</div>}
+            {deletionLog?.length === 0 && <div className="admin-empty">No account deletions yet.</div>}
+            {deletionLog && deletionLog.length > 0 && (
+              <table className="admin-outreach-runs-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>How</th>
+                    <th>Wiped</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deletionLog.map((r) => (
+                    <tr key={r.id}>
+                      <td title={r.timestampMs ? new Date(r.timestampMs).toString() : ''}>
+                        {r.timestampMs ? new Date(r.timestampMs).toLocaleString() : '—'}
+                      </td>
+                      <td title={r.targetUserId || ''}>{r.targetDisplayName || r.targetUserId || '—'}</td>
+                      <td>{r.targetEmail || '—'}</td>
+                      <td>
+                        {r.action === 'self_delete_account'
+                          ? <span style={{ color: 'var(--amber)', fontWeight: 600 }}>Self</span>
+                          : <span style={{ color: 'var(--cyan)', fontWeight: 600 }} title={r.adminId || ''}>Admin{r.adminName ? ` (${r.adminName})` : ''}</span>}
+                      </td>
+                      <td style={{ color: 'var(--text-sec)' }}>
+                        {r.deleted
+                          ? `${r.deleted.simplePredictions ?? 0} QP, ${r.deleted.predictions ?? 0} classic, ${r.deleted.leagueMemberships ?? 0} league${(r.deleted.leagueMemberships ?? 0) === 1 ? '' : 's'}`
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══════ TAB: INSIGHTS ═══════ */}
       {tab === 'insights' && (() => {

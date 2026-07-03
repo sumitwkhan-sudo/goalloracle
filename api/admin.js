@@ -213,6 +213,47 @@ export default async function handler(req, res) {
         }
 
         return res.status(200).json({ runs, templateStats });
+      } else if (type === 'deletionLog') {
+        // Account-deletion audit (rows written by the deleteUser admin action
+        // and the self-serve DELETE /api/user flow). Deletions are rare, so
+        // fetch by action filter (single-field index, no composite needed)
+        // and sort newest-first in memory. Deleted users' docs are gone, so
+        // the log row itself carries the name/email snapshot.
+        const limit = Math.min(Math.max(1, Number(req.query.limit) || 100), 500);
+        const snap = await db.collection('adminLogs')
+          .where('action', 'in', ['self_delete_account', 'delete_user'])
+          .limit(500)
+          .get();
+        const rows = snap.docs.map(d => {
+          const data = d.data();
+          const ts = data.timestamp;
+          return {
+            id: d.id,
+            action: data.action,
+            targetUserId: data.targetUserId || null,
+            targetEmail: data.targetEmail || null,
+            targetDisplayName: data.targetDisplayName || null,
+            adminId: data.adminId || null,
+            deleted: data.deleted || null,
+            timestampMs: ts?._seconds ? ts._seconds * 1000 : (ts?.toMillis?.() || null),
+          };
+        }).sort((a, b) => (b.timestampMs || 0) - (a.timestampMs || 0)).slice(0, limit);
+
+        // Resolve the acting admin's name for admin-initiated deletions
+        // (self-deletions have adminId === targetUserId, whose doc is gone —
+        // the snapshot fields on the row cover those).
+        const adminIdSet = new Set(rows.filter(r => r.action === 'delete_user' && r.adminId).map(r => r.adminId));
+        const adminNames = {};
+        if (adminIdSet.size > 0) {
+          const snaps = await db.getAll(...Array.from(adminIdSet).map(id => db.collection('users').doc(id)));
+          for (const s of snaps) {
+            if (s.exists) adminNames[s.id] = s.data().displayName || s.data().email || null;
+          }
+        }
+        for (const r of rows) {
+          r.adminName = r.action === 'delete_user' ? (adminNames[r.adminId] || null) : null;
+        }
+        return res.status(200).json({ rows });
       } else if (type === 'globalSubmitLog') {
         // Copy-to-Global audit trail (rows written by writeAudit in
         // api/_lib/copyToGlobal.js). Resolves actor + target user IDs to

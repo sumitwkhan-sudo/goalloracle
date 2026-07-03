@@ -824,6 +824,13 @@ export async function fetchAdminGlobalSubmitLog(limit = 50) {
   return { rows: data?.rows || [] };
 }
 
+// Account-deletion audit (self-serve + admin-initiated). Each row snapshots
+// the deleted user's name/email (their doc is gone) plus what was wiped.
+export async function fetchAdminDeletionLog(limit = 100) {
+  const data = await apiCall(`admin?type=deletionLog&limit=${limit}`);
+  return { rows: data?.rows || [] };
+}
+
 // Daily leaderboard-movement email config (+ last run / pending preview).
 // See api/admin.js type=rankDigestConfig.
 export async function fetchAdminRankDigestConfig() {
