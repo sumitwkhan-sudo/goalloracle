@@ -831,6 +831,13 @@ export async function fetchAdminDeletionLog(limit = 100) {
   return { rows: data?.rows || [] };
 }
 
+// Undo an account deletion via Firestore point-in-time recovery (superadmin).
+// Reads the user's docs as they existed just before `deletedAtMs` and writes
+// them back; `logId` stamps the deletion-log row as recovered.
+export async function adminRecoverDeletedUser(targetUserId, deletedAtMs, logId) {
+  return await apiCall('admin', 'POST', { action: 'recoverDeletedUser', targetUserId, deletedAtMs, logId });
+}
+
 // Daily leaderboard-movement email config (+ last run / pending preview).
 // See api/admin.js type=rankDigestConfig.
 export async function fetchAdminRankDigestConfig() {

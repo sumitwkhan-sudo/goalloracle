@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -542,6 +542,23 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     reloadGlobalSubmitLog();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [tab]);
+
+  // PITR recovery of a deleted account — superadmin, per Deletions-tab row.
+  const [recoveringId, setRecoveringId] = useState(null);
+  const handleRecoverUser = async (row) => {
+    const who = row.targetDisplayName || row.targetEmail || row.targetUserId;
+    if (!window.confirm(`Recover ${who}'s account and all their picks as they were just before deletion?`)) return;
+    setRecoveringId(row.id);
+    try {
+      const { recovered } = await adminRecoverDeletedUser(row.targetUserId, row.timestampMs, row.id);
+      notify(`Recovered ${recovered?.displayName || who} — ${recovered?.simplePredictions ?? 0} prediction doc${(recovered?.simplePredictions ?? 0) === 1 ? '' : 's'}, ${recovered?.leagues ?? 0} league${(recovered?.leagues ?? 0) === 1 ? '' : 's'}.`);
+      await reloadDeletionLog();
+    } catch (e) {
+      notify(e?.message || 'Recovery failed', 'error');
+    } finally {
+      setRecoveringId(null);
+    }
+  };
 
   // Account-deletion audit log — loaded on tab open + manual refresh.
   const reloadDeletionLog = async () => {
@@ -3153,6 +3170,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     <th>Email</th>
                     <th>How</th>
                     <th>Wiped</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3172,6 +3190,24 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                         {r.deleted
                           ? `${r.deleted.simplePredictions ?? 0} QP, ${r.deleted.predictions ?? 0} classic, ${r.deleted.leagueMemberships ?? 0} league${(r.deleted.leagueMemberships ?? 0) === 1 ? '' : 's'}`
                           : '—'}
+                      </td>
+                      <td>
+                        {r.recoveredAtMs ? (
+                          <span style={{ color: 'var(--lime)', fontWeight: 600 }} title={new Date(r.recoveredAtMs).toString()}>Recovered ✓</span>
+                        ) : (
+                          // PITR keeps 7 days of history; older deletions aren't recoverable.
+                          r.timestampMs && (Date.now() - r.timestampMs) < 6.5 * 24 * 60 * 60 * 1000 && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs"
+                              onClick={() => handleRecoverUser(r)}
+                              disabled={recoveringId === r.id}
+                              title="Restore this account and all its picks as they were just before deletion (Firestore point-in-time recovery)"
+                            >
+                              {recoveringId === r.id ? 'Recovering…' : 'Recover'}
+                            </button>
+                          )
+                        )}
                       </td>
                     </tr>
                   ))}

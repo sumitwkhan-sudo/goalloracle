@@ -1,5 +1,5 @@
 import { db, admin, applyCors, verifyAuth } from './_lib/firebase.js';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { recentDayIds, blankDay, computeHealthStatus, sumOutcomes } from './_lib/funnelHealth.js';
 import { RANK_DIGEST_DEFAULTS, sanitizeConfigPatch } from './_lib/rankDigest.js';
 import { calculateSimpleScore, scoreGroupStage } from '../src/utils/scoringSimple.js';
@@ -227,6 +227,7 @@ export default async function handler(req, res) {
         const rows = snap.docs.map(d => {
           const data = d.data();
           const ts = data.timestamp;
+          const rts = data.recoveredAt;
           return {
             id: d.id,
             action: data.action,
@@ -236,6 +237,7 @@ export default async function handler(req, res) {
             adminId: data.adminId || null,
             deleted: data.deleted || null,
             timestampMs: ts?._seconds ? ts._seconds * 1000 : (ts?.toMillis?.() || null),
+            recoveredAtMs: rts?._seconds ? rts._seconds * 1000 : (rts?.toMillis?.() || null),
           };
         }).sort((a, b) => (b.timestampMs || 0) - (a.timestampMs || 0)).slice(0, limit);
 
@@ -1025,6 +1027,123 @@ export default async function handler(req, res) {
       });
 
       return res.status(200).json({ success: true, deleted });
+
+    } else if (action === 'recoverDeletedUser') {
+      // Undo an account deletion using Firestore Point-in-Time Recovery: read
+      // the user's docs as they existed just BEFORE the deletion (read-only
+      // transaction at a pre-deletion readTime) and write them back. Requires
+      // PITR enabled on the database (7-day window); without PITR, Firestore
+      // still serves reads up to 1 hour back. The login flow re-attaches
+      // automatically: findUserByDedupeKey resolves the restored doc → same
+      // UID → custom-token sign-in recreates the Firebase Auth record.
+      //
+      // Superadmin-only. `deletedAtMs` comes from the Deletions-tab log row;
+      // we read at a whole-minute timestamp ≥2 min before it (PITR reads
+      // older than 1h must be minute-aligned). `logId` (optional) is the
+      // adminLogs row to stamp recoveredAt on, so the tab shows it and the
+      // button disappears.
+      const { targetUserId, deletedAtMs, logId } = req.body;
+      if (!targetUserId || !deletedAtMs) return res.status(400).json({ error: 'Missing targetUserId or deletedAtMs' });
+
+      const callerRole = await getRole(userId);
+      if (callerRole !== 'superadmin') {
+        return res.status(403).json({ error: 'Only a superadmin can recover a user' });
+      }
+
+      // Never clobber a live account (e.g. they already re-signed-up — in
+      // that case delete the fresh stub first, then recover).
+      const curSnap = await db.collection('users').doc(targetUserId).get();
+      if (curSnap.exists) {
+        return res.status(409).json({ error: 'A user doc with this ID already exists — recovery would overwrite it. If they re-signed-up, delete the new stub account first.' });
+      }
+
+      const readMs = Math.floor((Number(deletedAtMs) - 2 * 60 * 1000) / 60000) * 60000;
+      if (Date.now() - readMs > 6.5 * 24 * 60 * 60 * 1000) {
+        return res.status(400).json({ error: 'Deletion is older than the 7-day PITR window — not recoverable.' });
+      }
+      if (readMs >= Date.now()) {
+        return res.status(400).json({ error: 'deletedAtMs is in the future — check the timestamp.' });
+      }
+
+      // Snapshot everything at the pre-deletion instant.
+      let userDoc = null;
+      let simpleDocs = [];
+      let classicDocs = [];
+      let memberDocs = [];
+      let scoreDocs = [];
+      await db.runTransaction(async (t) => {
+        const u = await t.get(db.collection('users').doc(targetUserId));
+        if (!u.exists) throw new Error('No user doc at the recovery timestamp — the deletion time may be off, or this ID never existed.');
+        userDoc = u.data();
+        const sp = await t.get(db.collection('simplePredictions').where('userId', '==', targetUserId));
+        simpleDocs = sp.docs.map(d => ({ id: d.id, data: d.data() }));
+        const cp = await t.get(db.collection('predictions').where('userId', '==', targetUserId));
+        classicDocs = cp.docs.map(d => ({ id: d.id, data: d.data() }));
+        const leagues = Array.isArray(userDoc.leagues) ? userDoc.leagues : [];
+        for (const lid of leagues) {
+          const m = await t.get(db.collection('leagues').doc(lid).collection('members').doc(targetUserId));
+          if (m.exists) memberDocs.push({ leagueId: lid, data: m.data() });
+          const sc = await t.get(db.collection('simplePredictions').doc(targetUserId).collection('scores').doc(lid));
+          if (sc.exists) scoreDocs.push({ leagueId: lid, data: sc.data() });
+        }
+      }, { readOnly: true, readTime: Timestamp.fromMillis(readMs) });
+
+      // Write everything back. set() (not merge) — the docs don't exist.
+      const batch = db.batch();
+      batch.set(db.collection('users').doc(targetUserId), userDoc);
+      for (const d of simpleDocs) batch.set(db.collection('simplePredictions').doc(d.id), d.data);
+      for (const d of classicDocs) batch.set(db.collection('predictions').doc(d.id), d.data);
+      for (const m of memberDocs) batch.set(db.collection('leagues').doc(m.leagueId).collection('members').doc(targetUserId), m.data);
+      for (const s of scoreDocs) batch.set(db.collection('simplePredictions').doc(targetUserId).collection('scores').doc(s.leagueId), s.data);
+      await batch.commit();
+
+      // Re-add league membership (members array + memberCount) — idempotent.
+      const leagues = Array.isArray(userDoc.leagues) ? userDoc.leagues : [];
+      for (const lid of leagues) {
+        const lSnap = await db.collection('leagues').doc(lid).get();
+        if (!lSnap.exists) continue;
+        const members = lSnap.data().members || [];
+        if (!members.includes(targetUserId)) {
+          await db.collection('leagues').doc(lid).update({
+            members: FieldValue.arrayUnion(targetUserId),
+            memberCount: FieldValue.increment(1),
+          }).catch(e => console.warn(`[recoverUser] failed to re-add to ${lid}:`, e.message));
+        }
+      }
+
+      // Mark the original deletion-log row so the tab shows "Recovered".
+      if (logId) {
+        await db.collection('adminLogs').doc(logId).update({
+          recoveredAt: FieldValue.serverTimestamp(),
+          recoveredBy: userId,
+        }).catch(() => {});
+      }
+      await db.collection('adminLogs').add({
+        action: 'recover_user',
+        targetUserId,
+        targetEmail: userDoc.email || null,
+        targetDisplayName: userDoc.displayName || null,
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        recovered: {
+          simplePredictions: simpleDocs.length,
+          predictions: classicDocs.length,
+          leagues: leagues.length,
+          scores: scoreDocs.length,
+        },
+      });
+
+      return res.status(200).json({
+        success: true,
+        recovered: {
+          displayName: userDoc.displayName || null,
+          email: userDoc.email || null,
+          simplePredictions: simpleDocs.length,
+          predictions: classicDocs.length,
+          leagues: leagues.length,
+          scores: scoreDocs.length,
+        },
+      });
 
     } else if (action === 'deleteLeague') {
       const { leagueId } = req.body;
