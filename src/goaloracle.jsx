@@ -340,7 +340,10 @@ function PicksViewer({ target, onClose, onEdit, onShare, isOwn = false, results 
 // (useBracketState, useBracketLayout) that the outer PicksViewer can't
 // call before the early classic-mode return.
 function PicksViewerBody({ target, onClose, data, loading, err, results, thirdPlace, groupsLocal, roundOrder, roundLabel, onEdit, onShare, isOwn }) {
-  const [tab, setTab] = useState('groups');
+  // Default to the knockout bracket once the group stage is over — that's
+  // the live, evolving part of everyone's picks; the frozen group rankings
+  // stay one tab away. Pre-tournament views still open on Groups.
+  const [tab, setTab] = useState(() => (isStageLocked('groupStage') ? 'bracket' : 'groups'));
   const layout = useBracketLayout();
 
   // Actual knockout winners + advancing thirds (server-resolved) so the viewer

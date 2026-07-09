@@ -23,6 +23,7 @@ import BracketDesktop from '../components/simple/BracketDesktop';
 import BracketMobile from '../components/simple/BracketMobile';
 import useBracketLayout from '../hooks/useBracketLayout';
 import { getRoundForMatchId } from '../utils/bracketUtils';
+import { isStageLocked } from '../utils/stageLock';
 
 const flagOf = (name) => TEAM_COLORS[name]?.flag || '🏳️';
 const GROUP_MATCHES = WORLD_CUP_MATCHES.filter((m) => !m.isKnockout);
@@ -248,7 +249,10 @@ function KnockoutView({ actualBracket, standings }) {
 
 // ─── Match results view (grouped by date) ──────────────────────────
 export default function Standings({ results = {}, userId, authenticated = false, leagues = [], onSignIn }) {
-  const [tab, setTab] = useState('standings'); // 'standings' | 'results'
+  // 'standings' | 'knockouts' | 'results'. Once the group stage is over, the
+  // knockout bracket is the live story — open there by default; the frozen
+  // group tables stay one tab away. Pre-tournament still opens on Standings.
+  const [tab, setTab] = useState(() => (isStageLocked('groupStage') ? 'knockouts' : 'standings'));
   const [compare, setCompare] = useState(false);
   const [compareLeagueId, setCompareLeagueId] = useState('global-simple');
   const [brackets, setBrackets] = useState({}); // leagueId -> doc | 'loading' | null
