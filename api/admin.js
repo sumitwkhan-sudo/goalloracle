@@ -2450,6 +2450,80 @@ export default async function handler(req, res) {
     // same audit log, same throttling — just a different entry-point
     // semantically so the recent-runs panel can mark canary runs with
     // a canary: true flag for visual distinction.
+    if (action === 'standingsDigestRun') {
+      // "Where you stand" digest — dedicated two-phase runner.
+      //   phase 'preview': compute real data, email a canary (with the
+      //     CALLER's own standing) to the caller, return eligibleCount +
+      //     the auto-drafted recap for the admin textarea.
+      //   phase 'send': chunk personalized payloads into outreachScheduled
+      //     docs (the 5-min drain sends one chunk per tick), so a 5k-user
+      //     send never runs inside a single 60s invocation.
+      const { phase = 'preview', recapText = '' } = req.body;
+      const recap = String(recapText || '').trim().slice(0, 800);
+
+      const { buildStandingsDigestData } = await import('./_lib/standingsDigest.js');
+      const data = await buildStandingsDigestData(db);
+      const effectiveRecap = recap || data.autoRecap;
+
+      if (phase === 'preview') {
+        const adminSnap = await db.collection('users').doc(userId).get();
+        const adminUser = adminSnap.exists ? { id: adminSnap.id, ...adminSnap.data() } : { id: userId };
+        if (!adminUser.email) return res.status(400).json({ error: 'Your admin account has no email to preview to.' });
+        // Preview with the caller's own real standing; fall back to the first
+        // eligible user's numbers if the caller has no global entry.
+        const ctx = data.ctxFor(userId, effectiveRecap)
+          || (data.eligible[0] ? data.ctxFor(data.eligible[0].id, effectiveRecap) : { recap: effectiveRecap, pointsRemaining: data.pointsRemaining });
+        const { buildEmail, sendOutreachEmail } = await import('./_lib/outreachEmail.js');
+        const { subject, html, text } = buildEmail('standingsDigest', { user: adminUser, ctx });
+        const r = await sendOutreachEmail({ to: adminUser.email, subject: `[PREVIEW] ${subject}`, html, text });
+        return res.status(200).json({
+          phase: 'preview',
+          sent: r.sent,
+          error: r.error || null,
+          to: adminUser.email,
+          eligibleCount: data.eligible.length,
+          autoRecap: data.autoRecap,
+          pointsRemaining: data.pointsRemaining,
+        });
+      }
+
+      if (phase === 'send') {
+        const CHUNK = 800;
+        let queued = 0;
+        let chunks = 0;
+        for (let i = 0; i < data.eligible.length; i += CHUNK) {
+          const slice = data.eligible.slice(i, i + CHUNK);
+          const userIds = slice.map((u) => u.id);
+          const userPayloads = {};
+          for (const u of slice) {
+            const ctx = data.ctxFor(u.id, effectiveRecap);
+            if (ctx) userPayloads[u.id] = ctx;
+          }
+          await db.collection('outreachScheduled').add({
+            template: 'standingsDigest',
+            userIds,
+            userPayloads,
+            recipientCount: userIds.length,
+            scheduledFor: FieldValue.serverTimestamp(),
+            scheduledAt: FieldValue.serverTimestamp(),
+            scheduledBy: userId,
+            status: 'pending',
+          });
+          queued += userIds.length;
+          chunks += 1;
+        }
+        await db.collection('adminLogs').add({
+          action: 'standings_digest_send',
+          adminId: userId,
+          timestamp: FieldValue.serverTimestamp(),
+          summary: { queued, chunks, recapUsed: effectiveRecap.slice(0, 200) },
+        }).catch(() => {});
+        return res.status(200).json({ phase: 'send', queued, chunks, drainEveryMin: 5 });
+      }
+
+      return res.status(400).json({ error: `Unknown phase: ${phase}` });
+    }
+
     if (action === 'outreachSendCanary') {
       const { template = 'noPicksReminder', userIds: pool, count = 3 } = req.body;
       if (!Array.isArray(pool) || pool.length === 0) {

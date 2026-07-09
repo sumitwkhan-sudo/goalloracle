@@ -824,6 +824,13 @@ export async function fetchAdminGlobalSubmitLog(limit = 50) {
   return { rows: data?.rows || [] };
 }
 
+// "Where you stand" digest runner (superadmin outreach panel). phase
+// 'preview' emails a canary to the caller + returns eligibleCount/autoRecap;
+// phase 'send' queues chunked personalized sends through the drain cron.
+export async function adminStandingsDigestRun(phase, recapText = '') {
+  return await apiCall('admin', 'POST', { action: 'standingsDigestRun', phase, recapText });
+}
+
 // Account-deletion audit (self-serve + admin-initiated). Each row snapshots
 // the deleted user's name/email (their doc is gone) plus what was wiped.
 export async function fetchAdminDeletionLog(limit = 100) {

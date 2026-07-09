@@ -855,7 +855,129 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
 
 // ─── Registry ────────────────────────────────────────────────────
 
+// ─── Template: Standings Digest ("Where you stand") ───────────────────────
+// Mid-knockout engagement email: personalized standings (Global + biggest
+// other league), the escalating-points math, champion-alive branch, and an
+// explicit you-can-still-change-your-picks CTA up top. Per-user numbers come
+// via the scheduled-send payload (ctx) computed by _lib/standingsDigest.js;
+// the recap paragraph is operator-edited at send time. Every ctx field
+// degrades gracefully (missing → line drops) so a ctx-less render is still a
+// correct, generic email.
+function standingsDigestTemplate({ user, ctx }) {
+  const c = ctx || {};
+  const pointsRemaining = Number.isFinite(Number(c.pointsRemaining)) ? Number(c.pointsRemaining) : null;
+  const globalRank = Number.isFinite(Number(c.globalRank)) ? Number(c.globalRank) : null;
+  const globalTotal = Number.isFinite(Number(c.globalTotal)) ? Number(c.globalTotal) : null;
+  const globalPoints = Number.isFinite(Number(c.globalPoints)) ? Number(c.globalPoints) : null;
+  const leaderPoints = Number.isFinite(Number(c.leaderPoints)) ? Number(c.leaderPoints) : null;
+  const recap = (c.recap && String(c.recap).trim()) || '';
+
+  const subject = pointsRemaining
+    ? `You can still change your picks — ${pointsRemaining} points are up for grabs`
+    : 'You can still change your picks — the biggest points are still ahead';
+
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=standings_digest`;
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  // Standing lines (drop whichever is unknown).
+  const standingRows = [];
+  if (globalRank && globalTotal) {
+    standingRows.push(`🌍 <strong>Global League</strong> — <strong>#${globalRank}</strong> of ${globalTotal.toLocaleString()}${globalPoints != null ? ` · ${globalPoints} pts` : ''}`);
+  }
+  if (c.leagueName && c.leagueRank && c.leagueTotal) {
+    standingRows.push(`🏆 <strong>${escape(c.leagueName)}</strong> — <strong>#${c.leagueRank}</strong> of ${c.leagueTotal}${globalPoints != null ? ` · ${globalPoints} pts` : ''}`);
+  }
+
+  // Gap framing: leading vs chasing.
+  const isGlobalLeader = globalRank === 1;
+  let gapLine = '';
+  if (pointsRemaining != null) {
+    if (isGlobalLeader) {
+      gapLine = `You're <strong>leading the Global League</strong> — but with up to <strong>${pointsRemaining} points</strong> still to be won on games you can change, nothing is settled. Defend it.`;
+    } else if (leaderPoints != null && globalPoints != null) {
+      const gap = Math.max(0, leaderPoints - globalPoints);
+      gapLine = `There are still <strong>up to ${pointsRemaining} points to be won</strong> on games you can change. The Global leader has ${leaderPoints} — you're ${gap} back. One right call in the Final swings more than your entire Round of 32 did.`;
+    } else {
+      gapLine = `There are still <strong>up to ${pointsRemaining} points to be won</strong> on games you can change. One right call in the Final swings more than your entire Round of 32 did.`;
+    }
+  }
+
+  // Champion branch.
+  let championLine = '';
+  if (c.champion && c.championAlive === true) {
+    championLine = `✅ <strong>${escape(c.champion)}, your champion, is still alive.</strong> Still believe? Hold your pick. Getting nervous? You can change your path to the Final right up to kickoff.`;
+  } else if (c.champion && c.championAlive === false) {
+    championLine = `❌ <strong>${escape(c.champion)}, your champion, is out — but your bracket isn't.</strong> The remaining points don't care who you picked in June. Re-pick your path.`;
+  }
+
+  const ctaButton = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0 10px;">
+    <tr><td style="border-radius:12px;background:#0a0a0f;">
+      <a href="${ctaUrl}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">Update my picks →</a>
+    </td></tr>
+  </table>`;
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <p style="margin:0 0 6px;font-size:16px;line-height:1.6;color:#3c3c43;">Quick heads-up before the next round: <strong>you can still update your bracket.</strong> Every game that hasn't kicked off is open — picks lock game by game, just 5 minutes before each kickoff.</p>
+              ${ctaButton}
+              ${recap ? `<p style="margin:16px 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">${escape(recap)}</p>` : ''}
+              ${standingRows.length ? `<p style="margin:16px 0 8px;font-size:15px;font-weight:700;color:#0a0a0f;">Where you stand right now:</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;width:100%;">
+                <tr><td style="background:#f5f6f8;border-left:4px solid #00c853;border-radius:10px;padding:14px 18px;font-size:16px;line-height:1.9;color:#0a0a0f;">${standingRows.join('<br/>')}</td></tr>
+              </table>` : ''}
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">${globalRank && !isGlobalLeader ? 'Feels far from the top? ' : ''}Here's what most players haven't noticed: <strong>the points get bigger every round.</strong> Round-of-32 picks were worth 2 points. Quarterfinals are worth <strong>5</strong>. Semis <strong>8</strong>. The Final alone is worth <strong>12</strong> — six times an R32 pick.</p>
+              ${gapLine ? `<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">${gapLine}</p>` : ''}
+              ${championLine ? `<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3c3c43;">${championLine}</p>` : ''}
+              ${ctaButton.replace('Update my picks →', 'Review and update my bracket →')}
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const textStanding = [
+    globalRank && globalTotal ? `Global League — #${globalRank} of ${globalTotal}${globalPoints != null ? ` · ${globalPoints} pts` : ''}` : null,
+    c.leagueName && c.leagueRank && c.leagueTotal ? `${c.leagueName} — #${c.leagueRank} of ${c.leagueTotal}` : null,
+  ].filter(Boolean).join('\n');
+
+  const text = `You can still update your bracket — every game that hasn't kicked off is open. Picks lock game by game, 5 minutes before each kickoff.
+
+Update my picks: ${ctaUrl}
+${recap ? `\n${recap}\n` : ''}${textStanding ? `\nWhere you stand right now:\n${textStanding}\n` : ''}
+The points get bigger every round: R32 picks were worth 2, quarterfinals are 5, semis 8, and the Final alone is worth 12 — six times an R32 pick.
+${gapLine ? `\n${gapLine.replace(/<[^>]+>/g, '')}\n` : ''}${championLine ? `\n${championLine.replace(/<[^>]+>/g, '')}\n` : ''}
+Review and update my bracket: ${ctaUrl}
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 export const TEMPLATES = {
+  standingsDigest: {
+    id: 'standingsDigest',
+    label: 'Standings Digest (where you stand)',
+    description: 'Personalized mid-knockout digest: Global + biggest-league standing, escalating-points math, champion-alive branch, explicit change-your-picks CTA. Per-user numbers are computed by the dedicated admin panel (standingsDigestRun) and delivered via scheduled-send payloads — use that panel, not the generic batch sender (a generic send renders a safe but non-personalized version).',
+    build: standingsDigestTemplate,
+  },
   noPicksReminder: {
     id: 'noPicksReminder',
     label: 'No Picks Reminder',

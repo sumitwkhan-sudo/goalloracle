@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -96,6 +96,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [outreachUsers, setOutreachUsers] = useState(null); // null = not yet fetched
   const [outreachLoading, setOutreachLoading] = useState(false);
   const [outreachPreviewSent, setOutreachPreviewSent] = useState(false);
+  // Standings Digest ("where you stand") panel state.
+  const [digestRecap, setDigestRecap] = useState('');
+  const [digestBusy, setDigestBusy] = useState(false);
+  const [digestInfo, setDigestInfo] = useState(null); // { eligibleCount, autoRecap, pointsRemaining } after preview
+  const [digestQueued, setDigestQueued] = useState(null); // { queued, chunks } after send
   const [outreachPreviewBusy, setOutreachPreviewBusy] = useState(false);
   const [outreachPreviewEmail, setOutreachPreviewEmail] = useState('');
   const [outreachBatchBusy, setOutreachBatchBusy] = useState(false);
@@ -2181,6 +2186,80 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             <div>
               <h2>Outreach</h2>
               <p className="admin-panel-desc">Send a templated email to users who match a defined filter. Preview to your own inbox before sending the batch.</p>
+            </div>
+          </div>
+
+          {/* ── Standings Digest — dedicated runner (personalized payloads +
+                 chunked scheduled send; bypasses the generic batch path) ── */}
+          <div className="admin-outreach-runs" style={{ marginBottom: '1.2rem' }}>
+            <div className="admin-outreach-runs-head">
+              <h3>📨 Standings Digest — "where you stand"</h3>
+            </div>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Personalized to every player with Global picks: their Global + biggest-league rank, points still
+              winnable on unlocked games, champion-alive branch, and an update-your-picks CTA. Preview emails
+              YOUR standing to your inbox and loads an auto-drafted recap below — edit the recap (add the drama),
+              then queue the send. Big sends go out in chunks of 800, one every ~5 minutes.
+            </p>
+            <label className="admin-outreach-label" htmlFor="digest-recap">Results recap paragraph (editable — facts auto-drafted from real results)</label>
+            <textarea
+              id="digest-recap"
+              className="input-field"
+              rows={3}
+              style={{ width: '100%', boxSizing: 'border-box', marginBottom: '0.6rem' }}
+              placeholder="Leave empty to auto-generate — or click Preview to load the auto-draft here, then edit."
+              value={digestRecap}
+              onChange={(e) => setDigestRecap(e.target.value)}
+              maxLength={800}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={digestBusy}
+                onClick={async () => {
+                  setDigestBusy(true);
+                  try {
+                    const r = await adminStandingsDigestRun('preview', digestRecap);
+                    setDigestInfo(r);
+                    if (!digestRecap.trim() && r.autoRecap) setDigestRecap(r.autoRecap);
+                    notify(r.sent ? `Preview sent to ${r.to}` : `Preview failed: ${r.error || 'unknown'}`, r.sent ? 'success' : 'error');
+                  } catch (e) {
+                    notify(e?.message || 'Preview failed', 'error');
+                  } finally {
+                    setDigestBusy(false);
+                  }
+                }}
+              >
+                {digestBusy ? 'Working…' : 'Send me a preview'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={digestBusy || !digestInfo}
+                title={!digestInfo ? 'Send yourself a preview first' : ''}
+                onClick={async () => {
+                  const n = digestInfo?.eligibleCount ?? '?';
+                  if (!window.confirm(`Queue the Standings Digest to all ${n} eligible players? Chunks of 800 drain every ~5 minutes.`)) return;
+                  setDigestBusy(true);
+                  try {
+                    const r = await adminStandingsDigestRun('send', digestRecap);
+                    setDigestQueued(r);
+                    notify(`Queued ${r.queued} emails in ${r.chunks} chunk${r.chunks === 1 ? '' : 's'} — draining one chunk every ~5 min.`);
+                  } catch (e) {
+                    notify(e?.message || 'Queue failed', 'error');
+                  } finally {
+                    setDigestBusy(false);
+                  }
+                }}
+              >
+                {digestQueued ? `Queued ${digestQueued.queued} ✓` : `Queue send${digestInfo ? ` to ${digestInfo.eligibleCount} players` : ''}`}
+              </button>
+              {digestInfo && (
+                <span className="form-hint" style={{ margin: 0 }}>
+                  {digestInfo.eligibleCount} eligible · up to {digestInfo.pointsRemaining} pts still winnable
+                </span>
+              )}
             </div>
           </div>
 
