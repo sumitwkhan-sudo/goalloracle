@@ -870,9 +870,26 @@ export default async function handler(req, res) {
 
   try {
     if (action === 'updateResult') {
-      const { matchId, homeScore, awayScore, extraTime, penalties } = req.body;
+      const { matchId, homeScore, awayScore, extraTime, penalties, penHome, penAway } = req.body;
       if (!matchId || homeScore === undefined || awayScore === undefined) {
         return res.status(400).json({ error: 'Missing match data' });
+      }
+
+      // Penalty shootouts MUST carry the shootout score — it is the only
+      // signal the bracket resolver + scoring have for who advanced (a level
+      // score with just a penalties flag is undecidable, which left the
+      // bracket unpopulated and the match unscored for everyone).
+      let newPenH = null;
+      let newPenA = null;
+      if (penalties) {
+        newPenH = parseInt(penHome);
+        newPenA = parseInt(penAway);
+        if (Number.isNaN(newPenH) || Number.isNaN(newPenA) || newPenH < 0 || newPenA < 0) {
+          return res.status(400).json({ error: 'Penalty shootout score required (penHome/penAway) when penalties is set.' });
+        }
+        if (newPenH === newPenA) {
+          return res.status(400).json({ error: 'Shootout score cannot be level — one side wins the shootout.' });
+        }
       }
 
       // Detect re-score: if a verified result already exists with different
@@ -888,7 +905,8 @@ export default async function handler(req, res) {
         prev.homeScore !== newH ||
         prev.awayScore !== newA ||
         !!prev.extraTime !== !!extraTime ||
-        !!prev.penalties !== !!penalties
+        !!prev.penalties !== !!penalties ||
+        (penalties && ((prev.penHome ?? null) !== newPenH || (prev.penAway ?? null) !== newPenA))
       );
 
       await db.collection('matchResults').doc(matchId).set({
@@ -897,10 +915,11 @@ export default async function handler(req, res) {
         awayScore: newA,
         extraTime: extraTime || false,
         penalties: penalties || false,
+        ...(penalties ? { penHome: newPenH, penAway: newPenA } : { penHome: FieldValue.delete(), penAway: FieldValue.delete() }),
         completed: true,
         updatedBy: userId,
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      }, { merge: true });
 
       if (isCorrection) {
         await sendOperatorAlert(

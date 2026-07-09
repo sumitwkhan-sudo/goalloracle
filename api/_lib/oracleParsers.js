@@ -340,6 +340,15 @@ export function determineWinnerFromResult(result) {
     if (typeof result.penHome === 'number' && typeof result.penAway === 'number') {
       if (result.penHome > result.penAway) return 'home';
       if (result.penAway > result.penHome) return 'away';
+      return null;
+    }
+    // Degraded doc: penalties flagged but no shootout score stored (the old
+    // admin form only had a checkbox). If the match score is decisive anyway
+    // (mis-checked box), fall back to it; a genuine draw stays undecided
+    // until the operator re-enters the result with the shootout score.
+    if (typeof result.homeScore === 'number' && typeof result.awayScore === 'number'
+      && result.homeScore !== result.awayScore) {
+      return result.homeScore > result.awayScore ? 'home' : 'away';
     }
     return null;
   }

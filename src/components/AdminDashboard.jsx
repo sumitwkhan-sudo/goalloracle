@@ -155,7 +155,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [sweepBusy, setSweepBusy] = useState(false);
   const [sweepResult, setSweepResult] = useState(null);
   const [selMatch, setSelMatch] = useState(null);
-  const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
+  const [form, setForm] = useState({ homeScore: '', awayScore: '', extraTime: false, penalties: false, penHome: '', penAway: '' });
   const [saving, setSaving] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   // Quick Picks status map (userId -> rollup) + column sort for the Users table.
@@ -1038,6 +1038,21 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
 
   const handleSaveResult = async () => {
     if (!selMatch || form.homeScore === '' || form.awayScore === '') return;
+    // A knockout game that goes to penalties NEEDS the shootout score — it's
+    // the only way the bracket resolver + scoring can know who advanced (a
+    // drawn score with just a "penalties" flag is undecidable).
+    if (form.penalties) {
+      const ph = parseInt(form.penHome);
+      const pa = parseInt(form.penAway);
+      if (Number.isNaN(ph) || Number.isNaN(pa)) {
+        notify('Enter the penalty shootout score (both sides) — it decides the winner.', 'error');
+        return;
+      }
+      if (ph === pa) {
+        notify('Shootout score can’t be level — one side wins the shootout.', 'error');
+        return;
+      }
+    }
     setSaving(true);
     try {
       await updateMatchResult(selMatch.id, {
@@ -1045,10 +1060,11 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
         awayScore: parseInt(form.awayScore),
         extraTime: form.extraTime,
         penalties: form.penalties,
+        ...(form.penalties ? { penHome: parseInt(form.penHome), penAway: parseInt(form.penAway) } : {}),
       }, userData.id);
-      notify(`Result saved: ${selMatch.home} ${form.homeScore}–${form.awayScore} ${selMatch.away}`);
+      notify(`Result saved: ${selMatch.home} ${form.homeScore}–${form.awayScore} ${selMatch.away}${form.penalties ? ` (${form.penHome}–${form.penAway} pens)` : ''}`);
       setSelMatch(null);
-      setForm({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
+      setForm({ homeScore: '', awayScore: '', extraTime: false, penalties: false, penHome: '', penAway: '' });
     } catch (e) { notify('Failed to save: ' + e.message, 'error'); }
     finally { setSaving(false); }
   };
@@ -1510,7 +1526,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   <div className={`admin-list-card ${r?.completed ? 'verified' : ''} ${isSelected ? 'selected' : ''}`} onClick={() => {
                     if (r?.completed) return;
                     setSelMatch(isSelected ? null : m);
-                    setForm({ homeScore: '', awayScore: '', extraTime: false, penalties: false });
+                    setForm({ homeScore: '', awayScore: '', extraTime: false, penalties: false, penHome: '', penAway: '' });
                   }}>
                     <div className="admin-list-left">
                       <span className="admin-match-flags">{m.homeFlag} {m.awayFlag}</span>
@@ -1528,7 +1544,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       ) : (
                         <>
                           <span className="admin-pending-tag">PENDING</span>
-                          <button type="button" className="btn btn-sm admin-enter-btn" onClick={e => { e.stopPropagation(); setSelMatch(isSelected ? null : m); setForm({ homeScore: '', awayScore: '', extraTime: false, penalties: false }); }}>
+                          <button type="button" className="btn btn-sm admin-enter-btn" onClick={e => { e.stopPropagation(); setSelMatch(isSelected ? null : m); setForm({ homeScore: '', awayScore: '', extraTime: false, penalties: false, penHome: '', penAway: '' }); }}>
                             {isSelected ? 'Close' : 'Enter Result'}
                           </button>
                         </>
@@ -1554,6 +1570,19 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                         <div className="admin-ko-row">
                           <label className="admin-ko-check"><input type="checkbox" checked={form.extraTime} onChange={e => setForm({...form, extraTime: e.target.checked})} /><span>Extra Time</span></label>
                           <label className="admin-ko-check"><input type="checkbox" checked={form.penalties} onChange={e => setForm({...form, penalties: e.target.checked})} /><span>Penalties</span></label>
+                        </div>
+                      )}
+                      {m.isKnockout && form.penalties && (
+                        <div className="admin-score-row">
+                          <div className="admin-score-col">
+                            <label>{getCode(m.home)} pens</label>
+                            <input type="number" min="0" max="30" className="admin-score-input" value={form.penHome ?? ''} onChange={e => setForm({...form, penHome: e.target.value})} />
+                          </div>
+                          <span className="admin-score-dash">—</span>
+                          <div className="admin-score-col">
+                            <label>{getCode(m.away)} pens</label>
+                            <input type="number" min="0" max="30" className="admin-score-input" value={form.penAway ?? ''} onChange={e => setForm({...form, penAway: e.target.value})} />
+                          </div>
                         </div>
                       )}
                       <div className="admin-form-btns">
