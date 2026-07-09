@@ -73,6 +73,19 @@ export const FINAL_TEMPLATE = [
 
 export const ROUND_ORDER = ['roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final'];
 
+// For each round, the BRACKET-ORDER pairing: which two matches feed each
+// next-round match. Drives the mobile list's printed-bracket layout — the two
+// games whose winners meet are rendered adjacent with a connector pointing at
+// the match they feed. (R32 is scheduled in a different order than the bracket
+// structure — e.g. M89's feeders are r32-03 and r32-06 — so a schedule-order
+// list can't show connections; this map is the bracket-structure order.)
+export const ROUND_FEED_PAIRS = {
+  roundOf32: ROUND_OF_16_TEMPLATE.map((m) => ({ next: m.matchId, sources: [m.homeSource, m.awaySource] })),
+  roundOf16: QUARTER_FINAL_TEMPLATE.map((m) => ({ next: m.matchId, sources: [m.homeSource, m.awaySource] })),
+  quarterFinals: SEMI_FINAL_TEMPLATE.map((m) => ({ next: m.matchId, sources: [m.homeSource, m.awaySource] })),
+  semiFinals: FINAL_TEMPLATE.map((m) => ({ next: m.matchId, sources: [m.homeSource, m.awaySource] })),
+};
+
 export const ROUND_TEMPLATE_BY_KEY = {
   roundOf32: ROUND_OF_32_TEMPLATE,
   roundOf16: ROUND_OF_16_TEMPLATE,

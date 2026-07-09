@@ -11,7 +11,32 @@ import { ChevronDown, Award } from 'lucide-react';
 import BracketMatch from './BracketMatch';
 import BracketHintTooltip from './BracketHintTooltip';
 import { KNOCKOUT_POINTS_PER_PICK } from '../../utils/scoringSimple';
-import { ROUND_ORDER } from '../../utils/bracketUtils';
+import { ROUND_ORDER, ROUND_FEED_PAIRS, koMatchNumber } from '../../utils/bracketUtils';
+
+// Arrange a round's slots in BRACKET-STRUCTURE order: consecutive pairs whose
+// winners meet in the same next-round match, each pair tagged with that match.
+// Rounds without pairs (3rd place, Final) come back as one untagged group.
+// This is what lets the vertical mobile list read like a printed bracket —
+// R32 is scheduled in a different order than the bracket, so without the
+// reorder the two feeders of an R16 game can sit five cards apart.
+function displayGroups(roundKey, slots) {
+  const pairs = ROUND_FEED_PAIRS[roundKey];
+  if (!pairs) return [{ next: null, slots }];
+  const byId = {};
+  for (const s of slots) byId[s.matchId] = s;
+  const seen = new Set();
+  const groups = [];
+  for (const p of pairs) {
+    const pairSlots = p.sources.map((id) => byId[id]).filter(Boolean);
+    if (pairSlots.length === 0) continue;
+    pairSlots.forEach((s) => seen.add(s.matchId));
+    groups.push({ next: p.next, slots: pairSlots });
+  }
+  // Safety net: any slot the pair map didn't cover still renders (untagged).
+  const leftovers = slots.filter((s) => !seen.has(s.matchId));
+  if (leftovers.length) groups.push({ next: null, slots: leftovers });
+  return groups;
+}
 
 const ROUND_LABEL = {
   roundOf32: 'Round of 32',
@@ -78,12 +103,13 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
   const [openRound, setOpenRound] = useState(firstIncomplete);
 
   // item F — the matchId that should currently glow as "pick this next":
-  // the first unpicked, ready (both teams known) match in the open round.
-  // Recomputed from `bracket` so it always reflects live picks.
+  // the first unpicked, ready (both teams known) match in the open round,
+  // in DISPLAY (bracket-structure) order so the glow + auto-scroll walk the
+  // list top to bottom as the user sees it.
   const nextRequiredId = (() => {
     if (readOnly) return null;
-    const slots = bracket[openRound] || [];
-    const slot = slots.find((s) => s.home && s.away && !s.pick?.winnerId);
+    const ordered = displayGroups(openRound, bracket[openRound] || []).flatMap((g) => g.slots);
+    const slot = ordered.find((s) => s.home && s.away && !s.pick?.winnerId);
     return slot ? slot.matchId : null;
   })();
 
@@ -251,54 +277,82 @@ export default function BracketMobile({ bracket, pickWinner, isRoundComplete, is
 
             {isOpen && unlocked && (
               <div className="bracket-round-body">
-                {slots.map((s, i) => {
-                  const meta = matchLookup?.[s.matchId];
-                  const needsPick = !!(s.home && s.away && !s.pick?.winnerId);
-                  // Anchor the first-visit hint to the first match of the
-                  // first incomplete round so it's the matchup the user
-                  // is most likely to interact with.
-                  const isHintAnchor = !readOnly && showHint && roundKey === 'roundOf32' && i === 0;
-                  // Crowd consensus only renders once the user has picked a
-                  // winner for this match — pre-pick we deliberately hide
-                  // it so the user's call isn't anchored to the herd. In
-                  // readOnly mode (e.g. PicksViewer) the winner is already
-                  // set, so the bar appears.
-                  const showBar = !!s.pick?.winnerId && consensus?.[roundKey]?.[s.matchId];
-                  const homePct = showBar ? consensus[roundKey][s.matchId][s.home] : undefined;
-                  const awayPct = showBar ? consensus[roundKey][s.matchId][s.away] : undefined;
-                  // item F: glow ONLY the single next-required match (not
-                  // every unpicked one), so the user's eye goes to exactly
-                  // the one to pick next.
-                  const isNext = !readOnly && s.matchId === nextRequiredId;
-                  return (
-                    <div key={s.matchId} className={`bracket-match-wrap ${isHintAnchor ? 'has-hint' : ''} ${isNext ? 'is-next' : ''}`}>
-                      {isHintAnchor && <BracketHintTooltip onDismiss={onDismissHint} />}
-                      <BracketMatch
-                        matchId={s.matchId}
-                        label={`Match ${i + 1}`}
-                        homeTeam={s.home}
-                        awayTeam={s.away}
-                        homeFlag={s.homeFlag}
-                        awayFlag={s.awayFlag}
-                        winnerId={s.pick?.winnerId || null}
-                        onPick={(team) => pickWinner(s.matchId, team)}
-                        isLocked={isMatchLocked ? isMatchLocked(s.matchId) : false}
-                        size="full"
-                        city={meta?.city}
-                        date={meta?.date}
-                        needsPick={needsPick}
-                        readOnly={readOnly}
-                        homeAdvancePct={homePct}
-                        awayAdvancePct={awayPct}
-                        homeEarned={s.homeEarned}
-                        awayEarned={s.awayEarned}
-                        actualWinnerId={(actualKnockout && actualKnockout[s.matchId]?.winnerId) || null}
-                        pointsIfRight={KNOCKOUT_POINTS_PER_PICK[roundKey] || 0}
-                        pickScoreEligible={!predictedSet || !s.pick?.winnerId || predictedSet.has(s.pick.winnerId)}
-                      />
-                    </div>
-                  );
-                })}
+                {(() => {
+                  const groups = displayGroups(roundKey, slots);
+                  let displayIdx = 0;
+                  const renderMatch = (s) => {
+                    const i = displayIdx++;
+                    const meta = matchLookup?.[s.matchId];
+                    const needsPick = !!(s.home && s.away && !s.pick?.winnerId);
+                    // Anchor the first-visit hint to the first match of the
+                    // first incomplete round so it's the matchup the user
+                    // is most likely to interact with.
+                    const isHintAnchor = !readOnly && showHint && roundKey === 'roundOf32' && i === 0;
+                    // Crowd consensus only renders once the user has picked a
+                    // winner for this match — pre-pick we deliberately hide
+                    // it so the user's call isn't anchored to the herd. In
+                    // readOnly mode (e.g. PicksViewer) the winner is already
+                    // set, so the bar appears.
+                    const showBar = !!s.pick?.winnerId && consensus?.[roundKey]?.[s.matchId];
+                    const homePct = showBar ? consensus[roundKey][s.matchId][s.home] : undefined;
+                    const awayPct = showBar ? consensus[roundKey][s.matchId][s.away] : undefined;
+                    // item F: glow ONLY the single next-required match (not
+                    // every unpicked one), so the user's eye goes to exactly
+                    // the one to pick next.
+                    const isNext = !readOnly && s.matchId === nextRequiredId;
+                    return (
+                      <div key={s.matchId} className={`bracket-match-wrap ${isHintAnchor ? 'has-hint' : ''} ${isNext ? 'is-next' : ''}`}>
+                        {isHintAnchor && <BracketHintTooltip onDismiss={onDismissHint} />}
+                        <BracketMatch
+                          matchId={s.matchId}
+                          label={`Match ${i + 1}`}
+                          homeTeam={s.home}
+                          awayTeam={s.away}
+                          homeFlag={s.homeFlag}
+                          awayFlag={s.awayFlag}
+                          winnerId={s.pick?.winnerId || null}
+                          onPick={(team) => pickWinner(s.matchId, team)}
+                          isLocked={isMatchLocked ? isMatchLocked(s.matchId) : false}
+                          size="full"
+                          city={meta?.city}
+                          date={meta?.date}
+                          needsPick={needsPick}
+                          readOnly={readOnly}
+                          homeAdvancePct={homePct}
+                          awayAdvancePct={awayPct}
+                          homeEarned={s.homeEarned}
+                          awayEarned={s.awayEarned}
+                          actualWinnerId={(actualKnockout && actualKnockout[s.matchId]?.winnerId) || null}
+                          pointsIfRight={KNOCKOUT_POINTS_PER_PICK[roundKey] || 0}
+                          pickScoreEligible={!predictedSet || !s.pick?.winnerId || predictedSet.has(s.pick.winnerId)}
+                        />
+                      </div>
+                    );
+                  };
+                  return groups.map((g, gi) => {
+                    // Untagged group (3rd place / Final / safety leftovers):
+                    // flat list, no connector.
+                    if (!g.next || g.slots.length < 2) {
+                      return <React.Fragment key={`flat-${gi}`}>{g.slots.map(renderMatch)}</React.Fragment>;
+                    }
+                    // Bracket pair: the two matches whose winners meet, joined
+                    // by a connector spine + a chip naming the match they feed
+                    // (printed-bracket style — see The Athletic reference).
+                    const nextNum = g.next === 'final' ? 'Final' : `M${koMatchNumber(g.next)}`;
+                    return (
+                      <div key={g.next} className="bracket-pair">
+                        {g.slots.map(renderMatch)}
+                        <span
+                          className="bracket-pair-chip"
+                          title={`Winners meet in ${g.next === 'final' ? 'the Final' : `Match ${koMatchNumber(g.next)}`}`}
+                          aria-label={`Winners of these two matches meet in ${g.next === 'final' ? 'the Final' : `match ${koMatchNumber(g.next)}`}`}
+                        >
+                          {nextNum}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
           </section>

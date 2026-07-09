@@ -6651,6 +6651,38 @@ button.admin-user-viewas:hover { text-decoration: underline; }
   border-top: 1px solid var(--border);
 }
 
+/* ── Printed-bracket pairing (mobile knockout list) ──────────────────
+   The two matches whose winners meet are grouped and joined by a
+   connector on the right — a stub from each card into a vertical spine,
+   with a chip naming the match they feed (→ M89 / Final). Rounds are
+   listed in bracket-structure order so pairs are always adjacent. */
+.bracket-pair {
+  position: relative;
+  display: flex; flex-direction: column; gap: 0.55rem;
+  padding-right: 44px;
+  margin-bottom: 0.35rem;
+}
+.bracket-pair > .bracket-match-wrap::after {
+  content: '';
+  position: absolute; right: -22px; top: 50%; width: 22px; height: 2px;
+  background: var(--border-br, var(--border));
+}
+.bracket-pair::before {
+  content: '';
+  position: absolute; right: 21px; top: 14%; bottom: 14%; width: 2px;
+  background: var(--border-br, var(--border)); border-radius: 2px;
+}
+.bracket-pair-chip {
+  position: absolute; right: 22px; top: 50%; transform: translate(50%, -50%);
+  padding: 2px 5px;
+  background: var(--bg-card, var(--bg-elev));
+  border: 1px solid var(--border-br, var(--border));
+  border-radius: 6px;
+  font-family: var(--mono); font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.03em; color: var(--text-sec);
+  white-space: nowrap;
+}
+
 /* Desktop bracket */
 .bracket-desktop {
   /* Break out of .simple-page's 1100px max-width so the full bracket
