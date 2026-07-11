@@ -16,7 +16,7 @@
  *  - Touch targets: 56px row height on mobile (44pt + breathing room).
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getLeaguePasscode } from '../utils/db';
 import {
   Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus, LogOut,
@@ -452,6 +452,27 @@ export default function LeagueLeaderboardLayout({
   const youIdx = rows.findIndex(r => r.userId === currentUserId);
   const youRow = youIdx >= 0 ? rows[youIdx] : null;
 
+  // Client-side pagination — rendering thousands of rows at once is slow on
+  // phones. Ranks stay global (pageStart + i); the sticky you-row always
+  // shows the viewer's true rank regardless of the visible page. Page resets
+  // whenever the underlying set changes (scope/country filter/new data).
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageStart = safePage * PAGE_SIZE;
+  const pageRows = rows.slice(pageStart, pageStart + PAGE_SIZE);
+  const listTopRef = useRef(null);
+  useEffect(() => { setPage(0); }, [scope, countryFilter, rows.length]);
+  const goToPage = (p) => {
+    setPage(Math.max(0, Math.min(pageCount - 1, p)));
+    // Bring the top of the list back into view so "Next" doesn't leave the
+    // user staring at the bottom of the new page.
+    requestAnimationFrame(() => {
+      listTopRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    });
+  };
+
   return (
     <div className="ll-shell">
       <LeaderboardHeader
@@ -504,26 +525,51 @@ export default function LeagueLeaderboardLayout({
       ) : rows.length === 0 ? (
         <EmptyState scope={scope} countryFilter={countryFilter} />
       ) : (
-        <div className="ll-list">
-          {rows.map((row, i) => {
-            const rank = i + 1;
-            const isYou = row.userId === currentUserId;
-            const isCreator = !!creatorId && row.userId === creatorId;
-            return (
-              <LeaderboardRow
-                key={row.userId}
-                row={row}
-                rank={rank}
-                isYou={isYou}
-                isCreator={isCreator}
-                showLiveScore={showLiveScore}
-                onRowClick={onRowClick}
-                onEdit={onEdit}
-                onShareBracket={isYou ? onShareBracket : null}
-              />
-            );
-          })}
-        </div>
+        <>
+          <div className="ll-list" ref={listTopRef} style={{ scrollMarginTop: '72px' }}>
+            {pageRows.map((row, i) => {
+              const rank = pageStart + i + 1;
+              const isYou = row.userId === currentUserId;
+              const isCreator = !!creatorId && row.userId === creatorId;
+              return (
+                <LeaderboardRow
+                  key={row.userId}
+                  row={row}
+                  rank={rank}
+                  isYou={isYou}
+                  isCreator={isCreator}
+                  showLiveScore={showLiveScore}
+                  onRowClick={onRowClick}
+                  onEdit={onEdit}
+                  onShareBracket={isYou ? onShareBracket : null}
+                />
+              );
+            })}
+          </div>
+          {rows.length > PAGE_SIZE && (
+            <div className="ll-pager" role="navigation" aria-label="Leaderboard pages">
+              <button
+                type="button"
+                className="ll-pager-btn"
+                onClick={() => goToPage(safePage - 1)}
+                disabled={safePage === 0}
+              >
+                ‹ Prev
+              </button>
+              <span className="ll-pager-info">
+                {(pageStart + 1).toLocaleString()}–{Math.min(pageStart + PAGE_SIZE, rows.length).toLocaleString()} of {rows.length.toLocaleString()}
+              </span>
+              <button
+                type="button"
+                className="ll-pager-btn"
+                onClick={() => goToPage(safePage + 1)}
+                disabled={safePage >= pageCount - 1}
+              >
+                Next ›
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Sticky duplicate of the user's own row — pinned to the bottom of

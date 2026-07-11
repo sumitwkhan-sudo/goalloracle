@@ -9147,6 +9147,26 @@ body.light .lsd-head,
   z-index: 10;
 }
 .ll-stickyrow .ll-row { border-bottom: none; }
+
+/* Leaderboard pagination (100 rows per page) */
+.ll-pager {
+  display: flex; align-items: center; justify-content: center; gap: 0.9rem;
+  padding: 0.8rem 0.85rem;
+  border-top: 1px solid var(--border);
+}
+.ll-pager-btn {
+  padding: 0.4rem 0.9rem;
+  background: var(--bg-elev); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  font-family: var(--font); font-size: 0.82rem; font-weight: 600;
+  cursor: pointer;
+}
+.ll-pager-btn:hover:not(:disabled) { border-color: var(--border-br, var(--border)); }
+.ll-pager-btn:disabled { opacity: 0.4; cursor: default; }
+.ll-pager-info {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--text-sec);
+  font-variant-numeric: tabular-nums;
+}
 @media (min-width: 720px) {
   .ll-stickyrow {
     border-radius: 12px;
