@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     // Empty league: return a well-shaped empty payload so the client
     // doesn't have to special-case missing keys.
     if (members.length === 0) {
-      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
+      res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
       return res.status(200).json(emptyPayload());
     }
 
@@ -125,7 +125,7 @@ export default async function handler(req, res) {
       if (thirdSlot?.winnerId) thirdPlace[thirdSlot.winnerId] = (thirdPlace[thirdSlot.winnerId] || 0) + 1;
     }
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
     return res.status(200).json({
       totalUsers: userCount,
       computedAt: Date.now(),

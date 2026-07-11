@@ -970,6 +970,10 @@ export default async function handler(req, res) {
         const fresh = {};
         freshSnap.docs.forEach((d) => { fresh[d.id] = d.data(); });
         await recomputeSimpleScores(db, buildSimpleActuals(fresh));
+        // Fresh scores → rebuild the materialized global leaderboard so the
+        // cached board shows the corrected points right away.
+        const { rebuildLeaderboardCache } = await import('./_lib/leaderboardCache.js');
+        await rebuildLeaderboardCache(db, admin, 'global-simple');
       } catch (e) {
         console.error('[admin updateResult] score recompute failed (non-fatal):', e?.message || e);
       }

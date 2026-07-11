@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     const members = leagueSnap.data().members || [];
 
     if (members.length === 0) {
-      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
+      res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
       return res.status(200).json(emptyPayload(leagueId));
     }
 
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const tallied = tally(members, preds);
     const formatted = format(tallied);
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
     return res.status(200).json({
       leagueId,
       totalUsers: tallied.userCount,

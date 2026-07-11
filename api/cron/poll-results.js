@@ -228,6 +228,17 @@ export default async function handler(req, res) {
         const actuals = buildSimpleActuals(fresh);
         const scoreSummary = await recomputeSimpleScores(db, actuals);
         summary.scoring = scoreSummary;
+        // Fresh scores → rebuild the materialized global leaderboard so the
+        // cache-served board reflects the new points immediately (the
+        // endpoint otherwise refreshes it lazily on staleness).
+        try {
+          const { rebuildLeaderboardCache } = await import('../_lib/leaderboardCache.js');
+          const { admin } = await import('../_lib/firebase.js');
+          await rebuildLeaderboardCache(db, admin, 'global-simple');
+          summary.leaderboardCache = 'rebuilt';
+        } catch (e) {
+          summary.errors.push({ source: 'leaderboard-cache', error: e.message });
+        }
       } catch (e) {
         summary.errors.push({ source: 'score-recompute', error: e.message });
       }
