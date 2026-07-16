@@ -213,6 +213,53 @@ export default async function handler(req, res) {
         }
 
         return res.status(200).json({ runs, templateStats });
+      } else if (type === 'koResolution') {
+        // Knockout-resolution diagnostic. Answers "why is this knockout match
+        // stuck on placeholders / not auto-verifying?" in one shot:
+        //  - teams: { matchId: { home, away } } — resolved real matchups, for
+        //    showing real names on the Match Results cards
+        //  - blockers: matches whose stored result CANNOT decide a winner
+        //    (e.g. penalties flagged with no shootout score on a level game),
+        //    each with the downstream matches it is blocking. Fixing the
+        //    blocker lets resolveActualBracket name the downstream games and
+        //    the poll-results cron then auto-ingests + verifies them.
+        const [{ resolveActualBracket }, { determineWinnerFromResult }, { getDownstreamMatchIds }] = await Promise.all([
+          import('./_lib/bracketResolver.js'),
+          import('./_lib/oracleParsers.js'),
+          import('../src/utils/bracketUtils.js'),
+        ]);
+        const snap2 = await db.collection('matchResults').get();
+        const results2 = {};
+        snap2.forEach(d => { results2[d.id] = d.data(); });
+        const { resolved } = resolveActualBracket(results2);
+
+        const blockers = [];
+        for (const [matchId, r] of Object.entries(results2)) {
+          if (!matchId.startsWith('r32-') && !matchId.startsWith('r16-') && !matchId.startsWith('qf-') && !matchId.startsWith('sf-') && matchId !== '3rd' && matchId !== 'final') continue;
+          if (r?.completed !== true) continue;
+          if (determineWinnerFromResult(r) !== null) continue;
+          const teams = resolved[matchId] || null;
+          let reason;
+          if (r.penalties === true && (typeof r.penHome !== 'number' || typeof r.penAway !== 'number')) {
+            reason = 'penalties flagged but no shootout score stored — winner undecidable';
+          } else if (typeof r.homeScore === 'number' && r.homeScore === r.awayScore) {
+            reason = 'level score with no tiebreaker — knockout winner undecidable';
+          } else {
+            reason = 'result present but winner cannot be determined';
+          }
+          blockers.push({
+            matchId,
+            home: teams?.home || null,
+            away: teams?.away || null,
+            homeScore: r.homeScore ?? null,
+            awayScore: r.awayScore ?? null,
+            reason,
+            blocking: getDownstreamMatchIds(matchId),
+          });
+        }
+        const teams = {};
+        for (const [matchId, t] of Object.entries(resolved)) teams[matchId] = { home: t.home, away: t.away };
+        return res.status(200).json({ teams, blockers });
       } else if (type === 'deletionLog') {
         // Account-deletion audit (rows written by the deleteUser admin action
         // and the self-serve DELETE /api/user flow). Deletions are rare, so

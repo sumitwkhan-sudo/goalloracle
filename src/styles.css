@@ -2763,6 +2763,17 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .logout-item:hover { background: rgba(255,59,92,0.06); }
 .logout-item:hover span, .logout-item:hover svg { color: var(--danger); }
 
+/* Knockout-resolution blocker banner (admin Match Results) */
+.admin-ko-blocker {
+  display: flex; gap: 0.6rem; align-items: flex-start;
+  margin: 0 0 0.9rem; padding: 0.75rem 0.9rem;
+  background: rgba(255, 184, 0, 0.1);
+  border: 1px solid rgba(255, 184, 0, 0.35);
+  border-radius: 10px;
+  font-size: 0.84rem; line-height: 1.55; color: var(--text);
+}
+.admin-ko-blocker svg { color: var(--amber, #ffb800); flex-shrink: 0; margin-top: 2px; }
+
 /* Self-serve account deletion */
 .dropdown-item-danger { color: var(--danger); }
 .dropdown-item-danger span, .dropdown-item-danger svg { color: var(--danger); opacity: 0.85; }

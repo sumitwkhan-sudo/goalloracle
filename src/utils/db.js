@@ -831,6 +831,12 @@ export async function adminStandingsDigestRun(phase, recapText = '') {
   return await apiCall('admin', 'POST', { action: 'standingsDigestRun', phase, recapText });
 }
 
+// Knockout-resolution diagnostic: resolved real matchups per KO matchId +
+// blocker results whose winner is undecidable (with what they're blocking).
+export async function fetchAdminKoResolution() {
+  return await apiCall('admin?type=koResolution');
+}
+
 // Final-week email runner: email = 'top10' (pre-Final contender alert) or
 // 'wrapped' (post-Final recap, send blocked until the Final is verified).
 export async function adminFinalWeekEmailRun(email, phase) {

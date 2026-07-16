@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminKoResolution, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -192,6 +192,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [emailHistById, setEmailHistById] = useState({});
   const [userSort, setUserSort] = useState({ key: 'joined', dir: 'desc' });
   const [matchFilter, setMatchFilter] = useState('pending'); // pending | verified | all
+  // Knockout-resolution diagnostic: real matchups per KO matchId + blocker
+  // results whose winner is undecidable. Loaded with the Results tab.
+  const [koRes, setKoRes] = useState(null); // { teams, blockers } | null
   const [deleting, setDeleting] = useState(null);
   const [editingLeagueId, setEditingLeagueId] = useState(null);
   const [editingLeagueName, setEditingLeagueName] = useState('');
@@ -590,6 +593,21 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       setRecoveringId(null);
     }
   };
+
+  // Knockout-resolution diagnostic — loaded with the Results tab and after
+  // each result save (so fixing a blocker clears the banner immediately).
+  const reloadKoResolution = async () => {
+    try {
+      setKoRes(await fetchAdminKoResolution());
+    } catch (e) {
+      console.warn('[admin] koResolution fetch failed:', e?.message || e);
+    }
+  };
+  useEffect(() => {
+    if (tab !== 'results') return;
+    reloadKoResolution();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tab]);
 
   // Account-deletion audit log — loaded on tab open + manual refresh.
   const reloadDeletionLog = async () => {
@@ -1091,6 +1109,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
       notify(`Result saved: ${selMatch.home} ${form.homeScore}–${form.awayScore} ${selMatch.away}${form.penalties ? ` (${form.penHome}–${form.penAway} pens)` : ''}`);
       setSelMatch(null);
       setForm({ homeScore: '', awayScore: '', extraTime: false, penalties: false, penHome: '', penAway: '' });
+      reloadKoResolution();
     } catch (e) { notify('Failed to save: ' + e.message, 'error'); }
     finally { setSaving(false); }
   };
@@ -1542,11 +1561,40 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             </div>
           </div>
 
+          {/* Blocker banner: a verified knockout result whose winner is
+              undecidable freezes every downstream matchup (placeholders, no
+              auto-ingest). Name the exact match + fix so the operator can
+              act in one step; downstream games then auto-verify via the
+              2-min poll cron. */}
+          {koRes?.blockers?.length > 0 && (
+            <div className="admin-ko-blocker" role="alert">
+              <AlertTriangle size={16} aria-hidden="true" />
+              <div>
+                {koRes.blockers.map((b) => (
+                  <div key={b.matchId} style={{ marginBottom: 4 }}>
+                    <strong>{b.home && b.away ? `${b.home} vs ${b.away}` : b.matchId}</strong>
+                    {b.homeScore != null ? ` (${b.homeScore}–${b.awayScore})` : ''}: {b.reason}.
+                    {b.blocking?.length > 0 && <> Blocking: <strong>{b.blocking.join(', ')}</strong>.</>}
+                    {' '}Re-enter this result below (check Penalties and fill the shootout score) — the blocked games then auto-verify within ~2 minutes.
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="admin-card-list admin-scroll">
             {filteredMatches.length === 0 && <div className="admin-empty">No matches found for this filter.</div>}
             {filteredMatches.map(m => {
               const r = matchResults[m.id];
               const isSelected = selMatch?.id === m.id;
+              // Real matchup overlay for knockout fixtures: once the bracket
+              // resolves who's actually playing, show the countries (with
+              // flags) instead of "W R16-07 vs W R16-08".
+              const rt = m.isKnockout ? koRes?.teams?.[m.id] : null;
+              const homeName = rt?.home || m.home;
+              const awayName = rt?.away || m.away;
+              const homeFlag = rt?.home ? (TEAM_COLORS[rt.home]?.flag || m.homeFlag) : m.homeFlag;
+              const awayFlag = rt?.away ? (TEAM_COLORS[rt.away]?.flag || m.awayFlag) : m.awayFlag;
               return (
                 <div key={m.id}>
                   <div className={`admin-list-card ${r?.completed ? 'verified' : ''} ${isSelected ? 'selected' : ''}`} onClick={() => {
@@ -1555,9 +1603,9 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     setForm({ homeScore: '', awayScore: '', extraTime: false, penalties: false, penHome: '', penAway: '' });
                   }}>
                     <div className="admin-list-left">
-                      <span className="admin-match-flags">{m.homeFlag} {m.awayFlag}</span>
+                      <span className="admin-match-flags">{homeFlag} {awayFlag}</span>
                       <div>
-                        <div className="admin-match-teams">{m.home} vs {m.away}</div>
+                        <div className="admin-match-teams">{homeName} vs {awayName}</div>
                         <div className="admin-match-meta">{m.stage} · {fmtDate(m.date)} · {m.city}</div>
                       </div>
                     </div>
@@ -1580,15 +1628,15 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                   {/* Expanded inline form */}
                   {isSelected && !r?.completed && (
                     <div className="admin-result-form">
-                      <h3>{m.homeFlag} {m.home} vs {m.away} {m.awayFlag} <span className="admin-form-meta">{m.stage} · {fmtDate(m.date)}</span></h3>
+                      <h3>{homeFlag} {homeName} vs {awayName} {awayFlag} <span className="admin-form-meta">{m.stage} · {fmtDate(m.date)}</span></h3>
                       <div className="admin-score-row">
                         <div className="admin-score-col">
-                          <label>{getCode(m.home)}</label>
+                          <label>{getCode(homeName)}</label>
                           <input type="number" min="0" max="20" className="admin-score-input" value={form.homeScore} onChange={e => setForm({...form, homeScore: e.target.value})} autoFocus />
                         </div>
                         <span className="admin-score-dash">—</span>
                         <div className="admin-score-col">
-                          <label>{getCode(m.away)}</label>
+                          <label>{getCode(awayName)}</label>
                           <input type="number" min="0" max="20" className="admin-score-input" value={form.awayScore} onChange={e => setForm({...form, awayScore: e.target.value})} />
                         </div>
                       </div>
@@ -1601,12 +1649,12 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       {m.isKnockout && form.penalties && (
                         <div className="admin-score-row">
                           <div className="admin-score-col">
-                            <label>{getCode(m.home)} pens</label>
+                            <label>{getCode(homeName)} pens</label>
                             <input type="number" min="0" max="30" className="admin-score-input" value={form.penHome ?? ''} onChange={e => setForm({...form, penHome: e.target.value})} />
                           </div>
                           <span className="admin-score-dash">—</span>
                           <div className="admin-score-col">
-                            <label>{getCode(m.away)} pens</label>
+                            <label>{getCode(awayName)} pens</label>
                             <input type="number" min="0" max="30" className="admin-score-input" value={form.penAway ?? ''} onChange={e => setForm({...form, penAway: e.target.value})} />
                           </div>
                         </div>
