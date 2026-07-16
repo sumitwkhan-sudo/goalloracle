@@ -831,6 +831,12 @@ export async function adminStandingsDigestRun(phase, recapText = '') {
   return await apiCall('admin', 'POST', { action: 'standingsDigestRun', phase, recapText });
 }
 
+// Final-week email runner: email = 'top10' (pre-Final contender alert) or
+// 'wrapped' (post-Final recap, send blocked until the Final is verified).
+export async function adminFinalWeekEmailRun(email, phase) {
+  return await apiCall('admin', 'POST', { action: 'finalWeekEmailRun', email, phase });
+}
+
 // Account-deletion audit (self-serve + admin-initiated). Each row snapshots
 // the deleted user's name/email (their doc is gone) plus what was wiped.
 export async function fetchAdminDeletionLog(limit = 100) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -101,6 +101,32 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [digestBusy, setDigestBusy] = useState(false);
   const [digestInfo, setDigestInfo] = useState(null); // { eligibleCount, autoRecap, pointsRemaining } after preview
   const [digestQueued, setDigestQueued] = useState(null); // { queued, chunks } after send
+  // Final-week emails (top-10 contender + Wrapped) panel state, keyed by email.
+  const [fwBusy, setFwBusy] = useState(null); // 'top10' | 'wrapped' | null
+  const [fwInfo, setFwInfo] = useState({}); // { top10: previewResp, wrapped: previewResp }
+  const [fwQueued, setFwQueued] = useState({}); // { top10: sendResp, wrapped: sendResp }
+  const runFinalWeekEmail = async (email, phase) => {
+    if (phase === 'send') {
+      const n = fwInfo[email]?.eligibleCount ?? '?';
+      const label = email === 'top10' ? 'Top-10 contender alert' : 'World Cup Wrapped';
+      if (!window.confirm(`Queue the ${label} to ${n} players?`)) return;
+    }
+    setFwBusy(email);
+    try {
+      const r = await adminFinalWeekEmailRun(email, phase);
+      if (phase === 'preview') {
+        setFwInfo((s) => ({ ...s, [email]: r }));
+        notify(r.sent ? `Preview sent to ${r.to}` : `Preview failed: ${r.error || 'unknown'}`, r.sent ? 'success' : 'error');
+      } else {
+        setFwQueued((s) => ({ ...s, [email]: r }));
+        notify(`Queued ${r.queued} email${r.queued === 1 ? '' : 's'}${r.chunks ? ` in ${r.chunks} chunk${r.chunks === 1 ? '' : 's'}` : ''}.`);
+      }
+    } catch (e) {
+      notify(e?.message || 'Failed', 'error');
+    } finally {
+      setFwBusy(null);
+    }
+  };
   const [outreachPreviewBusy, setOutreachPreviewBusy] = useState(false);
   const [outreachPreviewEmail, setOutreachPreviewEmail] = useState('');
   const [outreachBatchBusy, setOutreachBatchBusy] = useState(false);
@@ -2287,6 +2313,56 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               {digestInfo && (
                 <span className="form-hint" style={{ margin: 0 }}>
                   {digestInfo.eligibleCount} eligible · up to {digestInfo.pointsRemaining} pts still winnable
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* ── Final-week emails: top-10 contender alert + Wrapped ── */}
+          <div className="admin-outreach-runs" style={{ marginBottom: '1.2rem' }}>
+            <div className="admin-outreach-runs-head">
+              <h3>🏁 Final week</h3>
+            </div>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              <strong>Top-10 alert</strong> (send after the semifinals): everyone who can still mathematically reach
+              the global top 10, plus the current top 10 ("defend it"). <strong>Wrapped</strong> (send the morning
+              after the Final): per-player recap — global rank + percentile, their position in each of their leagues,
+              best call vs the crowd, champion verdict; winners + top-10 get special variants. Wrapped is blocked
+              until the Final result is verified.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.6rem' }}>
+              <strong style={{ fontSize: '0.85rem' }}>🎯 Top-10 contender alert</strong>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!!fwBusy} onClick={() => runFinalWeekEmail('top10', 'preview')}>
+                {fwBusy === 'top10' ? 'Working…' : 'Send me a preview'}
+              </button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!!fwBusy || !fwInfo.top10} title={!fwInfo.top10 ? 'Preview first' : ''} onClick={() => runFinalWeekEmail('top10', 'send')}>
+                {fwQueued.top10 ? `Queued ${fwQueued.top10.queued} ✓` : `Queue send${fwInfo.top10 ? ` to ${fwInfo.top10.eligibleCount}` : ''}`}
+              </button>
+              {fwInfo.top10 && (
+                <span className="form-hint" style={{ margin: 0 }}>
+                  {fwInfo.top10.chasers} chasing · {fwInfo.top10.defenders} defending · {fwInfo.top10.pointsRemaining} pts left
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <strong style={{ fontSize: '0.85rem' }}>🏆 World Cup Wrapped</strong>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!!fwBusy} onClick={() => runFinalWeekEmail('wrapped', 'preview')}>
+                {fwBusy === 'wrapped' ? 'Working…' : 'Send me a preview'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={!!fwBusy || !fwInfo.wrapped || fwInfo.wrapped.finalDecided === false}
+                title={!fwInfo.wrapped ? 'Preview first' : fwInfo.wrapped.finalDecided === false ? 'Blocked until the Final result is verified' : ''}
+                onClick={() => runFinalWeekEmail('wrapped', 'send')}
+              >
+                {fwQueued.wrapped ? `Queued ${fwQueued.wrapped.queued} ✓` : `Queue send${fwInfo.wrapped ? ` to ${fwInfo.wrapped.eligibleCount}` : ''}`}
+              </button>
+              {fwInfo.wrapped && (
+                <span className="form-hint" style={{ margin: 0 }}>
+                  {fwInfo.wrapped.finalDecided
+                    ? `Final verified ✓ (${fwInfo.wrapped.finalWinner}) — ready`
+                    : 'Final not verified yet — send is locked'}
                 </span>
               )}
             </div>

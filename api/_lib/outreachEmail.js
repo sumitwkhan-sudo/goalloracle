@@ -15,7 +15,7 @@
  */
 
 import crypto from 'crypto';
-import { LAUNCH_DATE, SPONSOR_ADDRESS, SPONSOR_DBA } from '../../src/config/legal.js';
+import { LAUNCH_DATE, SPONSOR_ADDRESS, SPONSOR_DBA, PRIZES } from '../../src/config/legal.js';
 import { stageLockTimeUtc } from '../../src/utils/stageLock.js';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
@@ -855,6 +855,210 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
 
 // ─── Registry ────────────────────────────────────────────────────
 
+// ─── Template: Top-10 Contender (pre-Final) ────────────────────────────────
+// Sent after the semifinals to everyone who can still mathematically reach
+// the global top 10 (gap to #10 ≤ points still winnable) — plus the current
+// top 10, who get the "defend it" branch. Per-user ctx from
+// _lib/finalWeekEmails.js#buildTop10ContenderData.
+function top10ContenderTemplate({ user, ctx }) {
+  const c = ctx || {};
+  const rank = Number.isFinite(Number(c.rank)) ? Number(c.rank) : null;
+  const total = Number.isFinite(Number(c.total)) ? Number(c.total) : null;
+  const gap = Number.isFinite(Number(c.gap)) ? Number(c.gap) : null;
+  const remaining = Number.isFinite(Number(c.pointsRemaining)) ? Number(c.pointsRemaining) : null;
+  const isTop10 = c.isTop10 === true;
+
+  const subject = isTop10
+    ? `You're #${rank ?? '—'} in the world — two games left to defend it`
+    : (gap != null && remaining != null
+      ? `You're ${gap} point${gap === 1 ? '' : 's'} from the top 10 — the Final is worth 12`
+      : 'The Final is worth 12 points — the top 10 is still open');
+
+  const headline = isTop10 ? `Top 10. Right now, it's yours.` : `The top 10 is within reach.`;
+  const body = isTop10
+    ? `You're <strong>#${rank}</strong>${total ? ` of ${total.toLocaleString()}` : ''} in the Global League with only the 3rd-place match and the Final left. ${remaining != null ? `There are still <strong>${remaining} points</strong> in play — the pack behind you can close fast.` : ''} Double-check your picks and defend your spot.`
+    : `You're <strong>#${rank ?? '—'}</strong>${total ? ` of ${total.toLocaleString()}` : ''}, just <strong>${gap} point${gap === 1 ? '' : 's'}</strong> behind the top 10 — and there are still <strong>${remaining ?? 'plenty of'} points</strong> to be won. The Final alone is worth <strong>12</strong>. One right call could put your name on the podium page.`;
+
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=top10_contender`;
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <div style="font-size:40px;line-height:1;margin:0 0 10px;">${isTop10 ? '🛡️' : '🎯'}</div>
+              <h1 style="margin:0 0 16px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">${escape(headline)}</h1>
+              <p style="margin:0 0 18px;font-size:16px;line-height:1.6;color:#3c3c43;">${body}</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 8px;">
+                <tr><td style="border-radius:12px;background:#0a0a0f;">
+                  <a href="${ctaUrl}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">Check my final picks →</a>
+                </td></tr>
+              </table>
+              <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#6e6e80;">
+                Picks lock 5 minutes before each kickoff. Top 3 win <strong>$150 / $100 / $50 in USDC</strong>.
+              </p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `${headline.replace(/<[^>]+>/g, '')}
+
+${body.replace(/<[^>]+>/g, '')}
+
+Check my final picks: ${ctaUrl}
+
+Picks lock 5 minutes before each kickoff. Top 3 win $150 / $100 / $50 in USDC.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
+// ─── Template: World Cup Wrapped (post-Final) ──────────────────────────────
+// Personalized end-of-tournament recap. Variants: prize winner (top 3),
+// top-10 finisher, standard. Ctx from _lib/finalWeekEmails.js#buildWrappedData.
+function wcWrappedTemplate({ user, ctx }) {
+  const c = ctx || {};
+  const rank = Number.isFinite(Number(c.rank)) ? Number(c.rank) : null;
+  const total = Number.isFinite(Number(c.total)) ? Number(c.total) : null;
+  const points = Number.isFinite(Number(c.points)) ? Number(c.points) : null;
+  const percentile = Number.isFinite(Number(c.percentile)) ? Number(c.percentile) : null;
+  const leagues = Array.isArray(c.leagues) ? c.leagues.slice(0, 4) : [];
+  const prize = rank != null && rank >= 1 && rank <= 3 ? PRIZES[rank - 1] : null;
+  const isTop10 = !prize && rank != null && rank <= 10;
+
+  const subject = prize
+    ? `${prize.medal} You finished #${rank} in the world — $${prize.amount} in USDC is yours`
+    : isTop10
+      ? `Top 10 of ${total ? total.toLocaleString() : 'the world'}. Take a bow.`
+      : rank != null
+        ? `Your World Cup Wrapped — #${rank}${total ? ` of ${total.toLocaleString()}` : ''}`
+        : 'Your World Cup Wrapped';
+
+  const headline = prize
+    ? `${prize.medal} ${prize.label} in the world.`
+    : isTop10
+      ? `Top 10. Elite company.`
+      : `That's a wrap.`;
+
+  const intro = prize
+    ? `Out of ${total ? total.toLocaleString() : 'thousands of'} players worldwide, you finished <strong>#${rank}</strong> — and won <strong>$${prize.amount} in ${prize.currency}</strong>. I'll email you personally about your payout. Congratulations — you earned this.`
+    : isTop10
+      ? `Out of ${total ? total.toLocaleString() : 'thousands of'} players worldwide, you finished <strong>#${rank}</strong>. That's the top ${percentile ?? 1}% — one of the ten best brackets on the planet.`
+      : rank != null
+        ? `A whole World Cup, called in advance. Here's how your bracket held up.`
+        : `A whole World Cup, called in advance. Here's your recap.`;
+
+  const standingRows = [];
+  if (rank != null && total) {
+    standingRows.push(`🌍 <strong>Global League</strong> — <strong>#${rank}</strong> of ${total.toLocaleString()} · ${points ?? 0} pts${percentile != null && !prize && !isTop10 ? ` · top ${percentile}%` : ''}`);
+  }
+  for (const l of leagues) {
+    standingRows.push(`🏆 <strong>${escape(l.name)}</strong> — <strong>#${l.rank}</strong> of ${l.total}${l.rank === 1 ? ' · champion 👑' : ''}`);
+  }
+
+  const bestCallLine = c.bestCall
+    ? `🎯 <strong>Your best call:</strong> ${escape(c.bestCall.team)} in ${escape(c.bestCall.roundLabel)} — only <strong>${c.bestCall.pct}%</strong> of players saw that coming.`
+    : '';
+
+  let championLine = '';
+  if (c.champion && c.championOutcome === 'champion') {
+    championLine = `👑 You called it: <strong>${escape(c.champion)}</strong>, world champions — exactly as your bracket said.`;
+  } else if (c.champion && c.championOutcome === 'runnerUp') {
+    championLine = `So close: your champion <strong>${escape(c.champion)}</strong> made it all the way to the Final.`;
+  } else if (c.champion && c.championOutcomeLabel) {
+    championLine = `Your champion <strong>${escape(c.champion)}</strong> fell in ${escape(c.championOutcomeLabel)}. ${c.finalWinner ? `The cup went to ${escape(c.finalWinner)}.` : ''}`;
+  } else if (c.champion && c.championOutcome === 'groups') {
+    championLine = `Your champion <strong>${escape(c.champion)}</strong> never made it out of the groups — it was that kind of tournament. ${c.finalWinner ? `The cup went to ${escape(c.finalWinner)}.` : ''}`;
+  }
+
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=wc_wrapped`;
+  const surveyBase = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=wrapped_survey&utm_content=`;
+  const unsubUrl = unsubscribeUrl(user.id);
+  const surveyOptions = [
+    ['cl', 'Champions League bracket'],
+    ['epl', 'Season-long Premier League game'],
+    ['cricket', 'Cricket predictions'],
+    ['wc2030', 'Wake me up for the next World Cup'],
+  ];
+  const surveyHtml = surveyOptions.map(([k, label]) =>
+    `<a href="${surveyBase}${k}" style="display:inline-block;margin:0 8px 8px 0;padding:9px 14px;font-size:13px;font-weight:600;color:#0a0a0f;background:#f5f6f8;border:1px solid #e2e4e9;border-radius:999px;text-decoration:none;">${escape(label)}</a>`).join('');
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <div style="font-size:40px;line-height:1;margin:0 0 10px;">${prize ? prize.medal : isTop10 ? '🏅' : '⚽'}</div>
+              <h1 style="margin:0 0 16px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">${escape(headline)}</h1>
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">${intro}</p>
+              ${standingRows.length ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;width:100%;">
+                <tr><td style="background:#f5f6f8;border-left:4px solid ${prize ? '#FFC857' : '#00c853'};border-radius:10px;padding:14px 18px;font-size:15px;line-height:2;color:#0a0a0f;">${standingRows.join('<br/>')}</td></tr>
+              </table>` : ''}
+              ${bestCallLine ? `<p style="margin:0 0 12px;font-size:16px;line-height:1.6;color:#3c3c43;">${bestCallLine}</p>` : ''}
+              ${championLine ? `<p style="margin:0 0 18px;font-size:16px;line-height:1.6;color:#3c3c43;">${championLine}</p>` : ''}
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 20px;">
+                <tr><td style="border-radius:12px;background:#0a0a0f;">
+                  <a href="${ctaUrl}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">See the final leaderboard →</a>
+                </td></tr>
+              </table>
+              <p style="margin:0 0 10px;font-size:15px;font-weight:700;color:#0a0a0f;">One question before you go — what should GoalOracle do next?</p>
+              <p style="margin:0 0 6px;">${surveyHtml}</p>
+              <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6e6e80;">Tap one — that's the whole survey. It decides what we build.</p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const textStandings = standingRows.map((r) => r.replace(/<[^>]+>/g, '')).join('\n');
+  const text = `${headline.replace(/<[^>]+>/g, '')}
+
+${intro.replace(/<[^>]+>/g, '')}
+${textStandings ? `\n${textStandings}\n` : ''}${bestCallLine ? `\n${bestCallLine.replace(/<[^>]+>/g, '')}\n` : ''}${championLine ? `\n${championLine.replace(/<[^>]+>/g, '')}\n` : ''}
+See the final leaderboard: ${ctaUrl}
+
+What should GoalOracle do next? Tap one:
+${surveyOptions.map(([k, label]) => `- ${label}: ${surveyBase}${k}`).join('\n')}
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 // ─── Template: Standings Digest ("Where you stand") ───────────────────────
 // Mid-knockout engagement email: personalized standings (Global + biggest
 // other league), the escalating-points math, champion-alive branch, and an
@@ -972,6 +1176,18 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
 }
 
 export const TEMPLATES = {
+  top10Contender: {
+    id: 'top10Contender',
+    label: 'Top-10 Contender (pre-Final)',
+    description: 'Sent after the semifinals to players who can still mathematically reach the global top 10 (gap to #10 ≤ points remaining), plus the current top 10 ("defend it"). Payload-driven — use the Final Week panel, not the generic batch sender.',
+    build: top10ContenderTemplate,
+  },
+  wcWrapped: {
+    id: 'wcWrapped',
+    label: 'World Cup Wrapped (post-Final)',
+    description: 'Personalized end-of-tournament recap: global rank + percentile, position in each of their leagues, best call vs the crowd, champion verdict. Winner (top 3) and top-10 variants. Send is blocked until the Final result is verified. Payload-driven — use the Final Week panel.',
+    build: wcWrappedTemplate,
+  },
   standingsDigest: {
     id: 'standingsDigest',
     label: 'Standings Digest (where you stand)',

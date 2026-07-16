@@ -2547,6 +2547,103 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: `Unknown phase: ${phase}` });
     }
 
+    if (action === 'finalWeekEmailRun') {
+      // Final-week sends: 'top10' (pre-Final contender alert) and 'wrapped'
+      // (post-Final recap). Same two-phase shape as standingsDigestRun:
+      // preview = canary to the caller + counts; send = chunked scheduled
+      // payloads through the 5-min drain. The Wrapped send is HARD-GATED on
+      // the Final having a verified, decided result so it can never fire
+      // with stale ranks.
+      const { email, phase = 'preview' } = req.body;
+      if (email !== 'top10' && email !== 'wrapped') {
+        return res.status(400).json({ error: "email must be 'top10' or 'wrapped'" });
+      }
+      const { buildTop10ContenderData, buildWrappedData } = await import('./_lib/finalWeekEmails.js');
+      const { buildEmail, sendOutreachEmail } = await import('./_lib/outreachEmail.js');
+
+      const adminSnap = await db.collection('users').doc(userId).get();
+      const adminUser = adminSnap.exists ? { id: adminSnap.id, ...adminSnap.data() } : { id: userId };
+
+      if (email === 'top10') {
+        const data = await buildTop10ContenderData(db, admin);
+        if (phase === 'preview') {
+          if (!adminUser.email) return res.status(400).json({ error: 'Your admin account has no email to preview to.' });
+          // Caller's own ctx if they're a contender, else the first eligible's.
+          const ctx = data.ctxFor(userId) || (data.eligible[0] ? data.ctxFor(data.eligible[0].id) : { rank: 14, total: data.total, gap: 6, pointsRemaining: data.remaining, isTop10: false, points: 0, tenthPoints: 0 });
+          const { subject, html, text } = buildEmail('top10Contender', { user: adminUser, ctx });
+          const r = await sendOutreachEmail({ to: adminUser.email, subject: `[PREVIEW] ${subject}`, html, text });
+          return res.status(200).json({ phase, sent: r.sent, error: r.error || null, to: adminUser.email, eligibleCount: data.eligible.length, chasers: data.chasers, defenders: data.defenders, pointsRemaining: data.remaining });
+        }
+        // send — small audience, one scheduled doc.
+        if (data.eligible.length === 0) return res.status(400).json({ error: 'No contenders right now (check points remaining / board freshness).' });
+        const userPayloads = {};
+        for (const u of data.eligible) {
+          const ctx = data.ctxFor(u.id);
+          if (ctx) userPayloads[u.id] = ctx;
+        }
+        await db.collection('outreachScheduled').add({
+          template: 'top10Contender',
+          userIds: data.eligible.map((u) => u.id),
+          userPayloads,
+          recipientCount: data.eligible.length,
+          scheduledFor: FieldValue.serverTimestamp(),
+          scheduledAt: FieldValue.serverTimestamp(),
+          scheduledBy: userId,
+          status: 'pending',
+        });
+        await db.collection('adminLogs').add({
+          action: 'top10_contender_send',
+          adminId: userId,
+          timestamp: FieldValue.serverTimestamp(),
+          summary: { queued: data.eligible.length, chasers: data.chasers, defenders: data.defenders },
+        }).catch(() => {});
+        return res.status(200).json({ phase, queued: data.eligible.length, chasers: data.chasers, defenders: data.defenders });
+      }
+
+      // email === 'wrapped'
+      const data = await buildWrappedData(db);
+      if (phase === 'preview') {
+        if (!adminUser.email) return res.status(400).json({ error: 'Your admin account has no email to preview to.' });
+        const ctx = data.ctxFor(userId) || (data.eligible[0] ? data.ctxFor(data.eligible[0].id) : null);
+        const { subject, html, text } = buildEmail('wcWrapped', { user: adminUser, ctx: ctx || {} });
+        const r = await sendOutreachEmail({ to: adminUser.email, subject: `[PREVIEW] ${subject}`, html, text });
+        return res.status(200).json({ phase, sent: r.sent, error: r.error || null, to: adminUser.email, eligibleCount: data.eligible.length, finalDecided: data.finalDecided, finalWinner: data.finalWinner });
+      }
+      if (!data.finalDecided) {
+        return res.status(400).json({ error: 'The Final result is not verified yet — Wrapped would send with stale ranks. Verify the Final in Match Results first.' });
+      }
+      const CHUNK = 800;
+      let queued = 0;
+      let chunks = 0;
+      for (let i = 0; i < data.eligible.length; i += CHUNK) {
+        const slice = data.eligible.slice(i, i + CHUNK);
+        const userPayloads = {};
+        for (const u of slice) {
+          const ctx = data.ctxFor(u.id);
+          if (ctx) userPayloads[u.id] = ctx;
+        }
+        await db.collection('outreachScheduled').add({
+          template: 'wcWrapped',
+          userIds: slice.map((u) => u.id),
+          userPayloads,
+          recipientCount: slice.length,
+          scheduledFor: FieldValue.serverTimestamp(),
+          scheduledAt: FieldValue.serverTimestamp(),
+          scheduledBy: userId,
+          status: 'pending',
+        });
+        queued += slice.length;
+        chunks += 1;
+      }
+      await db.collection('adminLogs').add({
+        action: 'wc_wrapped_send',
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        summary: { queued, chunks, finalWinner: data.finalWinner },
+      }).catch(() => {});
+      return res.status(200).json({ phase, queued, chunks, drainEveryMin: 5 });
+    }
+
     if (action === 'outreachSendCanary') {
       const { template = 'noPicksReminder', userIds: pool, count = 3 } = req.body;
       if (!Array.isArray(pool) || pool.length === 0) {

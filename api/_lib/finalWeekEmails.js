@@ -1,0 +1,290 @@
+/**
+ * finalWeekEmails — data plumbing for the two end-of-tournament sends:
+ *
+ *  1. top10Contender (pre-Final): players who can still mathematically reach
+ *     the global top 10 (gap to #10 ≤ points still winnable on unlocked
+ *     games), plus the current top 10 themselves ("defend it"). Small
+ *     audience, urgency framing, must land before the Final locks.
+ *
+ *  2. wcWrapped (post-Final): every player's personalized tournament recap —
+ *     global rank + percentile, their position in each of their leagues,
+ *     rarest correct call (their best call vs the crowd), champion verdict,
+ *     with winner (top 3) and top-10 variants.
+ *
+ * Both are computed once per run and delivered as per-user payloads through
+ * the existing chunked scheduled-send path (same as standingsDigest).
+ */
+
+import WORLD_CUP_MATCHES from '../../src/data/matches.js';
+import { isMatchKickoffLocked } from '../../src/utils/stageLock.js';
+import { calculateSimpleScore, KNOCKOUT_POINTS_PER_PICK } from '../../src/utils/scoringSimple.js';
+import { buildSimpleActuals, resolveActualBracket } from './bracketResolver.js';
+import { getRoundForMatchId, ROUND_ORDER } from '../../src/utils/bracketUtils.js';
+import { readLeaderboardCache, rebuildLeaderboardCache } from './leaderboardCache.js';
+
+const GLOBAL_IDS = new Set(['global', 'global-simple']);
+const ROUND_LABEL = {
+  roundOf32: 'the Round of 32',
+  roundOf16: 'the Round of 16',
+  quarterFinals: 'the quarterfinals',
+  semiFinals: 'the semifinals',
+  thirdPlace: 'the 3rd-place match',
+  final: 'the Final',
+};
+
+export function pointsStillWinnable(now = Date.now()) {
+  let pts = 0;
+  for (const m of WORLD_CUP_MATCHES.filter((x) => x.isKnockout)) {
+    if (isMatchKickoffLocked(m.id, now)) continue;
+    pts += KNOCKOUT_POINTS_PER_PICK[getRoundForMatchId(m.id)] || 0;
+  }
+  return pts;
+}
+
+// ── Email 1: top-10 contender alert ────────────────────────────────────────
+
+export async function buildTop10ContenderData(db, admin) {
+  // Board from the materialized cache (rebuild if stale) — ranks must be
+  // current when we tell someone they're "9 points off the top 10".
+  let board = await readLeaderboardCache(db, 'global-simple', 10 * 60 * 1000);
+  if (!board) board = await rebuildLeaderboardCache(db, admin, 'global-simple');
+  const rows = (board?.leaderboard || []).filter((r) => r.hasSubmitted);
+  const total = rows.length;
+  const remaining = pointsStillWinnable();
+  if (rows.length < 10 || remaining === 0) {
+    return { eligible: [], ctxFor: () => null, remaining, total, chasers: 0, defenders: 0 };
+  }
+  const tenthPoints = rows[9].totalScore || 0;
+
+  const contenders = []; // { row, rank, isTop10, gap }
+  rows.forEach((r, i) => {
+    const rank = i + 1;
+    if (rank <= 10) {
+      contenders.push({ row: r, rank, isTop10: true, gap: 0 });
+    } else {
+      const gap = tenthPoints - (r.totalScore || 0);
+      if (gap <= remaining) contenders.push({ row: r, rank, isTop10: false, gap });
+    }
+  });
+
+  // Emails + opt-outs for just this small set.
+  const refs = contenders.map((c) => db.collection('users').doc(c.row.userId));
+  const byUid = {};
+  for (let i = 0; i < refs.length; i += 300) {
+    const snaps = await db.getAll(...refs.slice(i, i + 300));
+    for (const s of snaps) if (s.exists) byUid[s.id] = s.data();
+  }
+  const eligible = [];
+  const ctxByUid = {};
+  for (const c of contenders) {
+    const u = byUid[c.row.userId];
+    if (!u || !u.email || u.emailOptOut === true) continue;
+    eligible.push({ id: c.row.userId, email: u.email, displayName: u.displayName || null });
+    ctxByUid[c.row.userId] = {
+      rank: c.rank,
+      total,
+      points: c.row.totalScore || 0,
+      tenthPoints,
+      gap: c.gap,
+      pointsRemaining: remaining,
+      isTop10: c.isTop10,
+    };
+  }
+  return {
+    eligible,
+    ctxFor: (uid) => ctxByUid[uid] || null,
+    remaining,
+    total,
+    chasers: contenders.filter((c) => !c.isTop10).length,
+    defenders: contenders.filter((c) => c.isTop10).length,
+  };
+}
+
+// ── Email 2: World Cup Wrapped ──────────────────────────────────────────────
+
+function hasAnyPicks(doc) {
+  if (!doc) return false;
+  const groups = doc.groupPredictions || {};
+  if (Object.values(groups).some((g) => Array.isArray(g?.ranking) && g.ranking.filter(Boolean).length > 0)) return true;
+  if (Array.isArray(doc.bestThirdPicks) && doc.bestThirdPicks.length > 0) return true;
+  const ko = doc.knockoutPredictions || {};
+  return Object.values(ko).some((arr) => Array.isArray(arr) && arr.some((p) => p?.winnerId));
+}
+
+function tsMillis(ts) {
+  if (!ts) return Infinity;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts._seconds) return ts._seconds * 1000;
+  return Infinity;
+}
+
+function rankLeague(docs, actuals) {
+  const scored = docs.map((d) => ({
+    userId: d.userId,
+    score: calculateSimpleScore(d, actuals).totalScore || 0,
+    submittedAtMs: tsMillis(d.submittedAt),
+  }));
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.submittedAtMs !== b.submittedAtMs) return a.submittedAtMs - b.submittedAtMs;
+    return String(a.userId).localeCompare(String(b.userId));
+  });
+  const byUser = {};
+  scored.forEach((s, i) => { byUser[s.userId] = { rank: i + 1, score: s.score }; });
+  return { byUser, total: scored.length };
+}
+
+export async function buildWrappedData(db) {
+  const [usersSnap, predsSnap, leaguesSnap, resultsSnap] = await Promise.all([
+    db.collection('users').get(),
+    db.collection('simplePredictions').get(),
+    db.collection('leagues').get(),
+    db.collection('matchResults').get(),
+  ]);
+
+  const results = {};
+  resultsSnap.forEach((d) => { results[d.id] = d.data(); });
+  const actuals = buildSimpleActuals(results);
+  const koWinners = actuals.knockoutResults || {};
+  const { resolved } = resolveActualBracket(results);
+
+  // The Wrapped may only fire once the Final has a decided winner.
+  const finalWinner = koWinners.final?.winnerId || null;
+  const finalDecided = !!finalWinner;
+  const finalLoser = finalDecided && resolved.final
+    ? (resolved.final.home === finalWinner ? resolved.final.away : resolved.final.home)
+    : null;
+
+  const leagueMeta = {};
+  leaguesSnap.forEach((d) => {
+    const l = d.data();
+    leagueMeta[d.id] = {
+      name: l.name || d.id,
+      memberCount: l.memberCount || (Array.isArray(l.members) ? l.members.length : 0),
+      predictionMode: l.predictionMode || 'simple',
+    };
+  });
+
+  const docsByLeague = {};
+  predsSnap.forEach((d) => {
+    const data = d.data();
+    if (!data?.userId || !data?.leagueId) return;
+    if (!hasAnyPicks(data)) return;
+    if (leagueMeta[data.leagueId]?.predictionMode === 'classic') return;
+    (docsByLeague[data.leagueId] = docsByLeague[data.leagueId] || []).push(data);
+  });
+
+  const ranks = {};
+  for (const [leagueId, docs] of Object.entries(docsByLeague)) {
+    ranks[leagueId] = rankLeague(docs, actuals);
+  }
+  const global = ranks['global-simple'] || { byUser: {}, total: 0 };
+
+  // Crowd pick-popularity per knockout match (global docs only) — powers the
+  // "best call" line: the user's CORRECT pick that the fewest others made.
+  const pickCounts = {}; // matchId -> { total, byTeam: { team: n } }
+  for (const doc of docsByLeague['global-simple'] || []) {
+    const ko = doc.knockoutPredictions || {};
+    for (const round of ROUND_ORDER) {
+      for (const p of ko[round] || []) {
+        if (!p?.matchId || !p?.winnerId) continue;
+        const slot = (pickCounts[p.matchId] = pickCounts[p.matchId] || { total: 0, byTeam: {} });
+        slot.total += 1;
+        slot.byTeam[p.winnerId] = (slot.byTeam[p.winnerId] || 0) + 1;
+      }
+    }
+  }
+
+  // Where each eliminated team's run ended (for the champion verdict).
+  const lostIn = {}; // team -> roundKey
+  for (const [matchId, r] of Object.entries(resolved)) {
+    const w = koWinners[matchId]?.winnerId;
+    if (!w) continue;
+    const round = getRoundForMatchId(matchId);
+    const loser = r.home === w ? r.away : r.home;
+    // Keep the LATEST round a team lost in (3rd-place loss shouldn't override
+    // a semifinal exit story — order rounds by ROUND_ORDER index).
+    if (loser) {
+      const prev = lostIn[loser];
+      if (!prev || ROUND_ORDER.indexOf(round) > ROUND_ORDER.indexOf(prev)) lostIn[loser] = round;
+    }
+  }
+
+  const globalDocsByUser = {};
+  for (const doc of docsByLeague['global-simple'] || []) globalDocsByUser[doc.userId] = doc;
+
+  const eligible = [];
+  usersSnap.forEach((d) => {
+    const u = d.data();
+    if (!u.email || u.emailOptOut === true) return;
+    if (!global.byUser[d.id]) return;
+    eligible.push({ id: d.id, email: u.email, displayName: u.displayName || null });
+  });
+
+  const ctxFor = (userId) => {
+    const g = global.byUser[userId];
+    if (!g) return null;
+    const doc = globalDocsByUser[userId];
+
+    // Their leagues (excluding globals), biggest first, top 4.
+    const leagues = [];
+    for (const [leagueId, r] of Object.entries(ranks)) {
+      if (GLOBAL_IDS.has(leagueId)) continue;
+      const entry = r.byUser[userId];
+      if (!entry) continue;
+      leagues.push({
+        name: leagueMeta[leagueId]?.name || leagueId,
+        rank: entry.rank,
+        total: r.total,
+        size: leagueMeta[leagueId]?.memberCount || r.total,
+      });
+    }
+    leagues.sort((a, b) => b.size - a.size);
+
+    // Best call: correct knockout pick with the lowest crowd share.
+    let bestCall = null;
+    if (doc) {
+      const ko = doc.knockoutPredictions || {};
+      for (const round of ROUND_ORDER) {
+        for (const p of ko[round] || []) {
+          if (!p?.matchId || !p?.winnerId) continue;
+          const actual = koWinners[p.matchId]?.winnerId;
+          if (!actual || actual !== p.winnerId) continue;
+          const slot = pickCounts[p.matchId];
+          if (!slot || slot.total < 20) continue; // too few picks → % is noise
+          const pct = Math.round(((slot.byTeam[p.winnerId] || 0) / slot.total) * 100);
+          if (!bestCall || pct < bestCall.pct) {
+            bestCall = { team: p.winnerId, roundLabel: ROUND_LABEL[round] || round, pct };
+          }
+        }
+      }
+    }
+
+    // Champion verdict.
+    const champion = doc?.knockoutPredictions?.final?.[0]?.winnerId || null;
+    let championOutcome = null; // 'champion' | 'runnerUp' | roundKey | 'groups'
+    if (champion && finalDecided) {
+      if (champion === finalWinner) championOutcome = 'champion';
+      else if (champion === finalLoser) championOutcome = 'runnerUp';
+      else if (lostIn[champion]) championOutcome = lostIn[champion];
+      else championOutcome = 'groups';
+    }
+
+    const rank = g.rank;
+    const total = global.total;
+    return {
+      rank,
+      total,
+      points: g.score,
+      percentile: total > 0 ? Math.max(1, Math.ceil((rank / total) * 100)) : null,
+      leagues: leagues.slice(0, 4).map(({ name, rank: r, total: t }) => ({ name, rank: r, total: t })),
+      bestCall,
+      champion,
+      championOutcome,
+      championOutcomeLabel: championOutcome && ROUND_LABEL[championOutcome] ? ROUND_LABEL[championOutcome] : null,
+      finalWinner,
+    };
+  };
+
+  return { eligible, ctxFor, finalDecided, finalWinner, globalTotal: global.total };
+}
