@@ -298,6 +298,46 @@ export function resolveActualBracket(matchResults) {
   return { resolved, allGroupsComplete, errors };
 }
 
+// Per-SIDE knockout resolution: like resolveActualBracket, but a matchup with
+// one undecidable feeder still exposes its knowable half (e.g. Argentina is
+// in qf-04 even while the r16-08 winner is unknown). A "W R16-07" / "L SF-01"
+// placeholder resolves through its feeder whenever the feeder's teams are
+// known and its result decides a winner. Fully-resolved matches pass through
+// unchanged; sides that can't resolve are null (clients render the qualifier
+// label). Consumed by /api/actual-bracket (Standings knockout tree) and the
+// admin koResolution diagnostic.
+export function resolvePerSideKnockouts(matchResults) {
+  const { resolved, allGroupsComplete, errors } = resolveActualBracket(matchResults);
+  const results = matchResults || {};
+  const winnerLoserOf = (feederId) => {
+    const t = resolved[feederId];
+    const r = results[feederId];
+    if (!t || !r || r.completed !== true) return { winner: null, loser: null };
+    const side = determineWinnerFromResult(r);
+    if (side === 'home') return { winner: t.home, loser: t.away };
+    if (side === 'away') return { winner: t.away, loser: t.home };
+    return { winner: null, loser: null };
+  };
+  const sideTeam = (placeholder) => {
+    const mm = /^([WL])\s+(R32|R16|QF|SF)-?0*(\d+)$/i.exec(placeholder || '');
+    if (!mm) return null;
+    const feeder = `${mm[2].toLowerCase()}-${String(mm[3]).padStart(2, '0')}`;
+    const { winner, loser } = winnerLoserOf(feeder);
+    return mm[1].toUpperCase() === 'W' ? winner : loser;
+  };
+  const perSide = {};
+  for (const m of WORLD_CUP_MATCHES.filter((x) => x.isKnockout)) {
+    if (resolved[m.id]) {
+      perSide[m.id] = { home: resolved[m.id].home, away: resolved[m.id].away };
+      continue;
+    }
+    const home = sideTeam(m.home);
+    const away = sideTeam(m.away);
+    if (home || away) perSide[m.id] = { home: home || null, away: away || null };
+  }
+  return { resolved, perSide, allGroupsComplete, errors };
+}
+
 // Per-side real Round-of-32 resolution for progressive reseeding (the
 // knockout-real-reseed feature). Each R32 slot's home/away resolves
 // INDEPENDENTLY: a direct-position side ("1st/2nd Group X") becomes real the

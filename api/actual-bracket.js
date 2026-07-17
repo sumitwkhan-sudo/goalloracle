@@ -16,7 +16,7 @@
  */
 
 import { db, applyCors } from './_lib/firebase.js';
-import { resolveActualR32, buildSimpleActuals, resolveActualBracket } from './_lib/bracketResolver.js';
+import { resolveActualR32, buildSimpleActuals, resolvePerSideKnockouts } from './_lib/bracketResolver.js';
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -37,11 +37,13 @@ export default async function handler(req, res) {
       out.knockoutResults = {};
       out.advancingThirds = [];
     }
-    // Full resolved knockout bracket (every KO match whose teams are known) so
-    // the Results page can show the real matchups filling in across all rounds.
+    // Full knockout bracket, resolved PER SIDE (every side whose feeder has a
+    // decided winner is named, even when the other side isn't) so the Results
+    // page fills in real matchups progressively — "England vs Winner of M100"
+    // instead of a fully-blank card while one feeder is still undecided.
     try {
-      const { resolved } = resolveActualBracket(results);
-      out.knockout = resolved || {};
+      const { perSide } = resolvePerSideKnockouts(results);
+      out.knockout = perSide || {};
     } catch {
       out.knockout = {};
     }
