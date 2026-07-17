@@ -17,8 +17,8 @@
  * eligibility (the contest stays free-to-play — the UI states this).
  */
 
-export const TIP_STRIPE_URL = '';   // e.g. 'https://buy.stripe.com/xxxx'
-export const TIP_WALLET_ADDRESS = ''; // e.g. '0xAbC…' (EVM, Polygon)
+export const TIP_STRIPE_URL = 'https://donate.stripe.com/fZu4gA2OX81Y0VA48H0x200';
+export const TIP_WALLET_ADDRESS = '0x6Bfb9f4fbd9B968C64C49DFe5270E7fa7cEaC4BC'; // EVM (Polygon)
 export const TIP_WALLET_NETWORK = 'USDC or POL on Polygon';
 
 export function tipsConfigured() {
