@@ -1081,6 +1081,28 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
     if (tab === 'oracle' && !health && !healthLoading) runHealthCheck();
   }, [tab]);
 
+  // Open the result form on an already-VERIFIED match, prefilled with the
+  // stored result, so the operator can correct it (e.g. add the missing
+  // penalty-shootout score that decides a 0–0 knockout). The server treats a
+  // changed verified result as a correction: users are re-scored and the
+  // leaderboard cache rebuilds automatically on save.
+  const openCorrectForm = (m) => {
+    const r = matchResults[m.id] || {};
+    setMatchFilter('all'); // ensure the row (and its inline form) is rendered
+    setSelMatch(m);
+    setForm({
+      homeScore: r.homeScore != null ? String(r.homeScore) : '',
+      awayScore: r.awayScore != null ? String(r.awayScore) : '',
+      extraTime: !!r.extraTime,
+      penalties: !!r.penalties,
+      penHome: r.penHome != null ? String(r.penHome) : '',
+      penAway: r.penAway != null ? String(r.penAway) : '',
+    });
+    requestAnimationFrame(() => {
+      document.querySelector('.admin-result-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
   const handleSaveResult = async () => {
     if (!selMatch || form.homeScore === '' || form.awayScore === '') return;
     // A knockout game that goes to penalties NEEDS the shootout score — it's
@@ -1572,11 +1594,25 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               <AlertTriangle size={16} aria-hidden="true" />
               <div>
                 {koRes.blockers.map((b) => (
-                  <div key={b.matchId} style={{ marginBottom: 4 }}>
-                    <strong>{b.home && b.away ? `${b.home} vs ${b.away}` : b.matchId}</strong>
-                    {b.homeScore != null ? ` (${b.homeScore}–${b.awayScore})` : ''}: {b.reason}.
-                    {b.blocking?.length > 0 && <> Blocking: <strong>{b.blocking.join(', ')}</strong>.</>}
-                    {' '}Re-enter this result below (check Penalties and fill the shootout score) — the blocked games then auto-verify within ~2 minutes.
+                  <div key={b.matchId} style={{ marginBottom: 6, display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span>
+                      <strong>{b.home && b.away ? `${b.home} vs ${b.away}` : b.matchId}</strong>
+                      {b.homeScore != null ? ` (${b.homeScore}–${b.awayScore})` : ''}: {b.reason}.
+                      {b.blocking?.length > 0 && <> Blocking: <strong>{b.blocking.join(', ')}</strong>.</>}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={() => {
+                        const m = WORLD_CUP_MATCHES.find((x) => x.id === b.matchId);
+                        if (m) openCorrectForm(m);
+                      }}
+                    >
+                      Fix now
+                    </button>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-sec)' }}>
+                      Check Penalties, enter the shootout score (who won on pens) — blocked games then auto-verify within ~2 minutes.
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1615,8 +1651,16 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     <div className="admin-list-right">
                       {r?.completed ? (
                         <>
-                          <span className="admin-score-verified">{r.homeScore} — {r.awayScore}{r.extraTime ? ' AET' : ''}{r.penalties ? ' PEN' : ''}</span>
+                          <span className="admin-score-verified">{r.homeScore} — {r.awayScore}{r.penalties && r.penHome != null ? ` (${r.penHome}–${r.penAway} p)` : ''}{r.extraTime ? ' AET' : ''}{r.penalties ? ' PEN' : ''}</span>
                           <span className="admin-verified-tag"><CheckCircle size={11} /> VERIFIED</span>
+                          <button
+                            type="button"
+                            className="btn btn-sm admin-enter-btn"
+                            title="Correct this verified result (users are re-scored automatically)"
+                            onClick={e => { e.stopPropagation(); if (isSelected) setSelMatch(null); else openCorrectForm(m); }}
+                          >
+                            {isSelected ? 'Close' : <><Pencil size={12} /> Correct</>}
+                          </button>
                         </>
                       ) : (
                         <>
@@ -1628,10 +1672,18 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       )}
                     </div>
                   </div>
-                  {/* Expanded inline form */}
-                  {isSelected && !r?.completed && (
+                  {/* Expanded inline form (also opens on VERIFIED matches via
+                      the Correct button — the save is treated server-side as
+                      a correction: re-score + leaderboard rebuild + alert). */}
+                  {isSelected && (
                     <div className="admin-result-form">
                       <h3>{homeFlag} {homeName} vs {awayName} {awayFlag} <span className="admin-form-meta">{m.stage} · {fmtDate(m.date)}</span></h3>
+                      {r?.completed && (
+                        <p className="form-hint" style={{ marginTop: 0 }}>
+                          Correcting a verified result. On save, every user is re-scored and the leaderboard updates automatically.
+                          {m.isKnockout ? ' For a shootout: check Penalties and enter the shootout score — that decides who advances.' : ''}
+                        </p>
+                      )}
                       <div className="admin-score-row">
                         <div className="admin-score-col">
                           <label>{getCode(homeName)}</label>
@@ -1664,7 +1716,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                       )}
                       <div className="admin-form-btns">
                         <button type="button" className="btn btn-primary" onClick={handleSaveResult} disabled={saving || form.homeScore === '' || form.awayScore === ''}>
-                          {saving ? <><RefreshCw size={14} className="spin" /> Saving...</> : <><CheckCircle size={14} /> Save & Verify Result</>}
+                          {saving ? <><RefreshCw size={14} className="spin" /> Saving...</> : <><CheckCircle size={14} /> {r?.completed ? 'Save Correction' : 'Save & Verify Result'}</>}
                         </button>
                         <button type="button" className="btn" onClick={() => setSelMatch(null)}>Cancel</button>
                       </div>
