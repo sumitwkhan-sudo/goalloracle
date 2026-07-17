@@ -2625,14 +2625,78 @@ export default async function handler(req, res) {
       // the Final having a verified, decided result so it can never fire
       // with stale ranks.
       const { email, phase = 'preview' } = req.body;
-      if (email !== 'top10' && email !== 'wrapped') {
-        return res.status(400).json({ error: "email must be 'top10' or 'wrapped'" });
+      if (email !== 'top10' && email !== 'wrapped' && email !== 'finalHype') {
+        return res.status(400).json({ error: "email must be 'top10', 'wrapped' or 'finalHype'" });
       }
-      const { buildTop10ContenderData, buildWrappedData } = await import('./_lib/finalWeekEmails.js');
+      const { buildTop10ContenderData, buildWrappedData, buildFinalHypeData } = await import('./_lib/finalWeekEmails.js');
       const { buildEmail, sendOutreachEmail } = await import('./_lib/outreachEmail.js');
 
       const adminSnap = await db.collection('users').doc(userId).get();
       const adminUser = adminSnap.exists ? { id: adminSnap.id, ...adminSnap.data() } : { id: userId };
+
+      // Users contacted in the last 24h (any template) — the Final Hype send
+      // excludes them per operator instruction, so nobody gets two emails in
+      // a day. outreachSent doc ids are {uid}__{template}; sentAt is the last
+      // send of that template to that user.
+      const recentlyEmailedUids = async () => {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const snap = await db.collection('outreachSent').where('sentAt', '>=', since).get();
+        const uids = new Set();
+        snap.forEach((d) => { const u = d.data().userId; if (u) uids.add(u); });
+        return uids;
+      };
+
+      if (email === 'finalHype') {
+        const data = await buildFinalHypeData(db);
+        const recent = await recentlyEmailedUids();
+        const sendable = data.eligible.filter((u) => !recent.has(u.id));
+        if (phase === 'preview') {
+          if (!adminUser.email) return res.status(400).json({ error: 'Your admin account has no email to preview to.' });
+          const ctx = data.ctxFor(userId) || (sendable[0] ? data.ctxFor(sendable[0].id) : (data.eligible[0] ? data.ctxFor(data.eligible[0].id) : {}));
+          const { subject, html, text } = buildEmail('finalHype', { user: adminUser, ctx: ctx || {} });
+          const r = await sendOutreachEmail({ to: adminUser.email, subject: `[PREVIEW] ${subject}`, html, text });
+          return res.status(200).json({
+            phase, sent: r.sent, error: r.error || null, to: adminUser.email,
+            eligibleCount: sendable.length,
+            excluded24h: data.eligible.length - sendable.length,
+            finalists: data.finalists,
+            pointsRemaining: data.pointsRemaining,
+          });
+        }
+        if (data.finalists.length !== 2) {
+          return res.status(400).json({ error: 'Both semifinals must be verified first — the finalists are not resolved yet.' });
+        }
+        const CHUNK = 800;
+        let queued = 0;
+        let chunks = 0;
+        for (let i = 0; i < sendable.length; i += CHUNK) {
+          const slice = sendable.slice(i, i + CHUNK);
+          const userPayloads = {};
+          for (const u of slice) {
+            const ctx = data.ctxFor(u.id);
+            if (ctx) userPayloads[u.id] = ctx;
+          }
+          await db.collection('outreachScheduled').add({
+            template: 'finalHype',
+            userIds: slice.map((u) => u.id),
+            userPayloads,
+            recipientCount: slice.length,
+            scheduledFor: FieldValue.serverTimestamp(),
+            scheduledAt: FieldValue.serverTimestamp(),
+            scheduledBy: userId,
+            status: 'pending',
+          });
+          queued += slice.length;
+          chunks += 1;
+        }
+        await db.collection('adminLogs').add({
+          action: 'final_hype_send',
+          adminId: userId,
+          timestamp: FieldValue.serverTimestamp(),
+          summary: { queued, chunks, excluded24h: data.eligible.length - sendable.length, finalists: data.finalists },
+        }).catch(() => {});
+        return res.status(200).json({ phase, queued, chunks, excluded24h: data.eligible.length - sendable.length, drainEveryMin: 5 });
+      }
 
       if (email === 'top10') {
         const data = await buildTop10ContenderData(db, admin);

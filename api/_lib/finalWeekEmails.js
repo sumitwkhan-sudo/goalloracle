@@ -17,7 +17,7 @@
 
 import WORLD_CUP_MATCHES from '../../src/data/matches.js';
 import { isMatchKickoffLocked } from '../../src/utils/stageLock.js';
-import { calculateSimpleScore, KNOCKOUT_POINTS_PER_PICK } from '../../src/utils/scoringSimple.js';
+import { calculateSimpleScore, KNOCKOUT_POINTS_PER_PICK, predictedAdvancers } from '../../src/utils/scoringSimple.js';
 import { buildSimpleActuals, resolveActualBracket } from './bracketResolver.js';
 import { getRoundForMatchId, ROUND_ORDER } from '../../src/utils/bracketUtils.js';
 import { readLeaderboardCache, rebuildLeaderboardCache } from './leaderboardCache.js';
@@ -131,7 +131,7 @@ function rankLeague(docs, actuals) {
   });
   const byUser = {};
   scored.forEach((s, i) => { byUser[s.userId] = { rank: i + 1, score: s.score }; });
-  return { byUser, total: scored.length };
+  return { byUser, total: scored.length, ordered: scored };
 }
 
 export async function buildWrappedData(db) {
@@ -288,4 +288,133 @@ export async function buildWrappedData(db) {
   };
 
   return { eligible, ctxFor, finalDecided, finalWinner, globalTotal: global.total };
+}
+
+// ── Email 3: Final hype (last two games) ────────────────────────────────────
+// Pre-Final engagement blast: the semifinal story + finalists, each user's
+// league positions with the live top 3 of their non-global leagues, and two
+// honest conditional nudges — pick the unpicked 3rd-place match (5 pts), and
+// re-pick the Final winner when a team from THEIR bracket actually made it
+// (the only case where switching can still score the 12).
+export async function buildFinalHypeData(db) {
+  const [usersSnap, predsSnap, leaguesSnap, resultsSnap] = await Promise.all([
+    db.collection('users').get(),
+    db.collection('simplePredictions').get(),
+    db.collection('leagues').get(),
+    db.collection('matchResults').get(),
+  ]);
+
+  const results = {};
+  resultsSnap.forEach((d) => { results[d.id] = d.data(); });
+  const actuals = buildSimpleActuals(results);
+  const koWinners = actuals.knockoutResults || {};
+  const { resolved } = resolveActualBracket(results);
+
+  // Semifinal storylines + the confirmed finalists (from verified results —
+  // this email should only send once both semis are decided).
+  const sfStories = [];
+  for (const id of ['sf-01', 'sf-02']) {
+    const t = resolved[id];
+    const w = koWinners[id]?.winnerId;
+    if (t && w) sfStories.push({ winner: w, loser: t.home === w ? t.away : t.home });
+  }
+  const finalists = resolved.final ? [resolved.final.home, resolved.final.away].filter(Boolean) : [];
+
+  const pointsRemaining = pointsStillWinnable();
+  const thirdOpen = !isMatchKickoffLocked('3rd');
+  const finalOpen = !isMatchKickoffLocked('final');
+
+  const names = {};
+  const userMeta = {};
+  usersSnap.forEach((d) => {
+    const u = d.data();
+    names[d.id] = u.displayName || (u.email ? u.email.split('@')[0] : d.id.slice(0, 8));
+    userMeta[d.id] = { email: u.email || null, optOut: u.emailOptOut === true };
+  });
+
+  const leagueMeta = {};
+  leaguesSnap.forEach((d) => {
+    const l = d.data();
+    leagueMeta[d.id] = {
+      name: l.name || d.id,
+      memberCount: l.memberCount || (Array.isArray(l.members) ? l.members.length : 0),
+      predictionMode: l.predictionMode || 'simple',
+    };
+  });
+
+  const docsByLeague = {};
+  predsSnap.forEach((d) => {
+    const data = d.data();
+    if (!data?.userId || !data?.leagueId) return;
+    if (!hasAnyPicks(data)) return;
+    if (leagueMeta[data.leagueId]?.predictionMode === 'classic') return;
+    (docsByLeague[data.leagueId] = docsByLeague[data.leagueId] || []).push(data);
+  });
+
+  const ranks = {};
+  for (const [leagueId, docs] of Object.entries(docsByLeague)) {
+    ranks[leagueId] = rankLeague(docs, actuals);
+  }
+  const global = ranks['global-simple'] || { byUser: {}, total: 0, ordered: [] };
+  const globalDocsByUser = {};
+  for (const doc of docsByLeague['global-simple'] || []) globalDocsByUser[doc.userId] = doc;
+
+  const top3Of = (leagueId) => (ranks[leagueId]?.ordered || []).slice(0, 3).map((s) => names[s.userId] || s.userId.slice(0, 8));
+
+  const eligible = [];
+  usersSnap.forEach((d) => {
+    const m = userMeta[d.id];
+    if (!m?.email || m.optOut) return;
+    if (!global.byUser[d.id]) return;
+    eligible.push({ id: d.id, email: m.email, displayName: names[d.id] });
+  });
+
+  const ctxFor = (userId) => {
+    const g = global.byUser[userId];
+    if (!g) return null;
+    const doc = globalDocsByUser[userId];
+
+    const leagues = [];
+    for (const [leagueId, r] of Object.entries(ranks)) {
+      if (GLOBAL_IDS.has(leagueId)) continue;
+      const entry = r.byUser[userId];
+      if (!entry) continue;
+      leagues.push({
+        name: leagueMeta[leagueId]?.name || leagueId,
+        rank: entry.rank,
+        total: r.total,
+        size: leagueMeta[leagueId]?.memberCount || r.total,
+        top3: top3Of(leagueId),
+      });
+    }
+    leagues.sort((a, b) => b.size - a.size);
+
+    const thirdPicked = !!doc?.knockoutPredictions?.thirdPlace?.[0]?.winnerId;
+    const finalPick = doc?.knockoutPredictions?.final?.[0]?.winnerId || null;
+    // Which finalists could still SCORE for this user if picked (per the
+    // knockout eligibility rule): teams in their predicted-advancers set —
+    // or all finalists when the set is empty (knockout-only entrants).
+    let scorableFinalists = [];
+    if (doc && finalists.length) {
+      const set = predictedAdvancers(doc.groupPredictions, doc.bestThirdPicks);
+      scorableFinalists = set.size === 0 ? [...finalists] : finalists.filter((t) => set.has(t));
+    }
+
+    return {
+      globalRank: g.rank,
+      globalTotal: global.total,
+      globalPoints: g.score,
+      leagues: leagues.slice(0, 3).map(({ name, rank: r, total: t, top3 }) => ({ name, rank: r, total: t, top3 })),
+      thirdPicked,
+      thirdOpen,
+      finalOpen,
+      finalPick,
+      finalists,
+      scorableFinalists,
+      pointsRemaining,
+      sfStories,
+    };
+  };
+
+  return { eligible, ctxFor, pointsRemaining, finalists, sfStories, globalTotal: global.total };
 }

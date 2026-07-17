@@ -71,7 +71,8 @@ function brandHeader() {
 // Founder sign-off — appended to EVERY engagement email (B2 requirement),
 // worded EXACTLY as below. signOffHtml renders inside the card body;
 // signOffText is the plain-text twin for the multipart text/* alternative.
-const SIGN_OFF_LINE = '- Sumit, Founder of GoalOracle.io and Football Lover';
+// Operator-directed change (Jul 2026): drop the "and Football Lover" tail.
+const SIGN_OFF_LINE = '- Sumit, Founder of GoalOracle.io';
 function signOffHtml() {
   return `<p style="margin:26px 0 0;font-size:15px;line-height:1.5;color:#3c3c43;">${escape(SIGN_OFF_LINE)}</p>`;
 }
@@ -932,6 +933,120 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
   return { subject, html, text };
 }
 
+// ─── Template: Final Hype (last two games) ─────────────────────────────────
+// Pre-Final engagement: the semifinal story + finalists, the user's league
+// standings with each league's live top 3, and honest conditional nudges —
+// unpicked 3rd-place match (5 pts) and a Final re-pick when a team from THEIR
+// bracket made it (the only case switching can still score). Ctx from
+// _lib/finalWeekEmails.js#buildFinalHypeData.
+function finalHypeTemplate({ user, ctx }) {
+  const c = ctx || {};
+  const finalists = Array.isArray(c.finalists) ? c.finalists.filter(Boolean) : [];
+  const pointsRemaining = Number.isFinite(Number(c.pointsRemaining)) ? Number(c.pointsRemaining) : null;
+  const sfStories = Array.isArray(c.sfStories) ? c.sfStories : [];
+  const leagues = Array.isArray(c.leagues) ? c.leagues.slice(0, 3) : [];
+
+  const subject = finalists.length === 2
+    ? `${finalists[0]} vs ${finalists[1]} on Sunday — ${pointsRemaining ?? 17} points still up for grabs`
+    : `Two games left — ${pointsRemaining ?? 17} points still up for grabs`;
+
+  // Semifinal drama, from verified results only.
+  const sfLine = sfStories.length === 2
+    ? `${escape(sfStories[1].winner)} ended ${escape(sfStories[1].loser)}'s run, and ${escape(sfStories[0].winner)} outclassed ${escape(sfStories[0].loser)}.`
+    : '';
+  // The marquee line — only when the Final is literally Spain–Argentina.
+  const marquee = finalists.includes('Spain') && finalists.includes('Argentina')
+    ? `Sunday it's <strong>Yamal against Messi</strong> — the kid against the king — with everything on the line.`
+    : (finalists.length === 2 ? `Sunday it's <strong>${escape(finalists[0])} vs ${escape(finalists[1])}</strong> — everything on the line.` : '');
+
+  const intro = `Two games left in the whole World Cup. ${sfLine} ${marquee}`;
+  const pointsLine = `And on GoalOracle, it isn't over either: the 3rd-place match on Saturday is worth <strong>5 points</strong>, the Final on Sunday is worth <strong>12</strong> — leagues can still flip.`;
+
+  const standingRows = [];
+  if (c.globalRank && c.globalTotal) {
+    standingRows.push(`🌍 <strong>Global League</strong> — <strong>#${c.globalRank}</strong> of ${Number(c.globalTotal).toLocaleString()}${c.globalPoints != null ? ` · ${c.globalPoints} pts` : ''}`);
+  }
+  for (const l of leagues) {
+    const top3 = Array.isArray(l.top3) && l.top3.length ? ` · Top 3: ${l.top3.map((n) => escape(n)).join(', ')}` : '';
+    standingRows.push(`🏆 <strong>${escape(l.name)}</strong> — <strong>#${l.rank}</strong> of ${l.total}${top3}`);
+  }
+
+  // Honest nudges.
+  let thirdNudge = '';
+  if (c.thirdOpen && c.thirdPicked === false) {
+    thirdNudge = `🎁 <strong>You haven't picked the 3rd-place match.</strong> That's 5 points hanging in the air — it takes ten seconds.`;
+  }
+  let finalNudge = '';
+  const scorable = Array.isArray(c.scorableFinalists) ? c.scorableFinalists : [];
+  if (c.finalOpen && finalists.length === 2) {
+    if (c.finalPick && finalists.includes(c.finalPick)) {
+      finalNudge = `🔥 Your Final pick — <strong>${escape(c.finalPick)}</strong> — made it. 12 points ride on Sunday. Hold your nerve${scorable.length === 2 ? ', or switch sides before kickoff' : ''}.`;
+    } else if (scorable.length > 0) {
+      finalNudge = `🔁 Your Final pick didn't make it — but <strong>${escape(scorable[0])}</strong> did, and they're on your bracket. Switch your Final winner before kickoff and the <strong>12 points are still live</strong>.`;
+    }
+  }
+
+  const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=final_hype`;
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <div style="font-size:40px;line-height:1;margin:0 0 10px;">🏟️</div>
+              <h1 style="margin:0 0 16px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">Two games. Everything to play for.</h1>
+              <p style="margin:0 0 12px;font-size:16px;line-height:1.6;color:#3c3c43;">${intro}</p>
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">${pointsLine}</p>
+              ${standingRows.length ? `<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0a0a0f;">Where you stand going into the weekend:</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;width:100%;">
+                <tr><td style="background:#f5f6f8;border-left:4px solid #00c853;border-radius:10px;padding:14px 18px;font-size:15px;line-height:1.9;color:#0a0a0f;">${standingRows.join('<br/>')}</td></tr>
+              </table>` : ''}
+              ${thirdNudge ? `<p style="margin:0 0 12px;font-size:16px;line-height:1.6;color:#3c3c43;">${thirdNudge}</p>` : ''}
+              ${finalNudge ? `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">${finalNudge}</p>` : ''}
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 8px;">
+                <tr><td style="border-radius:12px;background:#0a0a0f;">
+                  <a href="${ctaUrl}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">Check my final picks →</a>
+                </td></tr>
+              </table>
+              <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#6e6e80;">Picks lock 5 minutes before each kickoff.</p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const strip = (s) => s.replace(/<[^>]+>/g, '');
+  const text = `Two games. Everything to play for.
+
+${strip(intro)}
+
+${strip(pointsLine)}
+${standingRows.length ? `\nWhere you stand going into the weekend:\n${standingRows.map(strip).join('\n')}\n` : ''}${thirdNudge ? `\n${strip(thirdNudge)}\n` : ''}${finalNudge ? `\n${strip(finalNudge)}\n` : ''}
+Check my final picks: ${ctaUrl}
+
+Picks lock 5 minutes before each kickoff.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 // ─── Template: World Cup Wrapped (post-Final) ──────────────────────────────
 // Personalized end-of-tournament recap. Variants: prize winner (top 3),
 // top-10 finisher, standard. Ctx from _lib/finalWeekEmails.js#buildWrappedData.
@@ -1199,6 +1314,12 @@ export const TEMPLATES = {
     label: 'Top-10 Contender (pre-Final)',
     description: 'Sent after the semifinals to players who can still mathematically reach the global top 10 (gap to #10 ≤ points remaining), plus the current top 10 ("defend it"). Payload-driven — use the Final Week panel, not the generic batch sender.',
     build: top10ContenderTemplate,
+  },
+  finalHype: {
+    id: 'finalHype',
+    label: 'Final Hype (last two games)',
+    description: 'Pre-Final engagement: semifinal story + finalists, league standings with each league\'s top 3, and conditional nudges (unpicked 3rd-place match; Final re-pick when a scorable team made it). Excludes anyone emailed in the last 24h at send time. Payload-driven — use the Final Week panel.',
+    build: finalHypeTemplate,
   },
   wcWrapped: {
     id: 'wcWrapped',

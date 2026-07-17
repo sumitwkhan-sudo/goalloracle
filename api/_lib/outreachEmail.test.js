@@ -8,7 +8,7 @@
 import { describe, test, expect } from 'vitest';
 import { TEMPLATES, buildEmail, buildCustomEmail, firstNameOf, ordinal } from './outreachEmail.js';
 
-const SIGN_OFF = '- Sumit, Founder of GoalOracle.io and Football Lover';
+const SIGN_OFF = '- Sumit, Founder of GoalOracle.io';
 const USER = { id: 'u1', displayName: 'Sam', email: 'sam@example.com' };
 
 describe('outreach email branding (B2a)', () => {
@@ -18,7 +18,7 @@ describe('outreach email branding (B2a)', () => {
 
       // Sign-off present, exactly once, in both parts.
       expect(html).toContain(SIGN_OFF);
-      expect((html.match(/Football Lover/g) || []).length).toBe(1);
+      expect((html.match(/Founder of GoalOracle\.io/g) || []).length).toBe(1);
       expect(text.trimEnd().endsWith(SIGN_OFF)).toBe(true);
 
       // Sign-off sits in the body, ABOVE the legal footer.

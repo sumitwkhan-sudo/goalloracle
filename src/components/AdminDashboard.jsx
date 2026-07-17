@@ -2460,6 +2460,21 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 </span>
               )}
             </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.6rem' }}>
+              <strong style={{ fontSize: '0.85rem' }}>🏟️ Final Hype (all players)</strong>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!!fwBusy} onClick={() => runFinalWeekEmail('finalHype', 'preview')}>
+                {fwBusy === 'finalHype' ? 'Working…' : 'Send me a preview'}
+              </button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!!fwBusy || !fwInfo.finalHype} title={!fwInfo.finalHype ? 'Preview first' : ''} onClick={() => runFinalWeekEmail('finalHype', 'send')}>
+                {fwQueued.finalHype ? `Queued ${fwQueued.finalHype.queued} ✓` : `Queue send${fwInfo.finalHype ? ` to ${fwInfo.finalHype.eligibleCount}` : ''}`}
+              </button>
+              {fwInfo.finalHype && (
+                <span className="form-hint" style={{ margin: 0 }}>
+                  {fwInfo.finalHype.finalists?.length === 2 ? `${fwInfo.finalHype.finalists.join(' vs ')} · ` : ''}
+                  {fwInfo.finalHype.excluded24h} skipped (emailed in last 24h)
+                </span>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <strong style={{ fontSize: '0.85rem' }}>🏆 World Cup Wrapped</strong>
               <button type="button" className="btn btn-secondary btn-sm" disabled={!!fwBusy} onClick={() => runFinalWeekEmail('wrapped', 'preview')}>
