@@ -257,8 +257,38 @@ export default async function handler(req, res) {
             blocking: getDownstreamMatchIds(matchId),
           });
         }
+        // Per-SIDE resolution: a matchup with one undecidable feeder still
+        // has a knowable half (e.g. Argentina is in qf-04 even while the
+        // Switzerland–Colombia winner is unknown). Resolve each side from its
+        // feeder independently so the admin cards can show the real country
+        // wherever one exists, with the client filling "Winner of M96"-style
+        // labels for the rest.
+        const winnerLoserOf = (feederId) => {
+          const t = resolved[feederId];
+          const r = results2[feederId];
+          if (!t || !r || r.completed !== true) return { winner: null, loser: null };
+          const side = determineWinnerFromResult(r);
+          if (side === 'home') return { winner: t.home, loser: t.away };
+          if (side === 'away') return { winner: t.away, loser: t.home };
+          return { winner: null, loser: null };
+        };
+        const sideTeam = (placeholder) => {
+          const mm = /^([WL])\s+(R32|R16|QF|SF)-?0*(\d+)$/i.exec(placeholder || '');
+          if (!mm) return null;
+          const feeder = `${mm[2].toLowerCase()}-${String(mm[3]).padStart(2, '0')}`;
+          const { winner, loser } = winnerLoserOf(feeder);
+          return mm[1].toUpperCase() === 'W' ? winner : loser;
+        };
         const teams = {};
-        for (const [matchId, t] of Object.entries(resolved)) teams[matchId] = { home: t.home, away: t.away };
+        for (const m of WORLD_CUP_MATCHES.filter((x) => x.isKnockout)) {
+          if (resolved[m.id]) {
+            teams[m.id] = { home: resolved[m.id].home, away: resolved[m.id].away };
+            continue;
+          }
+          const home = sideTeam(m.home);
+          const away = sideTeam(m.away);
+          if (home || away) teams[m.id] = { home: home || null, away: away || null };
+        }
         return res.status(200).json({ teams, blockers });
       } else if (type === 'deletionLog') {
         // Account-deletion audit (rows written by the deleteUser admin action

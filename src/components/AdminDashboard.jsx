@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
+import { koSlotLabel } from '../utils/bracketUtils';
 import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminKoResolution, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
@@ -1587,12 +1588,14 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
             {filteredMatches.map(m => {
               const r = matchResults[m.id];
               const isSelected = selMatch?.id === m.id;
-              // Real matchup overlay for knockout fixtures: once the bracket
-              // resolves who's actually playing, show the countries (with
-              // flags) instead of "W R16-07 vs W R16-08".
+              // Real matchup overlay for knockout fixtures: show the actual
+              // countries (with flags) wherever a side has resolved — even
+              // when the OTHER side hasn't ("Argentina vs Winner of M96") —
+              // instead of "W R16-07 vs W R16-08".
               const rt = m.isKnockout ? koRes?.teams?.[m.id] : null;
-              const homeName = rt?.home || m.home;
-              const awayName = rt?.away || m.away;
+              const slotLbl = m.isKnockout && (!rt?.home || !rt?.away) ? koSlotLabel(m.id) : null;
+              const homeName = rt?.home || slotLbl?.home || m.home;
+              const awayName = rt?.away || slotLbl?.away || m.away;
               const homeFlag = rt?.home ? (TEAM_COLORS[rt.home]?.flag || m.homeFlag) : m.homeFlag;
               const awayFlag = rt?.away ? (TEAM_COLORS[rt.away]?.flag || m.awayFlag) : m.awayFlag;
               return (
