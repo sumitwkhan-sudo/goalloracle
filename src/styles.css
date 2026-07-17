@@ -2763,6 +2763,41 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .logout-item:hover { background: rgba(255,59,92,0.06); }
 .logout-item:hover span, .logout-item:hover svg { color: var(--danger); }
 
+/* Tip jar (support-the-builder modal + placements) */
+.tipjar-footer-link { white-space: nowrap; }
+.tipjar-dialog { max-width: 420px; position: relative; text-align: center; }
+.tipjar-close {
+  position: absolute; top: 0.7rem; right: 0.7rem;
+  background: none; border: none; cursor: pointer; color: var(--text-sec);
+  padding: 4px; line-height: 1;
+}
+.tipjar-close:hover { color: var(--text); }
+.tipjar-emoji { font-size: 2.4rem; margin-bottom: 0.4rem; }
+.tipjar-dialog .confirm-dialog-msg { text-align: left; }
+.tipjar-card-btn {
+  width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+.tipjar-crypto {
+  text-align: left; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.7rem 0.8rem; margin-bottom: 0.9rem;
+}
+.tipjar-crypto-label {
+  display: block; font-family: var(--mono); font-size: 0.62rem;
+  text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-sec);
+  margin-bottom: 0.45rem;
+}
+.tipjar-crypto-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.tipjar-addr { font-family: var(--mono); font-size: 0.82rem; color: var(--text); }
+.tipjar-fineprint { margin: 0; font-size: 0.72rem; color: var(--text-sec); line-height: 1.5; }
+.tipjar-inline {
+  text-align: left; background: rgba(255, 184, 0, 0.07);
+  border: 1px solid rgba(255, 184, 0, 0.28); border-radius: 12px;
+  padding: 0.9rem 1rem; margin-bottom: 1.1rem;
+}
+.tipjar-inline p { margin: 0 0 0.6rem; font-size: 0.86rem; line-height: 1.55; color: var(--text); }
+.tipjar-inline .btn { display: inline-flex; align-items: center; gap: 0.35rem; }
+
 /* Survey thank-you page (/next — Wrapped email one-tap survey) */
 .survey-thanks {
   min-height: 70vh; display: flex; align-items: flex-start; justify-content: center;

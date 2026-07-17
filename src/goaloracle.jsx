@@ -60,6 +60,7 @@ import QuickActionsTiles from './components/QuickActionsTiles';
 import FontPreview from './pages/FontPreview';
 import FirstPickPreview from './pages/FirstPickPreview';
 import SurveyThanks from './pages/SurveyThanks';
+import TipJar from './components/TipJar';
 import GroupRedesignPreview from './pages/GroupRedesignPreview';
 import Standings from './pages/Standings';
 import CreateLeagueForm from './components/CreateLeagueForm';
@@ -2863,6 +2864,8 @@ const GoalOracle = () => {
             <button type="button" className="home-footer-strip-link" onClick={() => nav('terms')}>Terms</button>
             <span className="home-footer-strip-divider">·</span>
             <button type="button" className="home-footer-strip-link" onClick={() => nav('privacy')}>Privacy</button>
+            <span className="home-footer-strip-divider">·</span>
+            <TipJar variant="footer" />
           </div>
           <InviteFriendsModal
             open={inviteOpen}
@@ -3140,6 +3143,7 @@ const GoalOracle = () => {
               <a onClick={() => nav('officialRules')}>Official Rules</a>
               <a onClick={() => nav('terms')}>Terms</a>
               <a onClick={() => nav('privacy')}>Privacy</a>
+              <TipJar variant="footer" />
             </div>
             <div className="footer-copy">© 2026 Suraam, LLC &middot; A free prediction contest for the FIFA World Cup 2026 &middot; Not affiliated with FIFA</div>
             <div className="footer-disclaimer" style={{fontSize: '11px', opacity: 0.5, maxWidth: '600px', margin: '8px auto 0', lineHeight: 1.4}}>
@@ -4593,6 +4597,7 @@ const GoalOracle = () => {
               <Shield size={16} />
               <span>Privacy</span>
             </button>
+            <TipJar variant="menu" />
             <div className="dropdown-divider"></div>
             <button type="button" className="dropdown-item logout-item" onClick={e => { e.stopPropagation(); setOpen(false); logout(); nav('landing'); }}>
               <LogOut size={16} />

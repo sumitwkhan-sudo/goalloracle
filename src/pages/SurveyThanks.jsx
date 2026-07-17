@@ -9,6 +9,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle, Send } from 'lucide-react';
+import TipJar from '../components/TipJar';
 
 const OPTION_LABELS = {
   cl: 'Champions League bracket',
@@ -104,6 +105,8 @@ export default function SurveyThanks({ onGoHome }) {
             </>
           )}
         </div>
+
+        <TipJar variant="inline" />
 
         <button type="button" className="btn btn-ghost survey-thanks-home" onClick={onGoHome}>
           ← Back to GoalOracle
