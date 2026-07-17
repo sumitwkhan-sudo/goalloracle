@@ -16,6 +16,7 @@
 
 import crypto from 'crypto';
 import { LAUNCH_DATE, SPONSOR_ADDRESS, SPONSOR_DBA, PRIZES } from '../../src/config/legal.js';
+import { TIP_STRIPE_URL } from '../../src/config/tips.js';
 import { stageLockTimeUtc } from '../../src/utils/stageLock.js';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
@@ -1164,6 +1165,12 @@ function wcWrappedTemplate({ user, ctx }) {
               <p style="margin:0 0 10px;font-size:15px;font-weight:700;color:#0a0a0f;">One question before you go — what should GoalOracle do next?</p>
               <p style="margin:0 0 6px;">${surveyHtml}</p>
               <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6e6e80;">Tap one — that's the whole survey. It decides what we build.</p>
+              ${TIP_STRIPE_URL ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;width:100%;">
+                <tr><td style="background:#fffaf0;border:1px solid #f0e0b8;border-radius:12px;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#3c3c43;">💛 One more thing: GoalOracle was built by <strong>one person</strong>, for the love of the game — no company, no ads, free to play. If it made your World Cup better, a small tip keeps the lights on for the next tournament.</p>
+                  <a href="${TIP_STRIPE_URL}" style="display:inline-block;padding:10px 18px;font-size:14px;font-weight:700;color:#0a0a0f;background:#ffffff;border:1.5px solid #0a0a0f;border-radius:10px;text-decoration:none;">☕ Leave a small tip</a>
+                </td></tr>
+              </table>` : ''}
             </td>
           </tr>
           ${brandFooter(unsubUrl)}
@@ -1185,7 +1192,9 @@ See the final leaderboard: ${ctaUrl}
 
 What should GoalOracle do next? Tap one:
 ${surveyOptions.map(([k, label]) => `- ${label}: ${surveyBase}${k}`).join('\n')}
-
+${TIP_STRIPE_URL ? `
+💛 One more thing: GoalOracle was built by one person, for the love of the game. If it made your World Cup better, a small tip keeps the lights on for the next tournament: ${TIP_STRIPE_URL}
+` : ''}
 Unsubscribe: ${unsubUrl}
 ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
 
