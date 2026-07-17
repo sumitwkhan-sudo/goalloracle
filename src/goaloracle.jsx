@@ -59,6 +59,7 @@ import HomeHeroCard from './components/HomeHeroCard';
 import QuickActionsTiles from './components/QuickActionsTiles';
 import FontPreview from './pages/FontPreview';
 import FirstPickPreview from './pages/FirstPickPreview';
+import SurveyThanks from './pages/SurveyThanks';
 import GroupRedesignPreview from './pages/GroupRedesignPreview';
 import Standings from './pages/Standings';
 import CreateLeagueForm from './components/CreateLeagueForm';
@@ -135,6 +136,7 @@ function ViewMeta({ view }) {
 // callback params (e.g. ?privy_oauth_code=) survive.
 const PATH_TO_VIEW = {
   '/': 'landing',
+  '/next': 'surveyThanks',
   '/faq': 'faq',
   '/terms': 'terms',
   '/official-rules': 'officialRules',
@@ -5625,6 +5627,7 @@ const GoalOracle = () => {
 
       {view === 'fontPreview' && <FontPreview />}
       {view === 'firstPickPreview' && <FirstPickPreview />}
+      {view === 'surveyThanks' && <SurveyThanks onGoHome={() => nav('landing')} />}
       {view === 'groupRedesignPreview' && <GroupRedesignPreview />}
       {view === 'landing' && <LandingView renderRef={landingRenderRef} />}
       {view === 'dashboard' && (

@@ -964,8 +964,19 @@ function wcWrappedTemplate({ user, ctx }) {
     : isTop10
       ? `Out of ${total ? total.toLocaleString() : 'thousands of'} players worldwide, you finished <strong>#${rank}</strong>. That's the top ${percentile ?? 1}% — one of the ten best brackets on the planet.`
       : rank != null
-        ? `A whole World Cup, called in advance. Here's how your bracket held up.`
-        : `A whole World Cup, called in advance. Here's your recap.`;
+        ? `What a tournament. A month of football, a whole World Cup called in advance — here's how your bracket held up.`
+        : `What a tournament. A month of football, a whole World Cup called in advance — here's your recap.`;
+
+  // Champion banner — the tournament's headline moment, for every variant.
+  const championBanner = c.finalWinner
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;width:100%;">
+        <tr><td align="center" style="background:linear-gradient(135deg,#1a1400,#3d2f00);border:1px solid #FFC857;border-radius:12px;padding:18px 20px;">
+          <div style="font-size:30px;line-height:1;margin-bottom:6px;">🏆</div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;color:#FFC857;">${escape(c.finalWinner)} are World Champions!</div>
+          ${c.finalRunnerUp ? `<div style="margin-top:4px;font-size:13px;color:#d8c98f;">defeating ${escape(c.finalRunnerUp)} in the Final</div>` : ''}
+        </td></tr>
+      </table>`
+    : '';
 
   const standingRows = [];
   if (rank != null && total) {
@@ -991,7 +1002,10 @@ function wcWrappedTemplate({ user, ctx }) {
   }
 
   const ctaUrl = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=wc_wrapped`;
-  const surveyBase = `${PROD_ORIGIN}/?utm_source=email&utm_medium=lifecycle&utm_campaign=wrapped_survey&utm_content=`;
+  // Survey links land on /next — a thank-you page that RECORDS the vote
+  // (POST /api/survey, deduped per user via u=) and offers a freeform
+  // message box. Never link the bare homepage: the vote must be captured.
+  const surveyBase = `${PROD_ORIGIN}/next?u=${encodeURIComponent(user.id)}&utm_source=email&utm_medium=lifecycle&utm_campaign=wrapped_survey&vote=`;
   const unsubUrl = unsubscribeUrl(user.id);
   const surveyOptions = [
     ['cl', 'Champions League bracket'],
@@ -1021,6 +1035,7 @@ function wcWrappedTemplate({ user, ctx }) {
               <div style="font-size:40px;line-height:1;margin:0 0 10px;">${prize ? prize.medal : isTop10 ? '🏅' : '⚽'}</div>
               <h1 style="margin:0 0 16px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">${escape(headline)}</h1>
               <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">${intro}</p>
+              ${championBanner}
               ${standingRows.length ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;width:100%;">
                 <tr><td style="background:#f5f6f8;border-left:4px solid ${prize ? '#FFC857' : '#00c853'};border-radius:10px;padding:14px 18px;font-size:15px;line-height:2;color:#0a0a0f;">${standingRows.join('<br/>')}</td></tr>
               </table>` : ''}
@@ -1044,10 +1059,13 @@ function wcWrappedTemplate({ user, ctx }) {
 </body></html>`;
 
   const textStandings = standingRows.map((r) => r.replace(/<[^>]+>/g, '')).join('\n');
+  const championText = c.finalWinner
+    ? `\n🏆 ${c.finalWinner} are World Champions!${c.finalRunnerUp ? ` (defeating ${c.finalRunnerUp} in the Final)` : ''}\n`
+    : '';
   const text = `${headline.replace(/<[^>]+>/g, '')}
 
 ${intro.replace(/<[^>]+>/g, '')}
-${textStandings ? `\n${textStandings}\n` : ''}${bestCallLine ? `\n${bestCallLine.replace(/<[^>]+>/g, '')}\n` : ''}${championLine ? `\n${championLine.replace(/<[^>]+>/g, '')}\n` : ''}
+${championText}${textStandings ? `\n${textStandings}\n` : ''}${bestCallLine ? `\n${bestCallLine.replace(/<[^>]+>/g, '')}\n` : ''}${championLine ? `\n${championLine.replace(/<[^>]+>/g, '')}\n` : ''}
 See the final leaderboard: ${ctaUrl}
 
 What should GoalOracle do next? Tap one:

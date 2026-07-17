@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { koSlotLabel } from '../utils/bracketUtils';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminKoResolution, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminKoResolution, fetchAdminSurveyVotes, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -102,6 +102,19 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [digestBusy, setDigestBusy] = useState(false);
   const [digestInfo, setDigestInfo] = useState(null); // { eligibleCount, autoRecap, pointsRemaining } after preview
   const [digestQueued, setDigestQueued] = useState(null); // { queued, chunks } after send
+  // "What next?" survey results (Wrapped email votes + comments).
+  const [surveyRes, setSurveyRes] = useState(null);
+  const [surveyBusy, setSurveyBusy] = useState(false);
+  const loadSurveyResults = async () => {
+    setSurveyBusy(true);
+    try {
+      setSurveyRes(await fetchAdminSurveyVotes());
+    } catch (e) {
+      notify(e?.message || 'Could not load survey results', 'error');
+    } finally {
+      setSurveyBusy(false);
+    }
+  };
   // Final-week emails (top-10 contender + Wrapped) panel state, keyed by email.
   const [fwBusy, setFwBusy] = useState(null); // 'top10' | 'wrapped' | null
   const [fwInfo, setFwInfo] = useState({}); // { top10: previewResp, wrapped: previewResp }
@@ -2469,6 +2482,29 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 </span>
               )}
             </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>
+              <strong style={{ fontSize: '0.85rem' }}>🗳️ Survey results</strong>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={surveyBusy} onClick={loadSurveyResults}>
+                {surveyBusy ? 'Loading…' : surveyRes ? 'Refresh' : 'Load results'}
+              </button>
+              {surveyRes && (
+                <span className="form-hint" style={{ margin: 0 }}>
+                  {surveyRes.totalVotes} vote{surveyRes.totalVotes === 1 ? '' : 's'} — CL {surveyRes.counts.cl} · EPL {surveyRes.counts.epl} · Cricket {surveyRes.counts.cricket} · WC2030 {surveyRes.counts.wc2030} · {surveyRes.comments.length} comment{surveyRes.comments.length === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+            {surveyRes && surveyRes.comments.length > 0 && (
+              <div style={{ marginTop: '0.5rem', maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '0.5rem 0.7rem' }}>
+                {surveyRes.comments.map((cm, i) => (
+                  <p key={i} style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                    <span style={{ color: 'var(--text-sec)' }}>
+                      {cm.createdAtMs ? new Date(cm.createdAtMs).toLocaleString() : ''}{cm.vote ? ` · voted ${cm.vote}` : ''}:
+                    </span>{' '}
+                    {cm.comment}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="admin-outreach-grid">

@@ -837,6 +837,11 @@ export async function fetchAdminKoResolution() {
   return await apiCall('admin?type=koResolution');
 }
 
+// "What next?" survey results (Wrapped email votes + freeform comments).
+export async function fetchAdminSurveyVotes() {
+  return await apiCall('admin?type=surveyVotes');
+}
+
 // Final-week email runner: email = 'top10' (pre-Final contender alert) or
 // 'wrapped' (post-Final recap, send blocked until the Final is verified).
 export async function adminFinalWeekEmailRun(email, phase) {

@@ -283,6 +283,7 @@ export async function buildWrappedData(db) {
       championOutcome,
       championOutcomeLabel: championOutcome && ROUND_LABEL[championOutcome] ? ROUND_LABEL[championOutcome] : null,
       finalWinner,
+      finalRunnerUp: finalLoser,
     };
   };
 

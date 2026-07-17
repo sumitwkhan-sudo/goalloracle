@@ -2763,6 +2763,35 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .logout-item:hover { background: rgba(255,59,92,0.06); }
 .logout-item:hover span, .logout-item:hover svg { color: var(--danger); }
 
+/* Survey thank-you page (/next — Wrapped email one-tap survey) */
+.survey-thanks {
+  min-height: 70vh; display: flex; align-items: flex-start; justify-content: center;
+  padding: 3rem 1rem;
+}
+.survey-thanks-card {
+  width: 100%; max-width: 480px;
+  background: var(--bg-card, var(--bg-elev));
+  border: 1px solid var(--border); border-radius: 16px;
+  padding: 2rem 1.6rem; text-align: center;
+}
+.survey-thanks-emoji { font-size: 2.6rem; margin-bottom: 0.6rem; }
+.survey-thanks-card h1 { margin: 0 0 0.6rem; font-size: 1.5rem; letter-spacing: -0.02em; }
+.survey-thanks-sub { margin: 0 0 1.4rem; font-size: 0.92rem; color: var(--text-sec); line-height: 1.6; }
+.survey-thanks-form { text-align: left; margin-bottom: 1.2rem; }
+.survey-thanks-form label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.45rem; }
+.survey-thanks-form textarea {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  padding: 0.65rem 0.75rem; margin-bottom: 0.6rem;
+  background: var(--bg); color: var(--text);
+  border: 1.5px solid var(--border); border-radius: 10px;
+  font-family: var(--font); font-size: 0.88rem; line-height: 1.5;
+}
+.survey-thanks-form textarea:focus { outline: none; border-color: var(--primary); }
+.survey-thanks-sent { display: flex; align-items: center; gap: 0.4rem; color: var(--success); font-size: 0.88rem; font-weight: 600; }
+.survey-thanks-err { color: var(--danger); font-size: 0.8rem; margin: 0 0 0.5rem; }
+.survey-thanks-home { margin-bottom: 0.8rem; }
+.survey-thanks-signoff { margin: 0; font-size: 0.8rem; color: var(--text-sec); }
+
 /* Knockout-resolution blocker banner (admin Match Results) */
 .admin-ko-blocker {
   display: flex; gap: 0.6rem; align-items: flex-start;

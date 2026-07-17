@@ -213,6 +213,29 @@ export default async function handler(req, res) {
         }
 
         return res.status(200).json({ runs, templateStats });
+      } else if (type === 'surveyVotes') {
+        // "What next?" survey results (votes recorded by /api/survey from the
+        // Wrapped email's /next page). Vote docs are one-per-user (doc id
+        // vote__{uid}) so counts are unique voters; comments listed newest
+        // first for the operator to read.
+        const snap3 = await db.collection('surveyVotes').get();
+        const counts = { cl: 0, epl: 0, cricket: 0, wc2030: 0 };
+        const comments = [];
+        snap3.forEach((d) => {
+          const v = d.data();
+          if (v.type === 'vote' && counts[v.vote] !== undefined) counts[v.vote] += 1;
+          if (v.type === 'comment' && v.comment) {
+            const ts = v.createdAt;
+            comments.push({
+              comment: v.comment,
+              vote: v.vote || null,
+              uid: v.uid || null,
+              createdAtMs: ts?._seconds ? ts._seconds * 1000 : (ts?.toMillis?.() || null),
+            });
+          }
+        });
+        comments.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+        return res.status(200).json({ counts, totalVotes: Object.values(counts).reduce((s, n) => s + n, 0), comments: comments.slice(0, 100) });
       } else if (type === 'koResolution') {
         // Knockout-resolution diagnostic. Answers "why is this knockout match
         // stuck on placeholders / not auto-verifying?" in one shot:
