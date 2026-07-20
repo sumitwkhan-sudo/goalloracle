@@ -3507,6 +3507,7 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                     <th>User</th>
                     <th>Email</th>
                     <th>How</th>
+                    <th>Reason</th>
                     <th>Wiped</th>
                     <th></th>
                   </tr>
@@ -3523,6 +3524,16 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                         {r.action === 'self_delete_account'
                           ? <span style={{ color: 'var(--amber)', fontWeight: 600 }}>Self</span>
                           : <span style={{ color: 'var(--cyan)', fontWeight: 600 }} title={r.adminId || ''}>Admin{r.adminName ? ` (${r.adminName})` : ''}</span>}
+                      </td>
+                      <td style={{ color: 'var(--text-sec)' }}>
+                        {({
+                          tournament_over: 'Tournament over',
+                          too_many_emails: 'Too many emails',
+                          privacy: 'Privacy',
+                          not_fun: "Wasn't for them",
+                          duplicate_account: 'Duplicate account',
+                          other: 'Other',
+                        })[r.reason] || '—'}
                       </td>
                       <td style={{ color: 'var(--text-sec)' }}>
                         {r.deleted

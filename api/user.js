@@ -357,6 +357,11 @@ async function handleSelfDelete(req, res) {
     if (body.confirm !== 'DELETE') {
       return res.status(400).json({ error: 'Missing confirmation' });
     }
+    // Exit-reason survey (dropdown in the delete modal). Whitelisted keys
+    // only; anything else is stored as null rather than rejecting — the
+    // reason is telemetry, never a blocker on a consented deletion.
+    const REASONS = new Set(['tournament_over', 'too_many_emails', 'privacy', 'not_fun', 'duplicate_account', 'other']);
+    const reason = typeof body.reason === 'string' && REASONS.has(body.reason) ? body.reason : null;
 
     const snap = await db.collection('users').doc(userId).get();
     if (!snap.exists) return res.status(404).json({ error: 'Account not found' });
@@ -375,6 +380,7 @@ async function handleSelfDelete(req, res) {
       targetEmail: user.email || null,
       targetDisplayName: user.displayName || null,
       adminId: userId,
+      reason,
       timestamp: FieldValue.serverTimestamp(),
       deleted,
     });

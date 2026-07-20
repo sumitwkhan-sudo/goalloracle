@@ -4329,16 +4329,17 @@ const GoalOracle = () => {
     // so closing the dropdown doesn't unmount an in-flight delete.
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteInput, setDeleteInput] = useState('');
+    const [deleteReason, setDeleteReason] = useState('');
     const [deleting, setDeleting] = useState(false);
     const walletAddr = walletAddress;
     const isValidEvm = /^0x[a-fA-F0-9]{40}$/.test(walletInput.trim());
 
     const handleDeleteAccount = async () => {
-      if (deleteInput.trim() !== 'DELETE' || deleting) return;
+      if (deleteInput.trim() !== 'DELETE' || !deleteReason || deleting) return;
       setDeleting(true);
       try {
-        await deleteMyAccount();
-        track('account_deleted', {});
+        await deleteMyAccount(deleteReason);
+        track('account_deleted', { reason: deleteReason });
         setDeleteOpen(false);
         notify('Your account has been permanently deleted.');
         logout();
@@ -4606,7 +4607,7 @@ const GoalOracle = () => {
             <button
               type="button"
               className="dropdown-item dropdown-item-danger"
-              onClick={e => { e.stopPropagation(); setOpen(false); setDeleteInput(''); setDeleteOpen(true); }}
+              onClick={e => { e.stopPropagation(); setOpen(false); setDeleteInput(''); setDeleteReason(''); setDeleteOpen(true); }}
             >
               <Trash2 size={16} />
               <span>Delete account</span>
@@ -4626,6 +4627,24 @@ const GoalOracle = () => {
                 <li>You lose any prize eligibility for this tournament.</li>
                 <li>Leagues you created keep running for their members — without you.</li>
               </ul>
+              <label className="delete-account-label" htmlFor="delete-account-reason">
+                Why are you leaving?
+              </label>
+              <select
+                id="delete-account-reason"
+                className="delete-account-input delete-account-select"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                disabled={deleting}
+              >
+                <option value="" disabled>Select a reason…</option>
+                <option value="tournament_over">The World Cup is over</option>
+                <option value="too_many_emails">Too many emails</option>
+                <option value="privacy">Privacy — I want my data removed</option>
+                <option value="not_fun">It wasn&rsquo;t for me</option>
+                <option value="duplicate_account">I have another account</option>
+                <option value="other">Other</option>
+              </select>
               <label className="delete-account-label" htmlFor="delete-account-confirm">
                 Type <strong>DELETE</strong> to confirm
               </label>
@@ -4646,7 +4665,8 @@ const GoalOracle = () => {
                   type="button"
                   className="btn btn-danger"
                   onClick={handleDeleteAccount}
-                  disabled={deleteInput.trim() !== 'DELETE' || deleting}
+                  disabled={deleteInput.trim() !== 'DELETE' || !deleteReason || deleting}
+                  title={!deleteReason ? 'Select a reason first' : ''}
                 >
                   {deleting ? 'Deleting…' : 'Delete my account'}
                 </button>

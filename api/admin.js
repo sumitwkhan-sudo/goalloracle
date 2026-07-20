@@ -305,6 +305,7 @@ export default async function handler(req, res) {
             targetEmail: data.targetEmail || null,
             targetDisplayName: data.targetDisplayName || null,
             adminId: data.adminId || null,
+            reason: data.reason || null,
             deleted: data.deleted || null,
             timestampMs: ts?._seconds ? ts._seconds * 1000 : (ts?.toMillis?.() || null),
             recoveredAtMs: rts?._seconds ? rts._seconds * 1000 : (rts?.toMillis?.() || null),

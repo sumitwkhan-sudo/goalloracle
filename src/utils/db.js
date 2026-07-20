@@ -600,8 +600,8 @@ export async function resetSimplePrediction(userId, leagueId) {
 // wipes the user doc, all predictions, league memberships, and the Firebase
 // Auth record — irreversible. The literal confirm string is required by the
 // endpoint so nothing can trigger deletion without the typed confirmation UX.
-export async function deleteMyAccount() {
-  return await apiCall('user', 'DELETE', { confirm: 'DELETE' });
+export async function deleteMyAccount(reason = null) {
+  return await apiCall('user', 'DELETE', { confirm: 'DELETE', reason });
 }
 
 export async function migrateAnonPicks(anonIdToken) {
