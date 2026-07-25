@@ -418,3 +418,41 @@ export async function buildFinalHypeData(db) {
 
   return { eligible, ctxFor, pointsRemaining, finalists, sfStories, globalTotal: global.total };
 }
+
+// ── Winner payout flows: top-3 resolution for notify + receipt ─────────────
+// Small shared lookup: the final top 3 from the materialized leaderboard
+// (with 2 alternates for the forfeiture path), each with email + on-file
+// wallet, plus whether the Final result is verified (both winner emails
+// should only ever fire after that).
+export async function buildWinnerData(db, admin) {
+  let board = await readLeaderboardCache(db, 'global-simple', 60 * 60 * 1000);
+  if (!board) board = await rebuildLeaderboardCache(db, admin, 'global-simple');
+  const rows = (board?.leaderboard || []).filter((r) => r.hasSubmitted);
+  const total = rows.length;
+  const top = rows.slice(0, 5);
+  const snaps = top.length ? await db.getAll(...top.map((r) => db.collection('users').doc(r.userId))) : [];
+  const usersById = {};
+  snaps.forEach((s) => { if (s.exists) usersById[s.id] = s.data(); });
+  const finalSnap = await db.collection('matchResults').doc('final').get();
+  const finalDecided = finalSnap.exists && finalSnap.data().completed === true;
+  const winners = top.map((r, i) => {
+    const u = usersById[r.userId] || {};
+    return {
+      place: i + 1,
+      userId: r.userId,
+      displayName: u.displayName || r.displayName || r.userId.slice(0, 8),
+      email: u.email || null,
+      emailOptOut: u.emailOptOut === true,
+      points: r.totalScore || 0,
+      walletAddress: u.walletAddress || null,
+      walletLast6: u.walletAddress ? u.walletAddress.slice(-6) : null,
+    };
+  });
+  return { winners, total, finalDecided };
+}
+
+export const RECEIPT_EXPLORERS = {
+  polygon: { label: 'Polygon', txUrl: (h) => `https://polygonscan.com/tx/${h}` },
+  base: { label: 'Base', txUrl: (h) => `https://basescan.org/tx/${h}` },
+  ethereum: { label: 'Ethereum', txUrl: (h) => `https://etherscan.io/tx/${h}` },
+};

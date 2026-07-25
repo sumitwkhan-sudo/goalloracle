@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { koSlotLabel } from '../utils/bracketUtils';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminKoResolution, fetchAdminSurveyVotes, fetchAdminWinnerEligibility, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, adminWinnerReceiptRun, fetchAdminKoResolution, fetchAdminSurveyVotes, fetchAdminWinnerEligibility, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -102,6 +102,32 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [digestBusy, setDigestBusy] = useState(false);
   const [digestInfo, setDigestInfo] = useState(null); // { eligibleCount, autoRecap, pointsRemaining } after preview
   const [digestQueued, setDigestQueued] = useState(null); // { queued, chunks } after send
+  // Winner payment receipt form (place + network + tx hash).
+  const [receipt, setReceipt] = useState({ place: '1', network: 'polygon', currency: 'USDC', txHash: '' });
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [receiptSent, setReceiptSent] = useState({}); // { [place]: explorerUrl }
+  const runWinnerReceipt = async (phase) => {
+    const hash = receipt.txHash.trim();
+    if (!/^0x[a-fA-F0-9]{64}$/.test(hash)) {
+      notify('Enter the full transaction hash (starts 0x, 66 characters).', 'error');
+      return;
+    }
+    if (phase === 'send' && !window.confirm(`Send the payment receipt for place #${receipt.place} (${receipt.network}, tx …${hash.slice(-8)}) to the winner?`)) return;
+    setReceiptBusy(true);
+    try {
+      const r = await adminWinnerReceiptRun({ place: Number(receipt.place), txHash: hash, network: receipt.network, currency: receipt.currency, phase });
+      if (phase === 'preview') {
+        notify(r.sent ? `Receipt preview sent to ${r.to}` : `Preview failed: ${r.error || 'unknown'}`, r.sent ? 'success' : 'error');
+      } else {
+        setReceiptSent((s) => ({ ...s, [receipt.place]: r.explorerUrl }));
+        notify(r.sent ? `Receipt sent to ${r.winner.displayName} (${r.winner.email})` : `Send failed: ${r.error || 'unknown'}`, r.sent ? 'success' : 'error');
+      }
+    } catch (e) {
+      notify(e?.message || 'Receipt failed', 'error');
+    } finally {
+      setReceiptBusy(false);
+    }
+  };
   // Winner prize-eligibility screen (top 3 + alternates).
   const [winnerElig, setWinnerElig] = useState(null);
   const [winnerEligBusy, setWinnerEligBusy] = useState(false);
@@ -133,10 +159,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [fwInfo, setFwInfo] = useState({}); // { top10: previewResp, wrapped: previewResp }
   const [fwQueued, setFwQueued] = useState({}); // { top10: sendResp, wrapped: sendResp }
   const runFinalWeekEmail = async (email, phase) => {
+    const labels = { top10: 'Top-10 contender alert', wrapped: 'World Cup Wrapped', finalHype: 'Final Hype', winners: 'Winner notifications' };
     if (phase === 'send') {
-      const n = fwInfo[email]?.eligibleCount ?? '?';
-      const label = email === 'top10' ? 'Top-10 contender alert' : 'World Cup Wrapped';
-      if (!window.confirm(`Queue the ${label} to ${n} players?`)) return;
+      const n = email === 'winners' ? 'the top 3' : `${fwInfo[email]?.eligibleCount ?? '?'} players`;
+      if (!window.confirm(`Send the ${labels[email] || email} to ${n}?`)) return;
     }
     setFwBusy(email);
     try {
@@ -146,7 +172,12 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
         notify(r.sent ? `Preview sent to ${r.to}` : `Preview failed: ${r.error || 'unknown'}`, r.sent ? 'success' : 'error');
       } else {
         setFwQueued((s) => ({ ...s, [email]: r }));
-        notify(`Queued ${r.queued} email${r.queued === 1 ? '' : 's'}${r.chunks ? ` in ${r.chunks} chunk${r.chunks === 1 ? '' : 's'}` : ''}.`);
+        if (Array.isArray(r.results)) {
+          const okCount = r.results.filter((x) => x.sent).length;
+          notify(`Winner notifications: ${okCount}/${r.results.length} sent.`, okCount === r.results.length ? 'success' : 'error');
+        } else {
+          notify(`Queued ${r.queued} email${r.queued === 1 ? '' : 's'}${r.chunks ? ` in ${r.chunks} chunk${r.chunks === 1 ? '' : 's'}` : ''}.`);
+        }
       }
     } catch (e) {
       notify(e?.message || 'Failed', 'error');
@@ -2558,6 +2589,55 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 </table>
               </div>
             )}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>
+              <strong style={{ fontSize: '0.85rem' }}>✉️ Winner notifications (top 3)</strong>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!!fwBusy} onClick={() => runFinalWeekEmail('winners', 'preview')}>
+                {fwBusy === 'winners' ? 'Working…' : 'Send me a preview'}
+              </button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!!fwBusy || !fwInfo.winners || fwInfo.winners.finalDecided === false} title={!fwInfo.winners ? 'Preview first' : fwInfo.winners.finalDecided === false ? 'Blocked until the Final is verified' : ''} onClick={() => runFinalWeekEmail('winners', 'send')}>
+                {fwQueued.winners ? 'Sent ✓' : 'Send to winners'}
+              </button>
+              {fwInfo.winners?.winners && (
+                <span className="form-hint" style={{ margin: 0 }}>
+                  {fwInfo.winners.winners.map((w) => `${['🥇','🥈','🥉'][w.place - 1]} ${w.displayName}${w.walletLast6 ? ` (wallet …${w.walletLast6})` : ' (no wallet — will be asked)'}`).join(' · ')}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>
+              <strong style={{ fontSize: '0.85rem' }}>🧾 Payment receipt</strong>
+              <select className="input-field" style={{ width: 'auto', padding: '0.3rem 0.5rem' }} value={receipt.place} onChange={(e) => setReceipt({ ...receipt, place: e.target.value })} disabled={receiptBusy}>
+                <option value="1">🥇 1st ($150)</option>
+                <option value="2">🥈 2nd ($100)</option>
+                <option value="3">🥉 3rd ($50)</option>
+              </select>
+              <select className="input-field" style={{ width: 'auto', padding: '0.3rem 0.5rem' }} value={receipt.network} onChange={(e) => setReceipt({ ...receipt, network: e.target.value })} disabled={receiptBusy}>
+                <option value="polygon">Polygon</option>
+                <option value="base">Base</option>
+                <option value="ethereum">Ethereum</option>
+              </select>
+              <select className="input-field" style={{ width: 'auto', padding: '0.3rem 0.5rem' }} value={receipt.currency} onChange={(e) => setReceipt({ ...receipt, currency: e.target.value })} disabled={receiptBusy}>
+                <option value="USDC">USDC</option>
+                <option value="USDG">USDG</option>
+              </select>
+              <input
+                type="text"
+                className="input-field"
+                style={{ width: 280, padding: '0.3rem 0.5rem', fontFamily: 'var(--mono)', fontSize: '0.75rem' }}
+                placeholder="0x… transaction hash (66 chars)"
+                value={receipt.txHash}
+                onChange={(e) => setReceipt({ ...receipt, txHash: e.target.value })}
+                disabled={receiptBusy}
+              />
+              <button type="button" className="btn btn-secondary btn-sm" disabled={receiptBusy} onClick={() => runWinnerReceipt('preview')}>
+                {receiptBusy ? 'Working…' : 'Preview to me'}
+              </button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={receiptBusy} onClick={() => runWinnerReceipt('send')}>
+                {receiptSent[receipt.place] ? 'Sent ✓ (re-send)' : 'Send receipt'}
+              </button>
+              {receiptSent[receipt.place] && (
+                <a href={receiptSent[receipt.place]} target="_blank" rel="noopener noreferrer" className="form-hint" style={{ margin: 0 }}>view tx ↗</a>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>
               <strong style={{ fontSize: '0.85rem' }}>🗳️ Survey results</strong>
               <button type="button" className="btn btn-ghost btn-sm" disabled={surveyBusy} onClick={loadSurveyResults}>

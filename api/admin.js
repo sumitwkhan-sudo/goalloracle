@@ -2674,10 +2674,10 @@ export default async function handler(req, res) {
       // the Final having a verified, decided result so it can never fire
       // with stale ranks.
       const { email, phase = 'preview' } = req.body;
-      if (email !== 'top10' && email !== 'wrapped' && email !== 'finalHype') {
-        return res.status(400).json({ error: "email must be 'top10', 'wrapped' or 'finalHype'" });
+      if (email !== 'top10' && email !== 'wrapped' && email !== 'finalHype' && email !== 'winners') {
+        return res.status(400).json({ error: "email must be 'top10', 'wrapped', 'finalHype' or 'winners'" });
       }
-      const { buildTop10ContenderData, buildWrappedData, buildFinalHypeData } = await import('./_lib/finalWeekEmails.js');
+      const { buildTop10ContenderData, buildWrappedData, buildFinalHypeData, buildWinnerData } = await import('./_lib/finalWeekEmails.js');
       const { buildEmail, sendOutreachEmail } = await import('./_lib/outreachEmail.js');
 
       const adminSnap = await db.collection('users').doc(userId).get();
@@ -2694,6 +2694,55 @@ export default async function handler(req, res) {
         snap.forEach((d) => { const u = d.data().userId; if (u) uids.add(u); });
         return uids;
       };
+
+      if (email === 'winners') {
+        // Formal winner notifications (top 3) per Official Rules §8.
+        // Direct sends (n=3) with reply-to support@ — winners must be able
+        // to reply with wallet details. Send blocked until the Final result
+        // is verified. Each send is audit-logged (the notification date
+        // starts the response/forfeit clocks).
+        const data = await buildWinnerData(db, admin);
+        const top3 = data.winners.slice(0, 3);
+        if (phase === 'preview') {
+          if (!adminUser.email) return res.status(400).json({ error: 'Your admin account has no email to preview to.' });
+          const w = top3[0];
+          const ctx = w ? { place: 1, total: data.total, walletLast6: w.walletLast6 } : { place: 1, total: data.total, walletLast6: null };
+          const { subject, html, text } = buildEmail('winnerNotification', { user: adminUser, ctx });
+          const r = await sendOutreachEmail({ to: adminUser.email, subject: `[PREVIEW] ${subject}`, html, text, replyTo: 'support@goaloracle.io' });
+          return res.status(200).json({
+            phase, sent: r.sent, error: r.error || null, to: adminUser.email,
+            finalDecided: data.finalDecided,
+            winners: top3.map((x) => ({ place: x.place, displayName: x.displayName, email: x.email, points: x.points, walletLast6: x.walletLast6, emailOptOut: x.emailOptOut })),
+          });
+        }
+        if (!data.finalDecided) return res.status(400).json({ error: 'Final result not verified yet — verify it in Match Results first.' });
+        const missing = top3.filter((w) => !w.email);
+        if (top3.length < 3 || missing.length) {
+          return res.status(400).json({ error: `Cannot send: ${top3.length < 3 ? 'fewer than 3 finishers resolved' : `no email on file for ${missing.map((m) => m.displayName).join(', ')}`}` });
+        }
+        const results = [];
+        for (const w of top3) {
+          const ctx = { place: w.place, total: data.total, walletLast6: w.walletLast6 };
+          const { subject, html, text } = buildEmail('winnerNotification', { user: { id: w.userId, displayName: w.displayName, email: w.email }, ctx });
+          const r = await sendOutreachEmail({
+            to: w.email, subject, html, text,
+            replyTo: 'support@goaloracle.io',
+            tags: [{ name: 'userId', value: w.userId }, { name: 'template', value: 'winnerNotification' }],
+          });
+          await db.collection('outreachSent').doc(`${w.userId}__winnerNotification`).set({
+            userId: w.userId, template: 'winnerNotification', sentAt: FieldValue.serverTimestamp(),
+            sent: r.sent, error: r.error || null, sentBy: userId,
+          }, { merge: true });
+          results.push({ place: w.place, displayName: w.displayName, email: w.email, sent: r.sent, error: r.error || null });
+        }
+        await db.collection('adminLogs').add({
+          action: 'winner_notification_send',
+          adminId: userId,
+          timestamp: FieldValue.serverTimestamp(),
+          summary: { winners: results },
+        }).catch(() => {});
+        return res.status(200).json({ phase, results });
+      }
 
       if (email === 'finalHype') {
         const data = await buildFinalHypeData(db);
@@ -2825,6 +2874,63 @@ export default async function handler(req, res) {
         summary: { queued, chunks, finalWinner: data.finalWinner },
       }).catch(() => {});
       return res.status(200).json({ phase, queued, chunks, drainEveryMin: 5 });
+    }
+
+    if (action === 'winnerReceiptRun') {
+      // Post-payout receipt to a winner: the on-chain tx hash + explorer
+      // link as proof of payment. Operator enters place/network/txHash in
+      // the Winner payouts panel; phase 'preview' sends to the operator,
+      // phase 'send' emails the winner and logs the payout record (the
+      // audit row with the hash IS the §8 proof-of-performance trail).
+      const { place, txHash, network, currency = 'USDC', phase = 'preview' } = req.body;
+      const p = Number(place);
+      if (!Number.isInteger(p) || p < 1 || p > 3) return res.status(400).json({ error: 'place must be 1, 2 or 3' });
+      if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash.trim())) {
+        return res.status(400).json({ error: 'txHash must be a 66-char 0x… transaction hash' });
+      }
+      const { RECEIPT_EXPLORERS, buildWinnerData } = await import('./_lib/finalWeekEmails.js');
+      const net = RECEIPT_EXPLORERS[String(network || '').toLowerCase()];
+      if (!net) return res.status(400).json({ error: "network must be 'polygon', 'base' or 'ethereum'" });
+      if (currency !== 'USDC' && currency !== 'USDG') return res.status(400).json({ error: 'currency must be USDC or USDG' });
+
+      const adminSnap2 = await db.collection('users').doc(userId).get();
+      const adminUser2 = adminSnap2.exists ? { id: adminSnap2.id, ...adminSnap2.data() } : { id: userId };
+      const data = await buildWinnerData(db, admin);
+      const winner = data.winners.find((w) => w.place === p);
+      if (!winner) return res.status(400).json({ error: 'Could not resolve that winner from the leaderboard' });
+
+      const hash = txHash.trim();
+      const ctx = { place: p, txHash: hash, network: net.label, explorerUrl: net.txUrl(hash), currency };
+      const { buildEmail, sendOutreachEmail } = await import('./_lib/outreachEmail.js');
+
+      if (phase === 'preview') {
+        if (!adminUser2.email) return res.status(400).json({ error: 'Your admin account has no email to preview to.' });
+        const { subject, html, text } = buildEmail('winnerReceipt', { user: adminUser2, ctx });
+        const r = await sendOutreachEmail({ to: adminUser2.email, subject: `[PREVIEW] ${subject}`, html, text, replyTo: 'support@goaloracle.io' });
+        return res.status(200).json({ phase, sent: r.sent, error: r.error || null, to: adminUser2.email, winner: { place: p, displayName: winner.displayName, email: winner.email } });
+      }
+
+      if (!winner.email) return res.status(400).json({ error: `No email on file for ${winner.displayName}` });
+      const { subject, html, text } = buildEmail('winnerReceipt', { user: { id: winner.userId, displayName: winner.displayName, email: winner.email }, ctx });
+      const r = await sendOutreachEmail({
+        to: winner.email, subject, html, text,
+        replyTo: 'support@goaloracle.io',
+        tags: [{ name: 'userId', value: winner.userId }, { name: 'template', value: 'winnerReceipt' }],
+      });
+      await db.collection('outreachSent').doc(`${winner.userId}__winnerReceipt`).set({
+        userId: winner.userId, template: 'winnerReceipt', sentAt: FieldValue.serverTimestamp(),
+        sent: r.sent, error: r.error || null, sentBy: userId,
+      }, { merge: true });
+      await db.collection('adminLogs').add({
+        action: 'winner_paid',
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        targetUserId: winner.userId,
+        targetDisplayName: winner.displayName,
+        targetEmail: winner.email,
+        summary: { place: p, txHash: hash, network: net.label, currency, explorerUrl: net.txUrl(hash), receiptSent: r.sent },
+      }).catch(() => {});
+      return res.status(200).json({ phase, sent: r.sent, error: r.error || null, winner: { place: p, displayName: winner.displayName, email: winner.email }, explorerUrl: net.txUrl(hash) });
     }
 
     if (action === 'outreachSendCanary') {

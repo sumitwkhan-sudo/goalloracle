@@ -837,6 +837,12 @@ export async function fetchAdminKoResolution() {
   return await apiCall('admin?type=koResolution');
 }
 
+// Winner payment receipt: emails the winner the on-chain tx hash as proof of
+// payment and writes the winner_paid audit record. phase 'preview' → operator.
+export async function adminWinnerReceiptRun({ place, txHash, network, currency, phase }) {
+  return await apiCall('admin', 'POST', { action: 'winnerReceiptRun', place, txHash, network, currency, phase });
+}
+
 // One-click prize-eligibility screen for the top finishers (top 3 + 2
 // alternates): consent, opt-out, entry-cutoff, geo, wallet-on-file.
 export async function fetchAdminWinnerEligibility() {

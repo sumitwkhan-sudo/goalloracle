@@ -15,7 +15,7 @@
  */
 
 import crypto from 'crypto';
-import { LAUNCH_DATE, SPONSOR_ADDRESS, SPONSOR_DBA, PRIZES } from '../../src/config/legal.js';
+import { LAUNCH_DATE, SPONSOR_ADDRESS, SPONSOR_DBA, PRIZES, WINNER_RESPONSE_WINDOW_DAYS, WINNER_FORFEIT_WINDOW_DAYS, PAYOUT_WINDOW_DAYS } from '../../src/config/legal.js';
 import { TIP_STRIPE_URL } from '../../src/config/tips.js';
 import { stageLockTimeUtc } from '../../src/utils/stageLock.js';
 
@@ -934,6 +934,173 @@ ${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
   return { subject, html, text };
 }
 
+// ─── Template: Winner Notification (top 3, per Official Rules §8) ──────────
+// The formal prize-claim email. Two variants keyed on whether the winner
+// already has a payout wallet on file: confirm-it vs request-one. Always asks
+// the three things an irreversible transfer needs: address, wallet TYPE
+// (self-custody vs exchange), and which network(s) it can receive USDC on
+// (Polygon / Base / Ethereum). Deadlines quoted from the legal constants so
+// the email can never disagree with the Official Rules. Sent with
+// reply-to support@ — this is a two-way conversation.
+function winnerNotificationTemplate({ user, ctx }) {
+  const c = ctx || {};
+  const place = Number(c.place) || 1;
+  const prize = PRIZES[place - 1] || PRIZES[0];
+  const total = Number.isFinite(Number(c.total)) ? Number(c.total) : null;
+  const walletLast6 = c.walletLast6 || null;
+
+  const subject = place === 1
+    ? `${prize.medal} You won the GoalOracle World Cup contest — $${prize.amount} in USDC is yours`
+    : `${prize.medal} You finished #${place} in the world — $${prize.amount} in USDC is yours`;
+
+  const openLine = place === 1
+    ? `It's official: out of ${total ? total.toLocaleString() : 'thousands of'} players worldwide, you finished <strong>#1 on the GoalOracle Global League</strong> — and the <strong>$${prize.amount} first prize, paid in ${prize.currency}</strong>, is yours. Congratulations — that was a seriously good bracket.`
+    : `It's official: out of ${total ? total.toLocaleString() : 'thousands of'} players worldwide, you finished <strong>#${place} on the GoalOracle Global League</strong> — and the <strong>$${prize.amount} ${place === 2 ? 'second' : 'third'} prize, paid in ${prize.currency}</strong>, is yours. Congratulations — that was a seriously good bracket.`;
+
+  const walletLine = walletLast6
+    ? `You already have a payout wallet on your GoalOracle account ending in <strong>…${escape(walletLast6)}</strong> — if that's the one, just answer 2 and 3 for it and say <strong>"use that one."</strong>`
+    : `Reply with all three, or add your address in the app (profile menu → Payout wallet) and reply here with 2 and 3.`;
+
+  const unsubUrl = unsubscribeUrl(user.id);
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <div style="font-size:44px;line-height:1;margin:0 0 10px;">${prize.medal}</div>
+              <h1 style="margin:0 0 16px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">You did it.</h1>
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">${openLine}</p>
+              <p style="margin:0 0 10px;font-size:16px;line-height:1.6;color:#3c3c43;">To claim it I just need three quick things — crypto transfers can't be reversed, so bear with me:</p>
+              <ol style="margin:0 0 14px;padding-left:1.3em;font-size:15px;line-height:1.7;color:#3c3c43;">
+                <li><strong>Your wallet address</strong> (an EVM address starting with 0x).</li>
+                <li><strong>What wallet it is</strong> — e.g. MetaMask, Rainbow, Coinbase Wallet, or an exchange account like Coinbase or Binance. (This matters: exchange deposit addresses only accept certain networks.)</li>
+                <li><strong>Which network(s) that address can receive USDC on: Polygon, Base, or Ethereum.</strong> Not sure? Tell me the wallet/app name and I'll help you check.</li>
+              </ol>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#3c3c43;">${walletLine}</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#3c3c43;">If you'd prefer USDG instead of USDC, just say so.</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;width:100%;">
+                <tr><td style="background:#f5f6f8;border-left:4px solid #FFC857;border-radius:10px;padding:12px 16px;font-size:14px;line-height:1.7;color:#0a0a0f;">
+                  Per the <a href="${PROD_ORIGIN}/official-rules" style="color:#0a0a0f;">Official Rules</a>: please respond within <strong>${WINNER_RESPONSE_WINDOW_DAYS} days</strong> — I'll send your prize within <strong>${PAYOUT_WINDOW_DAYS} days</strong> of getting your wallet details. If I don't hear back within <strong>${WINNER_FORFEIT_WINDOW_DAYS} days</strong> of this email, the rules require the prize to be forfeited — and I'd hate that.
+                </td></tr>
+              </table>
+              <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#6e6e80;">One more thing: the rules let us celebrate winners by username and country flag on the site. If you'd rather stay off the winners page, just tell me within ${WINNER_RESPONSE_WINDOW_DAYS} days and you're out — no questions.</p>
+              <p style="margin:0 0 4px;font-size:16px;line-height:1.6;color:#3c3c43;">Congratulations again${total ? ` — you beat ${(total - 1).toLocaleString()} people` : ''}. Just hit reply.</p>
+            </td>
+          </tr>
+          ${brandFooter(unsubUrl)}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `${prize.medal} You did it.
+
+${openLine.replace(/<[^>]+>/g, '')}
+
+To claim it I just need three quick things — crypto transfers can't be reversed, so bear with me:
+1. Your wallet address (an EVM address starting with 0x).
+2. What wallet it is — e.g. MetaMask, Rainbow, Coinbase Wallet, or an exchange account like Coinbase or Binance. (Exchange deposit addresses only accept certain networks.)
+3. Which network(s) that address can receive USDC on: Polygon, Base, or Ethereum. Not sure? Tell me the wallet/app name and I'll help you check.
+
+${walletLine.replace(/<[^>]+>/g, '')}
+
+If you'd prefer USDG instead of USDC, just say so.
+
+Per the Official Rules (${PROD_ORIGIN}/official-rules): please respond within ${WINNER_RESPONSE_WINDOW_DAYS} days — I'll send your prize within ${PAYOUT_WINDOW_DAYS} days of getting your wallet details. If I don't hear back within ${WINNER_FORFEIT_WINDOW_DAYS} days of this email, the rules require the prize to be forfeited — and I'd hate that.
+
+The rules also let us celebrate winners by username and country flag on the site. If you'd rather stay off the winners page, tell me within ${WINNER_RESPONSE_WINDOW_DAYS} days and you're out — no questions.
+
+Congratulations again${total ? ` — you beat ${(total - 1).toLocaleString()} people` : ''}. Just hit reply.
+
+Unsubscribe: ${unsubUrl}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
+// ─── Template: Winner Payment Receipt (proof of payout) ────────────────────
+// Sent after the operator pays a winner: the formal receipt with the
+// on-chain transaction hash + block-explorer link as proof of payment
+// (Official Rules §8 performance record). Ctx is operator-entered in the
+// admin panel: { place, txHash, network, explorerUrl, currency, amount }.
+function winnerReceiptTemplate({ user, ctx }) {
+  const c = ctx || {};
+  const place = Number(c.place) || 1;
+  const prize = PRIZES[place - 1] || PRIZES[0];
+  const amount = Number.isFinite(Number(c.amount)) ? Number(c.amount) : prize.amount;
+  const currency = c.currency || prize.currency;
+  const network = c.network || 'Polygon';
+  const txHash = c.txHash || '';
+  const explorerUrl = c.explorerUrl || '';
+
+  const subject = `🧾 Paid: your $${amount} ${currency} GoalOracle prize — on-chain receipt inside`;
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Manrope',Helvetica,Arial,sans-serif;color:#111118;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef0f3;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 6px 24px rgba(15,23,42,0.06);">
+          ${brandHeader()}
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
+              <div style="font-size:44px;line-height:1;margin:0 0 10px;">💸</div>
+              <h1 style="margin:0 0 16px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">Your prize has been sent.</h1>
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">Your <strong>$${amount} ${escape(currency)}</strong> prize (${prize.medal} ${escape(prize.label)}) is on its way to your wallet on the <strong>${escape(network)} network</strong>. Here's your on-chain proof of payment:</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;width:100%;">
+                <tr><td style="background:#f5f6f8;border-left:4px solid #00c853;border-radius:10px;padding:14px 18px;font-size:13px;line-height:1.7;color:#0a0a0f;word-break:break-all;">
+                  <strong>Transaction:</strong> <span style="font-family:ui-monospace,Menlo,monospace;">${escape(txHash)}</span><br/>
+                  ${explorerUrl ? `<a href="${explorerUrl}" style="color:#0a63c9;font-weight:600;">View on block explorer →</a>` : ''}
+                </td></tr>
+              </table>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#3c3c43;">It may take a minute or two to appear in your wallet — the explorer link above is the authoritative record. If anything looks off, just reply to this email.</p>
+              <p style="margin:0 0 4px;font-size:16px;line-height:1.6;color:#3c3c43;">Thank you for playing — you made the first GoalOracle World Cup unforgettable. See you at the next one. 🏆</p>
+            </td>
+          </tr>
+          ${brandFooter(unsubscribeUrl(user.id))}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+
+  const text = `Your prize has been sent.
+
+Your $${amount} ${currency} prize (${prize.label}) is on its way to your wallet on the ${network} network. On-chain proof of payment:
+
+Transaction: ${txHash}
+${explorerUrl ? `Explorer: ${explorerUrl}` : ''}
+
+It may take a minute or two to appear in your wallet — the explorer link is the authoritative record. If anything looks off, just reply to this email.
+
+Thank you for playing — you made the first GoalOracle World Cup unforgettable. See you at the next one.
+
+Unsubscribe: ${unsubscribeUrl(user.id)}
+${SPONSOR_DBA} · ${SPONSOR_ADDRESS}`;
+
+  return { subject, html, text };
+}
+
 // ─── Template: Final Hype (last two games) ─────────────────────────────────
 // Pre-Final engagement: the semifinal story + finalists, the user's league
 // standings with each league's live top 3, and honest conditional nudges —
@@ -1323,6 +1490,18 @@ export const TEMPLATES = {
     label: 'Top-10 Contender (pre-Final)',
     description: 'Sent after the semifinals to players who can still mathematically reach the global top 10 (gap to #10 ≤ points remaining), plus the current top 10 ("defend it"). Payload-driven — use the Final Week panel, not the generic batch sender.',
     build: top10ContenderTemplate,
+  },
+  winnerNotification: {
+    id: 'winnerNotification',
+    label: 'Winner Notification (top 3)',
+    description: 'The formal prize-claim email per Official Rules §8: asks for wallet address + wallet type + receivable network (Polygon/Base/Ethereum), quotes the response/forfeit/payout windows from the legal constants, and branches on whether a payout wallet is already on file (confirm vs request). Sent via the Winner payouts panel with reply-to support@ — never the blast tools.',
+    build: winnerNotificationTemplate,
+  },
+  winnerReceipt: {
+    id: 'winnerReceipt',
+    label: 'Winner Payment Receipt',
+    description: 'Post-payout confirmation with the on-chain transaction hash + block-explorer link as proof of payment. Operator enters the tx details in the Winner payouts panel; the send is logged with the hash as the payout record.',
+    build: winnerReceiptTemplate,
   },
   finalHype: {
     id: 'finalHype',
