@@ -53,7 +53,6 @@ import InviteFriendsModal from './components/InviteFriendsModal';
 import PasscodePromptModal from './components/PasscodePromptModal';
 import WelcomeFlow from './components/onboarding/WelcomeFlow';
 import SignupPromptModal from './components/SignupPromptModal';
-import HeroLeaderboardPreview from './components/HeroLeaderboardPreview';
 import MyPicksCard from './components/MyPicksCard';
 import HomeHeroCard from './components/HomeHeroCard';
 import QuickActionsTiles from './components/QuickActionsTiles';
@@ -2813,7 +2812,7 @@ const GoalOracle = () => {
     // ─── Logged-in personal dashboard ─────────────────────────────
     // Single centered container, frosted-glass cards over a strongly-
     // overlaid stadium photo. Replaces the previous side-by-side
-    // hero (Welcome / MyPicksCard / HeroLeaderboardPreview / chip
+    // hero (Welcome / MyPicksCard / chip
     // row / stats band) which had three competing focal points and
     // mixed card styles. Calm hierarchy, one primary CTA, uniform
     // type scale.
@@ -2864,9 +2863,6 @@ const GoalOracle = () => {
                 onCreate={() => nav('create')}
                 onInvite={() => setInviteOpen(true)}
               />
-              <div className="home-card home-leaderboard">
-                <HeroLeaderboardPreview onViewFull={onLeaderboardFull} />
-              </div>
             </div>
           </section>
           <div className="home-footer-strip">
@@ -2939,11 +2935,6 @@ const GoalOracle = () => {
               <p className="hero-rules-link">
                 See <button type="button" className="hero-rules-anchor" onClick={() => nav('officialRules')}>Official Rules</button>
               </p>
-            </div>
-            <div className="hero-right">
-              <HeroLeaderboardPreview
-                onViewFull={() => login()}
-              />
             </div>
           </div>
           <div className="hero-stats-band">
