@@ -108,8 +108,14 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [receiptSent, setReceiptSent] = useState({}); // { [place]: explorerUrl }
   const runWinnerReceipt = async (phase) => {
     const hash = receipt.txHash.trim();
+    if (/^0x[a-fA-F0-9]{40}$/.test(hash)) {
+      // The single most likely mistake: pasting the winner's WALLET ADDRESS
+      // (42 chars) instead of the payment's TRANSACTION HASH (66 chars).
+      notify('That’s a wallet address, not a transaction hash. After sending the USDC, open the transfer in your wallet (or find it on the block explorer) and copy its Txn Hash — 66 characters starting 0x.', 'error');
+      return;
+    }
     if (!/^0x[a-fA-F0-9]{64}$/.test(hash)) {
-      notify('Enter the full transaction hash (starts 0x, 66 characters).', 'error');
+      notify('Enter the payment’s transaction hash — 66 characters starting 0x. You’ll find it in your wallet’s transaction details after sending, or on the block explorer.', 'error');
       return;
     }
     if (phase === 'send' && !window.confirm(`Send the payment receipt for place #${receipt.place} (${receipt.network}, tx …${hash.slice(-8)}) to the winner?`)) return;
@@ -2637,6 +2643,10 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
               {receiptSent[receipt.place] && (
                 <a href={receiptSent[receipt.place]} target="_blank" rel="noopener noreferrer" className="form-hint" style={{ margin: 0 }}>view tx ↗</a>
               )}
+              <span className="form-hint" style={{ margin: 0, flexBasis: '100%' }}>
+                The Txn Hash is the ID of the payment you already sent (66 chars) — copy it from your wallet&rsquo;s
+                transaction details or the block explorer after sending. It&rsquo;s NOT the winner&rsquo;s wallet address (42 chars).
+              </span>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>
               <strong style={{ fontSize: '0.85rem' }}>🗳️ Survey results</strong>
