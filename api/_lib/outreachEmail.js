@@ -1041,12 +1041,37 @@ function winnerReceiptTemplate({ user, ctx }) {
   const place = Number(c.place) || 1;
   const prize = PRIZES[place - 1] || PRIZES[0];
   const amount = Number.isFinite(Number(c.amount)) ? Number(c.amount) : prize.amount;
-  const currency = c.currency || prize.currency;
+  const isStripe = c.method === 'stripe';
+  const currency = isStripe ? 'USD' : (c.currency || prize.currency);
   const network = c.network || 'Polygon';
   const txHash = c.txHash || '';
   const explorerUrl = c.explorerUrl || '';
+  const stripeReceiptUrl = c.stripeReceiptUrl || '';
 
-  const subject = `🧾 Paid: your $${amount} ${currency} GoalOracle prize — on-chain receipt inside`;
+  const subject = isStripe
+    ? `🧾 Paid: your $${amount} GoalOracle prize — Stripe receipt inside`
+    : `🧾 Paid: your $${amount} ${currency} GoalOracle prize — on-chain receipt inside`;
+
+  const sentLine = isStripe
+    ? `Your <strong>$${amount} ${escape(currency)}</strong> prize (${prize.medal} ${escape(prize.label)}) has been sent <strong>via Stripe</strong>. Here's your receipt:`
+    : `Your <strong>$${amount} ${escape(currency)}</strong> prize (${prize.medal} ${escape(prize.label)}) is on its way to your wallet on the <strong>${escape(network)} network</strong>. Here's your on-chain proof of payment:`;
+
+  const proofBlockHtml = isStripe
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;width:100%;">
+        <tr><td style="background:#f5f6f8;border-left:4px solid #00c853;border-radius:10px;padding:14px 18px;font-size:14px;line-height:1.7;color:#0a0a0f;">
+          <a href="${stripeReceiptUrl}" style="color:#0a63c9;font-weight:700;">View your Stripe receipt →</a>
+        </td></tr>
+      </table>`
+    : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;width:100%;">
+        <tr><td style="background:#f5f6f8;border-left:4px solid #00c853;border-radius:10px;padding:14px 18px;font-size:13px;line-height:1.7;color:#0a0a0f;word-break:break-all;">
+          <strong>Transaction:</strong> <span style="font-family:ui-monospace,Menlo,monospace;">${escape(txHash)}</span><br/>
+          ${explorerUrl ? `<a href="${explorerUrl}" style="color:#0a63c9;font-weight:600;">View on block explorer →</a>` : ''}
+        </td></tr>
+      </table>`;
+
+  const arrivalLine = isStripe
+    ? `The receipt link above is your permanent record of the payment. If anything looks off, just reply to this email.`
+    : `It may take a minute or two to appear in your wallet — the explorer link above is the authoritative record. If anything looks off, just reply to this email.`;
 
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
@@ -1066,14 +1091,9 @@ function winnerReceiptTemplate({ user, ctx }) {
               <p style="margin:0 0 14px;font-size:15px;color:#3c3c43;line-height:1.5;">${greeting(user)}</p>
               <div style="font-size:44px;line-height:1;margin:0 0 10px;">💸</div>
               <h1 style="margin:0 0 16px;font-size:28px;line-height:1.18;letter-spacing:-0.5px;font-weight:800;color:#0a0a0f;">Your prize has been sent.</h1>
-              <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">Your <strong>$${amount} ${escape(currency)}</strong> prize (${prize.medal} ${escape(prize.label)}) is on its way to your wallet on the <strong>${escape(network)} network</strong>. Here's your on-chain proof of payment:</p>
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;width:100%;">
-                <tr><td style="background:#f5f6f8;border-left:4px solid #00c853;border-radius:10px;padding:14px 18px;font-size:13px;line-height:1.7;color:#0a0a0f;word-break:break-all;">
-                  <strong>Transaction:</strong> <span style="font-family:ui-monospace,Menlo,monospace;">${escape(txHash)}</span><br/>
-                  ${explorerUrl ? `<a href="${explorerUrl}" style="color:#0a63c9;font-weight:600;">View on block explorer →</a>` : ''}
-                </td></tr>
-              </table>
-              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#3c3c43;">It may take a minute or two to appear in your wallet — the explorer link above is the authoritative record. If anything looks off, just reply to this email.</p>
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#3c3c43;">${sentLine}</p>
+              ${proofBlockHtml}
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#3c3c43;">${arrivalLine}</p>
               <p style="margin:0 0 4px;font-size:16px;line-height:1.6;color:#3c3c43;">Thank you for playing — you made the first GoalOracle World Cup unforgettable. See you at the next one. 🏆</p>
             </td>
           </tr>
@@ -1086,12 +1106,11 @@ function winnerReceiptTemplate({ user, ctx }) {
 
   const text = `Your prize has been sent.
 
-Your $${amount} ${currency} prize (${prize.label}) is on its way to your wallet on the ${network} network. On-chain proof of payment:
-
-Transaction: ${txHash}
-${explorerUrl ? `Explorer: ${explorerUrl}` : ''}
-
-It may take a minute or two to appear in your wallet — the explorer link is the authoritative record. If anything looks off, just reply to this email.
+${sentLine.replace(/<[^>]+>/g, '')}
+${isStripe
+    ? `\nStripe receipt: ${stripeReceiptUrl}\n`
+    : `\nTransaction: ${txHash}\n${explorerUrl ? `Explorer: ${explorerUrl}` : ''}\n`}
+${arrivalLine.replace(/<[^>]+>/g, '')}
 
 Thank you for playing — you made the first GoalOracle World Cup unforgettable. See you at the next one.
 

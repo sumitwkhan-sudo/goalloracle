@@ -102,30 +102,47 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [digestBusy, setDigestBusy] = useState(false);
   const [digestInfo, setDigestInfo] = useState(null); // { eligibleCount, autoRecap, pointsRemaining } after preview
   const [digestQueued, setDigestQueued] = useState(null); // { queued, chunks } after send
-  // Winner payment receipt form (place + network + tx hash).
-  const [receipt, setReceipt] = useState({ place: '1', network: 'polygon', currency: 'USDC', txHash: '' });
+  // Winner payment receipt form (place + method: crypto tx hash OR Stripe
+  // receipt link).
+  const [receipt, setReceipt] = useState({ place: '1', method: 'crypto', network: 'polygon', currency: 'USDC', txHash: '', stripeUrl: '' });
   const [receiptBusy, setReceiptBusy] = useState(false);
-  const [receiptSent, setReceiptSent] = useState({}); // { [place]: explorerUrl }
+  const [receiptSent, setReceiptSent] = useState({}); // { [place]: proofUrl }
   const runWinnerReceipt = async (phase) => {
-    const hash = receipt.txHash.trim();
-    if (/^0x[a-fA-F0-9]{40}$/.test(hash)) {
-      // The single most likely mistake: pasting the winner's WALLET ADDRESS
-      // (42 chars) instead of the payment's TRANSACTION HASH (66 chars).
-      notify('That’s a wallet address, not a transaction hash. After sending the USDC, open the transfer in your wallet (or find it on the block explorer) and copy its Txn Hash — 66 characters starting 0x.', 'error');
-      return;
+    let payload;
+    let confirmText;
+    if (receipt.method === 'stripe') {
+      const url = receipt.stripeUrl.trim();
+      let host = '';
+      try { host = new URL(url).hostname; } catch { /* invalid */ }
+      if (!url.startsWith('https://') || !(host === 'stripe.com' || host.endsWith('.stripe.com'))) {
+        notify('Paste the Stripe receipt link — an https://…stripe.com URL (from the payment in your Stripe dashboard → Receipt).', 'error');
+        return;
+      }
+      payload = { place: Number(receipt.place), method: 'stripe', stripeReceiptUrl: url, phase };
+      confirmText = `Send the payment receipt for place #${receipt.place} (Stripe receipt link) to the winner?`;
+    } else {
+      const hash = receipt.txHash.trim();
+      if (/^0x[a-fA-F0-9]{40}$/.test(hash)) {
+        // The single most likely mistake: pasting the winner's WALLET ADDRESS
+        // (42 chars) instead of the payment's TRANSACTION HASH (66 chars).
+        notify('That’s a wallet address, not a transaction hash. After sending the USDC, open the transfer in your wallet (or find it on the block explorer) and copy its Txn Hash — 66 characters starting 0x.', 'error');
+        return;
+      }
+      if (!/^0x[a-fA-F0-9]{64}$/.test(hash)) {
+        notify('Enter the payment’s transaction hash — 66 characters starting 0x. You’ll find it in your wallet’s transaction details after sending, or on the block explorer.', 'error');
+        return;
+      }
+      payload = { place: Number(receipt.place), method: 'crypto', txHash: hash, network: receipt.network, currency: receipt.currency, phase };
+      confirmText = `Send the payment receipt for place #${receipt.place} (${receipt.network}, tx …${hash.slice(-8)}) to the winner?`;
     }
-    if (!/^0x[a-fA-F0-9]{64}$/.test(hash)) {
-      notify('Enter the payment’s transaction hash — 66 characters starting 0x. You’ll find it in your wallet’s transaction details after sending, or on the block explorer.', 'error');
-      return;
-    }
-    if (phase === 'send' && !window.confirm(`Send the payment receipt for place #${receipt.place} (${receipt.network}, tx …${hash.slice(-8)}) to the winner?`)) return;
+    if (phase === 'send' && !window.confirm(confirmText)) return;
     setReceiptBusy(true);
     try {
-      const r = await adminWinnerReceiptRun({ place: Number(receipt.place), txHash: hash, network: receipt.network, currency: receipt.currency, phase });
+      const r = await adminWinnerReceiptRun(payload);
       if (phase === 'preview') {
         notify(r.sent ? `Receipt preview sent to ${r.to}` : `Preview failed: ${r.error || 'unknown'}`, r.sent ? 'success' : 'error');
       } else {
-        setReceiptSent((s) => ({ ...s, [receipt.place]: r.explorerUrl }));
+        setReceiptSent((s) => ({ ...s, [receipt.place]: r.proofUrl }));
         notify(r.sent ? `Receipt sent to ${r.winner.displayName} (${r.winner.email})` : `Send failed: ${r.error || 'unknown'}`, r.sent ? 'success' : 'error');
       }
     } catch (e) {
@@ -2616,24 +2633,42 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 <option value="2">🥈 2nd ($100)</option>
                 <option value="3">🥉 3rd ($50)</option>
               </select>
-              <select className="input-field" style={{ width: 'auto', padding: '0.3rem 0.5rem' }} value={receipt.network} onChange={(e) => setReceipt({ ...receipt, network: e.target.value })} disabled={receiptBusy}>
-                <option value="polygon">Polygon</option>
-                <option value="base">Base</option>
-                <option value="ethereum">Ethereum</option>
+              <select className="input-field" style={{ width: 'auto', padding: '0.3rem 0.5rem' }} value={receipt.method} onChange={(e) => setReceipt({ ...receipt, method: e.target.value })} disabled={receiptBusy}>
+                <option value="crypto">Crypto (tx hash)</option>
+                <option value="stripe">Stripe (receipt link)</option>
               </select>
-              <select className="input-field" style={{ width: 'auto', padding: '0.3rem 0.5rem' }} value={receipt.currency} onChange={(e) => setReceipt({ ...receipt, currency: e.target.value })} disabled={receiptBusy}>
-                <option value="USDC">USDC</option>
-                <option value="USDG">USDG</option>
-              </select>
-              <input
-                type="text"
-                className="input-field"
-                style={{ width: 280, padding: '0.3rem 0.5rem', fontFamily: 'var(--mono)', fontSize: '0.75rem' }}
-                placeholder="0x… transaction hash (66 chars)"
-                value={receipt.txHash}
-                onChange={(e) => setReceipt({ ...receipt, txHash: e.target.value })}
-                disabled={receiptBusy}
-              />
+              {receipt.method === 'crypto' ? (
+                <>
+                  <select className="input-field" style={{ width: 'auto', padding: '0.3rem 0.5rem' }} value={receipt.network} onChange={(e) => setReceipt({ ...receipt, network: e.target.value })} disabled={receiptBusy}>
+                    <option value="polygon">Polygon</option>
+                    <option value="base">Base</option>
+                    <option value="ethereum">Ethereum</option>
+                  </select>
+                  <select className="input-field" style={{ width: 'auto', padding: '0.3rem 0.5rem' }} value={receipt.currency} onChange={(e) => setReceipt({ ...receipt, currency: e.target.value })} disabled={receiptBusy}>
+                    <option value="USDC">USDC</option>
+                    <option value="USDG">USDG</option>
+                  </select>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: 280, padding: '0.3rem 0.5rem', fontFamily: 'var(--mono)', fontSize: '0.75rem' }}
+                    placeholder="0x… transaction hash (66 chars)"
+                    value={receipt.txHash}
+                    onChange={(e) => setReceipt({ ...receipt, txHash: e.target.value })}
+                    disabled={receiptBusy}
+                  />
+                </>
+              ) : (
+                <input
+                  type="text"
+                  className="input-field"
+                  style={{ width: 320, padding: '0.3rem 0.5rem', fontSize: '0.75rem' }}
+                  placeholder="https://…stripe.com receipt link"
+                  value={receipt.stripeUrl}
+                  onChange={(e) => setReceipt({ ...receipt, stripeUrl: e.target.value })}
+                  disabled={receiptBusy}
+                />
+              )}
               <button type="button" className="btn btn-secondary btn-sm" disabled={receiptBusy} onClick={() => runWinnerReceipt('preview')}>
                 {receiptBusy ? 'Working…' : 'Preview to me'}
               </button>
@@ -2641,11 +2676,12 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 {receiptSent[receipt.place] ? 'Sent ✓ (re-send)' : 'Send receipt'}
               </button>
               {receiptSent[receipt.place] && (
-                <a href={receiptSent[receipt.place]} target="_blank" rel="noopener noreferrer" className="form-hint" style={{ margin: 0 }}>view tx ↗</a>
+                <a href={receiptSent[receipt.place]} target="_blank" rel="noopener noreferrer" className="form-hint" style={{ margin: 0 }}>view proof ↗</a>
               )}
               <span className="form-hint" style={{ margin: 0, flexBasis: '100%' }}>
-                The Txn Hash is the ID of the payment you already sent (66 chars) — copy it from your wallet&rsquo;s
-                transaction details or the block explorer after sending. It&rsquo;s NOT the winner&rsquo;s wallet address (42 chars).
+                {receipt.method === 'crypto'
+                  ? <>The Txn Hash is the ID of the payment you already sent (66 chars) — copy it from your wallet&rsquo;s transaction details or the block explorer after sending. It&rsquo;s NOT the winner&rsquo;s wallet address (42 chars).</>
+                  : <>Find the receipt link in your Stripe dashboard: open the payment → Receipt → copy the hosted receipt URL (pay.stripe.com/receipts/…). The winner gets it as their proof of payment.</>}
               </span>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>

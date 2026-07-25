@@ -839,8 +839,8 @@ export async function fetchAdminKoResolution() {
 
 // Winner payment receipt: emails the winner the on-chain tx hash as proof of
 // payment and writes the winner_paid audit record. phase 'preview' → operator.
-export async function adminWinnerReceiptRun({ place, txHash, network, currency, phase }) {
-  return await apiCall('admin', 'POST', { action: 'winnerReceiptRun', place, txHash, network, currency, phase });
+export async function adminWinnerReceiptRun({ place, txHash, network, currency, method, stripeReceiptUrl, phase }) {
+  return await apiCall('admin', 'POST', { action: 'winnerReceiptRun', place, txHash, network, currency, method, stripeReceiptUrl, phase });
 }
 
 // One-click prize-eligibility screen for the top finishers (top 3 + 2

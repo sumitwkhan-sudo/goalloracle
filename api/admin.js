@@ -2882,25 +2882,42 @@ export default async function handler(req, res) {
       // the Winner payouts panel; phase 'preview' sends to the operator,
       // phase 'send' emails the winner and logs the payout record (the
       // audit row with the hash IS the §8 proof-of-performance trail).
-      const { place, txHash, network, currency = 'USDC', phase = 'preview' } = req.body;
+      const { place, txHash, network, currency = 'USDC', method = 'crypto', stripeReceiptUrl, phase = 'preview' } = req.body;
       const p = Number(place);
       if (!Number.isInteger(p) || p < 1 || p > 3) return res.status(400).json({ error: 'place must be 1, 2 or 3' });
-      if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash.trim())) {
-        return res.status(400).json({ error: 'txHash must be a 66-char 0x… transaction hash' });
-      }
+      if (method !== 'crypto' && method !== 'stripe') return res.status(400).json({ error: "method must be 'crypto' or 'stripe'" });
+
       const { RECEIPT_EXPLORERS, buildWinnerData } = await import('./_lib/finalWeekEmails.js');
-      const net = RECEIPT_EXPLORERS[String(network || '').toLowerCase()];
-      if (!net) return res.status(400).json({ error: "network must be 'polygon', 'base' or 'ethereum'" });
-      if (currency !== 'USDC' && currency !== 'USDG') return res.status(400).json({ error: 'currency must be USDC or USDG' });
+      let ctx;
+      let proofSummary;
+      if (method === 'stripe') {
+        // Stripe receipt link: must be an https Stripe-hosted URL — this goes
+        // into an email as the payment proof, so never accept arbitrary hosts.
+        const url = typeof stripeReceiptUrl === 'string' ? stripeReceiptUrl.trim() : '';
+        let host = '';
+        try { host = new URL(url).hostname; } catch { /* invalid */ }
+        if (!url.startsWith('https://') || !(host === 'stripe.com' || host.endsWith('.stripe.com'))) {
+          return res.status(400).json({ error: 'stripeReceiptUrl must be an https://…stripe.com receipt link' });
+        }
+        ctx = { place: p, method: 'stripe', stripeReceiptUrl: url };
+        proofSummary = { method: 'stripe', stripeReceiptUrl: url, currency: 'USD' };
+      } else {
+        if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash.trim())) {
+          return res.status(400).json({ error: 'txHash must be a 66-char 0x… transaction hash' });
+        }
+        const net = RECEIPT_EXPLORERS[String(network || '').toLowerCase()];
+        if (!net) return res.status(400).json({ error: "network must be 'polygon', 'base' or 'ethereum'" });
+        if (currency !== 'USDC' && currency !== 'USDG') return res.status(400).json({ error: 'currency must be USDC or USDG' });
+        const hash = txHash.trim();
+        ctx = { place: p, method: 'crypto', txHash: hash, network: net.label, explorerUrl: net.txUrl(hash), currency };
+        proofSummary = { method: 'crypto', txHash: hash, network: net.label, currency, explorerUrl: net.txUrl(hash) };
+      }
 
       const adminSnap2 = await db.collection('users').doc(userId).get();
       const adminUser2 = adminSnap2.exists ? { id: adminSnap2.id, ...adminSnap2.data() } : { id: userId };
       const data = await buildWinnerData(db, admin);
       const winner = data.winners.find((w) => w.place === p);
       if (!winner) return res.status(400).json({ error: 'Could not resolve that winner from the leaderboard' });
-
-      const hash = txHash.trim();
-      const ctx = { place: p, txHash: hash, network: net.label, explorerUrl: net.txUrl(hash), currency };
       const { buildEmail, sendOutreachEmail } = await import('./_lib/outreachEmail.js');
 
       if (phase === 'preview') {
@@ -2928,9 +2945,9 @@ export default async function handler(req, res) {
         targetUserId: winner.userId,
         targetDisplayName: winner.displayName,
         targetEmail: winner.email,
-        summary: { place: p, txHash: hash, network: net.label, currency, explorerUrl: net.txUrl(hash), receiptSent: r.sent },
+        summary: { place: p, ...proofSummary, receiptSent: r.sent },
       }).catch(() => {});
-      return res.status(200).json({ phase, sent: r.sent, error: r.error || null, winner: { place: p, displayName: winner.displayName, email: winner.email }, explorerUrl: net.txUrl(hash) });
+      return res.status(200).json({ phase, sent: r.sent, error: r.error || null, winner: { place: p, displayName: winner.displayName, email: winner.email }, proofUrl: proofSummary.explorerUrl || proofSummary.stripeReceiptUrl });
     }
 
     if (action === 'outreachSendCanary') {
