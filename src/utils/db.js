@@ -686,12 +686,35 @@ export async function submitFeedback(feedbackData) {
 }
 
 // ---- MATCH RESULTS ----
+// Was a real-time onSnapshot on the WHOLE collection — 104 document reads
+// billed on every attach, for every visitor, on every page load and every
+// mobile reconnect. At tournament traffic that was one of the largest
+// Firestore line items. Results only actually change when the poll cron
+// verifies a game (a few times a day at most; never, post-tournament), so
+// poll the edge-cached public endpoint instead: the ORIGIN pays ~104 reads
+// once per cache window for ALL users combined; clients pay zero Firestore
+// reads. Same signature/behavior as before (callback + unsubscribe), plus a
+// visibility guard so hidden tabs don't poll, and an immediate refresh when
+// a tab comes back to the foreground.
 export function subscribeToMatchResults(callback) {
-  return onSnapshot(collection(db, 'matchResults'), (snap) => {
-    const results = {};
-    snap.docs.forEach(d => { results[d.id] = d.data(); });
-    callback(results);
-  }, () => callback({}));
+  let stopped = false;
+  const load = async () => {
+    if (stopped) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    try {
+      const data = await publicApiGet('public?type=results');
+      if (!stopped) callback(data?.results || {});
+    } catch { /* transient — keep last delivered state */ }
+  };
+  load();
+  const timer = setInterval(load, 5 * 60 * 1000);
+  const onVis = () => { if (document.visibilityState === 'visible') load(); };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVis);
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVis);
+  };
 }
 
 // Near-real-time in-progress scores (/liveMatchScores), written every minute

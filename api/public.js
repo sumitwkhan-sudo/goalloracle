@@ -34,6 +34,10 @@ export default async function handler(req, res) {
       const snap = await db.collection('matchResults').get();
       const results = {};
       snap.docs.forEach(d => { results[d.id] = d.data(); });
+      // Edge-cache: this now backs EVERY client's match-results state (the
+      // old per-client Firestore listener is gone). One origin scan per
+      // cache window serves all visitors.
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
       return res.status(200).json({ results });
 
     } else if (type === 'league') {
