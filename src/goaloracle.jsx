@@ -3278,6 +3278,20 @@ const GoalOracle = () => {
     // finished.
     const QP_TOTAL_REQUIRED = 12 + 8 + 32; // 12 group rankings + 8 best-thirds + 32 bracket picks
     const predStatus = (league) => {
+      // Tournament over → every league is in its ENDED state: the row pill
+      // shows "Final · rank of N" instead of pick progress, and the
+      // active/ended dashboard filter sorts them correctly.
+      if (isTournamentOver()) {
+        const rk = leagueRanks[league.id];
+        return {
+          ended: true,
+          done: true,
+          remaining: 0,
+          pct: 100,
+          finalRank: typeof rk?.rank === 'number' ? rk.rank : undefined,
+          totalPlayers: typeof rk?.total === 'number' ? rk.total : undefined,
+        };
+      }
       if (league.predictionMode === 'simple') {
         const rk = leagueRanks[league.id];
         if (!rk || typeof rk.myPicksLeft !== 'number') return null;
