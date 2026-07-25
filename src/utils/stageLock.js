@@ -252,6 +252,17 @@ export function isMatchKickoffLocked(matchId, now = Date.now()) {
   return now >= matchKickoffLockTimeUtc(matchId);
 }
 
+// ── Tournament-over flag ───────────────────────────────────────────────────
+// True once the Final is comfortably finished (kickoff + 6h covers extra
+// time + penalties + ceremony). Drives the site's "ended" mode: league
+// creation/joins closed, ended badges, winners-first navigation. Derived
+// from the fixture schedule — no config, no reads, identical on client and
+// server. Reset naturally by the next tournament's matches.js.
+const TOURNAMENT_OVER_BUFFER_MS = 6 * 60 * 60 * 1000;
+export function isTournamentOver(now = Date.now()) {
+  return now >= STAGE_FIRST_KICKOFF_UTC.final + TOURNAMENT_OVER_BUFFER_MS;
+}
+
 // Map a knockout round's pick array to { matchId: winnerId } plus any entries
 // that lack a matchId (legacy/edge — can't be checked per-game).
 function knockoutPickMap(arr) {

@@ -25,6 +25,7 @@ import {
   ChevronRight, Copy, Check, MessageSquare,
 } from 'lucide-react';
 import { teamFlags, countryFlag } from '../utils/flags';
+import { isTournamentOver } from '../utils/stageLock';
 import { getScoringBullets } from '../utils/scoringExplainer';
 
 // ── scoring explainer (item E) ──────────────────────────────────────────
@@ -290,6 +291,12 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, passcode,
                 <span>Private</span>
               </>
             )}
+            {isTournamentOver() && (
+              <>
+                <span className="ll-header-dot" aria-hidden="true">·</span>
+                <span className="ll-header-ended">Final standings — contest ended</span>
+              </>
+            )}
           </div>
           {passcode && (
             <div className="ll-header-passcode">
@@ -311,7 +318,7 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, passcode,
         {/* Join CTA — primary affordance for non-signed-up viewers
             of a public leaderboard. Falls in front of the Share
             button so it's the obvious next action. */}
-        {onJoin && (
+        {onJoin && !isTournamentOver() && (
           <button type="button" className="ll-header-join" onClick={onJoin}>
             <UserPlus size={14} aria-hidden="true" /> Join now
           </button>
@@ -321,7 +328,7 @@ function LeaderboardHeader({ league, isPrivate, isGlobal, memberCount, passcode,
             <LogOut size={13} aria-hidden="true" /> Leave League
           </button>
         )}
-        {onInvite && (
+        {onInvite && !isTournamentOver() && (
           <button type="button" className="ll-header-invite" onClick={onInvite}>
             <UserPlus size={14} aria-hidden="true" /> {inviteLabel}
           </button>

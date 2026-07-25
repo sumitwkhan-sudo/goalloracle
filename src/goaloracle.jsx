@@ -13,7 +13,7 @@ import { teamFlags } from './utils/flags';
 import { getRank as getFifaRank } from './data/fifaRankings';
 import { calculateSimpleScore, TOTAL_MAX, GROUP_STAGE_MAX, BEST_THIRD_MAX, KNOCKOUT_MAX, scoreGroup, GROUP_STAGE_POINTS_PER_POSITION, scoreKnockouts, BEST_THIRD_POINTS_PER_PICK, predictedAdvancers } from './utils/scoringSimple';
 import { computeLiveStandings, projectRealR32, mergeLiveScores } from './utils/liveStandings';
-import { stageLockTimeUtc, formatLockDelta, isStageLocked } from './utils/stageLock';
+import { stageLockTimeUtc, formatLockDelta, isStageLocked, isTournamentOver } from './utils/stageLock';
 import { calculatePoints, calculateTotalPoints, sortLeaderboard, getMatchStatus, calculateStreak, getStreakBadge } from './utils/points';
 import { computeRankDeltas } from './utils/rankChange';
 import { calculateXP, getLevelInfo } from './utils/xp';
@@ -5533,9 +5533,10 @@ const GoalOracle = () => {
           setDetailTab('leaderboard');
         }}><TrendingUp size={14} /><span>Leaderboard</span></a>
         <a className="nav-link" onClick={() => nav('standings')}><BarChart3 size={14} /><span>WC Results &amp; Fixtures</span></a>
+        {isTournamentOver() && <a className="nav-link" onClick={() => nav('winners')}><Trophy size={14} /><span>Winners</span></a>}
         {authenticated && <>
           <a className="nav-link" onClick={() => nav('leagues')}><Users size={14} /><span>My Leagues</span></a>
-          <a className="nav-link" onClick={() => { setBrowseFocusJoin(true); nav('browse'); }}><Key size={14} /><span>Join a league</span></a>
+          {!isTournamentOver() && <a className="nav-link" onClick={() => { setBrowseFocusJoin(true); nav('browse'); }}><Key size={14} /><span>Join a league</span></a>}
           {(role === 'superadmin' || role === 'admin') && <a className="nav-link" onClick={() => nav('admin')}><Shield size={14} /><span>Admin</span></a>}
         </>}
         <a className="nav-link" onClick={() => nav('faq')}><HelpCircle size={14} /><span>FAQ</span></a>
@@ -5632,6 +5633,22 @@ const GoalOracle = () => {
         }} />
       ))}</div>}
       <Nav />
+      {/* Tournament-ended banner — the site's primary state change once the
+          Final is done: winners first, no more predicting. Shown on the two
+          home surfaces; the rest of the app picks it up via ended guards. */}
+      {isTournamentOver() && (view === 'landing' || view === 'dashboard') && (
+        <div className="tournament-ended-banner" role="status">
+          <span className="tournament-ended-text">
+            🏆 <strong>The World Cup 2026 contest is complete!</strong> Prizes paid, records frozen.
+          </span>
+          <span className="tournament-ended-actions">
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => nav('winners')}>See the winners</button>
+            {authenticated && uData?.id && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => openPlayerProfile(uData.id)}>My results &amp; badges</button>
+            )}
+          </span>
+        </div>
+      )}
       {isViewingAs && (
         <div className="view-as-bar" role="status">
           <Eye size={15} />
@@ -5736,7 +5753,20 @@ const GoalOracle = () => {
         notify={notify}
       />
       {view === 'browse' && <Browse key="browse" />}
-      {view === 'create' && (
+      {view === 'create' && isTournamentOver() && (
+        <div className="tournament-ended-page">
+          <div className="tournament-ended-card">
+            <div style={{ fontSize: '2.4rem' }} aria-hidden="true">🏆</div>
+            <h1>The World Cup 2026 contest is complete</h1>
+            <p>League creation is closed until the next tournament. Your leagues, standings, and badges are preserved forever.</p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-primary" onClick={() => nav('winners')}>See the winners</button>
+              <button type="button" className="btn btn-secondary" onClick={() => nav('leagues')}>My leagues</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {view === 'create' && !isTournamentOver() && (
         <CreateLeagueForm
           createName={createName} setCreateName={setCreateName}
           createTp={createTp} setCreateTp={setCreateTp}

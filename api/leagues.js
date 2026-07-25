@@ -1,6 +1,6 @@
 import { db, applyCors, verifyAuth } from './_lib/firebase.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { lockedSectionsInUpdate } from '../src/utils/stageLock.js';
+import { lockedSectionsInUpdate, isTournamentOver } from '../src/utils/stageLock.js';
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -28,6 +28,10 @@ export default async function handler(req, res) {
   try {
     // ─── CREATE ───────────────────────────────────────────
     if (action === 'create') {
+      // Tournament over → no new leagues until the next contest.
+      if (isTournamentOver()) {
+        return res.status(403).json({ error: 'The World Cup 2026 contest has ended — league creation reopens for the next tournament.' });
+      }
       if (claims.provider === 'anonymous') {
         return res.status(403).json({ error: 'Sign up to create a league.' });
       }
@@ -227,6 +231,10 @@ export default async function handler(req, res) {
 
     // ─── JOIN ─────────────────────────────────────────────
     } else if (action === 'join') {
+      // Tournament over → leagues are in their ended state; no new joins.
+      if (isTournamentOver()) {
+        return res.status(403).json({ error: 'The World Cup 2026 contest has ended — leagues are closed to new members.' });
+      }
       const { leagueId, passcode } = req.body;
       if (!leagueId) return res.status(400).json({ error: 'League ID required' });
       // No-login visitors are doc-less (no /users doc) — they can predict but
