@@ -213,6 +213,54 @@ export default async function handler(req, res) {
         }
 
         return res.status(200).json({ runs, templateStats });
+      } else if (type === 'winnerEligibility') {
+        // One-click prize-eligibility screen for the top finishers (top 3 +
+        // 2 alternates). Checks, per Official Rules v1.0.0:
+        //  - contest consent on file for the CURRENT rules version
+        //    (age + jurisdiction attested)
+        //  - not explicitly opted out (prizeIneligible)
+        //  - entry submitted before the group-stage lock (the Rules' entry
+        //    cutoff — late knockout-only entrants don't qualify as written)
+        //  - geo sanity vs excluded jurisdictions (WA/US, QC/CA) — the
+        //    attestation is theirs, but a conflicting geo deserves review
+        //  - payout wallet on file (informational, not an eligibility gate)
+        const [{ readLeaderboardCache, rebuildLeaderboardCache }, legal, { stageLockTimeUtc }] = await Promise.all([
+          import('./_lib/leaderboardCache.js'),
+          import('../src/config/legal.js'),
+          import('../src/utils/stageLock.js'),
+        ]);
+        let board = await readLeaderboardCache(db, 'global-simple', 60 * 60 * 1000);
+        if (!board) board = await rebuildLeaderboardCache(db, admin, 'global-simple');
+        const topRows = (board?.leaderboard || []).filter(r => r.hasSubmitted).slice(0, 5);
+        if (topRows.length === 0) return res.status(200).json({ rows: [], rulesVersion: legal.RULES_VERSION });
+        const cutoffMs = stageLockTimeUtc('groupStage');
+        const snaps = await db.getAll(...topRows.map(r => db.collection('users').doc(r.userId)));
+        const usersById = {};
+        snaps.forEach(s => { if (s.exists) usersById[s.id] = s.data(); });
+        const rows = topRows.map((r, i) => {
+          const u = usersById[r.userId] || {};
+          const consentOk = legal.hasCurrentConsent(u);
+          const notOptedOut = !legal.isPrizeIneligible(u);
+          const entryOk = typeof r.submittedAt === 'number' && r.submittedAt <= cutoffMs;
+          const geoFlagged = (u.geoCountry === 'US' && u.geoRegion === 'WA') || (u.geoCountry === 'CA' && u.geoRegion === 'QC');
+          return {
+            place: i + 1,
+            userId: r.userId,
+            displayName: r.displayName || r.userId.slice(0, 8),
+            email: u.email || null,
+            points: r.totalScore || 0,
+            submittedAtMs: typeof r.submittedAt === 'number' ? r.submittedAt : null,
+            consentOk,
+            consentVersion: u.contestConsent?.rulesVersion || null,
+            notOptedOut,
+            entryOk,
+            geoOk: !geoFlagged,
+            geo: [u.geoCountry, u.geoRegion].filter(Boolean).join('-') || null,
+            wallet: u.walletAddress || null,
+            eligible: consentOk && notOptedOut && entryOk && !geoFlagged,
+          };
+        });
+        return res.status(200).json({ rows, rulesVersion: legal.RULES_VERSION, cutoffMs });
       } else if (type === 'surveyVotes') {
         // "What next?" survey results (votes recorded by /api/survey from the
         // Wrapped email's /next page). Vote docs are one-per-user (doc id

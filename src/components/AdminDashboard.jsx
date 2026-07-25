@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { koSlotLabel } from '../utils/bracketUtils';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminKoResolution, fetchAdminSurveyVotes, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, fetchAdminKoResolution, fetchAdminSurveyVotes, fetchAdminWinnerEligibility, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -102,6 +102,19 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [digestBusy, setDigestBusy] = useState(false);
   const [digestInfo, setDigestInfo] = useState(null); // { eligibleCount, autoRecap, pointsRemaining } after preview
   const [digestQueued, setDigestQueued] = useState(null); // { queued, chunks } after send
+  // Winner prize-eligibility screen (top 3 + alternates).
+  const [winnerElig, setWinnerElig] = useState(null);
+  const [winnerEligBusy, setWinnerEligBusy] = useState(false);
+  const runWinnerEligibility = async () => {
+    setWinnerEligBusy(true);
+    try {
+      setWinnerElig(await fetchAdminWinnerEligibility());
+    } catch (e) {
+      notify(e?.message || 'Eligibility check failed', 'error');
+    } finally {
+      setWinnerEligBusy(false);
+    }
+  };
   // "What next?" survey results (Wrapped email votes + comments).
   const [surveyRes, setSurveyRes] = useState(null);
   const [surveyBusy, setSurveyBusy] = useState(false);
@@ -2497,6 +2510,54 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 </span>
               )}
             </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>
+              <strong style={{ fontSize: '0.85rem' }}>🏅 Winner eligibility (top 3 + alternates)</strong>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={winnerEligBusy} onClick={runWinnerEligibility}>
+                {winnerEligBusy ? 'Checking…' : winnerElig ? 'Re-check' : 'Run eligibility check'}
+              </button>
+              {winnerElig && (
+                <span className="form-hint" style={{ margin: 0 }}>
+                  rules v{winnerElig.rulesVersion} · entry cutoff {winnerElig.cutoffMs ? new Date(winnerElig.cutoffMs).toLocaleDateString() : '—'}
+                </span>
+              )}
+            </div>
+            {winnerElig && winnerElig.rows.length > 0 && (
+              <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
+                <table className="admin-outreach-runs-table">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>User</th><th>Email</th><th>Pts</th>
+                      <th>Consent</th><th>Not opted out</th><th>Entered by cutoff</th><th>Geo</th><th>Wallet</th><th>Verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {winnerElig.rows.map((r) => {
+                      const ok = (v) => v
+                        ? <span style={{ color: 'var(--success)', fontWeight: 700 }}>✓</span>
+                        : <span style={{ color: 'var(--danger)', fontWeight: 700 }}>✗</span>;
+                      return (
+                        <tr key={r.userId}>
+                          <td>{r.place <= 3 ? ['🥇','🥈','🥉'][r.place - 1] : `#${r.place}`}</td>
+                          <td title={r.userId}>{r.displayName}</td>
+                          <td>{r.email || '—'}</td>
+                          <td>{r.points}</td>
+                          <td title={r.consentVersion ? `consented to v${r.consentVersion}` : 'no consent on file'}>{ok(r.consentOk)}</td>
+                          <td>{ok(r.notOptedOut)}</td>
+                          <td title={r.submittedAtMs ? `submitted ${new Date(r.submittedAtMs).toLocaleString()}` : 'no submission timestamp'}>{ok(r.entryOk)}</td>
+                          <td title={r.geo || 'no geo on file'}>{r.geoOk ? <span style={{ color: 'var(--success)', fontWeight: 700 }}>✓</span> : <span style={{ color: 'var(--amber)', fontWeight: 700 }} title={`Geo ${r.geo} — excluded jurisdiction, review before paying`}>⚠</span>}</td>
+                          <td>{r.wallet ? <code style={{ fontSize: '0.72rem' }}>…{r.wallet.slice(-6)}</code> : <span style={{ color: 'var(--text-sec)' }}>none</span>}</td>
+                          <td>
+                            {r.eligible
+                              ? <span style={{ color: 'var(--success)', fontWeight: 700 }}>ELIGIBLE</span>
+                              : <span style={{ color: 'var(--danger)', fontWeight: 700 }}>REVIEW</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>
               <strong style={{ fontSize: '0.85rem' }}>🗳️ Survey results</strong>
               <button type="button" className="btn btn-ghost btn-sm" disabled={surveyBusy} onClick={loadSurveyResults}>

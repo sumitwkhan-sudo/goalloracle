@@ -837,6 +837,12 @@ export async function fetchAdminKoResolution() {
   return await apiCall('admin?type=koResolution');
 }
 
+// One-click prize-eligibility screen for the top finishers (top 3 + 2
+// alternates): consent, opt-out, entry-cutoff, geo, wallet-on-file.
+export async function fetchAdminWinnerEligibility() {
+  return await apiCall('admin?type=winnerEligibility');
+}
+
 // "What next?" survey results (Wrapped email votes + freeform comments).
 export async function fetchAdminSurveyVotes() {
   return await apiCall('admin?type=surveyVotes');
