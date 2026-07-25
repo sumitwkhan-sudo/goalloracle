@@ -2947,6 +2947,21 @@ export default async function handler(req, res) {
         targetEmail: winner.email,
         summary: { place: p, ...proofSummary, receiptSent: r.sent },
       }).catch(() => {});
+      // If the public winners page is already published, sync this payment's
+      // proof link into it directly — no manual re-publish needed for proofs
+      // that land after publishing.
+      try {
+        const wRef = db.collection('siteContent').doc('winners');
+        const wSnap = await wRef.get();
+        if (wSnap.exists) {
+          const proofUrl = proofSummary.explorerUrl || proofSummary.stripeReceiptUrl || null;
+          const winnersArr = (wSnap.data().winners || []).map((w) =>
+            w.place === p ? { ...w, proofUrl } : w);
+          await wRef.update({ winners: winnersArr, updatedAt: FieldValue.serverTimestamp() });
+        }
+      } catch (e) {
+        console.warn('[winnerReceipt] winners-page proof sync failed (non-fatal):', e?.message);
+      }
       return res.status(200).json({ phase, sent: r.sent, error: r.error || null, winner: { place: p, displayName: winner.displayName, email: winner.email }, proofUrl: proofSummary.explorerUrl || proofSummary.stripeReceiptUrl });
     }
 

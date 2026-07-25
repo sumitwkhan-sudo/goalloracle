@@ -45,11 +45,14 @@ export default async function handler(req, res) {
       // admin Close out flow; per-view Firestore cost ≈ zero.
       const snap = await db.collection('siteContent').doc('winners').get();
       if (!snap.exists) {
-        res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+        // Short negative cache — a publish should show up fast.
+        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=60');
         return res.status(200).json({ published: false });
       }
       const d = snap.data();
-      res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+      // 5 min, not an hour: the doc updates when payouts land (receipts sync
+      // their proof links in), and it's ONE read per window — cost is nil.
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
       return res.status(200).json({ published: true, winners: d.winners || [], totalPlayers: d.totalPlayers || null });
 
     } else if (type === 'profile') {
@@ -59,7 +62,9 @@ export default async function handler(req, res) {
       if (!uid || uid.length > 128) return res.status(400).json({ error: 'Missing u' });
       const snap = await db.collection('profiles').doc(uid).get();
       if (!snap.exists) {
-        res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+        // Short negative cache — otherwise a pre-finalization visit poisons
+        // the URL for 15 minutes after profiles ARE written.
+        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=60');
         return res.status(404).json({ error: 'Profile not found' });
       }
       const { userId: pUid, displayName, country, wc2026 } = snap.data();
