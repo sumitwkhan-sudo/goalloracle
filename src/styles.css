@@ -2813,10 +2813,18 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   display: flex; align-items: center; justify-content: center; gap: 0.9rem;
   flex-wrap: wrap; padding: 0.7rem 1rem;
   background: linear-gradient(135deg, #1a1400, #3d2f00);
-  border-bottom: 1px solid #FFC857;
-  color: #f5e9c8; font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 200, 87, 0.55);
+  color: #cfc4a4;
+  /* Site label voice (JetBrains Mono, tracked uppercase) — not the default
+     bold display sans. */
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
 }
-.tournament-ended-banner strong { color: #FFC857; }
+.tournament-ended-banner strong { color: #FFC857; font-weight: 700; letter-spacing: 0.09em; }
+.tournament-ended-banner .btn { font-family: var(--font); text-transform: none; letter-spacing: normal; }
 .tournament-ended-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
 .tournament-ended-page { display: flex; justify-content: center; padding: 3rem 1rem; }
 .tournament-ended-card {
