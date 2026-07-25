@@ -57,13 +57,15 @@ function parseDocId(id, data) {
  * @returns {Promise<{ scored: number, written: number, errors: number }>}
  */
 export async function recomputeSimpleScores(db, actuals) {
-  const out = { scored: 0, written: 0, errors: 0 };
+  const out = { scored: 0, written: 0, skipped: 0, errors: 0 };
   const snap = await db.collection('simplePredictions').get();
 
-  let batch = db.batch();
-  let ops = 0;
-  const commits = [];
-
+  // Compute every score first, then read the EXISTING score docs and only
+  // write the ones that actually changed. Most results change a minority of
+  // totals (and corrections/re-runs change almost none), so comparing first
+  // — reads are 3× cheaper than writes — cuts the write fan-out that would
+  // otherwise scale as (players × results) at bigger scale.
+  const computed = [];
   for (const doc of snap.docs) {
     const data = doc.data();
     if (!data) continue;
@@ -71,28 +73,43 @@ export async function recomputeSimpleScores(db, actuals) {
     try {
       const { totalScore, totalAccuracy, breakdown } = calculateSimpleScore(data, actuals);
       out.scored += 1;
-      // Score doc lives in a subcollection under the prediction doc, keyed
-      // by leagueId — the exact path subscribeToSimpleScore reads.
-      const ref = db
-        .collection('simplePredictions').doc(doc.id)
-        .collection('scores').doc(leagueId);
-      batch.set(ref, {
-        userId,
-        leagueId,
-        totalScore,
-        totalAccuracy,
-        breakdown,
-        computedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-      ops += 1;
-      out.written += 1;
-      if (ops >= BATCH_LIMIT) {
-        commits.push(batch.commit());
-        batch = db.batch();
-        ops = 0;
-      }
+      computed.push({
+        ref: db.collection('simplePredictions').doc(doc.id).collection('scores').doc(leagueId),
+        payload: { userId, leagueId, totalScore, totalAccuracy, breakdown },
+      });
     } catch (e) {
       out.errors += 1;
+    }
+  }
+
+  const existing = new Map(); // ref.path -> { totalScore, totalAccuracy }
+  for (let i = 0; i < computed.length; i += 300) {
+    const slice = computed.slice(i, i + 300);
+    const snaps = await db.getAll(...slice.map((c) => c.ref));
+    snaps.forEach((s, j) => {
+      if (s.exists) {
+        const d = s.data();
+        existing.set(slice[j].ref.path, { totalScore: d.totalScore, totalAccuracy: d.totalAccuracy });
+      }
+    });
+  }
+
+  let batch = db.batch();
+  let ops = 0;
+  const commits = [];
+  for (const c of computed) {
+    const prev = existing.get(c.ref.path);
+    if (prev && prev.totalScore === c.payload.totalScore && prev.totalAccuracy === c.payload.totalAccuracy) {
+      out.skipped += 1;
+      continue; // unchanged — no write, no timestamp churn
+    }
+    batch.set(c.ref, { ...c.payload, computedAt: FieldValue.serverTimestamp() }, { merge: true });
+    ops += 1;
+    out.written += 1;
+    if (ops >= BATCH_LIMIT) {
+      commits.push(batch.commit());
+      batch = db.batch();
+      ops = 0;
     }
   }
   if (ops > 0) commits.push(batch.commit());

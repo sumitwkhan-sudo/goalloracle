@@ -8,10 +8,14 @@ import {
   CACHE_FRESH_MS,
 } from './_lib/leaderboardCache.js';
 
-// Leagues big enough that computing the board live per request is a cost
-// problem (reads scale with member count). These serve from the materialized
-// /leaderboardCache docs (~5 reads) and rebuild lazily/on result ingest.
-const CACHED_LEAGUES = new Set(['global-simple']);
+// ALL league boards serve from the materialized /leaderboardCache docs
+// (~5 reads per hit) and rebuild lazily on staleness (or on result ingest
+// for the global league). Live per-request computation — whose reads scale
+// with member count — only ever runs once per staleness window per league,
+// no matter how many people are watching. This is the scale contract:
+// viewing cost is O(1), computing cost is O(members) but amortized across
+// every viewer in the window.
+const CACHE_ALL_LEAGUES = true;
 
 export default async function handler(req, res) {
   applyCors(req, res);
@@ -26,20 +30,18 @@ export default async function handler(req, res) {
     let data = null;
     let servedFromCache = false;
 
-    if (CACHED_LEAGUES.has(leagueId)) {
+    if (CACHE_ALL_LEAGUES) {
       const cached = await readLeaderboardCache(db, leagueId, CACHE_FRESH_MS);
       if (cached) {
         data = cached;
         servedFromCache = true;
       } else {
         // Stale/missing — compute live once and persist for everyone else.
-        // (Result ingests also rebuild proactively, so this mostly fires
-        // after quiet periods, paying the big read once per staleness window
-        // instead of once per minute.)
+        // (Global also rebuilds proactively on result ingest; private
+        // leagues refresh here, at most once per staleness window.)
         data = await rebuildLeaderboardCache(db, admin, leagueId);
       }
     } else {
-      // Small (private/public) leagues: live compute is cheap.
       data = await buildLeaderboardRows(db, admin, leagueId);
     }
     if (!data) return res.status(404).json({ error: 'League not found' });

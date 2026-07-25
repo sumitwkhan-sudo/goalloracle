@@ -2798,6 +2798,95 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .tipjar-inline p { margin: 0 0 0.6rem; font-size: 0.86rem; line-height: 1.55; color: var(--text); }
 .tipjar-inline .btn { display: inline-flex; align-items: center; gap: 0.35rem; }
 
+/* ── Winners page (/winners) ────────────────────────────────────── */
+.winners-page { max-width: 860px; margin: 0 auto; padding: 2.5rem 1rem 3rem; }
+.winners-head { text-align: center; margin-bottom: 2rem; }
+.winners-head h1 {
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  font-size: 1.9rem; letter-spacing: -0.02em; margin: 0 0 0.5rem;
+}
+.winners-head p { margin: 0; color: var(--text-sec); font-size: 0.95rem; }
+.winners-podium {
+  display: flex; gap: 1rem; align-items: flex-end; justify-content: center;
+  flex-wrap: wrap; margin-bottom: 2rem;
+}
+.winners-card {
+  flex: 1 1 200px; max-width: 250px; text-align: center;
+  background: var(--bg-card, var(--bg-elev));
+  border: 1px solid var(--border); border-radius: 16px;
+  padding: 1.4rem 1rem 1.2rem;
+}
+.winners-place-1 {
+  border-color: #FFC857; box-shadow: 0 8px 30px rgba(255, 200, 87, 0.18);
+  padding-top: 2rem; padding-bottom: 1.8rem;
+}
+.winners-medal { font-size: 2.6rem; margin-bottom: 0.4rem; }
+.winners-place-1 .winners-medal { font-size: 3.2rem; }
+.winners-name {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-family: var(--font); font-weight: 800; font-size: 1.05rem; color: var(--text);
+}
+.winners-name:hover { text-decoration: underline; }
+.winners-points { font-family: var(--mono); font-size: 0.8rem; color: var(--text-sec); margin: 0.3rem 0; }
+.winners-prize { font-weight: 800; font-size: 1.1rem; color: #FFC857; margin-bottom: 0.5rem; }
+.winners-proof {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.72rem; font-weight: 600; color: var(--success);
+  text-decoration: none; border: 1px solid var(--border); border-radius: 999px;
+  padding: 3px 10px;
+}
+.winners-proof:hover { border-color: var(--success); }
+.winners-footer { text-align: center; }
+.winners-footnote { margin-top: 0.9rem; font-size: 0.75rem; color: var(--text-sec); }
+.winners-footnote a { color: var(--text-sec); }
+
+/* ── Player profile (/player/:id) ───────────────────────────────── */
+.profile-page { display: flex; justify-content: center; padding: 2.5rem 1rem 3rem; }
+.profile-card {
+  width: 100%; max-width: 520px; text-align: center;
+  background: var(--bg-card, var(--bg-elev));
+  border: 1px solid var(--border); border-radius: 16px;
+  padding: 2rem 1.5rem;
+}
+.profile-avatar {
+  width: 64px; height: 64px; margin: 0 auto 0.7rem;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primary-soft); color: var(--primary);
+  border-radius: 50%; font-size: 1.6rem; font-weight: 800;
+}
+.profile-name { margin: 0 0 0.25rem; font-size: 1.5rem; letter-spacing: -0.02em; }
+.profile-sub { margin: 0 0 1.2rem; color: var(--text-sec); font-size: 0.82rem; }
+.profile-rankcard {
+  background: var(--bg); border: 1px solid var(--border); border-left: 4px solid var(--primary);
+  border-radius: 12px; padding: 1rem; margin-bottom: 1.2rem;
+}
+.profile-rank-big { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; color: var(--primary); line-height: 1.1; }
+.profile-rank-meta { font-size: 0.85rem; color: var(--text-sec); line-height: 1.6; }
+.profile-badges {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem; margin-bottom: 1.2rem;
+}
+.profile-badge {
+  display: flex; align-items: center; gap: 0.45rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.5rem 0.6rem; text-align: left;
+}
+.profile-badge-emoji { font-size: 1.2rem; flex-shrink: 0; }
+.profile-badge-label { font-size: 0.72rem; font-weight: 700; line-height: 1.25; }
+.profile-leagues { text-align: left; margin-bottom: 1.1rem; }
+.profile-leagues h2 { font-size: 0.85rem; margin: 0 0 0.5rem; }
+.profile-league-row {
+  display: flex; justify-content: space-between; gap: 0.6rem;
+  padding: 0.4rem 0; border-bottom: 1px solid var(--border);
+  font-size: 0.84rem;
+}
+.profile-league-row:last-child { border-bottom: none; }
+.profile-league-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-league-rank { font-family: var(--mono); font-size: 0.78rem; color: var(--text-sec); flex-shrink: 0; }
+.profile-bestcall { font-size: 0.84rem; color: var(--text-sec); line-height: 1.5; margin: 0 0 1.2rem; }
+.profile-actions { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
+.profile-actions .btn { display: inline-flex; align-items: center; gap: 0.35rem; }
+
 /* Survey thank-you page (/next — Wrapped email one-tap survey) */
 .survey-thanks {
   min-height: 70vh; display: flex; align-items: flex-start; justify-content: center;

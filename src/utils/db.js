@@ -866,6 +866,25 @@ export async function adminWinnerReceiptRun({ place, txHash, network, currency, 
   return await apiCall('admin', 'POST', { action: 'winnerReceiptRun', place, txHash, network, currency, method, stripeReceiptUrl, phase });
 }
 
+// Close-out step 1 (superadmin): freeze every player's tournament record
+// into /profiles/{uid} — rank, percentile, league positions, badges.
+export async function adminTournamentFinalize() {
+  return await apiCall('admin', 'POST', { action: 'tournamentFinalize' });
+}
+
+// Close-out step 2 (superadmin): publish the /winners page content doc.
+export async function adminPublishWinners(excludePlaces = []) {
+  return await apiCall('admin', 'POST', { action: 'publishWinners', excludePlaces });
+}
+
+// Public reads for the closeout pages (edge-cached; no auth).
+export async function fetchWinnersPage() {
+  try { return await publicApiGet('public?type=winners'); } catch { return { published: false }; }
+}
+export async function fetchPlayerProfile(userId) {
+  return await publicApiGet(`public?type=profile&u=${encodeURIComponent(userId)}`);
+}
+
 // One-click prize-eligibility screen for the top finishers (top 3 + 2
 // alternates): consent, opt-out, entry-cutoff, geo, wallet-on-file.
 export async function fetchAdminWinnerEligibility() {

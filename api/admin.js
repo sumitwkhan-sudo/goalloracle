@@ -2950,6 +2950,99 @@ export default async function handler(req, res) {
       return res.status(200).json({ phase, sent: r.sent, error: r.error || null, winner: { place: p, displayName: winner.displayName, email: winner.email }, proofUrl: proofSummary.explorerUrl || proofSummary.stripeReceiptUrl });
     }
 
+    if (action === 'tournamentFinalize') {
+      // Close-out step 1: freeze every player's World Cup 2026 record into
+      // /profiles/{uid} (rank, percentile, league positions, badge ids) in
+      // one full scan + one batched write pass. Profile pages then serve a
+      // single edge-cached read forever — nothing per-view, nothing
+      // recomputed. Idempotent: re-running overwrites with fresh data.
+      const callerRole2 = await getRole(userId);
+      if (callerRole2 !== 'superadmin') return res.status(403).json({ error: 'Superadmin only' });
+      const { buildProfilesData } = await import('./_lib/finalWeekEmails.js');
+      const data = await buildProfilesData(db);
+      if (!data.finalDecided) return res.status(400).json({ error: 'Final result not verified yet — finalize after the Final is verified.' });
+      let batch = db.batch();
+      let ops = 0;
+      const commits = [];
+      for (const p of data.profiles) {
+        batch.set(db.collection('profiles').doc(p.userId), {
+          ...p,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        if (++ops >= 450) { commits.push(batch.commit()); batch = db.batch(); ops = 0; }
+      }
+      if (ops > 0) commits.push(batch.commit());
+      await Promise.all(commits);
+      await db.collection('siteContent').doc('tournament2026').set({
+        totalPlayers: data.totalPlayers,
+        finalWinner: data.finalWinner,
+        finalizedAt: FieldValue.serverTimestamp(),
+        finalizedBy: userId,
+      }, { merge: true });
+      await db.collection('adminLogs').add({
+        action: 'tournament_finalize',
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        summary: { profiles: data.profiles.length, totalPlayers: data.totalPlayers, finalWinner: data.finalWinner },
+      }).catch(() => {});
+      return res.status(200).json({ profiles: data.profiles.length, totalPlayers: data.totalPlayers, finalWinner: data.finalWinner });
+    }
+
+    if (action === 'publishWinners') {
+      // Close-out step 2: write the public /winners page content to ONE doc
+      // (/siteContent/winners) served via the edge-cached public API. Prize
+      // proof links come from the winner_paid audit rows written by the
+      // receipt flow. excludePlaces honors publicity opt-outs (Rules §10).
+      const callerRole3 = await getRole(userId);
+      if (callerRole3 !== 'superadmin') return res.status(403).json({ error: 'Superadmin only' });
+      const excludePlaces = Array.isArray(req.body.excludePlaces) ? req.body.excludePlaces.map(Number) : [];
+      const { buildWinnerData } = await import('./_lib/finalWeekEmails.js');
+      const { PRIZES } = await import('../src/config/legal.js');
+      const data = await buildWinnerData(db, admin);
+      if (!data.finalDecided) return res.status(400).json({ error: 'Final result not verified yet.' });
+      // Latest payout proof per place from the winner_paid audit rows.
+      const paidSnap = await db.collection('adminLogs').where('action', '==', 'winner_paid').get();
+      const proofByPlace = {};
+      paidSnap.forEach((d) => {
+        const s = d.data().summary || {};
+        const ts = d.data().timestamp;
+        const ms = ts?._seconds ? ts._seconds * 1000 : 0;
+        if (!proofByPlace[s.place] || ms > proofByPlace[s.place].ms) {
+          proofByPlace[s.place] = { ms, url: s.explorerUrl || s.stripeReceiptUrl || null };
+        }
+      });
+      // Country flags for the podium.
+      const top3 = data.winners.slice(0, 3);
+      const userSnaps = top3.length ? await db.getAll(...top3.map((w) => db.collection('users').doc(w.userId))) : [];
+      const countries = {};
+      userSnaps.forEach((s) => { if (s.exists) countries[s.id] = s.data().country || s.data().geoCountry || null; });
+      const winners = top3
+        .filter((w) => !excludePlaces.includes(w.place))
+        .map((w) => ({
+          place: w.place,
+          displayName: w.displayName,
+          userId: w.userId,
+          country: countries[w.userId] || null,
+          points: w.points,
+          amount: PRIZES[w.place - 1]?.amount || 0,
+          currency: PRIZES[w.place - 1]?.currency || 'USDC',
+          proofUrl: proofByPlace[w.place]?.url || null,
+        }));
+      await db.collection('siteContent').doc('winners').set({
+        winners,
+        totalPlayers: data.total,
+        publishedAt: FieldValue.serverTimestamp(),
+        publishedBy: userId,
+      });
+      await db.collection('adminLogs').add({
+        action: 'winners_published',
+        adminId: userId,
+        timestamp: FieldValue.serverTimestamp(),
+        summary: { places: winners.map((w) => w.place), excludePlaces },
+      }).catch(() => {});
+      return res.status(200).json({ published: winners.length, winners });
+    }
+
     if (action === 'outreachSendCanary') {
       const { template = 'noPicksReminder', userIds: pool, count = 3 } = req.body;
       if (!Array.isArray(pool) || pool.length === 0) {

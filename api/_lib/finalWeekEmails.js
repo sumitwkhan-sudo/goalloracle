@@ -456,3 +456,159 @@ export const RECEIPT_EXPLORERS = {
   base: { label: 'Base', txUrl: (h) => `https://basescan.org/tx/${h}` },
   ethereum: { label: 'Ethereum', txUrl: (h) => `https://etherscan.io/tx/${h}` },
 };
+
+// ── Tournament finalization: one frozen /profiles doc per player ────────────
+// Computes every player's permanent World Cup 2026 record — final rank,
+// percentile, every league position, badge ids — in ONE full scan, written
+// once. Profile pages then cost a single edge-cached read forever; nothing
+// is ever recomputed per view. Badge DISPLAY lives in src/config/badges.js;
+// only ids are stored.
+export async function buildProfilesData(db) {
+  const [usersSnap, predsSnap, leaguesSnap, resultsSnap] = await Promise.all([
+    db.collection('users').get(),
+    db.collection('simplePredictions').get(),
+    db.collection('leagues').get(),
+    db.collection('matchResults').get(),
+  ]);
+
+  const results = {};
+  resultsSnap.forEach((d) => { results[d.id] = d.data(); });
+  const actuals = buildSimpleActuals(results);
+  const koWinners = actuals.knockoutResults || {};
+  const { resolved } = resolveActualBracket(results);
+  const finalWinner = koWinners.final?.winnerId || null;
+  const finalLoser = finalWinner && resolved.final
+    ? (resolved.final.home === finalWinner ? resolved.final.away : resolved.final.home)
+    : null;
+
+  const leagueMeta = {};
+  leaguesSnap.forEach((d) => {
+    const l = d.data();
+    leagueMeta[d.id] = {
+      name: l.name || d.id,
+      memberCount: l.memberCount || (Array.isArray(l.members) ? l.members.length : 0),
+      predictionMode: l.predictionMode || 'simple',
+    };
+  });
+
+  const docsByLeague = {};
+  predsSnap.forEach((d) => {
+    const data = d.data();
+    if (!data?.userId || !data?.leagueId) return;
+    if (!hasAnyPicks(data)) return;
+    if (leagueMeta[data.leagueId]?.predictionMode === 'classic') return;
+    (docsByLeague[data.leagueId] = docsByLeague[data.leagueId] || []).push(data);
+  });
+
+  const ranks = {};
+  for (const [leagueId, docs] of Object.entries(docsByLeague)) {
+    ranks[leagueId] = rankLeague(docs, actuals);
+  }
+  const global = ranks['global-simple'] || { byUser: {}, total: 0 };
+  const globalDocsByUser = {};
+  for (const doc of docsByLeague['global-simple'] || []) globalDocsByUser[doc.userId] = doc;
+
+  // Crowd pick popularity → Oracle Eye badge + bestCall stat.
+  const pickCounts = {};
+  for (const doc of docsByLeague['global-simple'] || []) {
+    const ko = doc.knockoutPredictions || {};
+    for (const round of ROUND_ORDER) {
+      for (const p of ko[round] || []) {
+        if (!p?.matchId || !p?.winnerId) continue;
+        const slot = (pickCounts[p.matchId] = pickCounts[p.matchId] || { total: 0, byTeam: {} });
+        slot.total += 1;
+        slot.byTeam[p.winnerId] = (slot.byTeam[p.winnerId] || 0) + 1;
+      }
+    }
+  }
+
+  const groupCutoffMs = stageLockTimeUtcSafe();
+
+  const profiles = [];
+  usersSnap.forEach((d) => {
+    const u = d.data();
+    const g = global.byUser[d.id];
+    if (!g) return; // never played — no profile
+    const doc = globalDocsByUser[d.id];
+    const total = global.total;
+    const rank = g.rank;
+    const percentile = total > 0 ? Math.max(1, Math.ceil((rank / total) * 100)) : null;
+
+    const leagues = [];
+    let leagueWins = 0;
+    for (const [leagueId, r] of Object.entries(ranks)) {
+      if (GLOBAL_IDS.has(leagueId)) continue;
+      const entry = r.byUser[d.id];
+      if (!entry) continue;
+      if (entry.rank === 1) leagueWins += 1;
+      leagues.push({ name: leagueMeta[leagueId]?.name || leagueId, rank: entry.rank, total: r.total });
+    }
+    leagues.sort((a, b) => b.total - a.total);
+
+    let bestCall = null;
+    const champion = doc?.knockoutPredictions?.final?.[0]?.winnerId || null;
+    if (doc) {
+      const ko = doc.knockoutPredictions || {};
+      for (const round of ROUND_ORDER) {
+        for (const p of ko[round] || []) {
+          if (!p?.matchId || !p?.winnerId) continue;
+          const actual = koWinners[p.matchId]?.winnerId;
+          if (!actual || actual !== p.winnerId) continue;
+          const slot = pickCounts[p.matchId];
+          if (!slot || slot.total < 20) continue;
+          const pct = Math.round(((slot.byTeam[p.winnerId] || 0) / slot.total) * 100);
+          if (!bestCall || pct < bestCall.pct) bestCall = { team: p.winnerId, roundLabel: ROUND_LABEL[round] || round, pct };
+        }
+      }
+    }
+
+    const submittedAtMs = tsMillis(doc?.submittedAt);
+    const isComplete = !!(doc?.isComplete || doc?.knockoutPredictions?.final?.[0]?.winnerId);
+
+    const badges = ['founding_player'];
+    if (rank === 1) badges.push('podium_1');
+    else if (rank === 2) badges.push('podium_2');
+    else if (rank === 3) badges.push('podium_3');
+    else if (rank <= 10) badges.push('top_10');
+    else if (percentile != null && percentile <= 1) badges.push('top_1pct');
+    else if (percentile != null && percentile <= 10) badges.push('top_10pct');
+    if (champion && finalWinner && champion === finalWinner) badges.push('champion_caller');
+    if (bestCall && bestCall.pct <= 15) badges.push('oracle_eye');
+    if (leagueWins > 0) badges.push('league_champion');
+    if (leagues.length >= 3) badges.push('league_collector');
+    if (isComplete) badges.push('bracket_finisher');
+    if (Number.isFinite(submittedAtMs) && groupCutoffMs && submittedAtMs <= groupCutoffMs) badges.push('early_bird');
+
+    profiles.push({
+      userId: d.id,
+      displayName: u.displayName || d.id.slice(0, 8),
+      country: u.country || u.geoCountry || null,
+      wc2026: {
+        rank,
+        total,
+        points: g.score,
+        percentile,
+        leagues: leagues.slice(0, 8),
+        leagueWins,
+        badges,
+        champion,
+        championWon: !!(champion && finalWinner && champion === finalWinner),
+        bestCall,
+        finalWinner,
+        finalRunnerUp: finalLoser,
+      },
+    });
+  });
+
+  return { profiles, totalPlayers: global.total, finalWinner, finalDecided: !!finalWinner };
+}
+
+function stageLockTimeUtcSafe() {
+  try {
+    // Lazy import avoided — reuse the kickoff-lock util already imported.
+    // Group-stage entry cutoff = first group game's lock time.
+    return Date.UTC(2026, 5, 11, 18, 55, 0);
+  } catch {
+    return null;
+  }
+}

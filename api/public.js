@@ -40,6 +40,32 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
       return res.status(200).json({ results });
 
+    } else if (type === 'winners') {
+      // Winners page content — ONE doc, long edge cache. Published by the
+      // admin Close out flow; per-view Firestore cost ≈ zero.
+      const snap = await db.collection('siteContent').doc('winners').get();
+      if (!snap.exists) {
+        res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+        return res.status(200).json({ published: false });
+      }
+      const d = snap.data();
+      res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+      return res.status(200).json({ published: true, winners: d.winners || [], totalPlayers: d.totalPlayers || null });
+
+    } else if (type === 'profile') {
+      // Player profile — ONE frozen doc written at tournament finalization,
+      // long edge cache. Public by design (display name + results only).
+      const uid = String(req.query.u || '');
+      if (!uid || uid.length > 128) return res.status(400).json({ error: 'Missing u' });
+      const snap = await db.collection('profiles').doc(uid).get();
+      if (!snap.exists) {
+        res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+      const { userId: pUid, displayName, country, wc2026 } = snap.data();
+      res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+      return res.status(200).json({ userId: pUid, displayName, country, wc2026 });
+
     } else if (type === 'league') {
       // Minimal public league meta for crawler-side OG/meta injection.
       // Only returns leagues that are public (or global). Private leagues

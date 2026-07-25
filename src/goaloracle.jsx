@@ -61,6 +61,8 @@ import FontPreview from './pages/FontPreview';
 import FirstPickPreview from './pages/FirstPickPreview';
 import SurveyThanks from './pages/SurveyThanks';
 import TipJar from './components/TipJar';
+import WinnersPage from './pages/WinnersPage';
+import PlayerProfile from './pages/PlayerProfile';
 import GroupRedesignPreview from './pages/GroupRedesignPreview';
 import Standings from './pages/Standings';
 import CreateLeagueForm from './components/CreateLeagueForm';
@@ -138,6 +140,7 @@ function ViewMeta({ view }) {
 const PATH_TO_VIEW = {
   '/': 'landing',
   '/next': 'surveyThanks',
+  '/winners': 'winners',
   '/faq': 'faq',
   '/terms': 'terms',
   '/official-rules': 'officialRules',
@@ -181,6 +184,9 @@ function parseRoute() {
   // Public share page: /u/{userId}/bracket — read-only, no auth required.
   const publicMatch = p.match(/^\/u\/([^/]+)(?:\/bracket)?\/?$/);
   if (publicMatch) return { view: 'publicBracket', publicUserId: decodeURIComponent(publicMatch[1]) };
+  // Player profile: /player/{userId} — public, frozen tournament record.
+  const profileMatch = p.match(/^\/player\/([^/]+)\/?$/);
+  if (profileMatch) return { view: 'playerProfile', publicUserId: decodeURIComponent(profileMatch[1]) };
   if (p.startsWith('/league/')) return { view: 'landing', leagueId: decodeURIComponent(p.slice(8)) || null, deepLinkView: 'detail' };
   if (p.startsWith('/quick-picks/')) return { view: 'landing', leagueId: decodeURIComponent(p.slice(13)) || null, deepLinkView: 'simplePredict' };
   return { view: PATH_TO_VIEW[p] || 'landing', leagueId: null };
@@ -1901,6 +1907,19 @@ const GoalOracle = () => {
     } catch { /* no-op — SSR or sandboxed contexts */ }
   }, [loadAllLeagues]);
 
+  // Open a player's public profile page (/player/:id) — shares the
+  // publicUserId state with the /u/:id/bracket page.
+  const openPlayerProfile = useCallback((uid) => {
+    if (!uid) return;
+    setPublicBracketUserId(uid);
+    setView('playerProfile');
+    setMenuOpen(false);
+    window.scrollTo(0, 0);
+    try {
+      window.history.pushState({ view: 'playerProfile' }, '', `/player/${encodeURIComponent(uid)}`);
+    } catch { /* no-op */ }
+  }, []);
+
   // Back/forward button handling — mirror URL into view state. Deep-link to
   // /league/:id or /quick-picks/:id is deferred to the leagues-loaded effect
   // below since we need the league object to render the detail view.
@@ -1910,9 +1929,9 @@ const GoalOracle = () => {
       if (route.leagueId) {
         setPendingDeepLink({ leagueId: route.leagueId, targetView: route.deepLinkView });
         setView('landing');
-      } else if (route.view === 'publicBracket') {
+      } else if (route.view === 'publicBracket' || route.view === 'playerProfile') {
         setPublicBracketUserId(route.publicUserId || null);
-        setView('publicBracket');
+        setView(route.view);
       } else {
         setPublicBracketUserId(null);
         setView(route.view);
@@ -3139,6 +3158,7 @@ const GoalOracle = () => {
               <a onClick={() => authenticated ? nav('dashboard') : login()}>Predict</a>
               <a onClick={() => authenticated ? nav('browse') : login()}>Leagues</a>
               <a onClick={() => nav('faq')}>FAQ</a>
+              <a onClick={() => nav('winners')}>Winners</a>
               <a onClick={() => nav('feedback')}>Feedback</a>
               <a onClick={() => nav('officialRules')}>Official Rules</a>
               <a onClick={() => nav('terms')}>Terms</a>
@@ -4586,6 +4606,10 @@ const GoalOracle = () => {
             {/* Legal links — surfaced in the account dropdown for
                 logged-in users since the authed home doesn't show the
                 full site footer (only the slim home-footer-strip). */}
+            <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); openPlayerProfile(uData?.id); }}>
+              <User size={16} />
+              <span>My profile</span>
+            </button>
             <button type="button" className="dropdown-item" onClick={e => { e.stopPropagation(); setOpen(false); nav('officialRules'); }}>
               <FileText size={16} />
               <span>Official Rules</span>
@@ -5653,6 +5677,25 @@ const GoalOracle = () => {
       {view === 'fontPreview' && <FontPreview />}
       {view === 'firstPickPreview' && <FirstPickPreview />}
       {view === 'surveyThanks' && <SurveyThanks onGoHome={() => nav('landing')} />}
+      {view === 'winners' && (
+        <WinnersPage
+          onViewProfile={openPlayerProfile}
+          onGoLeaderboard={() => {
+            const gl = leagues.find(l => l.id === 'global-simple') || { id: 'global-simple', name: 'Global League', predictionMode: 'simple', isGlobal: true };
+            nav('detail', gl, { tab: 'leaderboard' });
+          }}
+        />
+      )}
+      {view === 'playerProfile' && (
+        <PlayerProfile
+          userId={publicBracketUserId}
+          onViewBracket={(uid) => {
+            setView('publicBracket');
+            try { window.history.pushState({ view: 'publicBracket' }, '', `/u/${encodeURIComponent(uid)}/bracket`); } catch { /* no-op */ }
+          }}
+          onGoHome={() => nav('landing')}
+        />
+      )}
       {view === 'groupRedesignPreview' && <GroupRedesignPreview />}
       {view === 'landing' && <LandingView renderRef={landingRenderRef} />}
       {view === 'dashboard' && (

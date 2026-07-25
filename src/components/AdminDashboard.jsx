@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Users, Trophy, Coins, RefreshCw, ChevronRight, Search, Trash2, AlertTriangle, CheckCircle, ExternalLink, Eye, EyeOff, Wifi, WifiOff, Clock, Zap, Pencil, Check, X, Wallet, Copy, Mail, Send, UserPlus } from 'lucide-react';
 import WORLD_CUP_MATCHES from '../data/matches';
 import { koSlotLabel } from '../utils/bracketUtils';
-import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, adminWinnerReceiptRun, fetchAdminKoResolution, fetchAdminSurveyVotes, fetchAdminWinnerEligibility, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
+import { updateMatchResult, getAllUsers, adminGetUserSegments, adminCopyUsersToGlobal, setUserRole, adminDeleteUser, adminDeleteLeague, adminRenameLeague, adminBackfillCountries, adminBackfillEmails, adminAssignWallet, adminSetFeatureFlag, adminGetFeatureFlagAuditLog, checkOracleHealth, adminRunOracleSmokeTest, adminRunAutoPoll, adminRunDailyReport, adminRunReminderCron, adminClearAntiSybil, adminGetAntiSybilBypassList, adminSetAntiSybilBypassList, adminInspectUser, fetchAdminLeaguesEnriched, adminListOutreachEligible, adminSendOutreachPreview, adminSendOutreachBatch, adminRenderOutreachPreview, adminSendOutreachCanary, fetchAdminOutreachRecentRuns, adminScheduleOutreach, adminCancelScheduledOutreach, fetchAdminOutreachScheduled, fetchAdminGlobalSubmitLog, fetchAdminDeletionLog, adminRecoverDeletedUser, adminStandingsDigestRun, adminFinalWeekEmailRun, adminWinnerReceiptRun, adminTournamentFinalize, adminPublishWinners, fetchAdminKoResolution, fetchAdminSurveyVotes, fetchAdminWinnerEligibility, fetchAdminUsersQpStatus, fetchAdminUsersEmailHistory, adminSendOutreachCustom, fetchAdminAutomationRules, adminSaveAutomationRule, adminDeleteAutomationRule, adminPreviewAutomationRule, adminAddUserToLeague, adminApplyGlobalPicksToLeague, fetchAdminQpUnsubmitted, adminRepairQpComplete, fetchAdminUserInsights, adminSweepGlobalPicksToLeagues, fetchAdminFunnelHealth, fetchAdminRankDigestConfig, adminSetRankDigestConfig, adminRankDigestPreviewNow, adminSeedRankBaseline, DEFAULT_FEATURE_FLAGS } from '../utils/db';
 import TEAM_COLORS from '../data/teamColors';
 import COUNTRIES from '../utils/countries';
 
@@ -102,6 +102,35 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
   const [digestBusy, setDigestBusy] = useState(false);
   const [digestInfo, setDigestInfo] = useState(null); // { eligibleCount, autoRecap, pointsRemaining } after preview
   const [digestQueued, setDigestQueued] = useState(null); // { queued, chunks } after send
+  // Tournament close-out: finalize profiles + publish winners page.
+  const [closeoutBusy, setCloseoutBusy] = useState(null); // 'finalize' | 'publish' | null
+  const [closeoutDone, setCloseoutDone] = useState({}); // { finalize: resp, publish: resp }
+  const runFinalize = async () => {
+    if (!window.confirm('Finalize the tournament? This computes every player\'s permanent profile (rank, percentile, league placements, badges) and writes one profile doc per player. Re-running later just refreshes them.')) return;
+    setCloseoutBusy('finalize');
+    try {
+      const r = await adminTournamentFinalize();
+      setCloseoutDone((s) => ({ ...s, finalize: r }));
+      notify(`Finalized: ${r.profiles} player profiles written (${r.finalWinner} champions).`);
+    } catch (e) {
+      notify(e?.message || 'Finalize failed', 'error');
+    } finally {
+      setCloseoutBusy(null);
+    }
+  };
+  const runPublishWinners = async () => {
+    if (!window.confirm('Publish the public /winners page with the top 3 (including payout proof links)? Any winner who opted out of publicity should be excluded — currently publishing ALL three.')) return;
+    setCloseoutBusy('publish');
+    try {
+      const r = await adminPublishWinners([]);
+      setCloseoutDone((s) => ({ ...s, publish: r }));
+      notify(`Winners page published (${r.published} winners) — live at /winners within the hour (edge cache).`);
+    } catch (e) {
+      notify(e?.message || 'Publish failed', 'error');
+    } finally {
+      setCloseoutBusy(null);
+    }
+  };
   // Winner payment receipt form (place + method: crypto tx hash OR Stripe
   // receipt link).
   const [receipt, setReceipt] = useState({ place: '1', method: 'crypto', network: 'polygon', currency: 'USDC', txHash: '', stripeUrl: '' });
@@ -2682,6 +2711,18 @@ const AdminDashboard = ({ userData, platformStats, matchResults, allLeagues, not
                 {receipt.method === 'crypto'
                   ? <>The Txn Hash is the ID of the payment you already sent (66 chars) — copy it from your wallet&rsquo;s transaction details or the block explorer after sending. It&rsquo;s NOT the winner&rsquo;s wallet address (42 chars).</>
                   : <>Find the receipt link in your Stripe dashboard: open the payment → Receipt → copy the hosted receipt URL (pay.stripe.com/receipts/…). The winner gets it as their proof of payment.</>}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>
+              <strong style={{ fontSize: '0.85rem' }}>📦 Close out</strong>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!!closeoutBusy} onClick={runFinalize}>
+                {closeoutBusy === 'finalize' ? 'Finalizing…' : closeoutDone.finalize ? `Finalized ${closeoutDone.finalize.profiles} ✓ (re-run)` : 'Finalize tournament (write profiles)'}
+              </button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!!closeoutBusy || !closeoutDone.finalize} title={!closeoutDone.finalize ? 'Finalize first' : ''} onClick={runPublishWinners}>
+                {closeoutBusy === 'publish' ? 'Publishing…' : closeoutDone.publish ? 'Winners published ✓' : 'Publish /winners page'}
+              </button>
+              <span className="form-hint" style={{ margin: 0 }}>
+                Finalize = every player gets a permanent profile + badges at /player/:id. Publish = the public podium at /winners with payout proof.
               </span>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.6rem' }}>

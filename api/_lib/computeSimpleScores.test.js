@@ -29,6 +29,10 @@ function makeFakeDb(predictionDocs) {
       }),
       doc: (id) => docRef(`${name}/${id}`),
     }),
+    // Change-detection pass reads existing score docs; the fake has none, so
+    // every computed score counts as changed and gets written (preserving the
+    // original expectations of these tests).
+    getAll: async (...refs) => refs.map(() => ({ exists: false })),
     batch: () => ({
       set: (ref, data) => { writes.push({ path: ref._path, data }); },
       commit: async () => {},
@@ -126,7 +130,7 @@ describe('recomputeSimpleScores (R2)', () => {
     const actuals = buildSimpleActuals({});
     const db = makeFakeDb([]);
     const res = await recomputeSimpleScores(db, actuals);
-    expect(res).toEqual({ scored: 0, written: 0, errors: 0 });
+    expect(res).toEqual({ scored: 0, written: 0, skipped: 0, errors: 0 });
     expect(db.writes).toEqual([]);
   });
 });
