@@ -501,6 +501,7 @@ export async function buildProfilesData(db) {
       name: l.name || d.id,
       memberCount: l.memberCount || (Array.isArray(l.members) ? l.members.length : 0),
       predictionMode: l.predictionMode || 'simple',
+      isPrivate: l.visibility === 'private',
     };
   });
 
@@ -547,7 +548,19 @@ export async function buildProfilesData(db) {
       const entry = r.byUser[d.id];
       if (!entry) continue;
       if (entry.rank === 1) leagueWins += 1;
-      leagues.push({ name: leagueMeta[leagueId]?.name || leagueId, rank: entry.rank, total: r.total });
+      // Private league names must not leak through the PUBLIC profile doc.
+      // We store the league id (an opaque doc id) with name:null; the
+      // client resolves the real name locally only for viewers who are
+      // themselves members of that league.
+      const meta = leagueMeta[leagueId];
+      const isPrivate = meta?.isPrivate === true;
+      leagues.push({
+        id: leagueId,
+        name: isPrivate ? null : (meta?.name || leagueId),
+        private: isPrivate,
+        rank: entry.rank,
+        total: r.total,
+      });
     }
     leagues.sort((a, b) => b.total - a.total);
 

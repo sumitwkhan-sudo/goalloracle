@@ -68,8 +68,15 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Profile not found' });
       }
       const { userId: pUid, displayName, country, wc2026 } = snap.data();
+      // Defense-in-depth: never let a private league's name out through this
+      // public, edge-cached endpoint even if a build step stored one. The
+      // client shows the real name only to viewers who are members (they
+      // resolve it locally from their own league list via the id).
+      const safe = wc2026 && Array.isArray(wc2026.leagues)
+        ? { ...wc2026, leagues: wc2026.leagues.map((l) => (l && l.private ? { ...l, name: null } : l)) }
+        : wc2026;
       res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
-      return res.status(200).json({ userId: pUid, displayName, country, wc2026 });
+      return res.status(200).json({ userId: pUid, displayName, country, wc2026: safe });
 
     } else if (type === 'league') {
       // Minimal public league meta for crawler-side OG/meta injection.

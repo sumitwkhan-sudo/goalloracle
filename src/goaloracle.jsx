@@ -5712,6 +5712,7 @@ const GoalOracle = () => {
       {view === 'playerProfile' && (
         <PlayerProfile
           userId={publicBracketUserId}
+          viewerLeagues={leagues}
           onViewBracket={(uid) => {
             setView('publicBracket');
             try { window.history.pushState({ view: 'publicBracket' }, '', `/u/${encodeURIComponent(uid)}/bracket`); } catch { /* no-op */ }

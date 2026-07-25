@@ -11,7 +11,7 @@ import { fetchPlayerProfile } from '../utils/db';
 import { badgeDef } from '../config/badges';
 import { countryFlag } from '../utils/flags';
 
-export default function PlayerProfile({ userId, onViewBracket, onGoHome }) {
+export default function PlayerProfile({ userId, onViewBracket, onGoHome, viewerLeagues = [] }) {
   const [state, setState] = useState({ loading: true, profile: null, notFound: false });
 
   useEffect(() => {
@@ -78,12 +78,20 @@ export default function PlayerProfile({ userId, onViewBracket, onGoHome }) {
             {Array.isArray(s.leagues) && s.leagues.length > 0 && (
               <div className="profile-leagues">
                 <h2>Leagues &amp; pools ({s.leagues.length})</h2>
-                {s.leagues.map((l, i) => (
-                  <div key={i} className="profile-league-row">
-                    <span className="profile-league-name">{l.rank === 1 ? '👑 ' : ''}{l.name}</span>
-                    <span className="profile-league-rank">#{l.rank} of {l.total}</span>
-                  </div>
-                ))}
+                {s.leagues.map((l, i) => {
+                  // Private league names never come through the public
+                  // profile API (name is null). Resolve them locally, but
+                  // ONLY when the viewer is a member of that league — for
+                  // everyone else the row stays a generic "Private league".
+                  const mine = l.private ? viewerLeagues.find((v) => v?.id === l.id) : null;
+                  const name = l.name || mine?.name || '🔒 Private league';
+                  return (
+                    <div key={i} className="profile-league-row">
+                      <span className="profile-league-name">{l.rank === 1 ? '👑 ' : ''}{name}</span>
+                      <span className="profile-league-rank">#{l.rank} of {l.total}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
