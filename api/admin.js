@@ -3031,6 +3031,12 @@ export default async function handler(req, res) {
       const userSnaps = top3.length ? await db.getAll(...top3.map((w) => db.collection('users').doc(w.userId))) : [];
       const countries = {};
       userSnaps.forEach((s) => { if (s.exists) countries[s.id] = s.data().country || s.data().geoCountry || null; });
+      // "N players" on /winners should match the Global League's member
+      // count (what users see on the league page), not just the subset who
+      // submitted picks — the mismatch reads as a bug to visitors.
+      const globalLeagueSnap = await db.collection('leagues').doc('global-simple').get();
+      const globalMembers = globalLeagueSnap.exists ? (globalLeagueSnap.data().memberCount || 0) : 0;
+      const totalPlayers = Math.max(globalMembers, data.total);
       const winners = top3
         .filter((w) => !excludePlaces.includes(w.place))
         .map((w) => ({
@@ -3045,7 +3051,7 @@ export default async function handler(req, res) {
         }));
       await db.collection('siteContent').doc('winners').set({
         winners,
-        totalPlayers: data.total,
+        totalPlayers,
         publishedAt: FieldValue.serverTimestamp(),
         publishedBy: userId,
       });

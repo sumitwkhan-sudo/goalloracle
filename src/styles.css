@@ -9184,6 +9184,31 @@ body.light .lsd-head,
   text-transform: uppercase; letter-spacing: 0.04em;
   flex-shrink: 0;
 }
+/* Per-row profile shortcut (post-tournament) — quiet ghost chip next to
+   the name; row click still opens the picks viewer. */
+.ll-id-profile {
+  display: inline-flex; align-items: center; gap: 3px;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+  letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.ll-id-profile:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+@media (max-width: 720px) {
+  /* Icon-only on phones — the label would eat username space. */
+  .ll-id-profile { padding: 4px; border-radius: 50%; }
+  .ll-id-profile-label { display: none; }
+}
 
 /* Status — single icon, no pill */
 .ll-cell-status { justify-content: center; }

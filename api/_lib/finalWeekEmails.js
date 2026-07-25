@@ -134,6 +134,33 @@ function rankLeague(docs, actuals) {
   return { byUser, total: scored.length, ordered: scored };
 }
 
+
+// Group prediction docs per league with per-user DEDUP: a user can have both
+// the composite `${uid}__${leagueId}` doc AND a legacy `${uid}` doc carrying
+// the same userId+leagueId fields. Counting both double-ranks the user and
+// inflates totals (the "#13 of 8,388" bug when only ~5.5k accounts exist).
+// The composite doc wins; legacy fills in only when no composite exists.
+function groupDocsByLeagueDeduped(predsSnap, leagueMeta) {
+  const byKey = new Map(); // `${leagueId}|${userId}` -> { data, composite }
+  predsSnap.forEach((d) => {
+    const data = d.data();
+    if (!data?.userId || !data?.leagueId) return;
+    if (!hasAnyPicks(data)) return;
+    if (leagueMeta[data.leagueId]?.predictionMode === 'classic') return;
+    const key = `${data.leagueId}|${data.userId}`;
+    const isComposite = d.id.includes('__');
+    const prev = byKey.get(key);
+    if (!prev || (isComposite && !prev.composite)) {
+      byKey.set(key, { data, composite: isComposite });
+    }
+  });
+  const docsByLeague = {};
+  for (const { data } of byKey.values()) {
+    (docsByLeague[data.leagueId] = docsByLeague[data.leagueId] || []).push(data);
+  }
+  return docsByLeague;
+}
+
 export async function buildWrappedData(db) {
   const [usersSnap, predsSnap, leaguesSnap, resultsSnap] = await Promise.all([
     db.collection('users').get(),
@@ -165,14 +192,7 @@ export async function buildWrappedData(db) {
     };
   });
 
-  const docsByLeague = {};
-  predsSnap.forEach((d) => {
-    const data = d.data();
-    if (!data?.userId || !data?.leagueId) return;
-    if (!hasAnyPicks(data)) return;
-    if (leagueMeta[data.leagueId]?.predictionMode === 'classic') return;
-    (docsByLeague[data.leagueId] = docsByLeague[data.leagueId] || []).push(data);
-  });
+  const docsByLeague = groupDocsByLeagueDeduped(predsSnap, leagueMeta);
 
   const ranks = {};
   for (const [leagueId, docs] of Object.entries(docsByLeague)) {
@@ -342,14 +362,7 @@ export async function buildFinalHypeData(db) {
     };
   });
 
-  const docsByLeague = {};
-  predsSnap.forEach((d) => {
-    const data = d.data();
-    if (!data?.userId || !data?.leagueId) return;
-    if (!hasAnyPicks(data)) return;
-    if (leagueMeta[data.leagueId]?.predictionMode === 'classic') return;
-    (docsByLeague[data.leagueId] = docsByLeague[data.leagueId] || []).push(data);
-  });
+  const docsByLeague = groupDocsByLeagueDeduped(predsSnap, leagueMeta);
 
   const ranks = {};
   for (const [leagueId, docs] of Object.entries(docsByLeague)) {
@@ -491,14 +504,7 @@ export async function buildProfilesData(db) {
     };
   });
 
-  const docsByLeague = {};
-  predsSnap.forEach((d) => {
-    const data = d.data();
-    if (!data?.userId || !data?.leagueId) return;
-    if (!hasAnyPicks(data)) return;
-    if (leagueMeta[data.leagueId]?.predictionMode === 'classic') return;
-    (docsByLeague[data.leagueId] = docsByLeague[data.leagueId] || []).push(data);
-  });
+  const docsByLeague = groupDocsByLeagueDeduped(predsSnap, leagueMeta);
 
   const ranks = {};
   for (const [leagueId, docs] of Object.entries(docsByLeague)) {

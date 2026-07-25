@@ -20,7 +20,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getLeaguePasscode } from '../utils/db';
 import {
   Trophy, ArrowUp, ArrowDown, ArrowRight, Lock as LockIcon, UserPlus, LogOut,
-  Award,
+  Award, User,
   CheckCircle, RefreshCw, Clock, Globe, MapPin, Users, Target, Share2,
   ChevronRight, Copy, Check, MessageSquare,
 } from 'lucide-react';
@@ -174,7 +174,7 @@ function PredictionCell({ winner, runnerUp, uniqueness, upsetCount = 0, status }
 }
 
 // ── single row — used for both standard and you-row ─────────────────────
-function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onShareBracket, showLiveScore = false }) {
+function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onShareBracket, onViewProfile, showLiveScore = false }) {
   const handleKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick?.(row); } };
   return (
     <div
@@ -196,6 +196,18 @@ function LeaderboardRow({ row, rank, isYou, isCreator, onRowClick, onEdit, onSha
           {isYou && <span className="ll-id-you">You</span>}
           {isCreator && <span className="ll-id-creator" title="League creator">Creator</span>}
         </span>
+        {onViewProfile && (
+          <button
+            type="button"
+            className="ll-id-profile"
+            title="View profile & badges"
+            aria-label={`View ${row.displayName}'s profile and badges`}
+            onClick={(e) => { e.stopPropagation(); onViewProfile(row.userId); }}
+          >
+            <User size={12} aria-hidden="true" />
+            <span className="ll-id-profile-label">Profile</span>
+          </button>
+        )}
       </div>
       <div className="ll-cell ll-cell-status">
         <StatusIcon row={row} />
@@ -420,6 +432,7 @@ export default function LeagueLeaderboardLayout({
   onShareBracket,
   onLeave,
   onJoin,
+  onViewProfile,
   loading = false,
   onBack,
   showLiveScore = false,
@@ -428,6 +441,9 @@ export default function LeagueLeaderboardLayout({
   const isPrivate = league?.visibility === 'private';
   const memberCount = league?.memberCount || league?.members?.length || rows.length;
   const creatorId = league?.createdBy || null;
+  // Frozen /profiles docs only exist after tournament finalization, so the
+  // per-row Profile shortcut would 404 before then — gate it on ended state.
+  const viewProfile = isTournamentOver() ? onViewProfile : null;
   // Reveal the passcode only when the viewer is a member of the league —
   // for public leaderboards or anonymous viewers we keep it hidden.
   const isMember = !!currentUserId && (Array.isArray(league?.members) ? league.members.includes(currentUserId) : false);
@@ -549,6 +565,7 @@ export default function LeagueLeaderboardLayout({
                   onRowClick={onRowClick}
                   onEdit={onEdit}
                   onShareBracket={isYou ? onShareBracket : null}
+                  onViewProfile={viewProfile}
                 />
               );
             })}
@@ -593,6 +610,7 @@ export default function LeagueLeaderboardLayout({
             onRowClick={onRowClick}
             onEdit={onEdit}
             onShareBracket={onShareBracket}
+            onViewProfile={viewProfile}
           />
         </div>
       )}

@@ -933,7 +933,7 @@ const RankDelta = ({ delta }) => {
   return <span className="rank-delta rank-delta-flat" title="No change">&mdash;</span>;
 };
 
-const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, isAnonymous = false, onRequireSignup = () => {}, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], results = {}, lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate }) {
+const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack, onSetUsername, authenticated = true, isAnonymous = false, onRequireSignup = () => {}, onSignIn, onOpenClassic, initialTab = 'leaderboard', notify, myLeagues = [], results = {}, lbScope = 'all', lbScopeCountry = '', setLbScope = () => {}, setLbScopeCountry = () => {}, onBrowseLeagues, onCreateLeague, onLeaveLeague, onCelebrate, onViewProfile }) {
   const [sTab, setSTab] = useState(initialTab);
   // No-login funnel 'save' prompt: when an anonymous visitor leaves the
   // predictions flow, surface the "keep your picks across devices" sign-up
@@ -1391,6 +1391,7 @@ const SimpleDetail = React.memo(function SimpleDetail({ league, userData, onBack
             onNudge={isPrivate && isLeagueCreator ? () => setShowNudge(true) : undefined}
             onShareBracket={openShareBracket}
             onJoin={!authenticated ? onSignIn : undefined}
+            onViewProfile={onViewProfile}
             loading={simLbl}
           />
         );
@@ -5842,6 +5843,7 @@ const GoalOracle = () => {
           setLbScope={setLbScope}
           setLbScopeCountry={setLbScopeCountry}
           onCelebrate={celebrate}
+          onViewProfile={openPlayerProfile}
         />
       )}
       {view === 'detail' && selLeague?.predictionMode !== 'simple' && featureFlags.classicEnabled !== false && <Detail key={selLeague?.id || 'detail'} />}
