@@ -58,6 +58,7 @@ import HomeHeroCard from './components/HomeHeroCard';
 import QuickActionsTiles from './components/QuickActionsTiles';
 import FontPreview from './pages/FontPreview';
 import FirstPickPreview from './pages/FirstPickPreview';
+import HomeEndedPreview from './pages/HomeEndedPreview';
 import SurveyThanks from './pages/SurveyThanks';
 import TipJar from './components/TipJar';
 import WinnersPage from './pages/WinnersPage';
@@ -117,6 +118,7 @@ const VIEW_META = {
   fontPreview: { title: 'GoalOracle', path: '/__typography-preview-xk29r', index: false },
   firstPickPreview: { title: 'GoalOracle', path: '/__first-pick-preview-q7m2x', index: false },
   groupRedesignPreview: { title: 'GoalOracle', path: '/__group-redesign-preview-v3k9q', index: false },
+  homeEndedPreview: { title: 'GoalOracle', path: '/__home-ended-preview-t8w4z', index: false },
 };
 
 function ViewMeta({ view }) {
@@ -166,6 +168,7 @@ const PATH_TO_VIEW = {
   '/__typography-preview-xk29r': 'fontPreview',
   '/__first-pick-preview-q7m2x': 'firstPickPreview',
   '/__group-redesign-preview-v3k9q': 'groupRedesignPreview',
+  '/__home-ended-preview-t8w4z': 'homeEndedPreview',
 };
 const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
 
@@ -5699,6 +5702,7 @@ const GoalOracle = () => {
 
       {view === 'fontPreview' && <FontPreview />}
       {view === 'firstPickPreview' && <FirstPickPreview />}
+      {view === 'homeEndedPreview' && <HomeEndedPreview />}
       {view === 'surveyThanks' && <SurveyThanks onGoHome={() => nav('landing')} />}
       {view === 'winners' && (
         <WinnersPage
