@@ -6,6 +6,9 @@
  *   'footer'  — slim text link for footer strips ("💛 Tip the builder")
  *   'menu'    — account-dropdown-style row
  *   'inline'  — soft card for high-goodwill pages (survey thank-you)
+ *   'band'    — prominent home-page band; NO modal — the primary button goes
+ *               straight to the Stripe payment link, crypto is an inline
+ *               copy-address affordance. Pass `source` for analytics.
  *
  * Renders nothing until src/config/tips.js is configured (safe to ship).
  * Payment rails: Stripe Payment Link (card/Apple Pay/Google Pay — hosted by
@@ -18,22 +21,23 @@ import { Heart, Copy, CheckCircle, ExternalLink, X } from 'lucide-react';
 import { TIP_STRIPE_URL, TIP_WALLET_ADDRESS, TIP_WALLET_NETWORK, tipsConfigured } from '../config/tips';
 import { track } from '../utils/track';
 
-export default function TipJar({ variant = 'footer' }) {
+export default function TipJar({ variant = 'footer', source }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   if (!tipsConfigured()) return null;
+  const trackSource = source || variant;
 
   const openModal = () => {
     setOpen(true);
     setCopied(false);
-    try { track('tip_modal_opened', { source: variant }); } catch { /* analytics only */ }
+    try { track('tip_modal_opened', { source: trackSource }); } catch { /* analytics only */ }
   };
 
   const copyAddress = async () => {
     try {
       await navigator.clipboard.writeText(TIP_WALLET_ADDRESS);
       setCopied(true);
-      try { track('tip_address_copied', { source: variant }); } catch { /* analytics only */ }
+      try { track('tip_address_copied', { source: trackSource }); } catch { /* analytics only */ }
       setTimeout(() => setCopied(false), 2500);
     } catch {
       window.prompt('Wallet address (copy this):', TIP_WALLET_ADDRESS);
@@ -41,9 +45,40 @@ export default function TipJar({ variant = 'footer' }) {
   };
 
   const cardClick = () => {
-    try { track('tip_card_clicked', { source: variant }); } catch { /* analytics only */ }
+    try { track('tip_card_clicked', { source: trackSource }); } catch { /* analytics only */ }
     window.open(TIP_STRIPE_URL, '_blank', 'noopener,noreferrer');
   };
+
+  // 'band' is modal-free by design: one tap → Stripe's hosted payment page.
+  if (variant === 'band') {
+    return (
+      <section className="tipband" aria-label="Support GoalOracle">
+        <div className="tipband-text">
+          <span className="tipband-eyebrow">From the founder</span>
+          <p className="tipband-msg">
+            <strong>Enjoyed the World Cup?</strong> GoalOracle is built and run by one
+            person — free to play, no ads. If it made your summer better, a
+            coffee-sized tip keeps it alive for the next season.
+          </p>
+          <span className="tipband-fineprint">Optional, and never affects gameplay or prizes. Thank you. — Sumit</span>
+        </div>
+        <div className="tipband-actions">
+          {TIP_STRIPE_URL && (
+            <button type="button" className="tipband-btn" onClick={cardClick}>
+              ☕ Leave a tip <ExternalLink size={13} aria-hidden="true" />
+            </button>
+          )}
+          {TIP_WALLET_ADDRESS && (
+            <button type="button" className="tipband-crypto" onClick={copyAddress} title={TIP_WALLET_ADDRESS}>
+              {copied
+                ? <><CheckCircle size={12} aria-hidden="true" /> Address copied</>
+                : <><Copy size={12} aria-hidden="true" /> USDC on {TIP_WALLET_NETWORK} · {TIP_WALLET_ADDRESS.slice(0, 6)}…{TIP_WALLET_ADDRESS.slice(-4)}</>}
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   const trigger = variant === 'menu' ? (
     <button type="button" className="dropdown-item" onClick={(e) => { e.stopPropagation(); openModal(); }}>

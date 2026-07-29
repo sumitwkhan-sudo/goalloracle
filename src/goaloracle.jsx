@@ -2867,6 +2867,7 @@ const GoalOracle = () => {
                 onCreate={() => nav('create')}
                 onInvite={() => setInviteOpen(true)}
               />
+              <TipJar variant="band" source="home_authed" />
             </div>
           </section>
           <div className="home-footer-strip">
@@ -2953,6 +2954,12 @@ const GoalOracle = () => {
             </div>
           </div>
         </section>
+
+        {/* ─── 1.2 TIP BAND — post-tournament goodwill ask, straight to
+                Stripe's hosted payment page (no modal). ─── */}
+        <div className="container">
+          <TipJar variant="band" source="home_anon" />
+        </div>
 
         {/* ─── 1.5 PRIZE STRUCTURE ─── */}
         <PrizeStructureCard source="homepage" onSeeRules={() => nav('officialRules')} />
